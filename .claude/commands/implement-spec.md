@@ -1,0 +1,1 @@
+Read `AGENTS.md`, `docs/ai/workflow.md`, `docs/ai/rules.md`, and the relevant `specs/` file. Implement the requested change with minimal scope, update specs when behavior changes, and run the validation commands for touched subsystems.

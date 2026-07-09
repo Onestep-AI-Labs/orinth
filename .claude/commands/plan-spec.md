@@ -1,0 +1,1 @@
+Read `AGENTS.md`, `docs/ai/workflow.md`, `docs/ai/rules.md`, and the relevant `specs/` file. Produce or update a decision-complete spec before implementation. Do not edit app source unless the user explicitly asks to implement.
