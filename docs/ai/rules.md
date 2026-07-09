@@ -1,0 +1,38 @@
+# AI Rules
+
+## Source Control
+
+- Track app source, docs, specs, and lockfiles.
+- Ignore large or generated assets through `.gitignore`.
+- Do not remove user data or generated research assets unless explicitly asked.
+
+## Backend
+
+- Use `uv` and Python 3.11.
+- Keep API schemas in `backend/app/schemas.py`.
+- Keep DB models in `backend/app/db/models.py`.
+- Keep settings path-safe and relative to the workspace root.
+- Keep predictors behind `backend/app/ml/predictors`.
+- Avoid importing TensorFlow, Ultralytics, OpenCV, or PyTorch at module import unless unavoidable.
+
+## Frontend
+
+- Use pnpm.
+- Keep the first screen as the working app, not a landing page.
+- Prefer dense, operational UI over marketing-style presentation.
+- Use existing colors: ink, line, teal, coral, and neutral surfaces.
+- Avoid hiding errors. Surface backend failures in the relevant panel.
+
+## ML and Data
+
+- Class labels are `granuloma`, `kista`, and image-level `Normal` when no lesion is predicted.
+- YOLO default confidence is `0.65`; inference IoU default is `0.7`.
+- Object-level testing IoU threshold is `0.2`, following notebook references.
+- U-Net input is `256x256`; Inception classifier input is `299x299`.
+
+## Security and Privacy
+
+- Never commit secrets.
+- Never commit PHI or patient-identifying data.
+- Keep uploads and predictions in ignored local storage.
+- Add auth before multi-user or network-exposed deployment.

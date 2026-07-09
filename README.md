@@ -42,3 +42,13 @@ Phase 1 includes inference for both available local model families:
 Phase 2 adds dataset testing jobs and metrics dashboards.
 
 Phase 3 adds subprocess-based training jobs and model promotion.
+
+## AI Workflow
+
+Project AI guidance is shared across Codex and Claude Code:
+
+- Codex entrypoint: `AGENTS.md`
+- Claude Code entrypoint: `CLAUDE.md`
+- Local skill: `.agents/skills/dental-platform`
+- Workflow and rules: `docs/ai/`
+- Planning and execution references: `specs/`
