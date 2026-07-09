@@ -1,0 +1,45 @@
+# Existing local research assets
+/datasets/
+/models/
+/notebooks/
+/dental_segmentation/
+.DS_Store
+
+# Runtime storage and generated artifacts
+/storage/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.tmp
+*.pt
+*.pth
+*.onnx
+*.keras
+*.h5
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+backend/.venv/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+coverage/
+frontend/.env*.local
+
+# Local environment files
+.env
+.env.local
+backend/.env
+frontend/.env

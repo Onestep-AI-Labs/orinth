@@ -1,0 +1,43 @@
+[project]
+name = "dental-segmentation-backend"
+version = "0.1.0"
+description = "FastAPI backend for dental segmentation inference, testing, and training jobs."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+    "sqlalchemy>=2.0.32",
+    "alembic>=1.13.2",
+    "pillow>=10.4.0",
+    "numpy>=1.26.4",
+    "opencv-python>=4.10.0.84",
+    "scikit-learn>=1.5.1",
+    "pycocotools>=2.0.8",
+    "ultralytics>=8.3.0",
+    "tensorflow>=2.16.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.27.0",
+    "pytest>=8.3.0",
+    "ruff>=0.5.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
