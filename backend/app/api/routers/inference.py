@@ -1,0 +1,87 @@
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
+from sqlalchemy.orm import Session
+
+from app.container import inference_service
+from app.core.database import get_db
+from app.core.defaults import DEFAULT_PROJECT_ID
+from app.schemas import DeleteRequest, DeleteResponse, InferenceJobRead, InferenceParameters, InferenceResult
+
+router = APIRouter(prefix="/inference")
+
+
+@router.post("", response_model=InferenceResult)
+async def create_inference(
+    model_id: str = Form(...),
+    project_id: str = Form(DEFAULT_PROJECT_ID),
+    confidence_threshold: float = Form(0.65),
+    iou_threshold: float = Form(0.7),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> InferenceResult:
+    parameters = InferenceParameters(
+        confidence_threshold=confidence_threshold,
+        iou_threshold=iou_threshold,
+    )
+    return await inference_service.run(db, file, model_id, parameters, project_id)
+
+
+@router.post("/jobs", response_model=InferenceJobRead)
+async def create_inference_job(
+    background_tasks: BackgroundTasks,
+    model_id: str = Form(...),
+    project_id: str = Form(DEFAULT_PROJECT_ID),
+    confidence_threshold: float = Form(0.65),
+    iou_threshold: float = Form(0.7),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> InferenceJobRead:
+    parameters = InferenceParameters(
+        confidence_threshold=confidence_threshold,
+        iou_threshold=iou_threshold,
+    )
+    job = await inference_service.create_job(db, file, model_id, parameters, project_id)
+    background_tasks.add_task(inference_service.run_job, job.id)
+    return inference_service.get_job(db, job.id)
+
+
+@router.get("", response_model=list[InferenceResult])
+def list_inference(
+    limit: int = 25,
+    project_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[InferenceResult]:
+    return inference_service.list(db, limit=limit, project_id=project_id)
+
+
+@router.delete("", response_model=DeleteResponse)
+def clear_inference(
+    project_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> DeleteResponse:
+    return DeleteResponse.model_validate(inference_service.delete_runs(db, project_id=project_id))
+
+
+@router.post("/delete", response_model=DeleteResponse)
+def delete_inference_many(payload: DeleteRequest, db: Session = Depends(get_db)) -> DeleteResponse:
+    return DeleteResponse.model_validate(
+        inference_service.delete_runs(
+            db,
+            ids=None if payload.clear_all else payload.ids,
+            project_id=payload.project_id,
+        )
+    )
+
+
+@router.get("/{inference_id}", response_model=InferenceResult)
+def get_inference(inference_id: str, db: Session = Depends(get_db)) -> InferenceResult:
+    return inference_service.get(db, inference_id)
+
+
+@router.delete("/{inference_id}", response_model=DeleteResponse)
+def delete_inference(inference_id: str, db: Session = Depends(get_db)) -> DeleteResponse:
+    return DeleteResponse.model_validate(inference_service.delete_runs(db, ids=[inference_id]))
+
+
+@router.get("/jobs/{job_id}", response_model=InferenceJobRead)
+def get_inference_job(job_id: str, db: Session = Depends(get_db)) -> InferenceJobRead:
+    return inference_service.get_job(db, job_id)

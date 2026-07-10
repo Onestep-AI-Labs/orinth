@@ -1,7 +1,5 @@
-import csv
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -22,9 +20,16 @@ from app.ml.model_registry import ModelRegistry
 from app.schemas import ModelAssetPrepareRequest, ModelAssetStatus, TrainingJobCreate, TrainingModelOption
 from app.services.datasets import DatasetService
 from app.services.job_progress import append_log, make_progress
+from app.services.training.artifacts import (
+    clean_log_line,
+    collect_training_curves,
+    collect_training_metrics,
+    find_best_model,
+    parse_training_history,
+    parse_yolo_results,
+)
 
 ACTIVE_TRAINING_PROCESSES: dict[str, subprocess.Popen] = {}
-ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 KERAS_APPLICATION_OPTIONS = [
     {
@@ -963,110 +968,6 @@ class TrainingService:
             except ValueError:
                 continue
         return urls
-
-
-def find_best_model(run_dir: Path) -> Path | None:
-    candidates = [
-        run_dir / "weights" / "best.pt",
-        run_dir / "best.pt",
-        run_dir / "best_model.keras",
-        run_dir / "best_unet_model.keras",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    for candidate in run_dir.rglob("best.pt"):
-        return candidate
-    for candidate in run_dir.rglob("best_model.keras"):
-        return candidate
-    for candidate in run_dir.rglob("best_unet_model.keras"):
-        return candidate
-    return None
-
-
-def parse_yolo_results(path: Path) -> dict:
-    history = parse_training_history(path)
-    if not history:
-        return {}
-    return history[-1]
-
-
-def parse_training_history(path: Path) -> list[dict[str, float | int]]:
-    if not path.exists():
-        return []
-    with path.open("r", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-    if not rows:
-        return []
-    history = []
-    for row in rows:
-        metrics: dict[str, float | int] = {}
-        for key, value in row.items():
-            normalized = key.strip()
-            if value is None or value == "":
-                continue
-            try:
-                parsed = float(value)
-            except ValueError:
-                continue
-            metrics[normalized] = round(parsed, 6)
-        epoch_value = metrics.get("epoch")
-        if isinstance(epoch_value, float):
-            metrics["epoch"] = int(epoch_value)
-        if metrics:
-            history.append(metrics)
-    return history
-
-
-def collect_training_metrics(run_dir: Path) -> dict:
-    metrics = parse_yolo_results(run_dir / "results.csv")
-    metrics_path = run_dir / "metrics.json"
-    if metrics_path.exists():
-        try:
-            payload = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            payload = {}
-        if isinstance(payload, dict):
-            metrics.update(payload)
-    return metrics
-
-
-def collect_training_curves(run_dir: Path) -> dict:
-    curves = {}
-    metrics_path = run_dir / "metrics.json"
-    if metrics_path.exists():
-        try:
-            payload = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            payload = {}
-        if isinstance(payload, dict):
-            if payload.get("roc_curves"):
-                curves["roc"] = payload["roc_curves"]
-            if "macro_auc" in payload:
-                curves["macro_auc"] = payload.get("macro_auc")
-            if "micro_auc" in payload:
-                curves["micro_auc"] = payload.get("micro_auc")
-    image_artifacts = {}
-    for name in [
-        "results",
-        "confusion_matrix",
-        "confusion_matrix_normalized",
-        "F1_curve",
-        "P_curve",
-        "R_curve",
-        "PR_curve",
-    ]:
-        path = run_dir / f"{name}.png"
-        if path.exists():
-            image_artifacts[name] = str(path)
-    if image_artifacts:
-        curves["images"] = image_artifacts
-    return curves
-
-
-def clean_log_line(line: str) -> str:
-    clean = ANSI_RE.sub("", line.replace("\r", "\n")).strip()
-    return " ".join(clean.split())
 
 
 def ultralytics_initial_weights(option_id: str, settings: Settings) -> str:

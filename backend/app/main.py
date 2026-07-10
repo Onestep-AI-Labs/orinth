@@ -5,7 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import router, storage, training_service
+from app.api.routes import router
+from app.container import storage, training_service
 from app.core.config import get_settings
 from app.core.database import init_db
 
