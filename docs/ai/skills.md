@@ -20,7 +20,7 @@ Use when starting any task.
 
 Use when changing FastAPI routes, schemas, DB models, or services.
 
-- Read `backend/app/api/routes.py`, `backend/app/schemas.py`, and relevant service modules.
+- Read `backend/app/api/routes.py`, the relevant domain router under `backend/app/api/routers/`, `backend/app/schemas.py`, and relevant service packages.
 - Preserve response compatibility unless the spec says otherwise.
 - Validate with `cd backend && uv run pytest`.
 
@@ -37,7 +37,7 @@ Use when changing YOLO or U-Net + Inception behavior.
 
 Use when changing phase 2 testing.
 
-- Read `backend/app/services/evaluation.py`.
+- Read `backend/app/services/evaluation/`.
 - Read `backend/app/services/metrics.py`.
 - Keep notebook-derived metric semantics unless a spec changes them.
 
@@ -45,7 +45,7 @@ Use when changing phase 2 testing.
 
 Use when changing dataset browsing, imports, uploads, or annotations.
 
-- Read `backend/app/services/datasets.py`.
+- Read `backend/app/services/datasets/`.
 - Keep reference datasets under `datasets/` read-only.
 - Store editable datasets and uploaded images under ignored `storage/datasets`.
 - Update `specs/phase-4-dataset-studio.md` when dataset APIs or annotation behavior change.
@@ -54,7 +54,7 @@ Use when changing dataset browsing, imports, uploads, or annotations.
 
 Use when changing phase 3 training.
 
-- Read `backend/app/services/training.py`.
+- Read `backend/app/services/training/`.
 - Read runners under `backend/app/training/runners`.
 - Keep long training in subprocesses.
 - Store artifacts under ignored `storage/training_runs`.
@@ -64,7 +64,7 @@ Use when changing phase 3 training.
 Use when changing app screens or controls.
 
 - Read `frontend/app/page.tsx`.
-- Read `frontend/lib/api.ts` and `frontend/types/api.ts`.
+- Read `frontend/components/platform-pages.tsx`, relevant files under `frontend/features/`, `frontend/lib/api/`, and `frontend/types/api.ts`.
 - Validate with `pnpm typecheck`, `pnpm lint`, and `pnpm build`.
 
 ## Documentation and Specs
