@@ -5,14 +5,13 @@ from app.schemas import Box, Detection, InferenceParameters
 
 
 class YoloPredictor(Predictor):
-    class_names = {0: "granuloma", 1: "kista"}
-
-    def __init__(self, weights_path: Path) -> None:
+    def __init__(self, weights_path: Path, labels: list[str]) -> None:
         if not weights_path.exists():
             raise FileNotFoundError(f"YOLO weights not found: {weights_path}")
         from ultralytics import YOLO
 
         self.model = YOLO(str(weights_path))
+        self.class_names = {index: label for index, label in enumerate(labels)}
 
     def predict(self, image_path: Path, parameters: InferenceParameters) -> list[Detection]:
         import cv2

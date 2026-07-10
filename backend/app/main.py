@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import router, storage
+from app.api.routes import router, storage, training_service
 from app.core.config import get_settings
 from app.core.database import init_db
 
@@ -14,6 +14,7 @@ from app.core.database import init_db
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     storage.ensure()
     init_db()
+    training_service.reconcile_stale_jobs()
     yield
 
 

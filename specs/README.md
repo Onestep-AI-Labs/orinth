@@ -23,4 +23,6 @@ Use a spec when:
 - `phase-1-inference.md`
 - `phase-2-testing.md`
 - `phase-3-training.md`
+- `phase-4-dataset-studio.md`
+- `phase-5-image-platform-mvp.md`
 - `SPEC_TEMPLATE.md`
