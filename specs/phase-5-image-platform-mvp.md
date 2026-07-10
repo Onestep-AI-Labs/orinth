@@ -1,0 +1,97 @@
+# Spec: Phase 5 Image Platform MVP
+
+## Status
+
+Implemented MVP
+
+## Goal
+
+Generalize the local dental segmentation workspace into a project-scoped image data platform for:
+
+- image classification,
+- object detection,
+- segmentation.
+
+Text data is reserved as future metadata only. The platform remains a local research/engineering tool and must not imply autonomous clinical diagnosis.
+
+## Interfaces
+
+- `GET /api/projects`
+- `POST /api/projects`
+- `PATCH /api/projects/{project_id}`
+- `DELETE /api/projects/{project_id}`
+- `GET /api/datasets?project_id=...`
+- `POST /api/datasets`
+- `PATCH /api/datasets/{id}`
+- `DELETE /api/datasets/{id}`
+- `POST /api/datasets/{id}/items/batch`
+- `POST /api/datasets/{id}/items/delete`
+- `PATCH /api/datasets/{id}/items/{split}/labels`
+- `GET /api/datasets/{id}/versions`
+- `POST /api/datasets/{id}/versions`
+- `GET /api/datasets/{id}/eda?split=...`
+- `POST /api/datasets/{id}/process`
+- `POST /api/datasets/{id}/items/move`
+- `POST /api/datasets/{id}/labels`
+- `PATCH /api/datasets/{id}/labels/{index}`
+- `DELETE /api/datasets/{id}/labels/{index}?force=false`
+- `PATCH /api/datasets/{id}/items/{split}/{item_id}/label`
+- `POST /api/datasets/{id}/items/{split}/{item_id}/preprocess-preview`
+- `POST /api/inference/delete`
+- `DELETE /api/inference`
+- `DELETE /api/inference/{id}`
+- `POST /api/testing/jobs/delete`
+- `DELETE /api/testing/jobs`
+- `DELETE /api/testing/jobs/{id}`
+- `POST /api/testing/jobs/batch`
+- `GET /api/testing/jobs/{id}/comparison`
+- `GET /api/training/model-options?task_type=...`
+- `POST /api/training/model-assets/prepare`
+- `POST /api/training/jobs/delete`
+- `DELETE /api/training/jobs`
+- `DELETE /api/training/jobs/{id}`
+
+## Behavior
+
+- A default research image project is created automatically for existing data.
+- User-created projects can be removed when they do not own datasets or history; the default project cannot be deleted.
+- Editable dataset manifests include `project_id`, `task_type`, `format`, and `labels`.
+- Editable dataset manifests can persist allowlisted preprocessing config for training-time prepared copies.
+- Preprocessing config supports random training-time augmentation and materialized generated copies; generated version artifacts live under ignored `storage/dataset_versions`.
+- Editable datasets support classification label-only annotations, detection boxes, and segmentation polygons.
+- Dataset Studio is catalog-first, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, and Config for preprocessing, split, and version artifacts.
+- The root page lists projects outside the project workspace; selecting a project opens the project sidebar at Dataset Studio.
+- Global navigation includes Projects and Settings; project navigation includes Datasets, Models, Inference, Testing, and Training.
+- Sidebar navigation includes an Available Models section inside each project.
+- Dataset Studio uses an unassigned inbox for new uploads, a Config tab for preprocessing/augmentation/split settings, and a 70/20/10 Proceed workflow.
+- Classification datasets support upload-time labels, per-image label edits, and bulk selected-image relabeling.
+- Reference datasets remain read-only and are not deleted or rewritten.
+- Inference, testing, and training lists can be filtered by project.
+- Inference model selection lists only available local/promoted trained models.
+- Completed runnable training jobs are automatically copied into stable trained-model storage and registered for inference/testing.
+- Testing can create comparison runs by selecting multiple available models for the same dataset.
+- Testing comparison runs are grouped by `comparison_id`, and opening any job in the group shows all sibling model results.
+- History deletion hard-deletes DB rows and owned `storage/` artifacts.
+- Active testing/training jobs cannot be deleted until terminal.
+- YOLO training remains runnable with dataset-driven class names.
+- Training selection is task-first; model options are filtered by classification, object detection, or segmentation.
+- The training UI defaults to classification and selects the first runnable classification option when available.
+- Ultralytics YOLO11 and YOLO26 detection/segmentation options are runnable through the YOLO family runner.
+- Ultralytics SAM3, MobileSAM, FastSAM, YOLO-NAS, RT-DETR, and YOLO-World are listed but gated until validated.
+- Keras Applications classification training is runnable through a subprocess runner.
+- Keras Applications model options include official CNN families such as MobileNetV2, EfficientNet B0-B7, EfficientNetV2, ResNet50, Xception, InceptionV3, DenseNet121, and ConvNeXtTiny, with constructor-style defaults based on the Keras Applications API.
+- Hugging Face/transformer models are cataloged but gated until validated.
+- External Keras asset preparation is explicit and stores markers under ignored `storage/model_assets`.
+- Frontend navigation uses a global sidebar outside projects, a separate project sidebar inside selected projects, and separate detail pages for testing/training jobs.
+- Training detail pages show history charts, ROC/AUC for classification where available, and runner curve artifacts.
+- Frontend data-loading pages use shared spinner/loading states for initial fetches and refetches.
+
+## Acceptance Criteria
+
+- Users can create a project, create an image dataset, add labels, upload images, and save task-aware annotations.
+- Users can manage datasets from a catalog-first view, upload multiple images, edit classification labels per image or in bulk, preview preprocessing safely, generate version artifacts, and inspect core EDA.
+- Users can delete editable datasets, selected history rows, and clear terminal history.
+- Users can view testing comparisons and training details on separate pages.
+- Users can choose task-compatible YOLO, Ultralytics YOLO11/YOLO26, or Keras classification training options, while unvalidated transformer/specialist options show as gated.
+- Existing dental reference data remains available under the default project.
+- Backend tests pass and frontend typecheck/lint/build pass.

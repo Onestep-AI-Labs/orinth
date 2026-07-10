@@ -41,6 +41,15 @@ Use when changing phase 2 testing.
 - Read `backend/app/services/metrics.py`.
 - Keep notebook-derived metric semantics unless a spec changes them.
 
+## Dataset Studio
+
+Use when changing dataset browsing, imports, uploads, or annotations.
+
+- Read `backend/app/services/datasets.py`.
+- Keep reference datasets under `datasets/` read-only.
+- Store editable datasets and uploaded images under ignored `storage/datasets`.
+- Update `specs/phase-4-dataset-studio.md` when dataset APIs or annotation behavior change.
+
 ## Training Jobs
 
 Use when changing phase 3 training.

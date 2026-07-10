@@ -3,10 +3,8 @@ from typing import Iterable
 
 import numpy as np
 
+from app.core.defaults import DEFAULT_LABELS, NORMAL_LABEL
 from app.schemas import Detection
-
-
-CLASS_NAMES = {0: "granuloma", 1: "kista", 2: "Normal"}
 
 
 def binary_mask_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
@@ -45,21 +43,25 @@ def bbox_iou(box_a: tuple[float, float, float, float], box_b: tuple[float, float
     return inter / (area_a + area_b - inter + 1e-7)
 
 
-def image_label_from_class_ids(class_ids: Iterable[int]) -> int:
+def image_label_from_class_ids(class_ids: Iterable[int], normal_index: int | None = None) -> int:
     counts = Counter(class_ids)
+    normal = normal_index if normal_index is not None else len(DEFAULT_LABELS)
     if not counts:
-        return 2
+        return normal
     return counts.most_common(1)[0][0]
 
 
-def image_label_from_detections(detections: list[Detection]) -> int:
+def image_label_from_detections(
+    detections: list[Detection], normal_index: int | None = None
+) -> int:
+    normal = normal_index if normal_index is not None else len(DEFAULT_LABELS)
     if not detections:
-        return 2
+        return normal
     largest = max(detections, key=lambda item: item.mask_area)
     return largest.class_id
 
 
-def classification_metrics(y_true: list[int], y_pred: list[int]) -> dict:
+def classification_metrics(y_true: list[int], y_pred: list[int], class_names: list[str] | None = None) -> dict:
     if not y_true:
         return {}
 
@@ -73,8 +75,11 @@ def classification_metrics(y_true: list[int], y_pred: list[int]) -> dict:
         matthews_corrcoef,
     )
 
+    names = class_names or DEFAULT_LABELS
+    label_names = {index: name for index, name in enumerate(names)}
+    label_names[len(names)] = NORMAL_LABEL
     labels = sorted(set(y_true + y_pred))
-    target_names = [CLASS_NAMES.get(label, str(label)) for label in labels]
+    target_names = [label_names.get(label, str(label)) for label in labels]
     cm = confusion_matrix(y_true, y_pred, labels=labels)
     per_class = []
     for idx, label in enumerate(labels):
@@ -89,7 +94,7 @@ def classification_metrics(y_true: list[int], y_pred: list[int]) -> dict:
         per_class.append(
             {
                 "label": label,
-                "class_name": CLASS_NAMES.get(label, str(label)),
+                "class_name": label_names.get(label, str(label)),
                 "sensitivity": round(sensitivity, 6),
                 "specificity": round(specificity, 6),
                 "lr_plus": round(lr_plus, 6),

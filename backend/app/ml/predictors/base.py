@@ -9,6 +9,9 @@ class Predictor(ABC):
     def predict(self, image_path: Path, parameters: InferenceParameters) -> list[Detection]:
         raise NotImplementedError
 
+    def classify(self, image_path: Path, parameters: InferenceParameters) -> dict[str, float] | None:
+        return None
+
 
 def image_level_from_detections(detections: list[Detection]) -> str:
     if not detections:

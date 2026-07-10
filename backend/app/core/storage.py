@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 from uuid import uuid4
 
 from fastapi import UploadFile
@@ -13,6 +14,11 @@ class Storage:
         self.overlays = self.root / "overlays"
         self.evaluations = self.root / "evaluations"
         self.training_runs = self.root / "training_runs"
+        self.trained_models = self.root / "trained_models"
+        self.datasets = self.root / "datasets"
+        self.dataset_versions = self.root / "dataset_versions"
+        self.previews = self.root / "previews"
+        self.model_assets = self.root / "model_assets"
         self.registry_file = self.root / "model_registry.json"
 
     def ensure(self) -> None:
@@ -22,6 +28,11 @@ class Storage:
             self.overlays,
             self.evaluations,
             self.training_runs,
+            self.trained_models,
+            self.datasets,
+            self.dataset_versions,
+            self.previews,
+            self.model_assets,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 
@@ -39,3 +50,23 @@ class Storage:
     def media_url(self, path: Path) -> str:
         relative = path.resolve().relative_to(self.root.resolve())
         return f"/media/{relative.as_posix()}"
+
+    def owned_path(self, path: str | Path | None) -> Path | None:
+        if not path:
+            return None
+        resolved = Path(path).resolve()
+        try:
+            resolved.relative_to(self.root.resolve())
+        except ValueError:
+            return None
+        return resolved
+
+    def delete_owned_path(self, path: str | Path | None) -> bool:
+        owned = self.owned_path(path)
+        if owned is None or not owned.exists():
+            return False
+        if owned.is_dir():
+            shutil.rmtree(owned)
+        else:
+            owned.unlink()
+        return True
