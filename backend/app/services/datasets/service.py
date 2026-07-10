@@ -2,7 +2,6 @@ import ast
 import json
 import random
 import shutil
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
@@ -15,6 +14,15 @@ from PIL import Image
 from app.core.config import Settings
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.storage import Storage
+from app.services.datasets.constants import (
+    ALLOWED_PREPROCESS_TRANSFORMS,
+    IMAGE_SUFFIXES,
+    IMAGE_TASK_TYPES,
+    PREPROCESS_PRESETS,
+    SPLITS,
+    TRAINING_SPLITS,
+)
+from app.services.datasets.types import DatasetLocation
 from app.schemas import (
     Box,
     DatasetAnnotation,
@@ -43,37 +51,6 @@ from app.schemas import (
     DatasetVersionSummary,
     DeleteResponse,
 )
-
-IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-SPLITS = ("unassigned", "train", "valid", "test")
-TRAINING_SPLITS = ("train", "valid", "test")
-IMAGE_TASK_TYPES = {"classification", "object_detection", "segmentation"}
-ALLOWED_PREPROCESS_TRANSFORMS = {
-    "horizontal_flip",
-    "vertical_flip",
-    "brightness_contrast",
-    "gaussian_blur",
-}
-PREPROCESS_PRESETS = {
-    "none": [],
-    "light": ["horizontal_flip", "brightness_contrast"],
-    "inspection": ["brightness_contrast"],
-}
-
-
-@dataclass(frozen=True)
-class DatasetLocation:
-    id: str
-    project_id: str
-    name: str
-    task_type: str
-    format: str
-    source: str
-    root: Path
-    editable: bool
-    labels: list[str]
-    metadata: dict
-
 
 class DatasetService:
     def __init__(self, settings: Settings, storage: Storage) -> None:
