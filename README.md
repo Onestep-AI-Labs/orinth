@@ -10,6 +10,32 @@ The repository keeps existing research assets local-only:
 
 The app source lives in `backend/` and `frontend/`.
 
+## Architecture
+
+The backend is a FastAPI app with domain routers and service packages:
+
+- App entrypoint: `backend/app/main.py`
+- Shared service container: `backend/app/container.py`
+- API router aggregator: `backend/app/api/routes.py`
+- Domain routers: `backend/app/api/routers/`
+- API serializers: `backend/app/api/serializers.py`
+- Schemas: `backend/app/schemas.py`
+- DB models: `backend/app/db/models.py`
+- ML registry and predictors: `backend/app/ml/`
+- Services: `backend/app/services/`
+- Training runners: `backend/app/training/runners/`
+
+The frontend is a Next.js app with route entrypoints, feature modules, and a domain-based API client:
+
+- App routes: `frontend/app/`
+- App shell: `frontend/components/app-shell.tsx`
+- Page export barrel: `frontend/components/platform-pages.tsx`
+- Feature modules: `frontend/features/`
+- API client package: `frontend/lib/api/`
+- API types: `frontend/types/api.ts`
+- Global base styles: `frontend/app/globals.css`
+- Platform styles: `frontend/app/styles/platform.css`
+
 ## Backend
 
 ```bash
@@ -22,6 +48,12 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Backend API docs will be available at `http://localhost:8000/docs`.
 
+Backend validation:
+
+```bash
+cd backend && uv run pytest
+```
+
 ## Frontend
 
 ```bash
@@ -31,6 +63,14 @@ pnpm dev
 ```
 
 Frontend will be available at `http://localhost:3000`.
+
+Frontend validation:
+
+```bash
+cd frontend && pnpm typecheck
+cd frontend && pnpm lint
+cd frontend && pnpm build
+```
 
 ## Phases
 

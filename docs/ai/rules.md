@@ -9,8 +9,11 @@
 ## Backend
 
 - Use `uv` and Python 3.11.
+- Keep `backend/app/api/routes.py` as a small aggregator over domain routers in `backend/app/api/routers/`.
+- Keep shared runtime service instances in `backend/app/container.py`, not in route modules.
 - Keep API schemas in `backend/app/schemas.py`.
 - Keep DB models in `backend/app/db/models.py`.
+- Preserve service package compatibility imports, for example `from app.services.datasets import DatasetService`.
 - Keep settings path-safe and relative to the workspace root.
 - Keep predictors behind `backend/app/ml/predictors`.
 - Avoid importing TensorFlow, Ultralytics, OpenCV, or PyTorch at module import unless unavoidable.
@@ -18,6 +21,10 @@
 ## Frontend
 
 - Use pnpm.
+- Keep route files under `frontend/app` as thin entrypoints.
+- Keep feature implementations under `frontend/features` and shared page exports in `frontend/components/platform-pages.tsx`.
+- Keep API calls in the domain-based `frontend/lib/api/` package and preserve `import { api } from "@/lib/api"`.
+- Keep generated TypeScript build info out of git tracking.
 - Keep the first screen as the working app, not a landing page.
 - Prefer dense, operational UI over marketing-style presentation.
 - Use existing colors: ink, line, teal, coral, and neutral surfaces.

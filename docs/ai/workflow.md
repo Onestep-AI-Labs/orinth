@@ -19,7 +19,13 @@ Use this workflow for Codex, Claude Code, or any future coding agent.
 ## 3. Implement
 
 - Backend changes go under `backend/app`.
+- Route changes go in the matching domain router under `backend/app/api/routers/`; keep `backend/app/api/routes.py` as the router aggregator.
+- Shared backend service singletons live in `backend/app/container.py`.
+- Large domain services may be packages under `backend/app/services/`; preserve compatibility exports from each package `__init__.py`.
 - Frontend changes go under `frontend`.
+- Frontend route entrypoints stay under `frontend/app`; reusable page and workflow code should live under `frontend/features`.
+- Frontend API calls belong in the domain-based `frontend/lib/api/` package while preserving the public `api` export.
+- Keep app-wide base styles in `frontend/app/globals.css` and platform UI selectors in `frontend/app/styles/platform.css`.
 - Generated runtime output goes under `storage`.
 - Use lazy imports for heavy ML libraries.
 - Keep inference responses normalized across YOLO and U-Net + Inception.
