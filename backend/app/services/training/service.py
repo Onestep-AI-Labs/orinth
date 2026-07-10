@@ -26,7 +26,6 @@ from app.services.training.artifacts import (
     collect_training_metrics,
     find_best_model,
     parse_training_history,
-    parse_yolo_results,
 )
 
 ACTIVE_TRAINING_PROCESSES: dict[str, subprocess.Popen] = {}
@@ -880,11 +879,15 @@ class TrainingService:
         if job is None:
             return
         epochs = int(job.parameters.get("epochs", 0))
-        metrics = parse_yolo_results(run_dir / "results.csv")
-        epoch = int(metrics.get("epoch", 0)) if metrics else 0
+        history = parse_training_history(run_dir / "results.csv")
+        metrics = history[-1] if history else {}
+        raw_epoch = int(metrics.get("epoch", 0)) if metrics else 0
+        epoch = max(raw_epoch, len(history))
         step = logs[-1] if logs else "Training running"
         artifacts = dict(job.artifacts or {})
         artifacts["logs"] = logs[-100:]
+        if history:
+            artifacts["history"] = history
         if metrics:
             artifacts["metrics"] = metrics
         artifacts["progress"] = make_progress(

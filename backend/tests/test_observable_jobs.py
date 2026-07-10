@@ -376,6 +376,37 @@ def test_evaluation_comparison_returns_sibling_jobs(tmp_path: Path):
     db.close()
 
 
+def test_evaluation_dataset_discovery_only_lists_editable_test_split(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    storage = Storage(settings)
+    storage.ensure()
+    dataset_service = DatasetService(settings, storage)
+    dataset = dataset_service.create_dataset(
+        DatasetCreate(
+            name="Split Eval",
+            task_type="segmentation",
+            format="yolo",
+            labels=["lesion"],
+        )
+    )
+    for split in ("train", "valid", "test"):
+        image_path = storage.datasets / dataset.id / split / "images" / f"{split}.jpg"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (32, 32), "white").save(image_path)
+
+    service = EvaluationService(
+        settings,
+        storage,
+        ModelRegistry(settings, storage),
+        dataset_service,
+    )
+
+    rows = [row for row in service.list_datasets() if row.key.startswith(f"dataset:{dataset.id}:")]
+
+    assert [row.split for row in rows] == ["test"]
+    assert rows[0].key == f"dataset:{dataset.id}:test"
+
+
 def test_classification_evaluation_uses_predictor_scores(tmp_path: Path):
     class FakeSpec:
         task_type = "classification"
@@ -409,12 +440,12 @@ def test_classification_evaluation_uses_predictor_scores(tmp_path: Path):
         )
     )
     for filename, class_id, class_name in [("ok.jpg", 0, "ok"), ("bad.jpg", 1, "bad")]:
-        image_path = storage.datasets / dataset.id / "train" / "images" / filename
+        image_path = storage.datasets / dataset.id / "test" / "images" / filename
         image_path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (32, 32), "white").save(image_path)
         dataset_service.save_annotations(
             dataset.id,
-            "train",
+            "test",
             filename,
             DatasetAnnotationSave(
                 annotations=[
@@ -434,7 +465,7 @@ def test_classification_evaluation_uses_predictor_scores(tmp_path: Path):
     service = EvaluationService(settings, storage, FakeRegistry(), dataset_service)
     job = service.create_job(
         db,
-        EvaluationJobCreate(model_id="fake_classifier", dataset_key=f"dataset:{dataset.id}:train"),
+        EvaluationJobCreate(model_id="fake_classifier", dataset_key=f"dataset:{dataset.id}:test"),
     )
 
     metrics, _artifacts = service._evaluate_classification(db, job, datetime.utcnow())

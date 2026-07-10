@@ -68,7 +68,8 @@ Provide a local dataset workspace for browsing reference datasets and managing e
 - Users can upload multiple images at once and delete or relabel selected images.
 - Users can add labels and save task-aware annotations.
 - Users can expand preprocessing and dataset split accordions, preview allowlisted preprocessing on a single item, create materialized version artifacts, and training uses prepared copies rather than changing originals.
-- Users can use the dataset options menu to rename, duplicate, or delete editable datasets.
+- Users can use dataset options menus in both catalog cards and the dataset workspace to open, rename where applicable, duplicate, or delete editable datasets.
+- EDA is available as a first-class dataset workspace tab with split counts, class balance, geometry, health, and warning summaries.
 - Users can clone YOLO-compatible datasets.
 - Users can delete editable datasets without modifying references.
 - Original `datasets/`, `models/`, and `notebooks/` content is not rewritten.

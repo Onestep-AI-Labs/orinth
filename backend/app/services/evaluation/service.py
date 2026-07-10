@@ -99,7 +99,7 @@ class EvaluationService:
                 if project_id and dataset.project_id != project_id:
                     continue
                 for split, summary in dataset.splits.items():
-                    if split == "unassigned":
+                    if split != "test":
                         continue
                     if summary.image_count <= 0:
                         continue
@@ -679,4 +679,3 @@ class EvaluationService:
         job.artifacts = artifacts
         job.updated_at = datetime.utcnow()
         db.commit()
-
