@@ -32,6 +32,7 @@ Provide a local, project-scoped training job platform that runs long image train
 - YOLO training accepts dataset id, device, cache mode, workers, patience, optimizer, and learning rate.
 - YOLO logs stream into job artifacts while the subprocess runs.
 - YOLO jobs expose progress, elapsed time, log tail, and parsed `results.csv` metrics when available.
+- Training progress uses parsed epoch history from `results.csv` where available, exposing `processed/total` as current epoch over requested epochs.
 - Keras Applications classification training runs through a TensorFlow subprocess runner and writes `results.csv`, `best_model.keras`, `last_model.keras`, and `metrics.json`.
 - Completed runnable YOLO and Keras classification jobs are copied to stable ignored `storage/trained_models/{model_id}` directories and registered automatically.
 - Training jobs expose full metric history, curve metadata, public artifact URLs, and latest metrics.
@@ -60,6 +61,7 @@ Provide a local, project-scoped training job platform that runs long image train
 - Promotion registers a completed YOLO `best.pt` as an inference model.
 - Successful runnable training jobs appear in Available Models without requiring a manual promote click.
 - Training detail pages show metric history charts and runner curve artifacts.
+- Training list/detail progress displays epoch counts when the runner has produced epoch metrics.
 - Frontend lists runs separately from a dedicated training detail page.
 
 ## Deferred

@@ -8,10 +8,13 @@ import {
   ArrowLeft,
   BarChart3,
   Boxes,
+  ChevronsLeft,
+  ChevronsRight,
   Database,
   FlaskConical,
   ImageIcon,
   Layers3,
+  Plus,
   Settings
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,6 +27,7 @@ type ProjectContextValue = {
   projectId: string;
   project: ProjectSummary | null;
   projects: ProjectSummary[];
+  projectsLoading: boolean;
   setProjectId: (value: string) => void;
   refreshProjects: () => void;
 };
@@ -39,6 +43,7 @@ export function useProject() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [projectId, setProjectId] = useState(DEFAULT_PROJECT_ID);
+  const [projectSidebarOpen, setProjectSidebarOpen] = useState(true);
   const projectsQuery = useQuery({ queryKey: ["projects"], queryFn: api.projects });
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const project = useMemo(
@@ -52,6 +57,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const saved = window.localStorage.getItem("image-platform-project");
     if (saved) setProjectId(saved);
+    const sidebar = window.localStorage.getItem("image-platform-project-sidebar");
+    if (sidebar) setProjectSidebarOpen(sidebar !== "closed");
   }, []);
 
   useEffect(() => {
@@ -61,10 +68,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [project?.id]);
 
+  useEffect(() => {
+    window.localStorage.setItem(
+      "image-platform-project-sidebar",
+      projectSidebarOpen ? "open" : "closed"
+    );
+  }, [projectSidebarOpen]);
+
   const value = {
     projectId,
     project,
     projects,
+    projectsLoading: projectsQuery.isLoading,
     setProjectId,
     refreshProjects: () => {
       projectsQuery.refetch();
@@ -73,9 +88,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ProjectContext.Provider value={value}>
-      <main className="app-shell bg-[#f5f7f9] text-ink">
+      <main
+        className={`app-shell bg-[#f5f7f9] text-ink ${isProjectArea ? "app-shell-project" : ""} ${
+          isProjectArea && !projectSidebarOpen ? "app-shell-project-collapsed" : ""
+        }`}
+      >
         {isProjectArea ? (
-          <ProjectSidebar pathname={pathname} project={project} />
+          <>
+            <GlobalSidebar pathname={pathname} compact />
+            <ProjectSidebar
+              pathname={pathname}
+              projectId={projectId}
+              project={project}
+              projects={projects}
+              open={projectSidebarOpen}
+              setOpen={setProjectSidebarOpen}
+              setProjectId={setProjectId}
+            />
+          </>
         ) : (
           <GlobalSidebar pathname={pathname} />
         )}
@@ -85,14 +115,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function GlobalSidebar({ pathname }: { pathname: string }) {
+function GlobalSidebar({ pathname, compact = false }: { pathname: string; compact?: boolean }) {
   return (
-    <aside className="sidebar sidebar-global">
+    <aside className={`sidebar sidebar-global ${compact ? "sidebar-global-compact" : ""}`}>
       <div className="brand-block">
         <div className="grid h-10 w-10 place-items-center rounded-md bg-ink text-white">
           <Layers3 size={21} />
         </div>
-        <div>
+        <div className="brand-copy">
           <h1>Image Platform</h1>
           <span>Local research workspace</span>
         </div>
@@ -101,6 +131,11 @@ function GlobalSidebar({ pathname }: { pathname: string }) {
         <SideLink href="/" active={pathname === "/"} icon={<Layers3 size={17} />}>
           Projects
         </SideLink>
+        {!compact && (
+          <SideLink href="/projects/new" active={pathname.startsWith("/projects/new")} icon={<Plus size={17} />}>
+            New Project
+          </SideLink>
+        )}
         <SideLink href="/settings" active={pathname.startsWith("/settings")} icon={<Settings size={17} />}>
           Settings
         </SideLink>
@@ -111,17 +146,78 @@ function GlobalSidebar({ pathname }: { pathname: string }) {
   );
 }
 
-function ProjectSidebar({ pathname, project }: { pathname: string; project: ProjectSummary | null }) {
+function ProjectSidebar({
+  pathname,
+  projectId,
+  project,
+  projects,
+  open,
+  setOpen,
+  setProjectId
+}: {
+  pathname: string;
+  projectId: string;
+  project: ProjectSummary | null;
+  projects: ProjectSummary[];
+  open: boolean;
+  setOpen: (value: boolean) => void;
+  setProjectId: (value: string) => void;
+}) {
+  if (!open) {
+    return (
+      <aside className="sidebar sidebar-project sidebar-project-collapsed">
+        <button className="icon-button" onClick={() => setOpen(true)} title="Open project sidebar" type="button">
+          <ChevronsRight size={17} />
+        </button>
+        <nav className="side-nav side-nav-icons">
+          <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} iconOnly>
+            Datasets
+          </SideLink>
+          <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />} iconOnly>
+            Models
+          </SideLink>
+          <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ImageIcon size={17} />} iconOnly>
+            Inference
+          </SideLink>
+          <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />} iconOnly>
+            Testing
+          </SideLink>
+          <SideLink href="/training" active={pathname.startsWith("/training")} icon={<Activity size={17} />} iconOnly>
+            Training
+          </SideLink>
+        </nav>
+      </aside>
+    );
+  }
+
   return (
     <aside className="sidebar sidebar-project">
-      <Link className="project-back-link" href="/">
-        <ArrowLeft size={16} />
-        <span>Projects</span>
-      </Link>
+      <div className="project-sidebar-top">
+        <Link className="project-back-link" href="/">
+          <ArrowLeft size={16} />
+          <span>Projects</span>
+        </Link>
+        <button className="icon-button" onClick={() => setOpen(false)} title="Close project sidebar" type="button">
+          <ChevronsLeft size={17} />
+        </button>
+      </div>
       <div className="project-sidebar-title">
         <strong title={project?.name ?? "Project"}>{project?.name ?? "Project"}</strong>
         <span>Project workspace</span>
       </div>
+      <label className="project-switcher">
+        <span>Switch project</span>
+        <select value={project?.id ?? projectId} onChange={(event) => setProjectId(event.target.value)}>
+          {!projects.some((item) => item.id === projectId) && (
+            <option value={projectId}>Project</option>
+          )}
+          {projects.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <nav className="side-nav">
         <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />}>
           Datasets
@@ -147,18 +243,20 @@ function SideLink({
   href,
   active,
   icon,
+  iconOnly = false,
   children
 }: {
   href: string;
   active: boolean;
   icon: React.ReactNode;
+  iconOnly?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <Link className={`nav-link ${active ? "nav-link-active" : ""}`} href={href}>
+    <Link className={`nav-link ${active ? "nav-link-active" : ""} ${iconOnly ? "nav-link-icon-only" : ""}`} href={href} title={String(children)}>
       {icon}
-      <span>{children}</span>
-      {active && <BarChart3 size={14} />}
+      {!iconOnly && <span>{children}</span>}
+      {active && !iconOnly && <BarChart3 size={14} />}
     </Link>
   );
 }

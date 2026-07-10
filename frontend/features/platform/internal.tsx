@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
+  ArrowLeft,
   BarChart3,
   CheckCircle2,
   ChevronDown,
@@ -71,10 +72,95 @@ import type {
   TrainingModelOption
 } from "@/types/api";
 
+const IMAGE_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
+const DEFAULT_PROJECT_ID = "default-research-project";
+
 export function ProjectLandingPage() {
   const router = useRouter();
-  const { projects, setProjectId, refreshProjects } = useProject();
+  const { projectId, projects, projectsLoading, setProjectId, refreshProjects } = useProject();
+  const [openMenuId, setOpenMenuId] = useState("");
+  const deleteProject = useMutation({
+    mutationFn: api.deleteProject,
+    onSuccess: (_result, deletedId) => {
+      if (deletedId === projectId) setProjectId(DEFAULT_PROJECT_ID);
+      setOpenMenuId("");
+      refreshProjects();
+    }
+  });
+
+  function openProject(projectId: string) {
+    setProjectId(projectId);
+    router.push("/datasets");
+  }
+
+  return (
+    <div className="space-y-5">
+      <PageHeader title="Projects" subtitle="Choose a workspace" icon={<Database size={20} />} />
+      <section className="panel">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <PanelTitle icon={<Database size={18} />} title="Project List" />
+          <Link className="primary-button" href="/projects/new">
+            <FilePlus2 size={16} /> New Project
+          </Link>
+        </div>
+        {projectsLoading ? (
+          <CardGridSkeleton count={3} />
+        ) : (
+          <div className="project-grid">
+            {projects.map((project) => (
+              <article className="project-card" key={project.id}>
+                <button className="project-card-main" onClick={() => openProject(project.id)} type="button">
+                  <strong>{project.name}</strong>
+                  <span>{project.description ?? "Local image workspace"}</span>
+                  <div className="label-chip-row">
+                    {project.task_types.map((task) => (
+                      <span className="label-chip" key={task}>{formatDatasetTask(task)}</span>
+                    ))}
+                  </div>
+                </button>
+                <div className="card-menu">
+                  <button
+                    className="icon-button"
+                    onClick={() => setOpenMenuId((value) => (value === project.id ? "" : project.id))}
+                    title="Project options"
+                    type="button"
+                    aria-expanded={openMenuId === project.id}
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {openMenuId === project.id && (
+                    <div className="option-menu" role="menu">
+                      <button type="button" onClick={() => openProject(project.id)}>
+                        <FolderOpen size={15} /> Open
+                      </button>
+                      <button
+                        className="danger-menu-item"
+                        type="button"
+                        onClick={() => deleteProject.mutate(project.id)}
+                        disabled={project.id === DEFAULT_PROJECT_ID || deleteProject.isPending}
+                      >
+                        <Trash2 size={15} /> Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+            {projects.length === 0 && <EmptyState label="No projects" />}
+          </div>
+        )}
+        <MutationError mutations={[deleteProject]} />
+      </section>
+    </div>
+  );
+}
+
+export function ProjectCreatePage() {
+  const router = useRouter();
+  const { setProjectId, refreshProjects } = useProject();
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedTasks, setSelectedTasks] = useState<TaskType[]>(IMAGE_TASK_TYPES);
   const createProject = useMutation({
     mutationFn: api.createProject,
     onSuccess: (project) => {
@@ -84,47 +170,59 @@ export function ProjectLandingPage() {
     }
   });
 
-  function openProject(projectId: string) {
-    setProjectId(projectId);
-    router.push("/datasets");
+  function toggleTask(task: TaskType, checked: boolean) {
+    setSelectedTasks((tasks) => {
+      const next = checked ? [...new Set([...tasks, task])] : tasks.filter((item) => item !== task);
+      return next.length ? next : tasks;
+    });
   }
 
   function submitProject() {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || selectedTasks.length === 0) return;
     createProject.mutate({
       name: trimmed,
-      task_types: ["classification", "object_detection", "segmentation"],
+      description: description.trim() || undefined,
+      task_types: selectedTasks,
       metadata: { domain: "image" }
     });
   }
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Projects" subtitle="Choose a workspace" icon={<Database size={20} />} />
-      <section className="panel">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={<Database size={18} />} title="Project List" />
-          <div className="compact-create project-create-wide">
-            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="New project name" />
-            <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !name.trim()}>
-              <FilePlus2 size={16} /> Create
-            </button>
+      <PageHeader title="Create Project" subtitle="Name the workspace and choose image task types" icon={<FilePlus2 size={20} />} />
+      <section className="panel create-project-panel">
+        <Link className="project-back-link mb-3" href="/">
+          <ArrowLeft size={16} />
+          <span>Projects</span>
+        </Link>
+        <Field label="Project name">
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: Dental Radiograph Workspace" />
+        </Field>
+        <Field label="Description">
+          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional local workspace note" />
+        </Field>
+        <div className="field">
+          <label>Project type</label>
+          <div className="task-choice-grid">
+            {IMAGE_TASK_TYPES.map((task) => (
+              <label className={`task-choice task-choice-check ${selectedTasks.includes(task) ? "task-choice-active" : ""}`} key={task}>
+                <input
+                  type="checkbox"
+                  checked={selectedTasks.includes(task)}
+                  onChange={(event) => toggleTask(task, event.target.checked)}
+                />
+                <span>
+                  <strong>{formatDatasetTask(task)}</strong>
+                  <small>{taskDescription(task)}</small>
+                </span>
+              </label>
+            ))}
           </div>
         </div>
-        <div className="project-grid">
-          {projects.map((project) => (
-            <button className="project-card" key={project.id} onClick={() => openProject(project.id)}>
-              <strong>{project.name}</strong>
-              <span>{project.description ?? "Local image workspace"}</span>
-              <div className="label-chip-row">
-                {project.task_types.map((task) => (
-                  <span className="label-chip" key={task}>{formatDatasetTask(task)}</span>
-                ))}
-              </div>
-            </button>
-          ))}
-        </div>
+        <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !name.trim() || selectedTasks.length === 0}>
+          <FilePlus2 size={16} /> Create Project
+        </button>
         <MutationError mutations={[createProject]} />
       </section>
     </div>
@@ -154,7 +252,7 @@ export function ModelsPage() {
           </div>
         </div>
         {modelsQuery.isLoading ? (
-          <LoadingState label="Loading models" compact />
+          <CardGridSkeleton count={4} />
         ) : (
           <div className="model-grid">
             {models.map((model) => (
@@ -216,8 +314,9 @@ export function DatasetPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showDatasetOptions, setShowDatasetOptions] = useState(false);
+  const [catalogMenuDatasetId, setCatalogMenuDatasetId] = useState("");
   const [showRename, setShowRename] = useState(false);
-  const [detailTab, setDetailTab] = useState<"images" | "annotate" | "config">("images");
+  const [detailTab, setDetailTab] = useState<"images" | "annotate" | "eda" | "config">("images");
   const [split, setSplit] = useState<SplitKey>("unassigned");
   const [classFilter, setClassFilter] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -236,6 +335,10 @@ export function DatasetPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [versionName, setVersionName] = useState("");
   const [uploadErrors, setUploadErrors] = useState<Array<Record<string, string>>>([]);
+  const allowedDatasetTasks = useMemo(() => {
+    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => IMAGE_TASK_TYPES.includes(task));
+    return tasks.length ? tasks : IMAGE_TASK_TYPES;
+  }, [project?.task_types]);
 
   const catalogQuery = useQuery({
     queryKey: ["dataset-catalog", projectId],
@@ -302,6 +405,7 @@ export function DatasetPage() {
       setCloneName("");
       setShowDuplicate(false);
       setShowDatasetOptions(false);
+      setCatalogMenuDatasetId("");
       catalogQuery.refetch();
     }
   });
@@ -363,6 +467,7 @@ export function DatasetPage() {
       setSelectedDatasetId("");
       setSelectedItemId("");
       setShowDatasetOptions(false);
+      setCatalogMenuDatasetId("");
       catalogQuery.refetch();
     }
   });
@@ -421,6 +526,12 @@ export function DatasetPage() {
   }, [split, classFilter, selectedDatasetId]);
 
   useEffect(() => {
+    if (!allowedDatasetTasks.includes(taskType)) {
+      setTaskType(allowedDatasetTasks[0] ?? "classification");
+    }
+  }, [allowedDatasetTasks, taskType]);
+
+  useEffect(() => {
     if (moveTarget === split) {
       setMoveTarget(SPLITS.find((splitName) => splitName !== split) ?? "train");
     }
@@ -471,7 +582,7 @@ export function DatasetPage() {
   }
 
   if (catalogQuery.isLoading) {
-    return <LoadingState label="Loading datasets" />;
+    return <PageSkeleton title="Loading datasets" />;
   }
 
   if (!selectedDataset) {
@@ -497,6 +608,7 @@ export function DatasetPage() {
               setNewDatasetName={setNewDatasetName}
               taskType={taskType}
               setTaskType={setTaskType}
+              allowedTaskTypes={allowedDatasetTasks}
               labelDraft={labelDraft}
               setLabelDraft={setLabelDraft}
               onCreate={createDataset}
@@ -504,22 +616,64 @@ export function DatasetPage() {
             />
           )}
           <div className="dataset-catalog-grid">
-            {datasets.map((dataset) => (
-              <button className="dataset-card" key={dataset.id} onClick={() => setSelectedDatasetId(dataset.id)}>
-                <div>
-                  <strong title={dataset.name}>{dataset.name}</strong>
-                  <span title={`${formatDatasetTask(dataset.task_type)} / ${formatDatasetFormat(dataset.format)}`}>
-                    {formatDatasetTask(dataset.task_type)} / {formatDatasetFormat(dataset.format)}
-                  </span>
-                </div>
-                <StatusBadge status={dataset.editable ? "editable" : "read-only"} />
-                <div className="dataset-card-stats">
-                  {SPLITS.map((splitName) => (
-                    <span key={splitName}>{splitName}: {dataset.splits[splitName]?.image_count ?? 0}</span>
-                  ))}
-                </div>
-              </button>
-            ))}
+            {datasets.map((dataset) => {
+              const totalImages = SPLITS.reduce((total, splitName) => total + (dataset.splits[splitName]?.image_count ?? 0), 0);
+              return (
+                <article className="dataset-card" key={dataset.id}>
+                  <button className="dataset-card-main" type="button" onClick={() => setSelectedDatasetId(dataset.id)}>
+                    <div className="dataset-card-title">
+                      <strong title={dataset.name}>{dataset.name}</strong>
+                      <span title={`${formatDatasetTask(dataset.task_type)} / ${formatDatasetFormat(dataset.format)}`}>
+                        {formatDatasetTask(dataset.task_type)} / {formatDatasetFormat(dataset.format)}
+                      </span>
+                    </div>
+                    <div className="dataset-card-summary">
+                      <Metric label="Images" value={totalImages} />
+                      <Metric label="Labels" value={dataset.labels.length} />
+                    </div>
+                    <div className="dataset-card-stats">
+                      {TRAINING_SPLITS.map((splitName) => (
+                        <span key={splitName}>{splitName}: {dataset.splits[splitName]?.image_count ?? 0}</span>
+                      ))}
+                    </div>
+                  </button>
+                  <StatusBadge status={dataset.editable ? "editable" : "read-only"} />
+                  <div className="card-menu">
+                    <button
+                      className="icon-button"
+                      onClick={() => setCatalogMenuDatasetId((value) => (value === dataset.id ? "" : dataset.id))}
+                      title="Dataset options"
+                      type="button"
+                      aria-expanded={catalogMenuDatasetId === dataset.id}
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {catalogMenuDatasetId === dataset.id && (
+                      <div className="option-menu" role="menu">
+                        <button type="button" onClick={() => setSelectedDatasetId(dataset.id)}>
+                          <FolderOpen size={15} /> Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => cloneMutation.mutate({ datasetId: dataset.id })}
+                          disabled={cloneMutation.isPending}
+                        >
+                          <Copy size={15} /> Duplicate
+                        </button>
+                        <button
+                          className="danger-menu-item"
+                          type="button"
+                          onClick={() => deleteDatasetMutation.mutate(dataset.id)}
+                          disabled={!dataset.editable || deleteDatasetMutation.isPending}
+                        >
+                          <Trash2 size={15} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
             {datasets.length === 0 && <EmptyState label="No datasets" />}
           </div>
           <MutationError mutations={[createMutation, deleteDatasetMutation]} />
@@ -632,6 +786,13 @@ export function DatasetPage() {
           <BarChart3 size={16} /> Annotate
         </button>
         <button
+          className={`detail-tab ${detailTab === "eda" ? "detail-tab-active" : ""}`}
+          onClick={() => setDetailTab("eda")}
+          type="button"
+        >
+          <BarChart3 size={16} /> EDA
+        </button>
+        <button
           className={`detail-tab ${detailTab === "config" ? "detail-tab-active" : ""}`}
           onClick={() => setDetailTab("config")}
           type="button"
@@ -694,7 +855,7 @@ export function DatasetPage() {
               </>
             )}
           </div>
-          {itemsQuery.isLoading && <LoadingState label="Loading images" compact />}
+          {itemsQuery.isLoading && <CardGridSkeleton count={6} />}
           <div className="image-grid">
             {items.map((item) => (
               <DatasetThumb
@@ -749,7 +910,7 @@ export function DatasetPage() {
                 </>
               )}
             </div>
-            {itemsQuery.isLoading && <LoadingState label="Loading images" compact />}
+            {itemsQuery.isLoading && <CardGridSkeleton count={6} />}
             <div className="image-grid">
               {items.map((item) => (
                 <DatasetThumb
@@ -776,7 +937,7 @@ export function DatasetPage() {
             <div className="divider" />
             <PanelTitle icon={<ImageIcon size={18} />} title="Annotation" />
             {detailQuery.isLoading ? (
-              <LoadingState label="Loading image detail" compact />
+              <CardGridSkeleton count={1} />
             ) : detailQuery.data && selectedDataset ? (
               <AnnotationEditor
                 dataset={selectedDataset}
@@ -793,6 +954,16 @@ export function DatasetPage() {
             )}
           </section>
         </div>
+      ) : detailTab === "eda" ? (
+        <section className="panel">
+          <EdaPanel
+            eda={edaQuery.data}
+            loading={edaQuery.isLoading}
+            dataset={selectedDataset}
+            split={split}
+            setSplit={setSplit}
+          />
+        </section>
       ) : (
         <section className="panel">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -839,6 +1010,7 @@ function DatasetCreatePanel({
   setNewDatasetName,
   taskType,
   setTaskType,
+  allowedTaskTypes,
   labelDraft,
   setLabelDraft,
   onCreate,
@@ -848,6 +1020,7 @@ function DatasetCreatePanel({
   setNewDatasetName: (value: string) => void;
   taskType: TaskType;
   setTaskType: (value: TaskType) => void;
+  allowedTaskTypes: TaskType[];
   labelDraft: string;
   setLabelDraft: (value: string) => void;
   onCreate: () => void;
@@ -893,7 +1066,7 @@ function DatasetCreatePanel({
       <div className="field">
         <label>Task</label>
         <div className="task-choice-grid">
-          {(["classification", "object_detection", "segmentation"] as TaskType[]).map((task) => (
+          {allowedTaskTypes.map((task) => (
             <button
               type="button"
               className={`task-choice ${taskType === task ? "task-choice-active" : ""}`}
@@ -1193,7 +1366,7 @@ function VersionPanel({
           : "Random mode stores config for training without generated augmentation copies."}
       </p>
       {loading ? (
-        <LoadingState label="Loading versions" compact />
+        <CardGridSkeleton count={1} />
       ) : versions.length > 0 ? (
         <div className="version-list">
           {versions.slice(0, 4).map((version) => (
@@ -1359,7 +1532,7 @@ function EdaPanel({
       </div>
       <DatasetSummaryBar dataset={dataset} split={split} setSplit={setSplit} />
       {loading ? (
-        <LoadingState label="Loading EDA" compact />
+        <CardGridSkeleton count={4} />
       ) : eda ? (
         <>
           <div className="eda-metric-grid">
@@ -1681,6 +1854,11 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   const [result, setResult] = useState<InferenceResult | null>(null);
   const [activeJobId, setActiveJobId] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectedModelInfo = useMemo(
+    () => models.find((model) => model.id === selectedModel) ?? null,
+    [models, selectedModel]
+  );
+  const showDetectionParams = selectedModelInfo ? selectedModelInfo.task_type !== "classification" : false;
   const historyQuery = useQuery({
     queryKey: ["inference-history", projectId],
     queryFn: () => api.inferenceHistory(projectId)
@@ -1705,7 +1883,11 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   });
 
   useEffect(() => {
-    if (!selectedModel && models.length > 0) setSelectedModel(models[0].id);
+    if (models.length === 0) {
+      if (selectedModel) setSelectedModel("");
+      return;
+    }
+    if (!models.some((model) => model.id === selectedModel)) setSelectedModel(models[0].id);
   }, [models, selectedModel]);
 
   useEffect(() => {
@@ -1721,8 +1903,10 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
     form.append("file", file);
     form.append("project_id", projectId);
     form.append("model_id", selectedModel);
-    form.append("confidence_threshold", String(confidence));
-    form.append("iou_threshold", String(iou));
+    if (showDetectionParams) {
+      form.append("confidence_threshold", String(confidence));
+      form.append("iou_threshold", String(iou));
+    }
     await inferenceMutation.mutateAsync(form);
   }
 
@@ -1732,21 +1916,31 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
       <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
         <section className="panel">
           <PanelTitle icon={<Upload size={18} />} title="Run" />
-          {modelsLoading && <LoadingState label="Loading models" compact />}
+          {modelsLoading && <CardGridSkeleton count={1} />}
           <Field label="Model">
             <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
               {models.map((model) => (
                 <option key={model.id} value={model.id}>
-                  {model.name}
+                  {model.name} - {formatDatasetTask(model.task_type)}
                 </option>
               ))}
             </select>
           </Field>
+          {selectedModelInfo && (
+            <div className="format-preview">
+              <span>Task</span>
+              <strong>{formatDatasetTask(selectedModelInfo.task_type)}</strong>
+            </div>
+          )}
           <Field label="Image">
             <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           </Field>
-          <SliderField label="Confidence" value={confidence} min={0} max={1} step={0.01} onChange={setConfidence} />
-          <SliderField label="IoU" value={iou} min={0} max={1} step={0.01} onChange={setIou} />
+          {showDetectionParams && (
+            <>
+              <SliderField label="Confidence" value={confidence} min={0} max={1} step={0.01} onChange={setConfidence} />
+              <SliderField label="IoU" value={iou} min={0} max={1} step={0.01} onChange={setIou} />
+            </>
+          )}
           <button className="primary-button mt-2 w-full" disabled={!file || !selectedModel || inferenceMutation.isPending} onClick={runInference}>
             <Play size={17} /> Run inference
           </button>
@@ -1766,7 +1960,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
             onClear={() => deleteMutation.mutate({ ids: [], clearAll: true })}
           />
           <InferenceHistory rows={historyQuery.data ?? []} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onSelect={setResult} />
-          {historyQuery.isLoading && <LoadingState label="Loading inference history" compact />}
+          {historyQuery.isLoading && <TableSkeleton rows={4} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
       </div>
@@ -1854,7 +2048,7 @@ export function TestingPage() {
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <section className="panel">
           <PanelTitle icon={<FlaskConical size={18} />} title="New Test" />
-          {(modelsQuery.isLoading || datasetsQuery.isLoading) && <LoadingState label="Loading test inputs" compact />}
+          {(modelsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
           <Field label="Models">
             <div className="choice-list">
               {models.map((model) => (
@@ -1896,7 +2090,7 @@ export function TestingPage() {
             onClear={() => deleteMutation.mutate({ ids: [], clearAll: true })}
           />
           <TestingJobTable jobs={jobsQuery.data ?? []} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
-          {jobsQuery.isLoading && <LoadingState label="Loading testing jobs" compact />}
+          {jobsQuery.isLoading && <TableSkeleton rows={5} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
         <section className="panel xl:col-span-2">
@@ -1933,18 +2127,18 @@ export function TestingDetailPage({ jobId }: { jobId: string }) {
           <section className="panel">
             <PanelTitle icon={<BarChart3 size={18} />} title="Comparison" />
             {comparisonQuery.isLoading ? (
-              <LoadingState label="Loading comparison" compact />
+              <TableSkeleton rows={4} />
             ) : (
               <TestingComparison jobs={comparisonQuery.data?.jobs ?? [job]} />
             )}
           </section>
           <section className="panel space-y-5">
             <ProgressPanel progress={job.progress} status={job.status} error={job.error} />
-            {perImageQuery.isLoading ? <LoadingState label="Loading per-image metrics" compact /> : <MetricsDetails job={job} rows={perImageQuery.data ?? []} />}
+            {perImageQuery.isLoading ? <TableSkeleton rows={6} /> : <MetricsDetails job={job} rows={perImageQuery.data ?? []} />}
           </section>
         </>
       ) : (
-        <LoadingState label="Loading job" />
+        <PageSkeleton title="Loading testing job" />
       )}
     </div>
   );
@@ -2041,7 +2235,7 @@ export function TrainingPage() {
       <div className="grid gap-5 xl:grid-cols-[390px_1fr]">
         <section className="panel">
           <PanelTitle icon={<Activity size={18} />} title="New Run" />
-          {(optionsQuery.isLoading || datasetsQuery.isLoading) && <LoadingState label="Loading training options" compact />}
+          {(optionsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
           <Field label="Task">
             <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
               <option value="classification">Classification</option>
@@ -2115,7 +2309,7 @@ export function TrainingPage() {
             onClear={() => deleteMutation.mutate({ ids: [], clearAll: true })}
           />
           <TrainingJobTable jobs={jobsQuery.data ?? []} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
-          {jobsQuery.isLoading && <LoadingState label="Loading training jobs" compact />}
+          {jobsQuery.isLoading && <TableSkeleton rows={5} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
       </div>
@@ -2154,7 +2348,7 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
           <MutationError mutations={[cancelMutation, promoteMutation]} />
         </section>
       ) : (
-        <LoadingState label="Loading job" />
+        <PageSkeleton title="Loading training job" />
       )}
     </div>
   );
@@ -2526,6 +2720,19 @@ function MetricsDetails({ job, rows }: { job: EvaluationJob; rows: EvaluationPer
   const metrics = job.metrics ?? {};
   if (!metrics.samples) return <EmptyState label="No metrics yet" />;
   const labels = metrics.labels ?? metrics.image?.labels ?? [];
+  const scoreEntries = [
+    ["Accuracy", metrics.image?.overall?.accuracy],
+    ["Balanced Acc.", metrics.image?.overall?.balanced_accuracy],
+    ["Macro F1", metrics.image?.overall?.macro_f1],
+    ["Weighted F1", metrics.image?.overall?.weighted_f1],
+    ["Pixel Dice", metrics.pixel?.dice],
+    ["Pixel IoU", metrics.pixel?.iou],
+    ["Pixel Precision", metrics.pixel?.precision],
+    ["Pixel Recall", metrics.pixel?.recall],
+    ["Specificity", metrics.pixel?.specificity ?? metrics.image?.overall?.specificity],
+    ["Object Precision", metrics.object?.precision],
+    ["Object Recall", metrics.object?.recall],
+  ].filter((entry): entry is [string, number] => typeof entry[1] === "number");
   return (
     <div className="space-y-5">
       <div className="metric-grid">
@@ -2536,12 +2743,111 @@ function MetricsDetails({ job, rows }: { job: EvaluationJob; rows: EvaluationPer
         <Metric label="Macro F1" value={formatMetric(metrics.image?.overall?.macro_f1)} />
         <Metric label="MCC" value={formatMetric(metrics.image?.overall?.mcc)} />
       </div>
+      <MetricBarPanel title="Metric Overview" entries={scoreEntries} />
+      <ObjectSummaryPanel objectMetrics={metrics.object ?? {}} />
+      <TestingRocPanel classification={metrics.classification ?? {}} />
+      <PerImageMetricChart rows={rows} />
       <div className="grid gap-4 xl:grid-cols-2">
         <ConfusionMatrix title="Image Confusion" labels={metrics.image?.labels ?? labels} matrix={metrics.image?.confusion_matrix ?? []} />
         <ConfusionMatrix title="Object Confusion" labels={[...labels, "background"]} matrix={metrics.object?.confusion_matrix ?? []} />
       </div>
       <PerClassReport report={metrics.image?.report ?? {}} />
       <PerImageTable rows={rows} labels={[...labels, "Normal"]} />
+    </div>
+  );
+}
+
+function MetricBarPanel({ title, entries }: { title: string; entries: Array<[string, number]> }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="chart-card">
+      <h3 className="section-title">{title}</h3>
+      <div className="eda-bars">
+        {entries.map(([label, value], index) => {
+          const normalized = Math.max(0, Math.min(1, value));
+          return (
+            <div className="eda-bar-row" key={label}>
+              <span title={label}>{label}</span>
+              <div className="eda-bar-track">
+                <div className="eda-bar-fill" style={{ width: `${normalized * 100}%`, backgroundColor: labelColor(index) }} />
+              </div>
+              <strong>{formatMetric(value)}</strong>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ObjectSummaryPanel({ objectMetrics }: { objectMetrics: Record<string, any> }) {
+  const entries = [
+    ["Matched", objectMetrics.matched],
+    ["Ground truth", objectMetrics.ground_truth_objects],
+    ["Predicted", objectMetrics.predicted_objects],
+    ["IoU threshold", objectMetrics.iou_threshold],
+  ].filter((entry): entry is [string, number] => typeof entry[1] === "number");
+  if (entries.length === 0) return null;
+  return (
+    <div className="metric-grid">
+      {entries.map(([label, value]) => (
+        <Metric key={label} label={label} value={formatMetric(value)} />
+      ))}
+    </div>
+  );
+}
+
+function TestingRocPanel({ classification }: { classification: Record<string, any> }) {
+  const roc = classification.roc_curves as Record<string, { fpr: number[]; tpr: number[] }> | undefined;
+  if (!roc || Object.keys(roc).length === 0) return null;
+  return (
+    <div className="chart-card">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <strong>ROC / AUC</strong>
+        <span>macro {formatMetric(classification.macro_auc)} / micro {formatMetric(classification.micro_auc)}</span>
+      </div>
+      <svg className="roc-chart" viewBox="0 0 100 64" preserveAspectRatio="none">
+        <line x1="0" y1="64" x2="100" y2="0" stroke="#d7dde5" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        {Object.entries(roc).map(([label, curve], index) => {
+          const points = (curve.fpr ?? [])
+            .map((fpr, pointIndex) => `${(fpr * 100).toFixed(2)},${(64 - ((curve.tpr?.[pointIndex] ?? 0) * 64)).toFixed(2)}`)
+            .join(" ");
+          return <polyline key={label} points={points} fill="none" stroke={labelColor(index)} strokeWidth="2" vectorEffect="non-scaling-stroke" />;
+        })}
+      </svg>
+      <div className="label-chip-row mt-3">
+        {Object.keys(roc).map((label, index) => (
+          <span className="label-chip" key={label}>
+            <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PerImageMetricChart({ rows }: { rows: EvaluationPerImageRow[] }) {
+  const values = rows
+    .map((row) => (typeof row.pixel?.dice === "number" ? row.pixel.dice : typeof row.pixel?.iou === "number" ? row.pixel.iou : null))
+    .filter((value): value is number => typeof value === "number")
+    .slice(0, 40);
+  if (values.length === 0) return null;
+  return (
+    <div className="chart-card">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <strong>Per-image Pixel Score</strong>
+        <span>{values.length} images</span>
+      </div>
+      <div className="spark-bar-chart">
+        {values.map((value, index) => (
+          <span
+            key={`${value}-${index}`}
+            style={{ height: `${Math.max(6, Math.min(100, value * 100))}%`, backgroundColor: labelColor(index) }}
+            title={formatMetric(value)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -2790,13 +3096,15 @@ function KeyValueTable({ title, value }: { title: string; value: Record<string, 
 }
 
 function ProgressPanel({ progress, status, error }: { progress: JobProgress; status: string; error?: string | null }) {
+  const progressLabel = progress.total ? `${progress.processed}/${progress.total}` : `${progress.percent.toFixed(0)}%`;
+  const percent = Math.max(0, Math.min(100, progress.percent));
   return (
     <div className="progress-panel">
       <div className="flex items-center justify-between gap-3">
         <StatusBadge status={status} />
-        <span className="text-sm text-slate-500">{progress.percent.toFixed(0)}%</span>
+        <span className="text-sm text-slate-500">{progressLabel}</span>
       </div>
-      <div className="progress-track"><span style={{ width: `${progress.percent}%` }} /></div>
+      <div className="progress-track"><span style={{ width: `${percent}%` }} /></div>
       <div className="progress-meta">
         <span>{progress.current_step}</span>
         <span>{formatSeconds(progress.elapsed_seconds)}</span>
@@ -2901,11 +3209,55 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function LoadingState({ label, compact = false }: { label: string; compact?: boolean }) {
+function PageSkeleton({ title = "Loading" }: { title?: string }) {
   return (
-    <div className={`loading-state ${compact ? "loading-state-compact" : ""}`}>
-      <span className="spinner" />
-      <span>{label}</span>
+    <div className="space-y-5">
+      <header className="page-header">
+        <div>
+          <span className="skeleton skeleton-icon" />
+          <div className="skeleton-stack">
+            <span className="skeleton skeleton-title" />
+            <span className="skeleton skeleton-line short" />
+          </div>
+        </div>
+      </header>
+      <section className="panel">
+        <span className="sr-only">{title}</span>
+        <CardGridSkeleton count={4} />
+      </section>
+    </div>
+  );
+}
+
+function CardGridSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="skeleton-card-grid">
+      {Array.from({ length: count }).map((_, index) => (
+        <div className="skeleton-card" key={index}>
+          <span className="skeleton skeleton-title" />
+          <span className="skeleton skeleton-line" />
+          <span className="skeleton skeleton-line short" />
+          <div className="skeleton-chip-row">
+            <span className="skeleton skeleton-chip" />
+            <span className="skeleton skeleton-chip" />
+            <span className="skeleton skeleton-chip" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="table-wrap skeleton-table">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div className="skeleton-table-row" key={index}>
+          <span className="skeleton skeleton-line" />
+          <span className="skeleton skeleton-line" />
+          <span className="skeleton skeleton-line short" />
+        </div>
+      ))}
     </div>
   );
 }

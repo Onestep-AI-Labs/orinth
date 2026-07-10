@@ -27,6 +27,7 @@ Run local evaluation jobs against image dataset splits and store metrics/artifac
 - COCO test split: `datasets/dental dataset_coco_format/test`
 - Editable project datasets with YOLO-compatible image splits.
 - Editable classification datasets with processed train/valid/test splits.
+- Editable project datasets are offered to testing only through their `test` split; train/valid splits are excluded from testing dataset selection.
 
 ## Metrics
 
@@ -45,6 +46,7 @@ Run local evaluation jobs against image dataset splits and store metrics/artifac
 - Jobs persist status, metrics, artifacts, and errors.
 - Batch-created testing jobs share a `comparison_id`; single jobs use their own job id as the stable `comparison_id`.
 - Testing detail pages can load any job and compare all sibling jobs in the same comparison group.
+- Testing detail pages show metric summary cards, score bars, confusion matrices, ROC/AUC graphics when available, object summaries, and per-image metric graphics.
 - Jobs include `project_id`; list and dataset APIs support project filtering.
 - Metrics use labels from the selected dataset rather than fixed dental constants.
 - Terminal jobs can be deleted singly, in selected batches, or by clear-all; active jobs are blocked.
@@ -53,5 +55,6 @@ Run local evaluation jobs against image dataset splits and store metrics/artifac
 - Frontend polling is adaptive and stops when jobs are terminal.
 - Frontend lists jobs separately from a dedicated testing detail page.
 - Frontend shows a compact comparison table for all jobs in the selected comparison group.
+- Frontend testing dataset selection lists only reference test splits and editable dataset test splits.
 - Evaluation can run either registered predictor against local test images.
 - Metrics are stored under ignored `storage/evaluations`.

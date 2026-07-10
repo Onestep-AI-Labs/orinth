@@ -54,14 +54,17 @@ Text data is reserved as future metadata only. The platform remains a local rese
 ## Behavior
 
 - A default research image project is created automatically for existing data.
+- Project creation happens on a dedicated create page where users provide a name and one or more image task types.
+- Project cards open workspaces and expose a three-dot menu for deletion; projects cannot be created inline from the project list.
 - User-created projects can be removed when they do not own datasets or history; the default project cannot be deleted.
+- Dataset creation follows the active project's allowed image task types.
 - Editable dataset manifests include `project_id`, `task_type`, `format`, and `labels`.
 - Editable dataset manifests can persist allowlisted preprocessing config for training-time prepared copies.
 - Preprocessing config supports random training-time augmentation and materialized generated copies; generated version artifacts live under ignored `storage/dataset_versions`.
 - Editable datasets support classification label-only annotations, detection boxes, and segmentation polygons.
-- Dataset Studio is catalog-first, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, and Config for preprocessing, split, and version artifacts.
+- Dataset Studio is catalog-first, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, EDA for dataset health and distribution, and Config for preprocessing, split, and version artifacts.
 - The root page lists projects outside the project workspace; selecting a project opens the project sidebar at Dataset Studio.
-- Global navigation includes Projects and Settings; project navigation includes Datasets, Models, Inference, Testing, and Training.
+- Global navigation includes Projects and Settings; project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
 - Sidebar navigation includes an Available Models section inside each project.
 - Dataset Studio uses an unassigned inbox for new uploads, a Config tab for preprocessing/augmentation/split settings, and a 70/20/10 Proceed workflow.
 - Classification datasets support upload-time labels, per-image label edits, and bulk selected-image relabeling.
@@ -82,16 +85,22 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Keras Applications model options include official CNN families such as MobileNetV2, EfficientNet B0-B7, EfficientNetV2, ResNet50, Xception, InceptionV3, DenseNet121, and ConvNeXtTiny, with constructor-style defaults based on the Keras Applications API.
 - Hugging Face/transformer models are cataloged but gated until validated.
 - External Keras asset preparation is explicit and stores markers under ignored `storage/model_assets`.
-- Frontend navigation uses a global sidebar outside projects, a separate project sidebar inside selected projects, and separate detail pages for testing/training jobs.
+- Frontend navigation uses a global sidebar outside projects, a global rail plus separate collapsible project sidebar inside selected projects, and separate detail pages for testing/training jobs.
 - Training detail pages show history charts, ROC/AUC for classification where available, and runner curve artifacts.
-- Frontend data-loading pages use shared spinner/loading states for initial fetches and refetches.
+- Frontend data-loading pages use skeleton states for initial fetches and compact inline loading states for small refetches.
+- Inference forms render parameters that match the selected model task.
+- Testing dataset selection lists only reference test splits and editable dataset test splits.
+- Testing detail pages include summary metrics, charts/graphics, confusion matrices, ROC/AUC when available, and per-image detail.
+- Training progress displays epoch processed/total when epoch metrics are available.
 
 ## Acceptance Criteria
 
 - Users can create a project, create an image dataset, add labels, upload images, and save task-aware annotations.
+- Users can create a project from `/projects/new`, choose multiple image task types, delete eligible projects from a project card menu, and switch active projects inside the project workspace.
 - Users can manage datasets from a catalog-first view, upload multiple images, edit classification labels per image or in bulk, preview preprocessing safely, generate version artifacts, and inspect core EDA.
 - Users can delete editable datasets, selected history rows, and clear terminal history.
 - Users can view testing comparisons and training details on separate pages.
+- Users can inspect EDA as a dedicated dataset tab and see skeleton loading states across data-heavy pages.
 - Users can choose task-compatible YOLO, Ultralytics YOLO11/YOLO26, or Keras classification training options, while unvalidated transformer/specialist options show as gated.
 - Existing dental reference data remains available under the default project.
 - Backend tests pass and frontend typecheck/lint/build pass.
