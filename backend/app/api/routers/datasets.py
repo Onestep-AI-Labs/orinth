@@ -16,7 +16,7 @@ from app.schemas import (
     DatasetItemLabelUpdate,
     DatasetItemMoveRequest,
     DatasetItemMoveResponse,
-    DatasetItemSummary,
+    DatasetItemPage,
     DatasetLabelCreate,
     DatasetLabelUpdate,
     DatasetPreprocessPreview,
@@ -90,7 +90,7 @@ def delete_dataset_label(
     return dataset_service.delete_label(dataset_id, label_index, force)
 
 
-@router.get("/{dataset_id}/items", response_model=list[DatasetItemSummary])
+@router.get("/{dataset_id}/items", response_model=DatasetItemPage)
 def list_dataset_items(
     dataset_id: str,
     split: str = Query("train"),
@@ -98,8 +98,8 @@ def list_dataset_items(
     unlabeled: bool = Query(default=False),
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
-) -> list[DatasetItemSummary]:
-    return dataset_service.list_items(dataset_id, split, class_name, unlabeled, limit, offset)
+) -> DatasetItemPage:
+    return dataset_service.list_items_page(dataset_id, split, class_name, unlabeled, limit, offset)
 
 
 @router.post("/{dataset_id}/items", response_model=DatasetItemDetail)

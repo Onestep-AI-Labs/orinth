@@ -17,7 +17,7 @@ import {
   ScanEye,
   Settings
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { ProjectSummary } from "@/types/api";
 
@@ -29,7 +29,7 @@ type ProjectContextValue = {
   projects: ProjectSummary[];
   projectsLoading: boolean;
   setProjectId: (value: string) => void;
-  refreshProjects: () => void;
+  refreshProjects: () => Promise<unknown>;
 };
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -44,6 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [projectId, setProjectId] = useState(DEFAULT_PROJECT_ID);
   const [projectSidebarOpen, setProjectSidebarOpen] = useState(true);
+  const activeMutations = useIsMutating();
   const projectsQuery = useQuery({ queryKey: ["projects"], queryFn: api.projects });
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const project = useMemo(
@@ -82,7 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     projectsLoading: projectsQuery.isLoading,
     setProjectId,
     refreshProjects: () => {
-      projectsQuery.refetch();
+      return projectsQuery.refetch();
     }
   };
 
@@ -111,7 +112,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
         <section className="content-shell">{children}</section>
       </main>
+      {activeMutations > 0 && <GlobalLoadingOverlay />}
     </ProjectContext.Provider>
+  );
+}
+
+function GlobalLoadingOverlay() {
+  return (
+    <div className="global-loading-overlay" role="status" aria-live="polite">
+      <div className="global-loading-panel">
+        <span className="global-loading-spinner" />
+        <strong>Working</strong>
+      </div>
+    </div>
   );
 }
 

@@ -16,7 +16,7 @@ from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_T
 from app.core.database import SessionLocal
 from app.core.storage import Storage
 from app.db.models import TrainingJob
-from app.ml.model_registry import ModelRegistry
+from app.ml.model_registry import ModelRegistry, model_storage_dir_name
 from app.schemas import ModelAssetPrepareRequest, ModelAssetStatus, TrainingJobCreate, TrainingModelOption
 from app.services.datasets import DatasetService
 from app.services.job_progress import append_log, make_progress
@@ -911,7 +911,10 @@ class TrainingService:
     ) -> str:
         params = job.parameters or {}
         model_id = f"trained_{job.model_family}_{job.id[:8]}"
-        model_dir = self.storage.trained_models / model_id
+        display_name = (params.get("model_name") or "").strip()
+        if not display_name:
+            display_name = f"Trained {job.model_family.replace('_', ' ')} {job.id[:8]}"
+        model_dir = self.storage.trained_models / model_storage_dir_name(display_name, model_id)
         model_dir.mkdir(parents=True, exist_ok=True)
         labels = DEFAULT_LABELS.copy()
         dataset_id = params.get("dataset_id")
@@ -941,9 +944,9 @@ class TrainingService:
             "image_size": params.get("image_size"),
             "run_dir": str(run_dir),
         }
-        display_name = (params.get("model_name") or "").strip()
-        if not display_name:
-            display_name = f"Trained {job.model_family.replace('_', ' ')} {job.id[:8]}"
+        metadata["name"] = display_name
+        metadata["model_id"] = model_id
+        metadata["model_dir"] = str(model_dir)
         (model_dir / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         info = self.registry.register_model(
             model_id=model_id,

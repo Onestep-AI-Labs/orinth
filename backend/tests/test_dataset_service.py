@@ -123,6 +123,39 @@ def test_dataset_import_copies_yolo_layout_to_storage(tmp_path: Path):
     assert (storage.datasets / dataset.id / "train" / "images" / "train.jpg").exists()
 
 
+def test_dataset_items_page_can_list_all_splits(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(DatasetCreate(name="Paged Images"))
+    for split in ("unassigned", "train", "valid", "test"):
+        write_image(storage.datasets / dataset.id / split / "images" / f"{split}.jpg")
+    service.save_annotations(
+        dataset.id,
+        "train",
+        "train.jpg",
+        DatasetAnnotationSave(
+            annotations=[
+                DatasetAnnotation(
+                    class_id=0,
+                    class_name="granuloma",
+                    kind="polygon",
+                    polygon=[[10, 10], [40, 10], [40, 30], [10, 30]],
+                )
+            ]
+        ),
+    )
+
+    page = service.list_items_page(dataset.id, "all", limit=2, offset=1)
+
+    assert page.total == 4
+    assert page.limit == 2
+    assert page.offset == 1
+    assert [item.split for item in page.items] == ["train", "valid"]
+    assert page.items[0].annotations[0].kind == "polygon"
+
+
 def test_dataset_labels_are_manifest_driven_and_can_exceed_two_classes(tmp_path: Path):
     settings = make_settings(tmp_path)
     storage = Storage(settings)

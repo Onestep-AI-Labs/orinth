@@ -1,6 +1,7 @@
 export type TaskType = "classification" | "object_detection" | "segmentation" | "text";
 export type DatasetFormat = "yolo" | "coco" | "image_folder" | "image_manifest";
 export type SplitKey = "unassigned" | "train" | "valid" | "test";
+export type DatasetSplitFilter = "all" | SplitKey;
 
 export type ProjectSummary = {
   id: string;
@@ -242,7 +243,7 @@ export type DatasetVersionSummary = {
 
 export type DatasetEdaSummary = {
   dataset_id: string;
-  split: SplitKey;
+  split: DatasetSplitFilter;
   split_counts: Record<string, number>;
   class_counts: Record<string, number>;
   unlabeled_count: number;
@@ -275,6 +276,14 @@ export type DatasetItemSummary = {
   class_id: number | null;
   label: string | null;
   is_labeled: boolean;
+  annotations: DatasetAnnotation[];
+};
+
+export type DatasetItemPage = {
+  items: DatasetItemSummary[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type DatasetItemDetail = DatasetItemSummary & {

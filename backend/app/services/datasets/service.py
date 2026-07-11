@@ -38,6 +38,7 @@ from app.schemas import (
     DatasetItemLabelUpdate,
     DatasetItemMoveRequest,
     DatasetItemMoveResponse,
+    DatasetItemPage,
     DatasetItemSummary,
     DatasetProcessRequest,
     DatasetProcessResponse,
@@ -413,32 +414,52 @@ class DatasetService:
         limit: int = 200,
         offset: int = 0,
     ) -> list[DatasetItemSummary]:
-        self._validate_split(split)
+        return self.list_items_page(dataset_id, split, class_filter, unlabeled, limit, offset).items
+
+    def list_items_page(
+        self,
+        dataset_id: str,
+        split: str,
+        class_filter: str | None = None,
+        unlabeled: bool = False,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> DatasetItemPage:
+        splits = list(SPLITS) if split == "all" else [split]
+        for split_name in splits:
+            self._validate_split(split_name)
         location = self._location(dataset_id)
         items = []
-        for image_path in self._image_paths(location, split):
-            detail = self._item_from_path(location, split, image_path, include_annotations=True)
-            if unlabeled and detail.is_labeled:
-                continue
-            if class_filter and class_filter not in detail.classes:
-                continue
-            items.append(
-                DatasetItemSummary(
-                    id=detail.id,
-                    dataset_id=detail.dataset_id,
-                    split=detail.split,
-                    filename=detail.filename,
-                    image_url=detail.image_url,
-                    width=detail.width,
-                    height=detail.height,
-                    annotation_count=detail.annotation_count,
-                    classes=detail.classes,
-                    class_id=detail.class_id,
-                    label=detail.label,
-                    is_labeled=detail.is_labeled,
+        for split_name in splits:
+            for image_path in self._image_paths(location, split_name):
+                detail = self._item_from_path(location, split_name, image_path, include_annotations=True)
+                if unlabeled and detail.is_labeled:
+                    continue
+                if class_filter and class_filter not in detail.classes:
+                    continue
+                items.append(
+                    DatasetItemSummary(
+                        id=detail.id,
+                        dataset_id=detail.dataset_id,
+                        split=detail.split,
+                        filename=detail.filename,
+                        image_url=detail.image_url,
+                        width=detail.width,
+                        height=detail.height,
+                        annotation_count=detail.annotation_count,
+                        classes=detail.classes,
+                        class_id=detail.class_id,
+                        label=detail.label,
+                        is_labeled=detail.is_labeled,
+                        annotations=detail.annotations,
+                    )
                 )
-            )
-        return items[offset : offset + limit]
+        return DatasetItemPage(
+            items=items[offset : offset + limit],
+            total=len(items),
+            limit=limit,
+            offset=offset,
+        )
 
     def item_detail(self, dataset_id: str, split: str, item_id: str) -> DatasetItemDetail:
         self._validate_split(split)
@@ -629,7 +650,9 @@ class DatasetService:
         return self._version_summary_from_manifest(dataset_id, version_root / "manifest.json")
 
     def eda_summary(self, dataset_id: str, split: str) -> DatasetEdaSummary:
-        self._validate_split(split)
+        splits = list(SPLITS) if split == "all" else [split]
+        for split_name in splits:
+            self._validate_split(split_name)
         location = self._location(dataset_id)
         class_counts = {label: 0 for label in location.labels}
         widths = []
@@ -639,21 +662,22 @@ class DatasetService:
         annotation_count = 0
         unlabeled_count = 0
         missing_annotation_count = 0
-        for image_path in self._image_paths(location, split):
-            with Image.open(image_path) as image:
-                width, height = image.size
-            widths.append(width)
-            heights.append(height)
-            aspect_ratios.append(width / height if height else 0)
-            image_count += 1
-            annotations = self._annotations(location, split, image_path, width, height)
-            if not annotations:
-                unlabeled_count += 1
-                missing_annotation_count += 1
-            annotation_count += len(annotations)
-            seen_labels = {annotation.class_name for annotation in annotations}
-            for label in seen_labels:
-                class_counts[label] = class_counts.get(label, 0) + 1
+        for split_name in splits:
+            for image_path in self._image_paths(location, split_name):
+                with Image.open(image_path) as image:
+                    width, height = image.size
+                widths.append(width)
+                heights.append(height)
+                aspect_ratios.append(width / height if height else 0)
+                image_count += 1
+                annotations = self._annotations(location, split_name, image_path, width, height)
+                if not annotations:
+                    unlabeled_count += 1
+                    missing_annotation_count += 1
+                annotation_count += len(annotations)
+                seen_labels = {annotation.class_name for annotation in annotations}
+                for label in seen_labels:
+                    class_counts[label] = class_counts.get(label, 0) + 1
 
         nonzero_counts = [count for count in class_counts.values() if count > 0]
         warnings = []
@@ -666,7 +690,7 @@ class DatasetService:
 
         return DatasetEdaSummary(
             dataset_id=dataset_id,
-            split=split,  # type: ignore[arg-type]
+            split=split,
             split_counts={name: len(self._image_paths(location, name)) for name in SPLITS},
             class_counts=class_counts,
             unlabeled_count=unlabeled_count,

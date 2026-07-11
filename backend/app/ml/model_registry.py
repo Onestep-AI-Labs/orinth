@@ -181,7 +181,10 @@ class ModelRegistry:
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("Model name is required")
-        registry[model_id]["name"] = clean_name
+        item = dict(registry[model_id])
+        item["name"] = clean_name
+        item = self._move_owned_model_dir(item)
+        registry[model_id] = item
         self._write_registry(registry)
         return self.get_spec(model_id).to_info()
 
@@ -191,7 +194,7 @@ class ModelRegistry:
         if item is None:
             raise KeyError(model_id)
         self._write_registry(registry)
-        model_dir = self.storage.trained_models / model_id
+        model_dir = self._model_dir_for_registry_item(item)
         deleted_storage = self.storage.delete_owned_path(model_dir)
         if not deleted_storage:
             for raw_path in (item.get("paths") or {}).values():
@@ -263,3 +266,94 @@ class ModelRegistry:
     def _write_registry(self, registry: dict[str, Any]) -> None:
         self.storage.registry_file.parent.mkdir(parents=True, exist_ok=True)
         self.storage.registry_file.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+
+    def _move_owned_model_dir(self, item: dict[str, Any]) -> dict[str, Any]:
+        model_id = str(item["id"])
+        current_dir = self._model_dir_for_registry_item(item)
+        desired_dir = self.storage.trained_models / model_storage_dir_name(
+            str(item["name"]), model_id
+        )
+        if current_dir is None or not current_dir.exists() or current_dir.resolve() == desired_dir.resolve():
+            artifacts = dict(item.get("artifacts") or {})
+            artifacts["model_dir"] = str(desired_dir.resolve())
+            item["artifacts"] = artifacts
+            return item
+        if desired_dir.exists():
+            raise ValueError(f"Model storage folder already exists: {desired_dir.name}")
+        desired_dir.parent.mkdir(parents=True, exist_ok=True)
+        current_dir.rename(desired_dir)
+        item["paths"] = self._rewrite_model_paths(item.get("paths") or {}, current_dir, desired_dir)
+        artifacts = dict(item.get("artifacts") or {})
+        artifacts["model_dir"] = str(desired_dir.resolve())
+        item["artifacts"] = artifacts
+        metadata_path = desired_dir / "metadata.json"
+        if metadata_path.exists():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata.update(artifacts)
+            metadata["name"] = item["name"]
+            metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+        return item
+
+    def _rewrite_model_paths(
+        self, paths: dict[str, str], current_dir: Path, desired_dir: Path
+    ) -> dict[str, str]:
+        rewritten = {}
+        for key, value in paths.items():
+            owned_path = self.storage.owned_path(value)
+            if owned_path is None:
+                rewritten[key] = value
+                continue
+            try:
+                relative = owned_path.resolve().relative_to(current_dir.resolve())
+            except ValueError:
+                rewritten[key] = value
+                continue
+            rewritten[key] = str((desired_dir / relative).resolve())
+        return rewritten
+
+    def _model_dir_for_registry_item(self, item: dict[str, Any]) -> Path | None:
+        artifacts = item.get("artifacts") or {}
+        artifact_dir = artifacts.get("model_dir")
+        owned_dir = self.storage.owned_path(artifact_dir)
+        if owned_dir is not None and owned_dir.exists() and self._is_trained_model_dir(owned_dir):
+            return owned_dir
+        legacy_dir = self.storage.trained_models / str(item.get("id", ""))
+        if legacy_dir.exists():
+            return legacy_dir
+        for raw_path in (item.get("paths") or {}).values():
+            owned_path = self.storage.owned_path(raw_path)
+            if owned_path is None:
+                continue
+            try:
+                relative = owned_path.resolve().relative_to(self.storage.trained_models.resolve())
+            except ValueError:
+                continue
+            if relative.parts:
+                return self.storage.trained_models / relative.parts[0]
+        return None
+
+    def _is_trained_model_dir(self, path: Path) -> bool:
+        try:
+            path.resolve().relative_to(self.storage.trained_models.resolve())
+        except ValueError:
+            return False
+        return True
+
+
+def model_storage_dir_name(name: str, model_id: str) -> str:
+    slug = slugify_model_name(name)
+    return f"{slug}-{model_id}"
+
+
+def slugify_model_name(name: str) -> str:
+    chars = []
+    previous_dash = False
+    for char in name.lower():
+        if char.isalnum():
+            chars.append(char)
+            previous_dash = False
+        elif not previous_dash:
+            chars.append("-")
+            previous_dash = True
+    slug = "".join(chars).strip("-")
+    return slug[:72].strip("-") or "model"

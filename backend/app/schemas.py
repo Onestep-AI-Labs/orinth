@@ -309,10 +309,18 @@ class DatasetItemSummary(BaseModel):
     class_id: int | None = None
     label: str | None = None
     is_labeled: bool = False
+    annotations: list[DatasetAnnotation] = Field(default_factory=list)
 
 
 class DatasetItemDetail(DatasetItemSummary):
     annotations: list[DatasetAnnotation]
+
+
+class DatasetItemPage(BaseModel):
+    items: list[DatasetItemSummary] = Field(default_factory=list)
+    total: int = 0
+    limit: int
+    offset: int = 0
 
 
 class DatasetAnnotationSave(BaseModel):
@@ -402,7 +410,7 @@ class DatasetProcessResponse(BaseModel):
 
 class DatasetEdaSummary(BaseModel):
     dataset_id: str
-    split: SplitName
+    split: str
     split_counts: dict[str, int]
     class_counts: dict[str, int]
     unlabeled_count: int = 0

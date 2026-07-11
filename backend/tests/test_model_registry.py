@@ -2,7 +2,7 @@ from pathlib import Path
 
 from app.core.config import Settings, get_settings
 from app.core.storage import Storage
-from app.ml.model_registry import ModelRegistry
+from app.ml.model_registry import ModelRegistry, model_storage_dir_name
 
 
 def test_model_registry_lists_static_models():
@@ -41,9 +41,20 @@ def test_model_registry_renames_and_deletes_trained_models(tmp_path: Path):
     )
 
     renamed = registry.update_model(model_id, name="Renamed model")
+    renamed_dir = storage.trained_models / model_storage_dir_name("Renamed model", model_id)
     assert renamed.name == "Renamed model"
+    assert renamed_dir.exists()
+    assert renamed.paths["weights"].startswith(str(renamed_dir))
 
     registry.delete_model(model_id)
 
     assert model_id not in {model.id for model in registry.list_models()}
     assert not (storage.trained_models / model_id).exists()
+    assert not renamed_dir.exists()
+
+
+def test_model_storage_dir_name_uses_name_and_id():
+    assert (
+        model_storage_dir_name("My Keras Model!", "trained_keras_classification_abcd1234")
+        == "my-keras-model-trained_keras_classification_abcd1234"
+    )

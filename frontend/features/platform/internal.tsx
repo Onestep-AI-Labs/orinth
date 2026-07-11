@@ -7,10 +7,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   ArrowLeft,
   BarChart3,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Database,
   FilePlus2,
@@ -33,7 +36,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, apiAssetUrl, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
-import { SPLITS, TERMINAL_STATUSES, TRAINING_SPLITS } from "@/features/platform/constants";
+import { SPLIT_FILTERS, SPLITS, TERMINAL_STATUSES, TRAINING_SPLITS } from "@/features/platform/constants";
 import {
   activePollInterval,
   areTasksCompatible,
@@ -55,8 +58,10 @@ import type {
   DatasetAnnotation,
   DatasetEdaSummary,
   DatasetItemDetail,
+  DatasetItemPage,
   DatasetItemSummary,
   DatasetPreprocessConfig,
+  DatasetSplitFilter,
   DatasetSplitConfig,
   DatasetSummary,
   DatasetVersionSummary,
@@ -78,6 +83,81 @@ const DEFAULT_PROJECT_ID = "default-research-project";
 const PROJECT_DESCRIPTION_LIMIT = 160;
 type EvaluationDisplayKind = "classification" | "vision";
 type MetricEntry = { key: string; label: string; value: number };
+type ConfirmationTone = "danger" | "warning";
+type ConfirmationDialogOptions = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone?: ConfirmationTone;
+  onConfirm: () => void | Promise<void>;
+};
+
+function useConfirmationDialog() {
+  const [dialog, setDialog] = useState<ConfirmationDialogOptions | null>(null);
+  const confirm = useCallback((options: ConfirmationDialogOptions) => {
+    setDialog(options);
+  }, []);
+  const close = useCallback(() => setDialog(null), []);
+  const confirmationDialog = dialog ? (
+    <ConfirmationDialog
+      {...dialog}
+      onCancel={close}
+      onConfirm={async () => {
+        await dialog.onConfirm();
+        close();
+      }}
+    />
+  ) : null;
+
+  return { confirm, confirmationDialog };
+}
+
+function ConfirmationDialog({
+  title,
+  message,
+  confirmLabel,
+  tone = "danger",
+  onCancel,
+  onConfirm
+}: ConfirmationDialogOptions & { onCancel: () => void; onConfirm: () => void | Promise<void> }) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div className="confirmation-overlay" role="presentation" onMouseDown={onCancel}>
+      <section
+        className={`confirmation-dialog confirmation-dialog-${tone}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-dialog-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="confirmation-dialog-header">
+          <span className="confirmation-dialog-icon" aria-hidden="true">
+            <AlertTriangle size={19} />
+          </span>
+          <div>
+            <h2 id="confirmation-dialog-title">{title}</h2>
+            <p>{message}</p>
+          </div>
+        </div>
+        <div className="confirmation-dialog-actions">
+          <button className="secondary-button" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className={tone === "danger" ? "danger-button" : "primary-button"} type="button" onClick={onConfirm} autoFocus>
+            {confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 export function ProjectLandingPage() {
   const router = useRouter();
@@ -85,23 +165,24 @@ export function ProjectLandingPage() {
   const [openMenuId, setOpenMenuId] = useState("");
   const [renameProjectId, setRenameProjectId] = useState("");
   const [renameProjectDraft, setRenameProjectDraft] = useState("");
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const updateProject = useMutation({
     mutationFn: ({ targetProjectId, name }: { targetProjectId: string; name: string }) =>
       api.updateProject(targetProjectId, { name }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setOpenMenuId("");
       setRenameProjectId("");
       setRenameProjectDraft("");
-      refreshProjects();
+      await refreshProjects();
     }
   });
   const deleteProject = useMutation({
     mutationFn: api.deleteProject,
-    onSuccess: (_result, deletedId) => {
+    onSuccess: async (_result, deletedId) => {
       if (deletedId === projectId) setProjectId(DEFAULT_PROJECT_ID);
       setOpenMenuId("");
       setRenameProjectId("");
-      refreshProjects();
+      await refreshProjects();
     }
   });
 
@@ -119,6 +200,15 @@ export function ProjectLandingPage() {
   function saveProjectRename() {
     if (!renameProjectId || !renameProjectDraft.trim()) return;
     updateProject.mutate({ targetProjectId: renameProjectId, name: renameProjectDraft.trim() });
+  }
+
+  function confirmDeleteProject(project: ProjectSummary) {
+    confirm({
+      title: "Delete project?",
+      message: `This will delete "${project.name}" if it has no owned datasets or history. This action cannot be undone.`,
+      confirmLabel: "Delete project",
+      onConfirm: () => deleteProject.mutate(project.id)
+    });
   }
 
   return (
@@ -172,7 +262,7 @@ export function ProjectLandingPage() {
                       <button
                         className="danger-menu-item"
                         type="button"
-                        onClick={() => deleteProject.mutate(project.id)}
+                        onClick={() => confirmDeleteProject(project)}
                         disabled={project.id === DEFAULT_PROJECT_ID || deleteProject.isPending}
                       >
                         <Trash2 size={15} /> Delete
@@ -210,6 +300,7 @@ export function ProjectLandingPage() {
         )}
         <MutationError mutations={[updateProject, deleteProject]} />
       </section>
+      {confirmationDialog}
     </div>
   );
 }
@@ -225,9 +316,9 @@ export function ProjectCreatePage() {
   const canCreateProject = Boolean(trimmedName && trimmedDescription && selectedTasks.length > 0);
   const createProject = useMutation({
     mutationFn: api.createProject,
-    onSuccess: (project) => {
+    onSuccess: async (project) => {
       setProjectId(project.id);
-      refreshProjects();
+      await refreshProjects();
       router.push("/datasets");
     }
   });
@@ -329,25 +420,26 @@ export function ModelsPage() {
   const [openMenuId, setOpenMenuId] = useState("");
   const [renameModelId, setRenameModelId] = useState("");
   const [renameDraft, setRenameDraft] = useState("");
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const modelsQuery = useQuery({
     queryKey: ["models", "catalog", projectId],
     queryFn: () => api.models(false, projectId)
   });
   const renameModel = useMutation({
     mutationFn: ({ modelId, name }: { modelId: string; name: string }) => api.renameModel(modelId, name),
-    onSuccess: () => {
+    onSuccess: async () => {
       setRenameModelId("");
       setRenameDraft("");
       setOpenMenuId("");
-      modelsQuery.refetch();
+      await modelsQuery.refetch();
     }
   });
   const deleteModel = useMutation({
     mutationFn: api.deleteModel,
-    onSuccess: () => {
+    onSuccess: async () => {
       setOpenMenuId("");
       setRenameModelId("");
-      modelsQuery.refetch();
+      await modelsQuery.refetch();
     }
   });
   const models = modelsQuery.data ?? [];
@@ -362,6 +454,15 @@ export function ModelsPage() {
   function saveRename() {
     if (!renameModelId || !renameDraft.trim()) return;
     renameModel.mutate({ modelId: renameModelId, name: renameDraft.trim() });
+  }
+
+  function confirmDeleteModel(model: ModelInfo) {
+    confirm({
+      title: "Delete model?",
+      message: `This will remove "${model.name}" from the model catalog and delete owned trained-model files when managed by the registry.`,
+      confirmLabel: "Delete model",
+      onConfirm: () => deleteModel.mutate(model.id)
+    });
   }
 
   return (
@@ -412,7 +513,7 @@ export function ModelsPage() {
                         <button
                           className="danger-menu-item"
                           type="button"
-                          onClick={() => deleteModel.mutate(model.id)}
+                          onClick={() => confirmDeleteModel(model)}
                           disabled={!editable || deleteModel.isPending}
                         >
                           <Trash2 size={15} /> Delete
@@ -469,6 +570,7 @@ export function ModelsPage() {
         )}
         <MutationError mutations={[renameModel, deleteModel]} />
       </section>
+      {confirmationDialog}
     </div>
   );
 }
@@ -502,9 +604,12 @@ export function DatasetPage() {
   const [catalogRenameDatasetId, setCatalogRenameDatasetId] = useState("");
   const [showRename, setShowRename] = useState(false);
   const [detailTab, setDetailTab] = useState<"images" | "annotate" | "eda" | "config">("images");
-  const [split, setSplit] = useState<SplitKey>("unassigned");
+  const [split, setSplit] = useState<DatasetSplitFilter>("all");
+  const [imagePage, setImagePage] = useState(0);
+  const [imagesPerPage, setImagesPerPage] = useState(50);
   const [classFilter, setClassFilter] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [selectedItemSplit, setSelectedItemSplit] = useState<SplitKey | "">("");
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [newDatasetName, setNewDatasetName] = useState("");
   const [taskType, setTaskType] = useState<TaskType>("classification");
@@ -521,6 +626,7 @@ export function DatasetPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [versionName, setVersionName] = useState("");
   const [uploadErrors, setUploadErrors] = useState<Array<Record<string, string>>>([]);
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const allowedDatasetTasks = useMemo(() => {
     const tasks = (project?.task_types ?? []).filter((task): task is TaskType => IMAGE_TASK_TYPES.includes(task));
     return tasks.length ? tasks : IMAGE_TASK_TYPES;
@@ -549,21 +655,31 @@ export function DatasetPage() {
     [datasets, selectedDatasetId]
   );
   const itemsQuery = useQuery({
-    queryKey: ["dataset-items", selectedDataset?.id, split, classFilter],
+    queryKey: ["dataset-items", selectedDataset?.id, split, classFilter, imagePage, imagesPerPage],
     queryFn: () =>
       api.datasetItems(selectedDataset?.id ?? "", {
         split,
         class_name: classFilter && classFilter !== "__unlabeled__" ? classFilter : undefined,
         unlabeled: classFilter === "__unlabeled__",
-        limit: 300
+        limit: imagesPerPage,
+        offset: imagePage * imagesPerPage
       }),
     enabled: Boolean(selectedDataset?.id)
   });
-  const items = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data]);
+  const itemPage = useMemo<DatasetItemPage>(
+    () => itemsQuery.data ?? { items: [], total: 0, limit: imagesPerPage, offset: imagePage * imagesPerPage },
+    [imagePage, imagesPerPage, itemsQuery.data]
+  );
+  const items = useMemo(() => itemPage.items, [itemPage.items]);
+  const selectedItemSummary = useMemo(
+    () => items.find((item) => item.id === selectedItemId && item.split === selectedItemSplit) ?? null,
+    [items, selectedItemId, selectedItemSplit]
+  );
+  const selectedItemDetailSplit = selectedItemSummary?.split ?? selectedItemSplit;
   const detailQuery = useQuery({
-    queryKey: ["dataset-item", selectedDataset?.id, split, selectedItemId],
-    queryFn: () => api.datasetItem(selectedDataset?.id ?? "", split, selectedItemId),
-    enabled: Boolean(selectedDataset?.id && selectedItemId)
+    queryKey: ["dataset-item", selectedDataset?.id, selectedItemDetailSplit, selectedItemId],
+    queryFn: () => api.datasetItem(selectedDataset?.id ?? "", selectedItemDetailSplit, selectedItemId),
+    enabled: Boolean(selectedDataset?.id && selectedItemId && selectedItemDetailSplit && selectedItemSummary)
   });
   const versionsQuery = useQuery({
     queryKey: ["dataset-versions", selectedDataset?.id],
@@ -578,17 +694,17 @@ export function DatasetPage() {
 
   const createMutation = useMutation({
     mutationFn: api.createDataset,
-    onSuccess: (dataset) => {
+    onSuccess: async (dataset) => {
       openDataset(dataset.id);
       setShowCreate(false);
       setNewDatasetName("");
-      catalogQuery.refetch();
+      await catalogQuery.refetch();
     }
   });
   const updateDatasetMutation = useMutation({
     mutationFn: ({ datasetId, name, preprocess }: { datasetId: string; name?: string; preprocess?: DatasetPreprocessConfig }) =>
       api.updateDataset(datasetId, { name, preprocess }),
-    onSuccess: (dataset) => {
+    onSuccess: async (dataset) => {
       setEditName(dataset.name);
       setPreprocessConfig(preprocessFromDataset(dataset));
       setShowRename(false);
@@ -596,53 +712,63 @@ export function DatasetPage() {
       setCatalogRenameDatasetId("");
       setCatalogRenameDraft("");
       setCatalogMenuDatasetId("");
-      catalogQuery.refetch();
+      await catalogQuery.refetch();
     }
   });
   const cloneMutation = useMutation({
     mutationFn: ({ datasetId, name }: { datasetId: string; name?: string }) =>
       api.cloneDataset(datasetId, { name, project_id: projectId }),
-    onSuccess: (dataset) => {
+    onSuccess: async (dataset) => {
       openDataset(dataset.id);
       setCloneName("");
       setShowDuplicate(false);
       setShowDatasetOptions(false);
       setCatalogMenuDatasetId("");
-      catalogQuery.refetch();
+      await catalogQuery.refetch();
     }
   });
   const uploadMutation = useMutation({
     mutationFn: ({ datasetId, form }: { datasetId: string; form: FormData }) =>
       api.uploadDatasetImages(datasetId, form),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setUploadFiles([]);
       setUploadErrors(result.errors ?? []);
       const lastItem = result.uploaded.at(-1);
-      if (lastItem) setSelectedItemId(lastItem.id);
-      itemsQuery.refetch();
-      catalogQuery.refetch();
-      edaQuery.refetch();
+      if (lastItem) {
+        setSelectedItemId(lastItem.id);
+        setSelectedItemSplit(lastItem.split);
+      }
+      await Promise.all([
+        itemsQuery.refetch(),
+        catalogQuery.refetch(),
+        edaQuery.refetch()
+      ]);
     }
   });
   const deleteItemsMutation = useMutation({
     mutationFn: ({ datasetId, ids }: { datasetId: string; ids: string[] }) =>
-      api.deleteDatasetItems(datasetId, { split, ids }),
-    onSuccess: () => {
+      api.deleteDatasetItems(datasetId, { split: split === "all" ? "unassigned" : split, ids }),
+    onSuccess: async () => {
       setSelectedItemIds([]);
       setSelectedItemId("");
-      itemsQuery.refetch();
-      catalogQuery.refetch();
-      edaQuery.refetch();
+      setSelectedItemSplit("");
+      await Promise.all([
+        itemsQuery.refetch(),
+        catalogQuery.refetch(),
+        edaQuery.refetch()
+      ]);
     }
   });
   const bulkLabelMutation = useMutation({
     mutationFn: ({ datasetId, ids, classId }: { datasetId: string; ids: string[]; classId: number }) =>
-      api.updateDatasetItemLabels(datasetId, split, { ids, class_id: classId }),
-    onSuccess: () => {
-      itemsQuery.refetch();
-      detailQuery.refetch();
-      catalogQuery.refetch();
-      edaQuery.refetch();
+      api.updateDatasetItemLabels(datasetId, split === "all" ? "unassigned" : split, { ids, class_id: classId }),
+    onSuccess: async () => {
+      await Promise.all([
+        itemsQuery.refetch(),
+        detailQuery.refetch(),
+        catalogQuery.refetch(),
+        edaQuery.refetch()
+      ]);
     }
   });
   const previewMutation = useMutation({
@@ -658,47 +784,52 @@ export function DatasetPage() {
         splits: TRAINING_SPLITS,
         augmentation_splits: ["train"]
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setVersionName("");
-      versionsQuery.refetch();
+      await versionsQuery.refetch();
     }
   });
   const deleteDatasetMutation = useMutation({
     mutationFn: api.deleteDataset,
-    onSuccess: () => {
+    onSuccess: async () => {
       showDatasetCatalog();
       setSelectedItemId("");
+      setSelectedItemSplit("");
       setShowDatasetOptions(false);
       setCatalogMenuDatasetId("");
       setCatalogRenameDatasetId("");
-      catalogQuery.refetch();
+      await catalogQuery.refetch();
     }
   });
   const processMutation = useMutation({
     mutationFn: ({ datasetId, preprocess, split }: { datasetId: string; preprocess: DatasetPreprocessConfig; split: DatasetSplitConfig }) =>
       api.processDataset(datasetId, { preprocess, split }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setPreprocessConfig(preprocessFromDataset(result.dataset));
       setSplitConfig(splitConfigFromDataset(result.dataset));
       setSplit("train");
       setSelectedItemIds([]);
-      catalogQuery.refetch();
-      itemsQuery.refetch();
-      edaQuery.refetch();
+      await Promise.all([
+        catalogQuery.refetch(),
+        itemsQuery.refetch(),
+        edaQuery.refetch()
+      ]);
     }
   });
   const moveItemsMutation = useMutation({
     mutationFn: ({ datasetId, target }: { datasetId: string; target: SplitKey }) =>
       api.moveDatasetItems(datasetId, {
-        source_split: split,
+        source_split: split === "all" ? "unassigned" : split,
         target_split: target,
         ids: selectedItemIds
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setSelectedItemIds([]);
-      itemsQuery.refetch();
-      catalogQuery.refetch();
-      edaQuery.refetch();
+      await Promise.all([
+        itemsQuery.refetch(),
+        catalogQuery.refetch(),
+        edaQuery.refetch()
+      ]);
     }
   });
 
@@ -713,11 +844,15 @@ export function DatasetPage() {
   }, [catalogQuery.isLoading, selectedDataset, selectedDatasetId, showDatasetCatalog]);
 
   useEffect(() => {
-    if (items.length > 0 && !items.some((item) => item.id === selectedItemId)) {
+    if (items.length > 0 && !items.some((item) => item.id === selectedItemId && item.split === selectedItemSplit)) {
       setSelectedItemId(items[0].id);
+      setSelectedItemSplit(items[0].split);
     }
-    if (items.length === 0) setSelectedItemId("");
-  }, [items, selectedItemId]);
+    if (items.length === 0) {
+      setSelectedItemId("");
+      setSelectedItemSplit("");
+    }
+  }, [items, selectedItemId, selectedItemSplit]);
 
   useEffect(() => {
     if (!selectedDataset) return;
@@ -727,17 +862,35 @@ export function DatasetPage() {
     setUploadClassId(0);
     setBulkClassId(0);
     setSelectedItemIds([]);
+    setSelectedItemId("");
+    setSelectedItemSplit("");
     setPreviewUrl(null);
     setShowDatasetOptions(false);
     setShowRename(false);
     setShowDuplicate(false);
     setCatalogRenameDatasetId("");
     setDetailTab("images");
+    setSplit("all");
+    setImagePage(0);
   }, [selectedDataset]);
 
   useEffect(() => {
     setSelectedItemIds([]);
+    setImagePage(0);
   }, [split, classFilter, selectedDatasetId]);
+
+  useEffect(() => {
+    setImagePage(0);
+  }, [imagesPerPage]);
+
+  useEffect(() => {
+    if (itemPage.total === 0 && imagePage !== 0) {
+      setImagePage(0);
+      return;
+    }
+    const lastPage = Math.max(0, Math.ceil(itemPage.total / imagesPerPage) - 1);
+    if (imagePage > lastPage) setImagePage(lastPage);
+  }, [imagePage, imagesPerPage, itemPage.total]);
 
   useEffect(() => {
     if (!allowedDatasetTasks.includes(taskType)) {
@@ -769,12 +922,30 @@ export function DatasetPage() {
   function uploadImages() {
     if (!selectedDataset?.editable || uploadFiles.length === 0) return;
     const form = new FormData();
-    form.append("split", split);
+    form.append("split", split === "all" ? "unassigned" : split);
     uploadFiles.forEach((file) => form.append("files", file));
     if (selectedDataset.task_type === "classification") {
       form.append("class_id", String(uploadClassId));
     }
     uploadMutation.mutate({ datasetId: selectedDataset.id, form });
+  }
+
+  function confirmUploadImages() {
+    if (!selectedDataset?.editable || uploadFiles.length === 0) return;
+    const targetSplit = split === "all" ? "unassigned" : split;
+    confirm({
+      title: "Upload image batch?",
+      message: `This will add ${uploadFiles.length} image${uploadFiles.length === 1 ? "" : "s"} to "${selectedDataset.name}" in the ${targetSplit} split.`,
+      confirmLabel: "Upload batch",
+      tone: "warning",
+      onConfirm: uploadImages
+    });
+  }
+
+  function selectDatasetItem(item: DatasetItemSummary, openAnnotate = false) {
+    setSelectedItemId(item.id);
+    setSelectedItemSplit(item.split);
+    if (openAnnotate) setDetailTab("annotate");
   }
 
   function createVersion() {
@@ -807,6 +978,59 @@ export function DatasetPage() {
     updateDatasetMutation.mutate({
       datasetId: catalogRenameDatasetId,
       name: catalogRenameDraft.trim()
+    });
+  }
+
+  function confirmDeleteDataset(dataset: DatasetSummary) {
+    confirm({
+      title: "Delete dataset?",
+      message: `This will delete "${dataset.name}" and its editable dataset files. This action cannot be undone.`,
+      confirmLabel: "Delete dataset",
+      onConfirm: () => deleteDatasetMutation.mutate(dataset.id)
+    });
+  }
+
+  function confirmDeleteSelectedImages() {
+    if (!selectedDataset || selectedItemIds.length === 0) return;
+    confirm({
+      title: "Remove selected images?",
+      message: `This will delete ${selectedItemIds.length} selected image${selectedItemIds.length === 1 ? "" : "s"} from "${selectedDataset.name}". This action cannot be undone.`,
+      confirmLabel: "Remove images",
+      onConfirm: () => deleteItemsMutation.mutate({ datasetId: selectedDataset.id, ids: selectedItemIds })
+    });
+  }
+
+  function confirmMoveSelectedImages() {
+    if (!selectedDataset || selectedItemIds.length === 0) return;
+    confirm({
+      title: "Move selected images?",
+      message: `This will move ${selectedItemIds.length} selected image${selectedItemIds.length === 1 ? "" : "s"} from ${split} to ${moveTarget}.`,
+      confirmLabel: "Move images",
+      tone: "warning",
+      onConfirm: () => moveItemsMutation.mutate({ datasetId: selectedDataset.id, target: moveTarget })
+    });
+  }
+
+  function confirmBulkLabelImages() {
+    if (!selectedDataset || selectedItemIds.length === 0) return;
+    const label = selectedDataset.labels[bulkClassId] ?? "selected label";
+    confirm({
+      title: "Edit selected labels?",
+      message: `This will set ${selectedItemIds.length} selected image${selectedItemIds.length === 1 ? "" : "s"} to "${label}".`,
+      confirmLabel: "Edit labels",
+      tone: "warning",
+      onConfirm: () => bulkLabelMutation.mutate({ datasetId: selectedDataset.id, ids: selectedItemIds, classId: bulkClassId })
+    });
+  }
+
+  function confirmProcessDataset() {
+    if (!selectedDataset) return;
+    confirm({
+      title: "Proceed with dataset processing?",
+      message: `This saves preprocessing settings and distributes inbox images in "${selectedDataset.name}" into train, valid, and test.`,
+      confirmLabel: "Proceed",
+      tone: "warning",
+      onConfirm: () => processMutation.mutate({ datasetId: selectedDataset.id, preprocess: preprocessConfig, split: splitConfig })
     });
   }
 
@@ -907,7 +1131,7 @@ export function DatasetPage() {
                         <button
                           className="danger-menu-item"
                           type="button"
-                          onClick={() => deleteDatasetMutation.mutate(dataset.id)}
+                          onClick={() => confirmDeleteDataset(dataset)}
                           disabled={!dataset.editable || deleteDatasetMutation.isPending}
                         >
                           <Trash2 size={15} /> Delete
@@ -945,6 +1169,7 @@ export function DatasetPage() {
           </div>
           <MutationError mutations={[createMutation, updateDatasetMutation, cloneMutation, deleteDatasetMutation]} />
         </section>
+        {confirmationDialog}
       </div>
     );
   }
@@ -992,7 +1217,7 @@ export function DatasetPage() {
                 <button
                   className="danger-menu-item"
                   type="button"
-                  onClick={() => deleteDatasetMutation.mutate(selectedDataset.id)}
+                  onClick={() => confirmDeleteDataset(selectedDataset)}
                   disabled={!selectedDataset.editable || deleteDatasetMutation.isPending}
                 >
                   <Trash2 size={15} /> Delete
@@ -1084,7 +1309,7 @@ export function DatasetPage() {
               dataset={selectedDataset}
               uploadClassId={uploadClassId}
               setUploadClassId={setUploadClassId}
-              onUpload={uploadImages}
+              onUpload={confirmUploadImages}
               pending={uploadMutation.isPending}
               errors={uploadErrors}
             />
@@ -1098,7 +1323,7 @@ export function DatasetPage() {
               />
               <span>{selectedItemIds.length ? `${selectedItemIds.length} selected` : "Select images"}</span>
             </label>
-            {selectedDataset?.editable && (
+            {selectedDataset?.editable && split !== "all" && (
               <>
                 <select value={moveTarget} onChange={(event) => setMoveTarget(event.target.value as SplitKey)} disabled={selectedItemIds.length === 0}>
                   {SPLITS.filter((splitName) => splitName !== split).map((splitName) => (
@@ -1107,14 +1332,14 @@ export function DatasetPage() {
                 </select>
                 <button
                   className="secondary-button"
-                  onClick={() => moveItemsMutation.mutate({ datasetId: selectedDataset.id, target: moveTarget })}
+                  onClick={confirmMoveSelectedImages}
                   disabled={selectedItemIds.length === 0 || moveItemsMutation.isPending || moveTarget === split}
                 >
                   <Copy size={16} /> Move
                 </button>
                 <button
                   className="danger-button"
-                  onClick={() => deleteItemsMutation.mutate({ datasetId: selectedDataset.id, ids: selectedItemIds })}
+                  onClick={confirmDeleteSelectedImages}
                   disabled={selectedItemIds.length === 0 || deleteItemsMutation.isPending}
                 >
                   <Trash2 size={16} /> Remove
@@ -1127,9 +1352,9 @@ export function DatasetPage() {
             {items.map((item) => (
               <DatasetThumb
                 item={item}
-                key={item.id}
-                active={item.id === selectedItemId}
-                onClick={() => setSelectedItemId(item.id)}
+                key={`${item.split}-${item.id}`}
+                active={item.id === selectedItemId && item.split === selectedItemSplit}
+                onClick={() => selectDatasetItem(item, true)}
                 selected={selectedItemIds.includes(item.id)}
                 onSelected={(checked) =>
                   setSelectedItemIds((ids) => checked ? [...new Set([...ids, item.id])] : ids.filter((id) => id !== item.id))
@@ -1138,6 +1363,13 @@ export function DatasetPage() {
             ))}
             {items.length === 0 && <EmptyState label="No images" />}
           </div>
+          <DatasetPagination
+            total={itemPage.total}
+            offset={itemPage.offset}
+            limit={imagesPerPage}
+            onLimitChange={setImagesPerPage}
+            onPageChange={setImagePage}
+          />
           <MutationError mutations={[uploadMutation, deleteItemsMutation, moveItemsMutation]} />
         </section>
       ) : detailTab === "annotate" ? (
@@ -1160,7 +1392,7 @@ export function DatasetPage() {
                 />
                 <span>{selectedItemIds.length ? `${selectedItemIds.length} selected` : "Select images"}</span>
               </label>
-              {selectedDataset.editable && selectedDataset.task_type === "classification" && (
+              {selectedDataset.editable && selectedDataset.task_type === "classification" && split !== "all" && (
                 <>
                   <select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItemIds.length === 0}>
                     {selectedDataset.labels.map((label, index) => (
@@ -1169,7 +1401,7 @@ export function DatasetPage() {
                   </select>
                   <button
                     className="secondary-button"
-                    onClick={() => bulkLabelMutation.mutate({ datasetId: selectedDataset.id, ids: selectedItemIds, classId: bulkClassId })}
+                    onClick={confirmBulkLabelImages}
                     disabled={selectedItemIds.length === 0 || bulkLabelMutation.isPending}
                   >
                     <CheckCircle2 size={16} /> Edit label
@@ -1182,9 +1414,9 @@ export function DatasetPage() {
               {items.map((item) => (
                 <DatasetThumb
                   item={item}
-                  key={item.id}
-                  active={item.id === selectedItemId}
-                  onClick={() => setSelectedItemId(item.id)}
+                  key={`${item.split}-${item.id}`}
+                  active={item.id === selectedItemId && item.split === selectedItemSplit}
+                  onClick={() => selectDatasetItem(item)}
                   selected={selectedItemIds.includes(item.id)}
                   onSelected={(checked) =>
                     setSelectedItemIds((ids) => checked ? [...new Set([...ids, item.id])] : ids.filter((id) => id !== item.id))
@@ -1193,13 +1425,25 @@ export function DatasetPage() {
               ))}
               {items.length === 0 && <EmptyState label="No images" />}
             </div>
+            <DatasetPagination
+              total={itemPage.total}
+              offset={itemPage.offset}
+              limit={imagesPerPage}
+              onLimitChange={setImagesPerPage}
+              onPageChange={setImagePage}
+            />
             <MutationError mutations={[bulkLabelMutation]} />
           </section>
 
           <section className="panel">
             <PanelTitle icon={<BarChart3 size={18} />} title="Labels" />
             {selectedDataset && (
-              <LabelManager dataset={selectedDataset} onChanged={() => catalogQuery.refetch()} />
+              <LabelManager
+                dataset={selectedDataset}
+                onChanged={async () => {
+                  await catalogQuery.refetch();
+                }}
+              />
             )}
             <div className="divider" />
             <PanelTitle icon={<ImageIcon size={18} />} title="Annotation" />
@@ -1209,11 +1453,13 @@ export function DatasetPage() {
               <AnnotationEditor
                 dataset={selectedDataset}
                 item={detailQuery.data}
-                onSaved={() => {
-                  detailQuery.refetch();
-                  itemsQuery.refetch();
-                  catalogQuery.refetch();
-                  edaQuery.refetch();
+                onSaved={async () => {
+                  await Promise.all([
+                    detailQuery.refetch(),
+                    itemsQuery.refetch(),
+                    catalogQuery.refetch(),
+                    edaQuery.refetch()
+                  ]);
                 }}
               />
             ) : (
@@ -1251,7 +1497,7 @@ export function DatasetPage() {
               setConfig={setSplitConfig}
               editable={selectedDataset.editable}
               dataset={selectedDataset}
-              onProceed={() => processMutation.mutate({ datasetId: selectedDataset.id, preprocess: preprocessConfig, split: splitConfig })}
+              onProceed={confirmProcessDataset}
               pending={processMutation.isPending}
             />
             <VersionPanel
@@ -1268,6 +1514,7 @@ export function DatasetPage() {
           <MutationError mutations={[previewMutation, createVersionMutation, processMutation]} />
         </section>
       )}
+      {confirmationDialog}
     </div>
   );
 }
@@ -1783,8 +2030,8 @@ function EdaPanel({
   eda: DatasetEdaSummary | undefined;
   loading: boolean;
   dataset: DatasetSummary;
-  split: SplitKey;
-  setSplit: (split: SplitKey) => void;
+  split: DatasetSplitFilter;
+  setSplit: (split: DatasetSplitFilter) => void;
 }) {
   const totalImages = eda ? Object.values(eda.split_counts).reduce((total, count) => total + count, 0) : 0;
   const maxClassCount = eda ? Math.max(1, ...Object.values(eda.class_counts)) : 1;
@@ -1883,13 +2130,14 @@ function DatasetSummaryBar({
   setSplit
 }: {
   dataset: DatasetSummary;
-  split: SplitKey;
-  setSplit: (split: SplitKey) => void;
+  split: DatasetSplitFilter;
+  setSplit: (split: DatasetSplitFilter) => void;
 }) {
+  const allCount = SPLITS.reduce((total, splitName) => total + (dataset.splits[splitName]?.image_count ?? 0), 0);
   return (
     <div className="summary-strip">
-      {SPLITS.map((splitName) => {
-        const summary = dataset.splits[splitName];
+      {SPLIT_FILTERS.map((splitName) => {
+        const count = splitName === "all" ? allCount : dataset.splits[splitName]?.image_count ?? 0;
         return (
           <button
             className={`split-pill ${split === splitName ? "split-pill-active" : ""}`}
@@ -1897,7 +2145,7 @@ function DatasetSummaryBar({
             onClick={() => setSplit(splitName)}
           >
             <strong>{splitName}</strong>
-            <span>{summary?.image_count ?? 0} img</span>
+            <span>{count} img</span>
           </button>
         );
       })}
@@ -1905,19 +2153,72 @@ function DatasetSummaryBar({
   );
 }
 
-function LabelManager({ dataset, onChanged }: { dataset: DatasetSummary; onChanged: () => void }) {
+function DatasetPagination({
+  total,
+  offset,
+  limit,
+  onLimitChange,
+  onPageChange
+}: {
+  total: number;
+  offset: number;
+  limit: number;
+  onLimitChange: (limit: number) => void;
+  onPageChange: (page: number) => void;
+}) {
+  const currentPage = Math.floor(offset / Math.max(limit, 1));
+  const from = total === 0 ? 0 : offset + 1;
+  const to = Math.min(offset + limit, total);
+  const canPrevious = currentPage > 0;
+  const canNext = to < total;
+  return (
+    <div className="dataset-pagination">
+      <label className="dataset-pagination-size">
+        <span>Images per page:</span>
+        <select value={limit} onChange={(event) => onLimitChange(Number(event.target.value))}>
+          {[25, 50, 100, 200].map((size) => (
+            <option value={size} key={size}>{size}</option>
+          ))}
+        </select>
+      </label>
+      <div className="dataset-pagination-nav">
+        <strong>{from} - {to} of {total}</strong>
+        <button className="icon-button" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrevious} title="Previous page" type="button">
+          <ChevronLeft size={16} />
+        </button>
+        <button className="icon-button" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext} title="Next page" type="button">
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LabelManager({ dataset, onChanged }: { dataset: DatasetSummary; onChanged: () => void | Promise<void> }) {
   const [newLabel, setNewLabel] = useState("");
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const addLabel = useMutation({
     mutationFn: () => api.addDatasetLabel(dataset.id, newLabel),
-    onSuccess: () => {
+    onSuccess: async () => {
       setNewLabel("");
-      onChanged();
+      await onChanged();
     }
   });
   const deleteLabel = useMutation({
     mutationFn: (index: number) => api.deleteDatasetLabel(dataset.id, index, false),
-    onSuccess: onChanged
+    onSuccess: async () => {
+      await onChanged();
+    }
   });
+
+  function confirmDeleteLabel(label: string, index: number) {
+    confirm({
+      title: "Delete label?",
+      message: `This will remove "${label}" from "${dataset.name}" when it is not used by existing annotations.`,
+      confirmLabel: "Delete label",
+      onConfirm: () => deleteLabel.mutate(index)
+    });
+  }
 
   return (
     <div className="space-y-3">
@@ -1928,7 +2229,7 @@ function LabelManager({ dataset, onChanged }: { dataset: DatasetSummary; onChang
             <strong>{label}</strong>
             <button
               className="icon-button"
-              onClick={() => deleteLabel.mutate(index)}
+              onClick={() => confirmDeleteLabel(label, index)}
               disabled={!dataset.editable || deleteLabel.isPending}
               title="Delete label"
             >
@@ -1948,6 +2249,7 @@ function LabelManager({ dataset, onChanged }: { dataset: DatasetSummary; onChang
         </button>
       </div>
       <MutationError mutations={[addLabel, deleteLabel]} />
+      {confirmationDialog}
     </div>
   );
 }
@@ -1959,7 +2261,7 @@ function AnnotationEditor({
 }: {
   dataset: DatasetSummary;
   item: DatasetItemDetail;
-  onSaved: () => void;
+  onSaved: () => void | Promise<void>;
 }) {
   const [annotations, setAnnotations] = useState<DatasetAnnotation[]>(item.annotations);
   const [draft, setDraft] = useState<number[][]>([]);
@@ -1969,17 +2271,17 @@ function AnnotationEditor({
   const imageUrl = apiAssetUrl(item.image_url);
   const saveMutation = useMutation({
     mutationFn: () => api.saveDatasetAnnotations(dataset.id, item.split, item.id, annotations),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setAnnotations(data.annotations);
       setDraft([]);
-      onSaved();
+      await onSaved();
     }
   });
   const labelMutation = useMutation({
     mutationFn: () => api.updateDatasetItemLabel(dataset.id, item.split, item.id, { class_id: classId }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setAnnotations(data.annotations);
-      onSaved();
+      await onSaved();
     }
   });
 
@@ -2122,6 +2424,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   const [result, setResult] = useState<InferenceResult | null>(null);
   const [activeJobId, setActiveJobId] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const taskModels = useMemo(
     () => models.filter((model) => model.task_type === taskType),
     [models, taskType]
@@ -2129,6 +2432,10 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   const selectedModelInfo = useMemo(
     () => taskModels.find((model) => model.id === selectedModel) ?? null,
     [taskModels, selectedModel]
+  );
+  const modelNameById = useMemo(
+    () => Object.fromEntries(models.map((model) => [model.id, model.name])) as Record<string, string>,
+    [models]
   );
   const showDetectionParams = selectedModelInfo ? selectedModelInfo.task_type !== "classification" : false;
   const historyQuery = useQuery({
@@ -2148,9 +2455,9 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   const deleteMutation = useMutation({
     mutationFn: ({ ids, clearAll }: { ids: string[]; clearAll?: boolean }) =>
       api.deleteInference(ids, projectId, clearAll),
-    onSuccess: () => {
+    onSuccess: async () => {
       setSelectedIds([]);
-      historyQuery.refetch();
+      await historyQuery.refetch();
     }
   });
 
@@ -2186,6 +2493,25 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
       form.append("iou_threshold", String(iou));
     }
     await inferenceMutation.mutateAsync(form);
+  }
+
+  function confirmDeleteInferenceRows() {
+    if (selectedIds.length === 0) return;
+    confirm({
+      title: "Delete inference history?",
+      message: `This will delete ${selectedIds.length} selected inference result${selectedIds.length === 1 ? "" : "s"} and owned output artifacts.`,
+      confirmLabel: "Delete results",
+      onConfirm: () => deleteMutation.mutate({ ids: selectedIds })
+    });
+  }
+
+  function confirmClearInferenceHistory() {
+    confirm({
+      title: "Clear all inference history?",
+      message: "This will delete all inference history for the active project and owned output artifacts.",
+      confirmLabel: "Clear all",
+      onConfirm: () => deleteMutation.mutate({ ids: [], clearAll: true })
+    });
   }
 
   return (
@@ -2236,21 +2562,28 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
         </section>
         <section className="panel min-h-[520px]">
           <PanelTitle icon={<ImageIcon size={18} />} title="Result" />
-          {result ? <InferenceResultView result={result} /> : <EmptyState label="No result selected" />}
+          {result ? <InferenceResultView result={result} modelNameById={modelNameById} /> : <EmptyState label="No result selected" />}
         </section>
         <section className="panel workspace-grid-full">
           <HistoryHeader
             title="Inference History"
             selectedCount={selectedIds.length}
             onRefresh={() => historyQuery.refetch()}
-            onDelete={() => deleteMutation.mutate({ ids: selectedIds })}
-            onClear={() => deleteMutation.mutate({ ids: [], clearAll: true })}
+            onDelete={confirmDeleteInferenceRows}
+            onClear={confirmClearInferenceHistory}
           />
-          <InferenceHistory rows={historyQuery.data ?? []} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onSelect={setResult} />
+          <InferenceHistory
+            rows={historyQuery.data ?? []}
+            selectedIds={selectedIds}
+            setSelectedIds={setSelectedIds}
+            onSelect={setResult}
+            modelNameById={modelNameById}
+          />
           {historyQuery.isLoading && <TableSkeleton rows={4} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
       </div>
+      {confirmationDialog}
     </div>
   );
 }
@@ -2271,6 +2604,7 @@ export function TestingPage() {
   const [datasetKey, setDatasetKey] = useState("");
   const [limit, setLimit] = useState<number | "">("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const modelsQuery = useQuery({
     queryKey: ["models", "available", projectId],
     queryFn: () => api.models(true, projectId)
@@ -2283,14 +2617,16 @@ export function TestingPage() {
   });
   const mutation = useMutation({
     mutationFn: api.createTestingJobsBatch,
-    onSuccess: () => jobsQuery.refetch()
+    onSuccess: async () => {
+      await jobsQuery.refetch();
+    }
   });
   const deleteMutation = useMutation({
     mutationFn: ({ ids, clearAll }: { ids: string[]; clearAll?: boolean }) =>
       api.deleteTestingJobs(ids, projectId, clearAll),
-    onSuccess: () => {
+    onSuccess: async () => {
       setSelectedIds([]);
-      jobsQuery.refetch();
+      await jobsQuery.refetch();
     }
   });
   const rawModels = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
@@ -2305,6 +2641,10 @@ export function TestingPage() {
   );
   const modelTaskById = useMemo(
     () => Object.fromEntries(rawModels.map((model) => [model.id, model.task_type])) as Record<string, TaskType>,
+    [rawModels]
+  );
+  const modelNameById = useMemo(
+    () => Object.fromEntries(rawModels.map((model) => [model.id, model.name])) as Record<string, string>,
     [rawModels]
   );
   const comparisonJobs = useMemo(
@@ -2341,6 +2681,25 @@ export function TestingPage() {
       model_ids: modelIds,
       dataset_key: datasetKey,
       limit: limit === "" ? null : limit
+    });
+  }
+
+  function confirmDeleteTestingRows() {
+    if (selectedIds.length === 0) return;
+    confirm({
+      title: "Delete testing jobs?",
+      message: `This will delete ${selectedIds.length} selected terminal testing job${selectedIds.length === 1 ? "" : "s"} and owned artifacts.`,
+      confirmLabel: "Delete jobs",
+      onConfirm: () => deleteMutation.mutate({ ids: selectedIds })
+    });
+  }
+
+  function confirmClearTestingJobs() {
+    confirm({
+      title: "Clear all testing jobs?",
+      message: "This will delete all terminal testing jobs for the active project and owned artifacts.",
+      confirmLabel: "Clear all",
+      onConfirm: () => deleteMutation.mutate({ ids: [], clearAll: true })
     });
   }
 
@@ -2395,32 +2754,39 @@ export function TestingPage() {
             title="Testing Jobs"
             selectedCount={selectedIds.length}
             onRefresh={() => jobsQuery.refetch()}
-            onDelete={() => deleteMutation.mutate({ ids: selectedIds })}
-            onClear={() => deleteMutation.mutate({ ids: [], clearAll: true })}
+            onDelete={confirmDeleteTestingRows}
+            onClear={confirmClearTestingJobs}
           />
           <TestingJobTable
             jobs={jobsQuery.data ?? []}
             selectedIds={selectedIds}
             setSelectedIds={setSelectedIds}
             modelTaskById={modelTaskById}
+            modelNameById={modelNameById}
           />
           {jobsQuery.isLoading && <TableSkeleton rows={5} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
         <section className="panel workspace-grid-full">
           <PanelTitle icon={<BarChart3 size={18} />} title="Comparison" />
-          <TestingComparison jobs={comparisonJobs} modelTaskById={modelTaskById} />
+          <TestingComparison jobs={comparisonJobs} modelTaskById={modelTaskById} modelNameById={modelNameById} />
         </section>
       </div>
+      {confirmationDialog}
     </div>
   );
 }
 
 export function TestingDetailPage({ jobId }: { jobId: string }) {
+  const { projectId } = useProject();
   const jobQuery = useQuery({
     queryKey: ["testing-job", jobId],
     queryFn: () => api.testingJob(jobId),
     refetchInterval: (query) => activePollInterval(query.state.data as EvaluationJob | undefined)
+  });
+  const modelsQuery = useQuery({
+    queryKey: ["models", "available", projectId],
+    queryFn: () => api.models(true, projectId)
   });
   const comparisonQuery = useQuery({
     queryKey: ["testing-comparison", jobId],
@@ -2433,6 +2799,15 @@ export function TestingDetailPage({ jobId }: { jobId: string }) {
     enabled: Boolean(jobQuery.data && TERMINAL_STATUSES.has(jobQuery.data.status))
   });
   const job = jobQuery.data;
+  const detailModels = modelsQuery.data ?? [];
+  const modelTaskById = useMemo(
+    () => Object.fromEntries(detailModels.map((model) => [model.id, model.task_type])) as Record<string, TaskType>,
+    [detailModels]
+  );
+  const modelNameById = useMemo(
+    () => Object.fromEntries(detailModels.map((model) => [model.id, model.name])) as Record<string, string>,
+    [detailModels]
+  );
   return (
     <div className="space-y-5">
       <PageHeader title="Testing Detail" subtitle={job?.id.slice(0, 8) ?? jobId.slice(0, 8)} icon={<FlaskConical size={20} />} />
@@ -2443,7 +2818,11 @@ export function TestingDetailPage({ jobId }: { jobId: string }) {
             {comparisonQuery.isLoading ? (
               <TableSkeleton rows={4} />
             ) : (
-              <TestingComparison jobs={comparisonQuery.data?.jobs ?? [job]} />
+              <TestingComparison
+                jobs={comparisonQuery.data?.jobs ?? [job]}
+                modelTaskById={modelTaskById}
+                modelNameById={modelNameById}
+              />
             )}
           </section>
           <section className="panel space-y-5">
@@ -2471,6 +2850,7 @@ export function TrainingPage() {
   const [learningRate, setLearningRate] = useState(0.002);
   const [device, setDevice] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const datasetsQuery = useQuery({ queryKey: ["training-datasets", projectId], queryFn: () => api.datasetCatalog(projectId) });
   const optionsQuery = useQuery({
     queryKey: ["training-options", taskType],
@@ -2483,18 +2863,18 @@ export function TrainingPage() {
   });
   const createMutation = useMutation({
     mutationFn: api.createTrainingJob,
-    onSuccess: () => {
+    onSuccess: async () => {
       setModelName("");
-      jobsQuery.refetch();
+      await jobsQuery.refetch();
     }
   });
   const prepareMutation = useMutation({ mutationFn: () => api.prepareModelAsset(modelOptionId, true) });
   const deleteMutation = useMutation({
     mutationFn: ({ ids, clearAll }: { ids: string[]; clearAll?: boolean }) =>
       api.deleteTrainingJobs(ids, projectId, clearAll),
-    onSuccess: () => {
+    onSuccess: async () => {
       setSelectedIds([]);
-      jobsQuery.refetch();
+      await jobsQuery.refetch();
     }
   });
   const options = useMemo(() => optionsQuery.data ?? [], [optionsQuery.data]);
@@ -2545,6 +2925,25 @@ export function TrainingPage() {
       cache: "disk",
       workers: 0,
       patience: 50
+    });
+  }
+
+  function confirmDeleteTrainingRows() {
+    if (selectedIds.length === 0) return;
+    confirm({
+      title: "Delete training jobs?",
+      message: `This will delete ${selectedIds.length} selected terminal training job${selectedIds.length === 1 ? "" : "s"} and owned artifacts.`,
+      confirmLabel: "Delete jobs",
+      onConfirm: () => deleteMutation.mutate({ ids: selectedIds })
+    });
+  }
+
+  function confirmClearTrainingJobs() {
+    confirm({
+      title: "Clear all training jobs?",
+      message: "This will delete all terminal training jobs for the active project and owned artifacts.",
+      confirmLabel: "Clear all",
+      onConfirm: () => deleteMutation.mutate({ ids: [], clearAll: true })
     });
   }
 
@@ -2627,27 +3026,50 @@ export function TrainingPage() {
             title="Training Jobs"
             selectedCount={selectedIds.length}
             onRefresh={() => jobsQuery.refetch()}
-            onDelete={() => deleteMutation.mutate({ ids: selectedIds })}
-            onClear={() => deleteMutation.mutate({ ids: [], clearAll: true })}
+            onDelete={confirmDeleteTrainingRows}
+            onClear={confirmClearTrainingJobs}
           />
           <TrainingJobTable jobs={jobsQuery.data ?? []} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
           {jobsQuery.isLoading && <TableSkeleton rows={5} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
       </div>
+      {confirmationDialog}
     </div>
   );
 }
 
 export function TrainingDetailPage({ jobId }: { jobId: string }) {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const jobQuery = useQuery({
     queryKey: ["training-job", jobId],
     queryFn: () => api.trainingJob(jobId),
     refetchInterval: (query) => activePollInterval(query.state.data as TrainingJob | undefined)
   });
-  const cancelMutation = useMutation({ mutationFn: api.cancelTrainingJob, onSuccess: () => jobQuery.refetch() });
-  const promoteMutation = useMutation({ mutationFn: api.promoteTrainingJob, onSuccess: () => jobQuery.refetch() });
+  const cancelMutation = useMutation({
+    mutationFn: api.cancelTrainingJob,
+    onSuccess: async () => {
+      await jobQuery.refetch();
+    }
+  });
+  const promoteMutation = useMutation({
+    mutationFn: api.promoteTrainingJob,
+    onSuccess: async () => {
+      await jobQuery.refetch();
+    }
+  });
   const job = jobQuery.data;
+
+  function confirmCancelTrainingJob(job: TrainingJob) {
+    confirm({
+      title: "Cancel training job?",
+      message: `This will request cancellation for training job ${job.id.slice(0, 8)}. Partial artifacts may remain unavailable.`,
+      confirmLabel: "Cancel job",
+      tone: "warning",
+      onConfirm: () => cancelMutation.mutate(job.id)
+    });
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader title="Training Detail" subtitle={job?.id.slice(0, 8) ?? jobId.slice(0, 8)} icon={<Activity size={20} />} />
@@ -2655,7 +3077,7 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
         <section className="panel space-y-5">
           <div className="flex flex-wrap gap-2">
             {isActiveStatus(job.status) && (
-              <button className="secondary-button" onClick={() => cancelMutation.mutate(job.id)}>
+              <button className="secondary-button" onClick={() => confirmCancelTrainingJob(job)}>
                 <StopCircle size={16} /> Cancel
               </button>
             )}
@@ -2672,6 +3094,7 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
       ) : (
         <PageSkeleton title="Loading training job" />
       )}
+      {confirmationDialog}
     </div>
   );
 }
@@ -2690,6 +3113,7 @@ function DatasetThumb({
   onSelected: (checked: boolean) => void;
 }) {
   const imageUrl = apiAssetUrl(item.image_url);
+  const labelText = item.label ?? (item.classes.join(", ") || "Unlabeled");
   return (
     <div className={`thumb ${active ? "thumb-active" : ""}`}>
       <label className="thumb-check">
@@ -2700,12 +3124,36 @@ function DatasetThumb({
         />
       </label>
       <button className="thumb-main" onClick={onClick} type="button">
-        {imageUrl && <img src={imageUrl} alt={item.filename} />}
+        <span className="thumb-image-frame">
+          {imageUrl && <img src={imageUrl} alt={item.filename} />}
+          {item.annotations.length > 0 && (
+            <svg className="thumb-annotation-svg" viewBox={`0 0 ${item.width} ${item.height}`} preserveAspectRatio="none" aria-hidden="true">
+              {item.annotations.map((annotation, index) =>
+                annotation.kind === "box" && annotation.bbox ? (
+                  <rect
+                    key={`${annotation.class_name}-${index}`}
+                    x={annotation.bbox.x}
+                    y={annotation.bbox.y}
+                    width={annotation.bbox.width}
+                    height={annotation.bbox.height}
+                    style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}2b` }}
+                  />
+                ) : annotation.kind === "polygon" ? (
+                  <polygon
+                    key={`${annotation.class_name}-${index}`}
+                    points={pointsAttr(annotation.polygon)}
+                    style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}2b` }}
+                  />
+                ) : null
+              )}
+            </svg>
+          )}
+        </span>
       </button>
       <div className="thumb-meta">
         <strong title={item.filename}>{item.filename}</strong>
-        <span title={item.label ?? "Unlabeled"}>{item.label ?? "Unlabeled"}</span>
-        <small>{item.annotation_count} ann</small>
+        <span title={labelText}>{labelText}</span>
+        <small>{item.split} / {item.annotation_count} ann</small>
       </div>
     </div>
   );
@@ -2763,13 +3211,15 @@ function AnnotationTable({
   );
 }
 
-function InferenceResultView({ result }: { result: InferenceResult }) {
+function InferenceResultView({ result, modelNameById = {} }: { result: InferenceResult; modelNameById?: Record<string, string> }) {
   const overlay = mediaUrl(result.overlay_url);
+  const modelName = displayModelName(result.model_id, modelNameById);
   return (
     <div className="result-grid">
       <div className="image-frame">{overlay ? <img src={overlay} alt="Prediction overlay" /> : null}</div>
       <div className="inference-result-side">
         <div className="inference-result-summary">
+          <span><strong>Model</strong>{modelName}</span>
           <span><strong>Image label</strong>{result.image_level_label}</span>
           <span><strong>Detections</strong>{result.detections.length}</span>
           <span><strong>Time</strong>{result.duration_ms ? `${result.duration_ms} ms` : "-"}</span>
@@ -2852,12 +3302,14 @@ function InferenceHistory({
   rows,
   selectedIds,
   setSelectedIds,
-  onSelect
+  onSelect,
+  modelNameById = {}
 }: {
   rows: InferenceResult[];
   selectedIds: string[];
   setSelectedIds: (ids: string[]) => void;
   onSelect: (result: InferenceResult) => void;
+  modelNameById?: Record<string, string>;
 }) {
   return (
     <div className="table-wrap">
@@ -2883,7 +3335,7 @@ function InferenceHistory({
                 />
               </td>
               <td onClick={() => onSelect(row)}>{new Date(row.created_at).toLocaleString()}</td>
-              <td onClick={() => onSelect(row)}>{row.model_id}</td>
+              <td onClick={() => onSelect(row)}>{displayModelName(row.model_id, modelNameById)}</td>
               <td onClick={() => onSelect(row)}>{row.image_level_label}</td>
               <td onClick={() => onSelect(row)}>{row.detections.length}</td>
               <td onClick={() => onSelect(row)}>{row.duration_ms ?? "-"}</td>
@@ -2904,12 +3356,14 @@ function TestingJobTable({
   jobs,
   selectedIds,
   setSelectedIds,
-  modelTaskById = {}
+  modelTaskById = {},
+  modelNameById = {}
 }: {
   jobs: EvaluationJob[];
   selectedIds: string[];
   setSelectedIds: (ids: string[]) => void;
   modelTaskById?: Record<string, TaskType>;
+  modelNameById?: Record<string, string>;
 }) {
   const metricColumns = testingTableColumns(jobs, modelTaskById);
   return (
@@ -2939,7 +3393,7 @@ function TestingJobTable({
                 />
               </td>
               <td data-label="Status"><StatusBadge status={job.status} /></td>
-              <td data-label="Model">{job.model_id}</td>
+              <td data-label="Model">{displayModelName(job.model_id, modelNameById)}</td>
               <td data-label="Dataset">{job.dataset_key}</td>
               <td data-label="Samples">{job.metrics?.samples ?? "-"}</td>
               {metricColumns.map((column) => (
@@ -2961,10 +3415,12 @@ function TestingJobTable({
 
 function TestingComparison({
   jobs,
-  modelTaskById = {}
+  modelTaskById = {},
+  modelNameById = {}
 }: {
   jobs: EvaluationJob[];
   modelTaskById?: Record<string, TaskType>;
+  modelNameById?: Record<string, string>;
 }) {
   if (jobs.length === 0) return <EmptyState label="No completed results for this dataset" />;
   const metricColumns = comparisonMetricColumns(jobs, modelTaskById);
@@ -2985,7 +3441,7 @@ function TestingComparison({
         <tbody>
           {jobs.map((job) => (
             <tr key={job.id}>
-              <td data-label="Model">{job.model_id}</td>
+              <td data-label="Model">{displayModelName(job.model_id, modelNameById)}</td>
               <td data-label="Type">{evaluationKindLabel(inferEvaluationKind(job, modelTaskById[job.model_id]))}</td>
               <td data-label="Samples">{job.metrics?.samples ?? "-"}</td>
               {metricColumns.map((column) => (
@@ -2998,6 +3454,10 @@ function TestingComparison({
       </table>
     </div>
   );
+}
+
+function displayModelName(modelId: string, modelNameById: Record<string, string>): string {
+  return modelNameById[modelId] ?? modelId;
 }
 
 function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>) {

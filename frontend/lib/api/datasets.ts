@@ -3,6 +3,7 @@ import type {
   DatasetEdaSummary,
   DatasetFormat,
   DatasetItemDetail,
+  DatasetItemPage,
   DatasetItemSummary,
   DatasetPreprocessConfig,
   DatasetPreprocessPreview,
@@ -94,7 +95,7 @@ export const datasetsApi = {
     datasetId: string,
     params: { split: string; class_name?: string; unlabeled?: boolean; limit?: number; offset?: number }
   ) =>
-    jsonFetch<DatasetItemSummary[]>(
+    jsonFetch<DatasetItemPage>(
       `/datasets/${datasetId}/items${query({
         split: params.split,
         class_name: params.class_name,

@@ -68,13 +68,15 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - The root page lists projects outside the project workspace; selecting a project opens the project sidebar at Dataset Studio.
 - Global navigation includes Projects and Settings only; project creation is launched from the project list. Project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
 - Sidebar navigation includes an Available Models section inside each project.
-- Dataset Studio uses an unassigned inbox for new uploads, a Config tab for preprocessing/augmentation/split settings, and a 70/20/10 Proceed workflow.
+- Dataset Studio uses an image browser that defaults to All before Unassigned, Train, Valid, and Test filters, an unassigned inbox for new uploads, a Config tab for preprocessing/augmentation/split settings, and a 70/20/10 Proceed workflow.
 - Classification datasets support upload-time labels, per-image label edits, and bulk selected-image relabeling.
 - Reference datasets remain read-only and are not deleted or rewritten.
 - Inference, testing, and training lists can be filtered by project.
 - Inference model selection lists only available local/promoted trained models.
 - Completed runnable training jobs are automatically copied into stable trained-model storage and registered for inference/testing.
 - Training jobs can include a user-entered model display name that appears in the available model catalog after registration.
+- Inference history, testing jobs, and comparison tables display model names when the model is still registered, falling back to the stable model id only when needed.
+- Trained-model storage folders include a slugified model display name and stable model id, and registry-managed renames update owned trained-model folder paths.
 - Model catalog cards expose a three-dot menu for trained/promoted model rename and delete actions; reference models are visible but read-only.
 - Testing can create comparison runs by selecting multiple available models for the same dataset.
 - Testing comparison runs are grouped by `comparison_id`, and opening any job in the group shows all sibling model results.
@@ -93,6 +95,11 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - The frontend product identity is Onestep Vision with the tagline "One workspace for image intelligence" and supporting parent-brand language for ONESTEP.
 - The global sidebar brand mark/name links to the project list at `/` in both full and compact navigation states.
 - Dataset workspace selection is URL-backed through `/datasets?dataset={dataset_id}`; the plain `/datasets` route always shows the dataset catalog.
+- Dataset image browsing is paginated with selectable page size, visible range, total count, and previous/next controls.
+- Dataset image grids do not use nested scrolling; pagination remains below the grid.
+- Dataset image thumbnails show available box and segmentation overlays, and clicking an image in the Images tab opens Annotate with that image selected.
+- Long-running mutations show a full-screen loading overlay until dependent refetches complete, while skeletons remain scoped to data-dependent components.
+- Destructive or high-impact actions, including deletion, clear-all history actions, dataset uploads, split moves, bulk relabeling, dataset processing, label deletion, and training cancellation, require an explicit confirmation dialog before the mutation runs.
 - Data tables remain semantic tables and are contained in responsive horizontal scroll wrappers so narrow viewports do not overflow the page.
 - Testing and training workspaces use responsive one-column tablet layouts and card-style job rows on phone-sized viewports.
 - Project creation uses a simple centered Onestep Vision form with compact selectable task-type cards while preserving the existing project creation payload.
