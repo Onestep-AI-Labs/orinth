@@ -50,19 +50,21 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - `POST /api/training/jobs/delete`
 - `DELETE /api/training/jobs`
 - `DELETE /api/training/jobs/{id}`
+- `PATCH /api/models/{model_id}`
+- `DELETE /api/models/{model_id}`
 
 ## Behavior
 
 - A default research image project is created automatically for existing data.
 - Project creation happens on a dedicated create page where users provide a name, a required short UI description, and one or more image task types.
-- Project cards open workspaces and expose a three-dot menu for deletion; projects cannot be created inline from the project list.
+- Project cards open workspaces and expose a three-dot menu for rename and deletion; projects cannot be created inline from the project list.
 - User-created projects can be removed when they do not own datasets or history; the default project cannot be deleted.
 - Dataset creation follows the active project's allowed image task types.
 - Editable dataset manifests include `project_id`, `task_type`, `format`, and `labels`.
 - Editable dataset manifests can persist allowlisted preprocessing config for training-time prepared copies.
 - Preprocessing config supports random training-time augmentation and materialized generated copies; generated version artifacts live under ignored `storage/dataset_versions`.
 - Editable datasets support classification label-only annotations, detection boxes, and segmentation polygons.
-- Dataset Studio is catalog-first, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, EDA for dataset health and distribution, and Config for preprocessing, split, and version artifacts.
+- Dataset Studio is catalog-first, with dataset-card three-dot actions for editable dataset rename, duplicate, and delete, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, EDA for dataset health and distribution, and Config for preprocessing, split, and version artifacts.
 - The root page lists projects outside the project workspace; selecting a project opens the project sidebar at Dataset Studio.
 - Global navigation includes Projects and Settings only; project creation is launched from the project list. Project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
 - Sidebar navigation includes an Available Models section inside each project.
@@ -72,6 +74,8 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Inference, testing, and training lists can be filtered by project.
 - Inference model selection lists only available local/promoted trained models.
 - Completed runnable training jobs are automatically copied into stable trained-model storage and registered for inference/testing.
+- Training jobs can include a user-entered model display name that appears in the available model catalog after registration.
+- Model catalog cards expose a three-dot menu for trained/promoted model rename and delete actions; reference models are visible but read-only.
 - Testing can create comparison runs by selecting multiple available models for the same dataset.
 - Testing comparison runs are grouped by `comparison_id`, and opening any job in the group shows all sibling model results.
 - History deletion hard-deletes DB rows and owned `storage/` artifacts.
@@ -106,9 +110,9 @@ Text data is reserved as future metadata only. The platform remains a local rese
 ## Acceptance Criteria
 
 - Users can create a project, create an image dataset, add labels, upload images, and save task-aware annotations.
-- Users can create a project from `/projects/new`, enter a required short description, choose multiple image task types, delete eligible projects from a project card menu, and switch active projects inside the project workspace.
+- Users can create a project from `/projects/new`, enter a required short description, choose multiple image task types, rename projects, delete eligible projects from a project card menu, and switch active projects inside the project workspace.
 - Users can recognize the app as Onestep Vision, click the global logo/name to return home, and use the branded create-project experience without changing project creation behavior.
-- Users can manage datasets from a catalog-first view, upload multiple images, edit classification labels per image or in bulk, preview preprocessing safely, generate version artifacts, and inspect core EDA.
+- Users can manage datasets from a catalog-first view, rename editable datasets from card menus, upload multiple images, edit classification labels per image or in bulk, preview preprocessing safely, generate version artifacts, and inspect core EDA.
 - Users can open a dataset via `/datasets?dataset={dataset_id}` and return to the catalog by clicking the Datasets sidebar link or the Back to catalog action.
 - Table-heavy pages remain usable on mobile and small desktop widths without causing page-level horizontal overflow.
 - Testing and training pages remain usable across desktop, tablet, and mobile widths, including run configuration forms, history actions, job rows, comparisons, and detail metrics.

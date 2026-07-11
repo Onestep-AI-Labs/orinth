@@ -20,12 +20,15 @@ Provide a local, project-scoped training job platform that runs long image train
 - `POST /api/training/jobs/delete`
 - `DELETE /api/training/jobs`
 - `DELETE /api/training/jobs/{id}`
+- `PATCH /api/models/{model_id}`
+- `DELETE /api/models/{model_id}`
 
 ## Behavior
 
 - Training jobs run in subprocesses.
 - Logs and artifacts are written under ignored `storage/training_runs`.
 - Jobs include `project_id`, `task_type`, `model_option_id`, optimizer, architecture, and hyperparameter payloads.
+- Training job creation accepts an optional model display name, which is applied to the auto-registered completed model artifact.
 - Training creation is task-first: users choose classification, object detection, or segmentation before selecting a compatible model option.
 - The frontend defaults new training jobs to classification and initializes the first runnable classification model option when available.
 - YOLO training uses local dataset paths, dataset-driven labels, and notebook-derived hyperparameters.
@@ -47,6 +50,7 @@ Provide a local, project-scoped training job platform that runs long image train
 - Terminal jobs can be deleted singly, in selected batches, or by clear-all; active jobs are blocked.
 - Backend startup marks queued/running jobs as failed because FastAPI background subprocesses do not survive restarts.
 - Completed YOLO and Keras classification runs can be used directly from the model registry; manual promotion remains idempotent.
+- Trained and promoted model registry entries can be renamed or deleted from the model catalog; reference models remain read-only.
 - U-Net + Inception training is gated until the long two-stage TensorFlow path is validated.
 
 ## Acceptance Criteria

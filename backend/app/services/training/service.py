@@ -941,10 +941,13 @@ class TrainingService:
             "image_size": params.get("image_size"),
             "run_dir": str(run_dir),
         }
+        display_name = (params.get("model_name") or "").strip()
+        if not display_name:
+            display_name = f"Trained {job.model_family.replace('_', ' ')} {job.id[:8]}"
         (model_dir / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         info = self.registry.register_model(
             model_id=model_id,
-            name=f"Trained {job.model_family.replace('_', ' ')} {job.id[:8]}",
+            name=display_name,
             family=family,
             task_type=params.get("task_type", DEFAULT_TASK_TYPE),
             paths=paths,

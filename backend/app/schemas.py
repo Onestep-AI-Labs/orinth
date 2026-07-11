@@ -115,6 +115,10 @@ class ModelInfo(BaseModel):
     artifacts: dict[str, Any] = Field(default_factory=dict)
 
 
+class ModelUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
 class EvaluationDatasetInfo(BaseModel):
     key: str
     name: str
@@ -180,6 +184,7 @@ class TrainingJobCreate(BaseModel):
     task_type: TaskType = DEFAULT_TASK_TYPE
     model_family: str = "yolo"
     model_option_id: str = "yolo_local"
+    model_name: str | None = Field(default=None, max_length=120)
     base_model: str | None = None
     epochs: int = Field(default=50, ge=1, le=1000)
     image_size: int = Field(default=512, ge=128, le=2048)

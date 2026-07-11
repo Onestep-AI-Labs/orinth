@@ -171,14 +171,14 @@ function ProjectSidebar({
           <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />} iconOnly>
             Models
           </SideLink>
-          <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ImageIcon size={17} />} iconOnly>
-            Inference
+          <SideLink href="/training" active={pathname.startsWith("/training")} icon={<Activity size={17} />} iconOnly>
+            Training
           </SideLink>
           <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />} iconOnly>
             Testing
           </SideLink>
-          <SideLink href="/training" active={pathname.startsWith("/training")} icon={<Activity size={17} />} iconOnly>
-            Training
+          <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ImageIcon size={17} />} iconOnly>
+            Inference
           </SideLink>
         </nav>
       </aside>
@@ -220,14 +220,14 @@ function ProjectSidebar({
         <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />}>
           Models
         </SideLink>
-        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ImageIcon size={17} />}>
-          Inference
+        <SideLink href="/training" active={pathname.startsWith("/training")} icon={<Activity size={17} />}>
+          Training
         </SideLink>
         <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />}>
           Testing
         </SideLink>
-        <SideLink href="/training" active={pathname.startsWith("/training")} icon={<Activity size={17} />}>
-          Training
+        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ImageIcon size={17} />}>
+          Inference
         </SideLink>
       </nav>
     </aside>

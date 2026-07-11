@@ -22,6 +22,7 @@ export const trainingApi = {
     task_type: TaskType;
     model_family: string;
     model_option_id: string;
+    model_name?: string | null;
     base_model?: string | null;
     epochs: number;
     image_size: number;

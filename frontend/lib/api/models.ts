@@ -1,4 +1,4 @@
-import type { ModelInfo, TaskType } from "@/types/api";
+import type { DeleteResponse, ModelInfo, TaskType } from "@/types/api";
 import { jsonFetch, query } from "@/lib/api/client";
 
 export const modelsApi = {
@@ -9,5 +9,14 @@ export const modelsApi = {
         project_id: projectId,
         task_type: taskType
       })}`
-    )
+    ),
+  renameModel: (modelId: string, name: string) =>
+    jsonFetch<ModelInfo>(`/models/${modelId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name })
+    }),
+  deleteModel: (modelId: string) =>
+    jsonFetch<DeleteResponse>(`/models/${modelId}`, {
+      method: "DELETE"
+    })
 };

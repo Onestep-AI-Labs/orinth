@@ -66,6 +66,7 @@ import type {
   InferenceResult,
   JobProgress,
   ModelInfo,
+  ProjectSummary,
   SplitKey,
   TaskType,
   TrainingJob,
@@ -82,11 +83,24 @@ export function ProjectLandingPage() {
   const router = useRouter();
   const { projectId, projects, projectsLoading, setProjectId, refreshProjects } = useProject();
   const [openMenuId, setOpenMenuId] = useState("");
+  const [renameProjectId, setRenameProjectId] = useState("");
+  const [renameProjectDraft, setRenameProjectDraft] = useState("");
+  const updateProject = useMutation({
+    mutationFn: ({ targetProjectId, name }: { targetProjectId: string; name: string }) =>
+      api.updateProject(targetProjectId, { name }),
+    onSuccess: () => {
+      setOpenMenuId("");
+      setRenameProjectId("");
+      setRenameProjectDraft("");
+      refreshProjects();
+    }
+  });
   const deleteProject = useMutation({
     mutationFn: api.deleteProject,
     onSuccess: (_result, deletedId) => {
       if (deletedId === projectId) setProjectId(DEFAULT_PROJECT_ID);
       setOpenMenuId("");
+      setRenameProjectId("");
       refreshProjects();
     }
   });
@@ -94,6 +108,17 @@ export function ProjectLandingPage() {
   function openProject(projectId: string) {
     setProjectId(projectId);
     router.push("/datasets");
+  }
+
+  function openProjectRename(project: ProjectSummary) {
+    setRenameProjectId(project.id);
+    setRenameProjectDraft(project.name);
+    setOpenMenuId("");
+  }
+
+  function saveProjectRename() {
+    if (!renameProjectId || !renameProjectDraft.trim()) return;
+    updateProject.mutate({ targetProjectId: renameProjectId, name: renameProjectDraft.trim() });
   }
 
   return (
@@ -141,6 +166,9 @@ export function ProjectLandingPage() {
                       <button type="button" onClick={() => openProject(project.id)}>
                         <FolderOpen size={15} /> Open
                       </button>
+                      <button type="button" onClick={() => openProjectRename(project)}>
+                        <Save size={15} /> Rename
+                      </button>
                       <button
                         className="danger-menu-item"
                         type="button"
@@ -152,12 +180,35 @@ export function ProjectLandingPage() {
                     </div>
                   )}
                 </div>
+                {renameProjectId === project.id && (
+                  <div className="card-rename-popover">
+                    <Field label="Project name">
+                      <input
+                        value={renameProjectDraft}
+                        onChange={(event) => setRenameProjectDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") saveProjectRename();
+                          if (event.key === "Escape") setRenameProjectId("");
+                        }}
+                        autoFocus
+                      />
+                    </Field>
+                    <div className="card-rename-actions">
+                      <button className="primary-button" onClick={saveProjectRename} disabled={!renameProjectDraft.trim() || updateProject.isPending}>
+                        <Save size={16} /> Save
+                      </button>
+                      <button className="secondary-button" onClick={() => setRenameProjectId("")}>
+                        <X size={16} /> Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </article>
             ))}
             {projects.length === 0 && <EmptyState label="No projects" />}
           </div>
         )}
-        <MutationError mutations={[deleteProject]} />
+        <MutationError mutations={[updateProject, deleteProject]} />
       </section>
     </div>
   );
@@ -275,12 +326,44 @@ export function ProjectCreatePage() {
 
 export function ModelsPage() {
   const { projectId, project } = useProject();
+  const [openMenuId, setOpenMenuId] = useState("");
+  const [renameModelId, setRenameModelId] = useState("");
+  const [renameDraft, setRenameDraft] = useState("");
   const modelsQuery = useQuery({
     queryKey: ["models", "catalog", projectId],
     queryFn: () => api.models(false, projectId)
   });
+  const renameModel = useMutation({
+    mutationFn: ({ modelId, name }: { modelId: string; name: string }) => api.renameModel(modelId, name),
+    onSuccess: () => {
+      setRenameModelId("");
+      setRenameDraft("");
+      setOpenMenuId("");
+      modelsQuery.refetch();
+    }
+  });
+  const deleteModel = useMutation({
+    mutationFn: api.deleteModel,
+    onSuccess: () => {
+      setOpenMenuId("");
+      setRenameModelId("");
+      modelsQuery.refetch();
+    }
+  });
   const models = modelsQuery.data ?? [];
   const availableCount = models.filter((model) => model.available).length;
+
+  function openRename(model: ModelInfo) {
+    setRenameModelId(model.id);
+    setRenameDraft(model.name);
+    setOpenMenuId("");
+  }
+
+  function saveRename() {
+    if (!renameModelId || !renameDraft.trim()) return;
+    renameModel.mutate({ modelId: renameModelId, name: renameDraft.trim() });
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader title="Models" subtitle={project?.name ?? "Available trained models"} icon={<Activity size={20} />} />
@@ -299,39 +382,92 @@ export function ModelsPage() {
           <CardGridSkeleton count={4} />
         ) : (
           <div className="model-grid">
-            {models.map((model) => (
-              <article className={`model-card model-card-${model.task_type.replaceAll("_", "-")} model-card-source-${model.source}`} key={model.id}>
-                <div className="model-card-header">
-                  <span className="model-card-icon"><Activity size={17} /></span>
-                  <div className="model-card-copy">
-                    <strong title={model.name}>{model.name}</strong>
-                    <span>{model.description}</span>
+            {models.map((model) => {
+              const editable = model.source !== "reference";
+              return (
+                <article className={`model-card model-card-${model.task_type.replaceAll("_", "-")} model-card-source-${model.source}`} key={model.id}>
+                  <div className="model-card-header">
+                    <span className="model-card-icon"><Activity size={17} /></span>
+                    <div className="model-card-copy">
+                      <strong title={model.name}>{model.name}</strong>
+                      <span>{model.description}</span>
+                    </div>
+                    <StatusBadge status={model.available ? "available" : "missing"} />
                   </div>
-                  <StatusBadge status={model.available ? "available" : "missing"} />
-                </div>
-                <div className="dataset-meta-chips">
-                  <span><strong>Task</strong>{formatDatasetTask(model.task_type)}</span>
-                  <span><strong>Family</strong>{model.family}</span>
-                  <span><strong>Source</strong>{model.source}</span>
-                </div>
-                <div className="label-chip-row tag-row-compact">
-                  {model.labels.map((label, index) => (
-                    <span className="label-chip" key={label}>
-                      <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
-                      {label}
-                    </span>
-                  ))}
-                </div>
-                <div className="model-card-actions">
-                  <Link className="secondary-button" href="/inference">Inference</Link>
-                  <Link className="secondary-button" href="/testing">Testing</Link>
-                  {model.training_job_id && <Link className="secondary-button" href={`/training/${model.training_job_id}`}>Training run</Link>}
-                </div>
-              </article>
-            ))}
+                  <div className="card-menu">
+                    <button
+                      className="icon-button"
+                      onClick={() => setOpenMenuId((value) => (value === model.id ? "" : model.id))}
+                      title="Model options"
+                      type="button"
+                      aria-expanded={openMenuId === model.id}
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {openMenuId === model.id && (
+                      <div className="option-menu" role="menu">
+                        <button type="button" onClick={() => openRename(model)} disabled={!editable}>
+                          <Save size={15} /> Rename
+                        </button>
+                        <button
+                          className="danger-menu-item"
+                          type="button"
+                          onClick={() => deleteModel.mutate(model.id)}
+                          disabled={!editable || deleteModel.isPending}
+                        >
+                          <Trash2 size={15} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {renameModelId === model.id && (
+                    <div className="model-rename-popover">
+                      <Field label="Model name">
+                        <input
+                          value={renameDraft}
+                          onChange={(event) => setRenameDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") saveRename();
+                            if (event.key === "Escape") setRenameModelId("");
+                          }}
+                          autoFocus
+                        />
+                      </Field>
+                      <div className="model-rename-actions">
+                        <button className="primary-button" onClick={saveRename} disabled={!renameDraft.trim() || renameModel.isPending}>
+                          <Save size={16} /> Save
+                        </button>
+                        <button className="secondary-button" onClick={() => setRenameModelId("")}>
+                          <X size={16} /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="dataset-meta-chips">
+                    <span><strong>Task</strong>{formatDatasetTask(model.task_type)}</span>
+                    <span><strong>Family</strong>{model.family}</span>
+                    <span><strong>Source</strong>{model.source}</span>
+                  </div>
+                  <div className="label-chip-row tag-row-compact">
+                    {model.labels.map((label, index) => (
+                      <span className="label-chip" key={label}>
+                        <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="model-card-actions">
+                    <Link className="secondary-button" href="/inference">Inference</Link>
+                    <Link className="secondary-button" href="/testing">Testing</Link>
+                    {model.training_job_id && <Link className="secondary-button" href={`/training/${model.training_job_id}`}>Training run</Link>}
+                  </div>
+                </article>
+              );
+            })}
             {models.length === 0 && <EmptyState label="No models registered" />}
           </div>
         )}
+        <MutationError mutations={[renameModel, deleteModel]} />
       </section>
     </div>
   );
@@ -363,6 +499,7 @@ export function DatasetPage() {
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showDatasetOptions, setShowDatasetOptions] = useState(false);
   const [catalogMenuDatasetId, setCatalogMenuDatasetId] = useState("");
+  const [catalogRenameDatasetId, setCatalogRenameDatasetId] = useState("");
   const [showRename, setShowRename] = useState(false);
   const [detailTab, setDetailTab] = useState<"images" | "annotate" | "eda" | "config">("images");
   const [split, setSplit] = useState<SplitKey>("unassigned");
@@ -374,6 +511,7 @@ export function DatasetPage() {
   const [labelDraft, setLabelDraft] = useState("object");
   const [cloneName, setCloneName] = useState("");
   const [editName, setEditName] = useState("");
+  const [catalogRenameDraft, setCatalogRenameDraft] = useState("");
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadClassId, setUploadClassId] = useState(0);
   const [bulkClassId, setBulkClassId] = useState(0);
@@ -455,6 +593,9 @@ export function DatasetPage() {
       setPreprocessConfig(preprocessFromDataset(dataset));
       setShowRename(false);
       setShowDatasetOptions(false);
+      setCatalogRenameDatasetId("");
+      setCatalogRenameDraft("");
+      setCatalogMenuDatasetId("");
       catalogQuery.refetch();
     }
   });
@@ -529,6 +670,7 @@ export function DatasetPage() {
       setSelectedItemId("");
       setShowDatasetOptions(false);
       setCatalogMenuDatasetId("");
+      setCatalogRenameDatasetId("");
       catalogQuery.refetch();
     }
   });
@@ -589,6 +731,7 @@ export function DatasetPage() {
     setShowDatasetOptions(false);
     setShowRename(false);
     setShowDuplicate(false);
+    setCatalogRenameDatasetId("");
     setDetailTab("images");
   }, [selectedDataset]);
 
@@ -649,6 +792,21 @@ export function DatasetPage() {
       datasetId: selectedDataset.id,
       name: editName.trim() || selectedDataset.name,
       preprocess: preprocessConfig
+    });
+  }
+
+  function openCatalogDatasetRename(dataset: DatasetSummary) {
+    if (!dataset.editable) return;
+    setCatalogRenameDatasetId(dataset.id);
+    setCatalogRenameDraft(dataset.name);
+    setCatalogMenuDatasetId("");
+  }
+
+  function saveCatalogDatasetRename() {
+    if (!catalogRenameDatasetId || !catalogRenameDraft.trim()) return;
+    updateDatasetMutation.mutate({
+      datasetId: catalogRenameDatasetId,
+      name: catalogRenameDraft.trim()
     });
   }
 
@@ -734,6 +892,13 @@ export function DatasetPage() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => openCatalogDatasetRename(dataset)}
+                          disabled={!dataset.editable}
+                        >
+                          <Save size={15} /> Rename
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => cloneMutation.mutate({ datasetId: dataset.id })}
                           disabled={cloneMutation.isPending}
                         >
@@ -750,12 +915,35 @@ export function DatasetPage() {
                       </div>
                     )}
                   </div>
+                  {catalogRenameDatasetId === dataset.id && (
+                    <div className="card-rename-popover">
+                      <Field label="Dataset name">
+                        <input
+                          value={catalogRenameDraft}
+                          onChange={(event) => setCatalogRenameDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") saveCatalogDatasetRename();
+                            if (event.key === "Escape") setCatalogRenameDatasetId("");
+                          }}
+                          autoFocus
+                        />
+                      </Field>
+                      <div className="card-rename-actions">
+                        <button className="primary-button" onClick={saveCatalogDatasetRename} disabled={!catalogRenameDraft.trim() || updateDatasetMutation.isPending}>
+                          <Save size={16} /> Save
+                        </button>
+                        <button className="secondary-button" onClick={() => setCatalogRenameDatasetId("")}>
+                          <X size={16} /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </article>
               );
             })}
             {datasets.length === 0 && <EmptyState label="No datasets" />}
           </div>
-          <MutationError mutations={[createMutation, deleteDatasetMutation]} />
+          <MutationError mutations={[createMutation, updateDatasetMutation, cloneMutation, deleteDatasetMutation]} />
         </section>
       </div>
     );
@@ -2274,6 +2462,7 @@ export function TrainingPage() {
   const { projectId } = useProject();
   const [taskType, setTaskType] = useState<TaskType>("classification");
   const [modelOptionId, setModelOptionId] = useState("");
+  const [modelName, setModelName] = useState("");
   const [datasetId, setDatasetId] = useState("");
   const [epochs, setEpochs] = useState(50);
   const [imageSize, setImageSize] = useState(512);
@@ -2294,7 +2483,10 @@ export function TrainingPage() {
   });
   const createMutation = useMutation({
     mutationFn: api.createTrainingJob,
-    onSuccess: () => jobsQuery.refetch()
+    onSuccess: () => {
+      setModelName("");
+      jobsQuery.refetch();
+    }
   });
   const prepareMutation = useMutation({ mutationFn: () => api.prepareModelAsset(modelOptionId, true) });
   const deleteMutation = useMutation({
@@ -2342,6 +2534,7 @@ export function TrainingPage() {
       task_type: taskType,
       model_family: selectedOption.family,
       model_option_id: selectedOption.id,
+      model_name: modelName.trim() || null,
       epochs,
       image_size: imageSize,
       batch_size: batchSize,
@@ -2362,6 +2555,9 @@ export function TrainingPage() {
         <section className="panel">
           <PanelTitle icon={<Activity size={18} />} title="New Run" />
           {(optionsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
+          <Field label="Model name">
+            <input value={modelName} onChange={(event) => setModelName(event.target.value)} placeholder="Optional display name" />
+          </Field>
           <Field label="Task">
             <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
               <option value="classification">Classification</option>

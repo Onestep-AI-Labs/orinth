@@ -174,6 +174,31 @@ class ModelRegistry:
         self._predictors.pop(model_id, None)
         return self.get_spec(model_id).to_info()
 
+    def update_model(self, model_id: str, *, name: str) -> ModelInfo:
+        registry = self._read_registry()
+        if model_id not in registry:
+            raise KeyError(model_id)
+        clean_name = name.strip()
+        if not clean_name:
+            raise ValueError("Model name is required")
+        registry[model_id]["name"] = clean_name
+        self._write_registry(registry)
+        return self.get_spec(model_id).to_info()
+
+    def delete_model(self, model_id: str) -> bool:
+        registry = self._read_registry()
+        item = registry.pop(model_id, None)
+        if item is None:
+            raise KeyError(model_id)
+        self._write_registry(registry)
+        model_dir = self.storage.trained_models / model_id
+        deleted_storage = self.storage.delete_owned_path(model_dir)
+        if not deleted_storage:
+            for raw_path in (item.get("paths") or {}).values():
+                self.storage.delete_owned_path(raw_path)
+        self._predictors.pop(model_id, None)
+        return True
+
     def promote_yolo_model(
         self,
         model_id: str,
@@ -234,3 +259,7 @@ class ModelRegistry:
         if not self.storage.registry_file.exists():
             return {}
         return json.loads(self.storage.registry_file.read_text(encoding="utf-8"))
+
+    def _write_registry(self, registry: dict[str, Any]) -> None:
+        self.storage.registry_file.parent.mkdir(parents=True, exist_ok=True)
+        self.storage.registry_file.write_text(json.dumps(registry, indent=2), encoding="utf-8")

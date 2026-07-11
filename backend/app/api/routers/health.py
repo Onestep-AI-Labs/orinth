@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app.container import registry
-from app.schemas import ModelInfo
+from app.schemas import DeleteResponse, ModelInfo, ModelUpdate
 
 router = APIRouter()
 
@@ -21,3 +21,22 @@ def list_models(
     if available_only:
         models = [model for model in models if model.available]
     return models
+
+
+@router.patch("/models/{model_id}", response_model=ModelInfo)
+def update_model(model_id: str, payload: ModelUpdate) -> ModelInfo:
+    try:
+        return registry.update_model(model_id, name=payload.name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Model not found or read-only") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/models/{model_id}", response_model=DeleteResponse)
+def delete_model(model_id: str) -> DeleteResponse:
+    try:
+        registry.delete_model(model_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Model not found or read-only") from exc
+    return DeleteResponse(deleted=1)
