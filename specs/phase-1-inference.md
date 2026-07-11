@@ -30,7 +30,9 @@ Serve local image inference for registered model families. The original referenc
 - Models also include stable trained artifacts registered under ignored `storage/trained_models`.
 - Model listing supports project and task filters and returns task type, labels, source, metrics, and training job metadata.
 - Inference UI queries `GET /api/models?available_only=true`; users can only run models with local or promoted trained assets available.
+- Inference UI selection is task-first, then available models filtered to the selected task.
 - Inference UI renders task-aware parameters: classification models hide detection-specific thresholds, while detection and segmentation models expose confidence and IoU controls.
+- Inference UI keeps model task metadata and result summary as compact inline rows instead of boxed metric grids.
 - Predictors are lazy-loaded.
 - YOLO predictors use registry-provided labels so trained project models are not limited to dental labels.
 - Keras classification models return image-level labels and class scores with no object detections.

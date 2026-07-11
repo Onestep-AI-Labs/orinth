@@ -14,7 +14,6 @@ import {
   FlaskConical,
   ImageIcon,
   Layers3,
-  Plus,
   Settings
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -131,11 +130,6 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
         <SideLink href="/" active={pathname === "/"} icon={<Layers3 size={17} />}>
           Projects
         </SideLink>
-        {!compact && (
-          <SideLink href="/projects/new" active={pathname.startsWith("/projects/new")} icon={<Plus size={17} />}>
-            New Project
-          </SideLink>
-        )}
         <SideLink href="/settings" active={pathname.startsWith("/settings")} icon={<Settings size={17} />}>
           Settings
         </SideLink>
