@@ -19,6 +19,7 @@ class Storage:
         self.dataset_versions = self.root / "dataset_versions"
         self.previews = self.root / "previews"
         self.model_assets = self.root / "model_assets"
+        self.model_downloads = self.model_assets / "downloads"
         self.registry_file = self.root / "model_registry.json"
 
     def ensure(self) -> None:
@@ -33,6 +34,7 @@ class Storage:
             self.dataset_versions,
             self.previews,
             self.model_assets,
+            self.model_downloads,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 

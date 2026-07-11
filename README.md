@@ -1,6 +1,6 @@
-# Dental Segmentation Platform
+# Onestep AI Platform
 
-Production-oriented local platform for dental radiograph segmentation and classification of `granuloma` and `kista`.
+Production-oriented local image intelligence workspace for dataset preparation, annotation, training, testing, and model inspection.
 
 The repository keeps existing research assets local-only:
 
@@ -89,6 +89,15 @@ Project AI guidance is shared across Codex and Claude Code:
 
 - Codex entrypoint: `AGENTS.md`
 - Claude Code entrypoint: `CLAUDE.md`
-- Local skill: `.agents/skills/dental-platform`
+- Local skill: `.agents/skills/onestep-ai-platform`
 - Workflow and rules: `docs/ai/`
 - Planning and execution references: `specs/`
+
+
+## ToDo
+- remove upload dialog from browser after select folder (datasets)-> use custom modal dialog
+- move class page from frontend/features/platform/internal.tsx to every module and class also check the app, components, features, etc make them all easy to maintain so dont too long in single files
+- add bbox tool, after polygon tool(already there) annotations for object detection task
+- add download button in three dots options in model list, make the model downloadable.
+- start implement simple NLP task pipeline
+- planning simple LLM task pipeline

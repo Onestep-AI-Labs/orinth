@@ -1,0 +1,4 @@
+interface:
+  display_name: "Onestep AI Platform"
+  short_description: "Onestep AI Platform workflow"
+  default_prompt: "Use $onestep-ai-platform to implement an Onestep AI Platform change from the specs."

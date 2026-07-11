@@ -5,7 +5,7 @@ import "./globals.css";
 import "./styles/platform.css";
 
 export const metadata: Metadata = {
-  title: "Onestep Vision",
+  title: "Onestep AI Platform",
   description: "One workspace for image intelligence",
   icons: {
     icon: "/brand/logo_transparent.png"

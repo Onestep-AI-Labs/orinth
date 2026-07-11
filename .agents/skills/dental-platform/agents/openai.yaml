@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dental Platform"
-  short_description: "Dental segmentation AI workflow"
-  default_prompt: "Use $dental-platform to implement a dental segmentation platform change from the specs."

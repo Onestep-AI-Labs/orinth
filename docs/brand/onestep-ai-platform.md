@@ -1,10 +1,10 @@
-# Onestep Vision Brand Guide
+# Onestep AI Platform Brand Guide
 
 ## Name
 
-- Product name: **Onestep Vision**
+- Product name: **Onestep AI Platform**
 - Parent brand: **ONESTEP**
-- Preferred lockup text: **Onestep Vision** with supporting copy **by ONESTEP** when parent context is needed.
+- Preferred lockup text: **Onestep AI Platform** with supporting copy **by ONESTEP** when parent context is needed.
 - Short descriptor: **Image intelligence workspace**
 
 Do not refer to the product as a diagnostic system or autonomous medical decision-maker.
@@ -21,7 +21,7 @@ Brand assets:
 
 Usage guidance:
 
-- Use `logo_transparent.png` in the app shell so the mark can sit inside the Onestep Vision brand tile.
+- Use `logo_transparent.png` in the app shell so the mark can sit inside the Onestep AI Platform brand tile.
 - Use the dark or light PNG variants as complete logo tiles when the surrounding surface should not control the mark background.
 - Keep generous padding around the mark.
 - Do not stretch, crop, recolor randomly, or place the mark on busy imagery.
@@ -53,4 +53,4 @@ Use concise, confident product language:
 
 ## UI Tone
 
-Onestep Vision should feel like focused product software: dense, calm, precise, and trustworthy. Use cards for repeated entities, compact chips for metadata, and restrained color accents for task states.
+Onestep AI Platform should feel like focused product software: dense, calm, precise, and trustworthy. Use cards for repeated entities, compact chips for metadata, and restrained color accents for task states.
