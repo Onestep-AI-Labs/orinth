@@ -15,6 +15,7 @@ Serve local image inference for registered model families. The original referenc
 
 - `GET /health`
 - `GET /api/models?available_only=false`
+- `GET /api/models/{model_id}/download`
 - `POST /api/inference`
 - `POST /api/inference/jobs`
 - `GET /api/inference/jobs/{id}`
@@ -29,6 +30,7 @@ Serve local image inference for registered model families. The original referenc
 - Models are discovered from local `models/`.
 - Models also include stable trained artifacts registered under ignored `storage/trained_models`.
 - Model listing supports project and task filters and returns task type, labels, source, metrics, and training job metadata.
+- Model catalog entries can be downloaded from `GET /api/models/{model_id}/download`; single-file models stream the asset directly, and multi-asset models are bundled as zip archives under ignored storage.
 - Inference UI queries `GET /api/models?available_only=true`; users can only run models with local or promoted trained assets available.
 - Inference UI selection is task-first, then available models filtered to the selected task.
 - Inference UI renders task-aware parameters: classification models hide detection-specific thresholds, while detection and segmentation models expose confidence and IoU controls.
@@ -57,6 +59,7 @@ Serve local image inference for registered model families. The original referenc
 ## Acceptance Criteria
 
 - Both models appear in `GET /api/models`.
+- Models can be downloaded from the model catalog options menu when their local assets are available.
 - Inference forms list only available trained/registered models.
 - Completed runnable training jobs appear as available models for inference.
 - Uploading an image returns detections, normalized boxes/polygons, image label, and overlay URL.

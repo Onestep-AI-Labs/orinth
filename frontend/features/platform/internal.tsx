@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -28,14 +28,14 @@ import {
   Settings,
   StopCircle,
   Trash2,
-  Undo2,
   Upload,
-  UploadCloud,
   X
 } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, apiAssetUrl, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
+import { AnnotationEditor as DatasetAnnotationEditor } from "@/features/datasets/annotation-editor";
+import { UploadDropCard as DatasetUploadDropCard } from "@/features/datasets/upload-drop-card";
 import { SPLIT_FILTERS, SPLITS, TERMINAL_STATUSES, TRAINING_SPLITS } from "@/features/platform/constants";
 import {
   activePollInterval,
@@ -55,7 +55,6 @@ import {
   taskDescription
 } from "@/features/platform/utils";
 import type {
-  DatasetAnnotation,
   DatasetEdaSummary,
   DatasetItemDetail,
   DatasetItemPage,
@@ -357,7 +356,7 @@ export function ProjectCreatePage() {
           <span>Projects</span>
         </Link>
         <div className="create-project-hero-copy">
-          <span className="brand-kicker">Onestep Vision</span>
+          <span className="brand-kicker">Onestep AI Platform</span>
           <h2>Create an image intelligence workspace</h2>
           <p>Shape a focused project for datasets, annotations, training runs, model tests, and inspection workflows.</p>
         </div>
@@ -411,166 +410,6 @@ export function ProjectCreatePage() {
         </div>
         <MutationError mutations={[createProject]} />
       </section>
-    </div>
-  );
-}
-
-export function ModelsPage() {
-  const { projectId, project } = useProject();
-  const [openMenuId, setOpenMenuId] = useState("");
-  const [renameModelId, setRenameModelId] = useState("");
-  const [renameDraft, setRenameDraft] = useState("");
-  const { confirm, confirmationDialog } = useConfirmationDialog();
-  const modelsQuery = useQuery({
-    queryKey: ["models", "catalog", projectId],
-    queryFn: () => api.models(false, projectId)
-  });
-  const renameModel = useMutation({
-    mutationFn: ({ modelId, name }: { modelId: string; name: string }) => api.renameModel(modelId, name),
-    onSuccess: async () => {
-      setRenameModelId("");
-      setRenameDraft("");
-      setOpenMenuId("");
-      await modelsQuery.refetch();
-    }
-  });
-  const deleteModel = useMutation({
-    mutationFn: api.deleteModel,
-    onSuccess: async () => {
-      setOpenMenuId("");
-      setRenameModelId("");
-      await modelsQuery.refetch();
-    }
-  });
-  const models = modelsQuery.data ?? [];
-  const availableCount = models.filter((model) => model.available).length;
-
-  function openRename(model: ModelInfo) {
-    setRenameModelId(model.id);
-    setRenameDraft(model.name);
-    setOpenMenuId("");
-  }
-
-  function saveRename() {
-    if (!renameModelId || !renameDraft.trim()) return;
-    renameModel.mutate({ modelId: renameModelId, name: renameDraft.trim() });
-  }
-
-  function confirmDeleteModel(model: ModelInfo) {
-    confirm({
-      title: "Delete model?",
-      message: `This will remove "${model.name}" from the model catalog and delete owned trained-model files when managed by the registry.`,
-      confirmLabel: "Delete model",
-      onConfirm: () => deleteModel.mutate(model.id)
-    });
-  }
-
-  return (
-    <div className="space-y-5">
-      <PageHeader title="Models" subtitle={project?.name ?? "Available trained models"} icon={<Activity size={20} />} />
-      <section className="panel">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={<Activity size={18} />} title="Available Models" />
-          <div className="flex flex-wrap gap-2">
-            <Metric label="Registered" value={models.length} />
-            <Metric label="Available" value={availableCount} />
-            <button className="secondary-button" onClick={() => modelsQuery.refetch()}>
-              <RefreshCw size={16} /> Refresh
-            </button>
-          </div>
-        </div>
-        {modelsQuery.isLoading ? (
-          <CardGridSkeleton count={4} />
-        ) : (
-          <div className="model-grid">
-            {models.map((model) => {
-              const editable = model.source !== "reference";
-              return (
-                <article className={`model-card model-card-${model.task_type.replaceAll("_", "-")} model-card-source-${model.source}`} key={model.id}>
-                  <div className="model-card-header">
-                    <span className="model-card-icon"><Activity size={17} /></span>
-                    <div className="model-card-copy">
-                      <strong title={model.name}>{model.name}</strong>
-                      <span>{model.description}</span>
-                    </div>
-                    <StatusBadge status={model.available ? "available" : "missing"} />
-                  </div>
-                  <div className="card-menu">
-                    <button
-                      className="icon-button"
-                      onClick={() => setOpenMenuId((value) => (value === model.id ? "" : model.id))}
-                      title="Model options"
-                      type="button"
-                      aria-expanded={openMenuId === model.id}
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {openMenuId === model.id && (
-                      <div className="option-menu" role="menu">
-                        <button type="button" onClick={() => openRename(model)} disabled={!editable}>
-                          <Save size={15} /> Rename
-                        </button>
-                        <button
-                          className="danger-menu-item"
-                          type="button"
-                          onClick={() => confirmDeleteModel(model)}
-                          disabled={!editable || deleteModel.isPending}
-                        >
-                          <Trash2 size={15} /> Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {renameModelId === model.id && (
-                    <div className="model-rename-popover">
-                      <Field label="Model name">
-                        <input
-                          value={renameDraft}
-                          onChange={(event) => setRenameDraft(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") saveRename();
-                            if (event.key === "Escape") setRenameModelId("");
-                          }}
-                          autoFocus
-                        />
-                      </Field>
-                      <div className="model-rename-actions">
-                        <button className="primary-button" onClick={saveRename} disabled={!renameDraft.trim() || renameModel.isPending}>
-                          <Save size={16} /> Save
-                        </button>
-                        <button className="secondary-button" onClick={() => setRenameModelId("")}>
-                          <X size={16} /> Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="dataset-meta-chips">
-                    <span><strong>Task</strong>{formatDatasetTask(model.task_type)}</span>
-                    <span><strong>Family</strong>{model.family}</span>
-                    <span><strong>Source</strong>{model.source}</span>
-                  </div>
-                  <div className="label-chip-row tag-row-compact">
-                    {model.labels.map((label, index) => (
-                      <span className="label-chip" key={label}>
-                        <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="model-card-actions">
-                    <Link className="secondary-button" href="/inference">Inference</Link>
-                    <Link className="secondary-button" href="/testing">Testing</Link>
-                    {model.training_job_id && <Link className="secondary-button" href={`/training/${model.training_job_id}`}>Training run</Link>}
-                  </div>
-                </article>
-              );
-            })}
-            {models.length === 0 && <EmptyState label="No models registered" />}
-          </div>
-        )}
-        <MutationError mutations={[renameModel, deleteModel]} />
-      </section>
-      {confirmationDialog}
     </div>
   );
 }
@@ -928,18 +767,6 @@ export function DatasetPage() {
       form.append("class_id", String(uploadClassId));
     }
     uploadMutation.mutate({ datasetId: selectedDataset.id, form });
-  }
-
-  function confirmUploadImages() {
-    if (!selectedDataset?.editable || uploadFiles.length === 0) return;
-    const targetSplit = split === "all" ? "unassigned" : split;
-    confirm({
-      title: "Upload image batch?",
-      message: `This will add ${uploadFiles.length} image${uploadFiles.length === 1 ? "" : "s"} to "${selectedDataset.name}" in the ${targetSplit} split.`,
-      confirmLabel: "Upload batch",
-      tone: "warning",
-      onConfirm: uploadImages
-    });
   }
 
   function selectDatasetItem(item: DatasetItemSummary, openAnnotate = false) {
@@ -1303,13 +1130,13 @@ export function DatasetPage() {
           {selectedDataset && <DatasetSummaryBar dataset={selectedDataset} split={split} setSplit={setSplit} />}
           <LabelFilterChips dataset={selectedDataset} value={classFilter} onChange={setClassFilter} />
           {selectedDataset.editable && (
-            <UploadDropCard
+            <DatasetUploadDropCard
               files={uploadFiles}
               setFiles={setUploadFiles}
               dataset={selectedDataset}
               uploadClassId={uploadClassId}
               setUploadClassId={setUploadClassId}
-              onUpload={confirmUploadImages}
+              onUpload={uploadImages}
               pending={uploadMutation.isPending}
               errors={uploadErrors}
             />
@@ -1450,7 +1277,7 @@ export function DatasetPage() {
             {detailQuery.isLoading ? (
               <CardGridSkeleton count={1} />
             ) : detailQuery.data && selectedDataset ? (
-              <AnnotationEditor
+              <DatasetAnnotationEditor
                 dataset={selectedDataset}
                 item={detailQuery.data}
                 onSaved={async () => {
@@ -1928,98 +1755,6 @@ function LabelFilterChips({
   );
 }
 
-function UploadDropCard({
-  files,
-  setFiles,
-  dataset,
-  uploadClassId,
-  setUploadClassId,
-  onUpload,
-  pending,
-  errors
-}: {
-  files: File[];
-  setFiles: (files: File[]) => void;
-  dataset: DatasetSummary;
-  uploadClassId: number;
-  setUploadClassId: (value: number) => void;
-  onUpload: () => void;
-  pending: boolean;
-  errors: Array<Record<string, string>>;
-}) {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const folderInputRef = useRef<HTMLInputElement | null>(null);
-
-  function addFiles(fileList: FileList | null) {
-    if (!fileList) return;
-    const imageFiles = Array.from(fileList).filter((file) => file.type.startsWith("image/"));
-    setFiles(imageFiles);
-  }
-
-  return (
-    <div
-      className="upload-drop-card"
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        event.preventDefault();
-        addFiles(event.dataTransfer.files);
-      }}
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        hidden
-        multiple
-        accept="image/png,image/jpeg,image/jpg,image/webp,image/bmp,image/avif"
-        onChange={(event) => addFiles(event.target.files)}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        hidden
-        multiple
-        accept="image/png,image/jpeg,image/jpg,image/webp,image/bmp,image/avif"
-        {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
-        onChange={(event) => addFiles(event.target.files)}
-      />
-      <div className="upload-drop-main">
-        <div className="upload-icon">
-          <UploadCloud size={28} />
-        </div>
-        <div>
-          <strong>Drag and drop image file(s) to upload</strong>
-          <span>{files.length ? `${files.length} image${files.length === 1 ? "" : "s"} selected` : "Choose one or more image files"}</span>
-        </div>
-        <div className="upload-actions">
-          <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}>
-            <FileImage size={16} /> Select file(s)
-          </button>
-          <button className="secondary-button" type="button" onClick={() => folderInputRef.current?.click()}>
-            <FolderOpen size={16} /> Select folder
-          </button>
-        </div>
-      </div>
-      <div className="upload-support">
-        <span>Images: .jpg, .png, .bmp, .webp, .avif</span>
-        {dataset.task_type === "classification" && (
-          <label className="select-label">
-            Class label
-            <select value={uploadClassId} onChange={(event) => setUploadClassId(Number(event.target.value))}>
-              {dataset.labels.map((label, index) => (
-                <option value={index} key={label}>{label}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button className="primary-button" onClick={onUpload} disabled={files.length === 0 || pending}>
-          <Upload size={16} /> Upload batch
-        </button>
-      </div>
-      {errors.length > 0 && <p className="error-text">{errors.length} files could not be uploaded.</p>}
-    </div>
-  );
-}
-
 function EdaPanel({
   eda,
   loading,
@@ -2250,166 +1985,6 @@ function LabelManager({ dataset, onChanged }: { dataset: DatasetSummary; onChang
       </div>
       <MutationError mutations={[addLabel, deleteLabel]} />
       {confirmationDialog}
-    </div>
-  );
-}
-
-function AnnotationEditor({
-  dataset,
-  item,
-  onSaved
-}: {
-  dataset: DatasetSummary;
-  item: DatasetItemDetail;
-  onSaved: () => void | Promise<void>;
-}) {
-  const [annotations, setAnnotations] = useState<DatasetAnnotation[]>(item.annotations);
-  const [draft, setDraft] = useState<number[][]>([]);
-  const [classId, setClassId] = useState(0);
-  const [box, setBox] = useState({ x: 0, y: 0, width: 80, height: 80 });
-  const editable = dataset.editable;
-  const imageUrl = apiAssetUrl(item.image_url);
-  const saveMutation = useMutation({
-    mutationFn: () => api.saveDatasetAnnotations(dataset.id, item.split, item.id, annotations),
-    onSuccess: async (data) => {
-      setAnnotations(data.annotations);
-      setDraft([]);
-      await onSaved();
-    }
-  });
-  const labelMutation = useMutation({
-    mutationFn: () => api.updateDatasetItemLabel(dataset.id, item.split, item.id, { class_id: classId }),
-    onSuccess: async (data) => {
-      setAnnotations(data.annotations);
-      await onSaved();
-    }
-  });
-
-  useEffect(() => {
-    setAnnotations(item.annotations);
-    setClassId(item.annotations[0]?.class_id ?? 0);
-    setDraft([]);
-  }, [item.annotations, item.id]);
-
-  function addPoint(event: React.MouseEvent<SVGSVGElement>) {
-    if (!editable || dataset.task_type !== "segmentation") return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * item.width;
-    const y = ((event.clientY - rect.top) / rect.height) * item.height;
-    setDraft((points) => [...points, [x, y]]);
-  }
-
-  function addBox() {
-    setAnnotations((rows) => [
-      ...rows,
-      {
-        class_id: classId,
-        class_name: dataset.labels[classId],
-        kind: "box",
-        bbox: box,
-        polygon: []
-      }
-    ]);
-  }
-
-  function finishDraft() {
-    if (draft.length < 3) return;
-    setAnnotations((rows) => [
-      ...rows,
-      {
-        class_id: classId,
-        class_name: dataset.labels[classId],
-        kind: "polygon",
-        bbox: null,
-        polygon: draft
-      }
-    ]);
-    setDraft([]);
-  }
-
-  return (
-    <div className="annotation-panel">
-      <div className="annotation-stage">
-        {imageUrl && <img src={imageUrl} alt={item.filename} />}
-        <svg className="annotation-svg" viewBox={`0 0 ${item.width} ${item.height}`} preserveAspectRatio="none" onClick={addPoint}>
-          {annotations.map((annotation, index) =>
-            annotation.kind === "box" && annotation.bbox ? (
-              <rect
-                key={`${annotation.class_name}-${index}`}
-                x={annotation.bbox.x}
-                y={annotation.bbox.y}
-                width={annotation.bbox.width}
-                height={annotation.bbox.height}
-                className="annotation-poly"
-                style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}33` }}
-              />
-            ) : annotation.kind === "polygon" ? (
-              <polygon
-                key={`${annotation.class_name}-${index}`}
-                points={pointsAttr(annotation.polygon)}
-                className="annotation-poly"
-                style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}33` }}
-              />
-            ) : null
-          )}
-          {draft.length > 1 && <polyline points={pointsAttr(draft)} className="annotation-draft" />}
-          {draft.map((point, index) => (
-            <circle cx={point[0]} cy={point[1]} r={5} className="annotation-point" key={index} />
-          ))}
-        </svg>
-      </div>
-
-      <div className="annotation-actions">
-        <select value={classId} onChange={(event) => setClassId(Number(event.target.value))} disabled={!editable}>
-          {dataset.labels.map((label, index) => (
-            <option value={index} key={label}>
-              {label}
-            </option>
-          ))}
-        </select>
-        {dataset.task_type === "classification" && (
-          <button className="primary-button" onClick={() => labelMutation.mutate()} disabled={!editable || labelMutation.isPending}>
-            <CheckCircle2 size={16} /> Save label
-          </button>
-        )}
-        {dataset.task_type === "object_detection" && (
-          <button className="secondary-button" onClick={addBox} disabled={!editable}>
-            <CheckCircle2 size={16} /> Add box
-          </button>
-        )}
-        {dataset.task_type === "segmentation" && (
-          <button className="secondary-button" onClick={finishDraft} disabled={!editable || draft.length < 3}>
-            <CheckCircle2 size={16} /> Finish
-          </button>
-        )}
-        <button className="icon-button" onClick={() => setDraft((points) => points.slice(0, -1))} disabled={!editable} title="Undo">
-          <Undo2 size={16} />
-        </button>
-        <button className="icon-button" onClick={() => setDraft([])} disabled={!editable} title="Clear">
-          <Trash2 size={16} />
-        </button>
-        {dataset.task_type !== "classification" && (
-          <button className="primary-button" onClick={() => saveMutation.mutate()} disabled={!editable || saveMutation.isPending}>
-            <Save size={16} /> Save
-          </button>
-        )}
-      </div>
-
-      {dataset.task_type === "object_detection" && (
-        <div className="grid grid-cols-4 gap-2">
-          {(["x", "y", "width", "height"] as const).map((key) => (
-            <input
-              key={key}
-              type="number"
-              value={box[key]}
-              min={0}
-              onChange={(event) => setBox((value) => ({ ...value, [key]: Number(event.target.value) }))}
-            />
-          ))}
-        </div>
-      )}
-      <AnnotationTable annotations={annotations} setAnnotations={setAnnotations} editable={editable} />
-      <MutationError mutations={[saveMutation, labelMutation]} />
     </div>
   );
 }
@@ -3155,58 +2730,6 @@ function DatasetThumb({
         <span title={labelText}>{labelText}</span>
         <small>{item.split} / {item.annotation_count} ann</small>
       </div>
-    </div>
-  );
-}
-
-function AnnotationTable({
-  annotations,
-  setAnnotations,
-  editable
-}: {
-  annotations: DatasetAnnotation[];
-  setAnnotations: React.Dispatch<React.SetStateAction<DatasetAnnotation[]>>;
-  editable: boolean;
-}) {
-  return (
-    <div className="table-wrap responsive-card-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Label</th>
-            <th>Kind</th>
-            <th>Shape</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {annotations.map((annotation, index) => (
-            <tr key={`${annotation.class_name}-${index}`}>
-              <td>
-                <span className="class-dot" style={{ backgroundColor: labelColor(annotation.class_id) }} />
-                {annotation.class_name}
-              </td>
-              <td>{annotation.kind}</td>
-              <td>{annotation.kind === "box" ? "box" : annotation.polygon.length}</td>
-              <td>
-                <button
-                  className="icon-button"
-                  onClick={() => setAnnotations((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}
-                  disabled={!editable}
-                  title="Remove"
-                >
-                  <Trash2 size={15} />
-                </button>
-              </td>
-            </tr>
-          ))}
-          {annotations.length === 0 && (
-            <tr>
-              <td colSpan={4}>No annotations</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
     </div>
   );
 }

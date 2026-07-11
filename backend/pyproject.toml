@@ -1,7 +1,7 @@
 [project]
-name = "dental-segmentation-backend"
+name = "onestep-ai-platform-backend"
 version = "0.1.0"
-description = "FastAPI backend for dental segmentation inference, testing, and training jobs."
+description = "FastAPI backend for Onestep AI Platform image datasets, inference, testing, and training jobs."
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi>=0.115.0",

@@ -131,12 +131,12 @@ function GlobalLoadingOverlay() {
 function GlobalSidebar({ pathname, compact = false }: { pathname: string; compact?: boolean }) {
   return (
     <aside className={`sidebar sidebar-global ${compact ? "sidebar-global-compact" : ""}`}>
-      <Link className="brand-block brand-link" href="/" title="Onestep Vision home">
+      <Link className="brand-block brand-link" href="/" title="Onestep AI Platform home">
         <span className="brand-mark" aria-hidden="true">
           <Image src="/brand/logo_transparent.png" alt="" width={42} height={42} priority />
         </span>
         <div className="brand-copy">
-          <h1>Onestep Vision</h1>
+          <h1>Onestep AI Platform</h1>
           <span>Image intelligence workspace</span>
         </div>
       </Link>

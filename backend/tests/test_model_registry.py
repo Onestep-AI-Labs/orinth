@@ -58,3 +58,24 @@ def test_model_storage_dir_name_uses_name_and_id():
         model_storage_dir_name("My Keras Model!", "trained_keras_classification_abcd1234")
         == "my-keras-model-trained_keras_classification_abcd1234"
     )
+
+
+def test_model_registry_creates_download_archives_for_multi_asset_models(tmp_path: Path):
+    settings = Settings(
+        MODELS_DIR=str(tmp_path / "models"),
+        DATASETS_DIR=str(tmp_path / "datasets"),
+        STORAGE_DIR=str(tmp_path / "storage"),
+        DATABASE_URL=f"sqlite:///{tmp_path / 'app.db'}",
+    )
+    storage = Storage(settings)
+    storage.ensure()
+    model_dir = settings.models_path / "unet_inception"
+    model_dir.mkdir(parents=True)
+    (model_dir / "best_unet_model.keras").write_text("unet", encoding="utf-8")
+    (model_dir / "best_classifier_inception.keras").write_text("classifier", encoding="utf-8")
+
+    archive_path, filename = ModelRegistry(settings, storage).model_download("unet_inception")
+
+    assert filename.endswith(".zip")
+    assert archive_path.exists()
+    assert archive_path.parent == storage.model_downloads

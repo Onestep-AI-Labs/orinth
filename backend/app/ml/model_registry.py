@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.config import Settings
@@ -201,6 +202,34 @@ class ModelRegistry:
                 self.storage.delete_owned_path(raw_path)
         self._predictors.pop(model_id, None)
         return True
+
+    def model_download(self, model_id: str) -> tuple[Path, str]:
+        spec = self.get_spec(model_id)
+        paths = {key: path for key, path in spec.paths.items() if path.exists()}
+        if len(paths) != len(spec.paths):
+            missing = [str(path) for path in spec.paths.values() if not path.exists()]
+            raise FileNotFoundError(f"Model assets are missing for {model_id}: {missing}")
+        if len(paths) == 1:
+            key, path = next(iter(paths.items()))
+            suffix = path.suffix or ".bin"
+            return path, f"{slugify_model_name(spec.name)}-{model_id}-{key}{suffix}"
+
+        self.storage.model_downloads.mkdir(parents=True, exist_ok=True)
+        archive_path = self.storage.model_downloads / f"{slugify_model_name(spec.name)}-{model_id}.zip"
+        with ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as archive:
+            metadata = {
+                "id": spec.id,
+                "name": spec.name,
+                "family": spec.family,
+                "task_type": spec.task_type,
+                "labels": spec.labels or DEFAULT_LABELS,
+                "source": spec.source,
+                "training_job_id": spec.training_job_id,
+            }
+            archive.writestr("metadata.json", json.dumps(metadata, indent=2))
+            for key, path in paths.items():
+                archive.write(path, arcname=f"{key}{path.suffix or '.bin'}")
+        return archive_path, archive_path.name
 
     def promote_yolo_model(
         self,

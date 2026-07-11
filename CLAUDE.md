@@ -4,7 +4,7 @@ Use the same workflow as Codex.
 
 Use the local project skill when available:
 
-- `$dental-platform`
+- `$onestep-ai-platform`
 
 Read in order:
 

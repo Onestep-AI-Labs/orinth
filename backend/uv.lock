@@ -295,7 +295,7 @@ wheels = [
 ]
 
 [[package]]
-name = "dental-segmentation-backend"
+name = "onestep-ai-platform-backend"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

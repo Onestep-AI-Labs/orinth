@@ -6,7 +6,7 @@ Implemented MVP
 
 ## Goal
 
-Generalize the local dental segmentation workspace into a project-scoped image data platform for:
+Generalize the local Onestep AI Platform workspace into a project-scoped image data platform for:
 
 - image classification,
 - object detection,
@@ -64,6 +64,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Editable dataset manifests can persist allowlisted preprocessing config for training-time prepared copies.
 - Preprocessing config supports random training-time augmentation and materialized generated copies; generated version artifacts live under ignored `storage/dataset_versions`.
 - Editable datasets support classification label-only annotations, detection boxes, and segmentation polygons.
+- Annotation editing includes icon tools for select/move, bounding boxes, and polygons, with existing boxes and polygons draggable within image bounds before saving.
 - Dataset Studio is catalog-first, with dataset-card three-dot actions for editable dataset rename, duplicate, and delete, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, EDA for dataset health and distribution, and Config for preprocessing, split, and version artifacts.
 - The root page lists projects outside the project workspace; selecting a project opens the project sidebar at Dataset Studio.
 - Global navigation includes Projects and Settings only; project creation is launched from the project list. Project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
@@ -92,7 +93,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Hugging Face/transformer models are cataloged but gated until validated.
 - External Keras asset preparation is explicit and stores markers under ignored `storage/model_assets`.
 - Frontend navigation uses a global sidebar outside projects, a global rail plus separate collapsible project sidebar inside selected projects, and separate detail pages for testing/training jobs.
-- The frontend product identity is Onestep Vision with the tagline "One workspace for image intelligence" and supporting parent-brand language for ONESTEP.
+- The frontend product identity is Onestep AI Platform with the tagline "One workspace for image intelligence" and supporting parent-brand language for ONESTEP.
 - The global sidebar brand mark/name links to the project list at `/` in both full and compact navigation states.
 - Dataset workspace selection is URL-backed through `/datasets?dataset={dataset_id}`; the plain `/datasets` route always shows the dataset catalog.
 - Dataset image browsing is paginated with selectable page size, visible range, total count, and previous/next controls.
@@ -102,7 +103,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Destructive or high-impact actions, including deletion, clear-all history actions, dataset uploads, split moves, bulk relabeling, dataset processing, label deletion, and training cancellation, require an explicit confirmation dialog before the mutation runs.
 - Data tables remain semantic tables and are contained in responsive horizontal scroll wrappers so narrow viewports do not overflow the page.
 - Testing and training workspaces use responsive one-column tablet layouts and card-style job rows on phone-sized viewports.
-- Project creation uses a simple centered Onestep Vision form with compact selectable task-type cards while preserving the existing project creation payload.
+- Project creation uses a simple centered Onestep AI Platform form with compact selectable task-type cards while preserving the existing project creation payload.
 - Training detail pages show history charts, ROC/AUC for classification where available, and runner curve artifacts.
 - Frontend data-loading pages use skeleton states for initial fetches and compact inline loading states for small refetches.
 - Inference forms render parameters that match the selected model task.
@@ -117,8 +118,9 @@ Text data is reserved as future metadata only. The platform remains a local rese
 ## Acceptance Criteria
 
 - Users can create a project, create an image dataset, add labels, upload images, and save task-aware annotations.
+- Users can select and move existing bounding boxes or polygons in the annotation editor.
 - Users can create a project from `/projects/new`, enter a required short description, choose multiple image task types, rename projects, delete eligible projects from a project card menu, and switch active projects inside the project workspace.
-- Users can recognize the app as Onestep Vision, click the global logo/name to return home, and use the branded create-project experience without changing project creation behavior.
+- Users can recognize the app as Onestep AI Platform, click the global logo/name to return home, and use the branded create-project experience without changing project creation behavior.
 - Users can manage datasets from a catalog-first view, rename editable datasets from card menus, upload multiple images, edit classification labels per image or in bulk, preview preprocessing safely, generate version artifacts, and inspect core EDA.
 - Users can open a dataset via `/datasets?dataset={dataset_id}` and return to the catalog by clicking the Datasets sidebar link or the Back to catalog action.
 - Table-heavy pages remain usable on mobile and small desktop widths without causing page-level horizontal overflow.

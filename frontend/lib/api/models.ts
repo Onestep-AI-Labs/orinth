@@ -1,5 +1,5 @@
 import type { DeleteResponse, ModelInfo, TaskType } from "@/types/api";
-import { jsonFetch, query } from "@/lib/api/client";
+import { API_BASE, jsonFetch, query } from "@/lib/api/client";
 
 export const modelsApi = {
   models: (availableOnly = false, projectId?: string, taskType?: TaskType) =>
@@ -18,5 +18,6 @@ export const modelsApi = {
   deleteModel: (modelId: string) =>
     jsonFetch<DeleteResponse>(`/models/${modelId}`, {
       method: "DELETE"
-    })
+    }),
+  modelDownloadUrl: (modelId: string) => `${API_BASE}/models/${encodeURIComponent(modelId)}/download`
 };

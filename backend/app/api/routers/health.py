@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from app.container import registry
 from app.schemas import DeleteResponse, ModelInfo, ModelUpdate
@@ -40,3 +41,14 @@ def delete_model(model_id: str) -> DeleteResponse:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Model not found or read-only") from exc
     return DeleteResponse(deleted=1)
+
+
+@router.get("/models/{model_id}/download")
+def download_model(model_id: str) -> FileResponse:
+    try:
+        path, filename = registry.model_download(model_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Model not found") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return FileResponse(path, filename=filename)

@@ -2,9 +2,9 @@
 
 The project-local skill lives at:
 
-- `.agents/skills/dental-platform`
+- `.agents/skills/onestep-ai-platform`
 
-Use `$dental-platform` for repository work when the agent runtime discovers local skills.
+Use `$onestep-ai-platform` for repository work when the agent runtime discovers local skills.
 
 The sections below document the workflows captured by that skill.
 

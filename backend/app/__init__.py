@@ -1,1 +1,1 @@
-"""Dental segmentation backend."""
+"""Onestep AI Platform backend."""

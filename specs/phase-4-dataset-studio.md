@@ -46,6 +46,7 @@ Provide a local dataset workspace for browsing reference datasets and managing e
 - Users can manually move selected items between unassigned/train/valid/test after processing.
 - Preprocessing config includes random training-time augmentation or materialized version copies; materialized copies default to train split and are stored under ignored `storage/dataset_versions`.
 - Editable image datasets support classification labels, object detection boxes, and segmentation polygons.
+- The annotation editor provides explicit select/move, bounding-box, and polygon tools; saved boxes and polygons can be selected and moved before saving.
 - Dataset name, metadata, and preprocessing config can be edited for local editable datasets; task type and format are immutable after creation.
 - Classification uploads can attach a label immediately, and classification image labels can be changed later without drawing tools.
 - Editable datasets support multi-image upload, selected item deletion, and bulk classification label edits.
@@ -67,6 +68,7 @@ Provide a local dataset workspace for browsing reference datasets and managing e
 - Users can upload classification images with labels and edit each image label after upload.
 - Users can upload multiple images at once and delete or relabel selected images.
 - Users can add labels and save task-aware annotations.
+- Users can switch annotation tools, draw boxes or polygons, select existing shapes, and move them within image bounds.
 - Users can expand preprocessing and dataset split accordions, preview allowlisted preprocessing on a single item, create materialized version artifacts, and training uses prepared copies rather than changing originals.
 - Users can use dataset options menus in both catalog cards and the dataset workspace to open, rename where applicable, duplicate, or delete editable datasets.
 - EDA is available as a first-class dataset workspace tab with split counts, class balance, geometry, health, and warning summaries.

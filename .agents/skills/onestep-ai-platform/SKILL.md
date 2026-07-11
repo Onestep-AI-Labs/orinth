@@ -1,9 +1,9 @@
 ---
-name: dental-platform
-description: Dental segmentation platform workflow for Codex or Claude Code. Use when working on this repository's FastAPI backend, Next.js frontend, YOLO inference, U-Net + Inception inference, testing/evaluation jobs, training jobs, SQLite persistence, project specs, or AI workflow documentation.
+name: onestep-ai-platform
+description: Onestep AI Platform workflow for Codex or Claude Code. Use when working on this repository's FastAPI backend, Next.js frontend, image datasets, YOLO inference, U-Net + Inception inference, testing/evaluation jobs, training jobs, SQLite persistence, project specs, or AI workflow documentation.
 ---
 
-# Dental Platform
+# Onestep AI Platform
 
 ## Core Workflow
 
