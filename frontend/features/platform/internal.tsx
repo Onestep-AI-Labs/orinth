@@ -74,6 +74,9 @@ import type {
 
 const IMAGE_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
 const DEFAULT_PROJECT_ID = "default-research-project";
+const PROJECT_DESCRIPTION_LIMIT = 160;
+type EvaluationDisplayKind = "classification" | "vision";
+type MetricEntry = { key: string; label: string; value: number };
 
 export function ProjectLandingPage() {
   const router = useRouter();
@@ -110,9 +113,14 @@ export function ProjectLandingPage() {
             {projects.map((project) => (
               <article className="project-card" key={project.id}>
                 <button className="project-card-main" onClick={() => openProject(project.id)} type="button">
-                  <strong>{project.name}</strong>
-                  <span>{project.description ?? "Local image workspace"}</span>
-                  <div className="label-chip-row">
+                  <div className="project-card-title">
+                    <strong title={project.name}>{project.name}</strong>
+                    <span>{project.id === DEFAULT_PROJECT_ID ? "Default workspace" : "Project workspace"}</span>
+                  </div>
+                  <p className="project-card-description">
+                    {project.description ?? "Local image workspace"}
+                  </p>
+                  <div className="label-chip-row tag-row-compact">
                     {project.task_types.map((task) => (
                       <span className="label-chip" key={task}>{formatDatasetTask(task)}</span>
                     ))}
@@ -161,6 +169,9 @@ export function ProjectCreatePage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTasks, setSelectedTasks] = useState<TaskType[]>(IMAGE_TASK_TYPES);
+  const trimmedName = name.trim();
+  const trimmedDescription = description.trim();
+  const canCreateProject = Boolean(trimmedName && trimmedDescription && selectedTasks.length > 0);
   const createProject = useMutation({
     mutationFn: api.createProject,
     onSuccess: (project) => {
@@ -178,11 +189,10 @@ export function ProjectCreatePage() {
   }
 
   function submitProject() {
-    const trimmed = name.trim();
-    if (!trimmed || selectedTasks.length === 0) return;
+    if (!canCreateProject) return;
     createProject.mutate({
-      name: trimmed,
-      description: description.trim() || undefined,
+      name: trimmedName,
+      description: trimmedDescription,
       task_types: selectedTasks,
       metadata: { domain: "image" }
     });
@@ -199,8 +209,15 @@ export function ProjectCreatePage() {
         <Field label="Project name">
           <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: Dental Radiograph Workspace" />
         </Field>
-        <Field label="Description">
-          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional local workspace note" />
+        <Field label="Short description">
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Example: Dental X-ray segmentation experiments for YOLO and U-Net models"
+            maxLength={PROJECT_DESCRIPTION_LIMIT}
+            rows={3}
+          />
+          <span className="field-hint">{description.length}/{PROJECT_DESCRIPTION_LIMIT}</span>
         </Field>
         <div className="field">
           <label>Project type</label>
@@ -220,7 +237,7 @@ export function ProjectCreatePage() {
             ))}
           </div>
         </div>
-        <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !name.trim() || selectedTasks.length === 0}>
+        <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>
           <FilePlus2 size={16} /> Create Project
         </button>
         <MutationError mutations={[createProject]} />
@@ -256,10 +273,11 @@ export function ModelsPage() {
         ) : (
           <div className="model-grid">
             {models.map((model) => (
-              <article className="model-card" key={model.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <strong>{model.name}</strong>
+              <article className={`model-card model-card-${model.task_type.replaceAll("_", "-")} model-card-source-${model.source}`} key={model.id}>
+                <div className="model-card-header">
+                  <span className="model-card-icon"><Activity size={17} /></span>
+                  <div className="model-card-copy">
+                    <strong title={model.name}>{model.name}</strong>
                     <span>{model.description}</span>
                   </div>
                   <StatusBadge status={model.available ? "available" : "missing"} />
@@ -269,7 +287,7 @@ export function ModelsPage() {
                   <span><strong>Family</strong>{model.family}</span>
                   <span><strong>Source</strong>{model.source}</span>
                 </div>
-                <div className="label-chip-row">
+                <div className="label-chip-row tag-row-compact">
                   {model.labels.map((label, index) => (
                     <span className="label-chip" key={label}>
                       <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
@@ -619,17 +637,25 @@ export function DatasetPage() {
             {datasets.map((dataset) => {
               const totalImages = SPLITS.reduce((total, splitName) => total + (dataset.splits[splitName]?.image_count ?? 0), 0);
               return (
-                <article className="dataset-card" key={dataset.id}>
+                <article
+                  className={`dataset-card dataset-card-${dataset.task_type.replaceAll("_", "-")} ${
+                    dataset.editable ? "dataset-card-editable" : "dataset-card-readonly"
+                  }`}
+                  key={dataset.id}
+                >
                   <button className="dataset-card-main" type="button" onClick={() => setSelectedDatasetId(dataset.id)}>
-                    <div className="dataset-card-title">
-                      <strong title={dataset.name}>{dataset.name}</strong>
-                      <span title={`${formatDatasetTask(dataset.task_type)} / ${formatDatasetFormat(dataset.format)}`}>
-                        {formatDatasetTask(dataset.task_type)} / {formatDatasetFormat(dataset.format)}
-                      </span>
+                    <div className="dataset-card-header">
+                      <span className="dataset-card-icon"><Database size={17} /></span>
+                      <div className="dataset-card-title">
+                        <strong title={dataset.name}>{dataset.name}</strong>
+                        <span title={`${formatDatasetTask(dataset.task_type)} / ${formatDatasetFormat(dataset.format)}`}>
+                          {formatDatasetTask(dataset.task_type)} / {formatDatasetFormat(dataset.format)}
+                        </span>
+                      </div>
                     </div>
                     <div className="dataset-card-summary">
-                      <Metric label="Images" value={totalImages} />
-                      <Metric label="Labels" value={dataset.labels.length} />
+                      <span><strong>{totalImages}</strong> images</span>
+                      <span><strong>{dataset.labels.length}</strong> labels</span>
                     </div>
                     <div className="dataset-card-stats">
                       {TRAINING_SPLITS.map((splitName) => (
@@ -1847,6 +1873,7 @@ function AnnotationEditor({
 
 function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; modelsLoading?: boolean }) {
   const { projectId } = useProject();
+  const [taskType, setTaskType] = useState<TaskType>("classification");
   const [selectedModel, setSelectedModel] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [confidence, setConfidence] = useState(0.65);
@@ -1854,9 +1881,13 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   const [result, setResult] = useState<InferenceResult | null>(null);
   const [activeJobId, setActiveJobId] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const taskModels = useMemo(
+    () => models.filter((model) => model.task_type === taskType),
+    [models, taskType]
+  );
   const selectedModelInfo = useMemo(
-    () => models.find((model) => model.id === selectedModel) ?? null,
-    [models, selectedModel]
+    () => taskModels.find((model) => model.id === selectedModel) ?? null,
+    [taskModels, selectedModel]
   );
   const showDetectionParams = selectedModelInfo ? selectedModelInfo.task_type !== "classification" : false;
   const historyQuery = useQuery({
@@ -1883,12 +1914,18 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   });
 
   useEffect(() => {
-    if (models.length === 0) {
+    if (models.length > 0 && !models.some((model) => model.task_type === taskType)) {
+      setTaskType(models[0].task_type);
+    }
+  }, [models, taskType]);
+
+  useEffect(() => {
+    if (taskModels.length === 0) {
       if (selectedModel) setSelectedModel("");
       return;
     }
-    if (!models.some((model) => model.id === selectedModel)) setSelectedModel(models[0].id);
-  }, [models, selectedModel]);
+    if (!taskModels.some((model) => model.id === selectedModel)) setSelectedModel(taskModels[0].id);
+  }, [taskModels, selectedModel]);
 
   useEffect(() => {
     if (jobQuery.data?.result) {
@@ -1917,19 +1954,28 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
         <section className="panel">
           <PanelTitle icon={<Upload size={18} />} title="Run" />
           {modelsLoading && <CardGridSkeleton count={1} />}
+          <Field label="Task">
+            <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
+              <option value="classification">Classification</option>
+              <option value="object_detection">Object detection</option>
+              <option value="segmentation">Segmentation</option>
+            </select>
+          </Field>
           <Field label="Model">
             <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-              {models.map((model) => (
+              {taskModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name} - {formatDatasetTask(model.task_type)}
                 </option>
               ))}
             </select>
+            {taskModels.length === 0 && <span className="field-hint">No available models for this task.</span>}
           </Field>
           {selectedModelInfo && (
-            <div className="format-preview">
-              <span>Task</span>
-              <strong>{formatDatasetTask(selectedModelInfo.task_type)}</strong>
+            <div className="inference-model-meta">
+              <span><strong>Task</strong>{formatDatasetTask(selectedModelInfo.task_type)}</span>
+              <span><strong>Source</strong>{selectedModelInfo.source}</span>
+              <span><strong>Labels</strong>{selectedModelInfo.labels.length}</span>
             </div>
           )}
           <Field label="Image">
@@ -1979,6 +2025,7 @@ export function InferencePage() {
 
 export function TestingPage() {
   const { projectId } = useProject();
+  const [taskType, setTaskType] = useState<TaskType>("classification");
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [datasetKey, setDatasetKey] = useState("");
   const [limit, setLimit] = useState<number | "">("");
@@ -2006,11 +2053,18 @@ export function TestingPage() {
     }
   });
   const rawModels = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
-  const datasets = useMemo(() => datasetsQuery.data ?? [], [datasetsQuery.data]);
-  const selectedDataset = datasets.find((dataset) => dataset.key === datasetKey);
+  const rawDatasets = useMemo(() => datasetsQuery.data ?? [], [datasetsQuery.data]);
+  const datasets = useMemo(
+    () => rawDatasets.filter((dataset) => areTasksCompatible(taskType, dataset.task_type)),
+    [rawDatasets, taskType]
+  );
   const models = useMemo(
-    () => rawModels.filter((model) => !selectedDataset || areTasksCompatible(model.task_type, selectedDataset.task_type)),
-    [rawModels, selectedDataset]
+    () => rawModels.filter((model) => areTasksCompatible(model.task_type, taskType)),
+    [rawModels, taskType]
+  );
+  const modelTaskById = useMemo(
+    () => Object.fromEntries(rawModels.map((model) => [model.id, model.task_type])) as Record<string, TaskType>,
+    [rawModels]
   );
   const comparisonJobs = useMemo(
     () =>
@@ -2029,7 +2083,14 @@ export function TestingPage() {
     });
   }, [models]);
   useEffect(() => {
-    if (!datasetKey && datasets.length > 0) setDatasetKey(datasets.find((dataset) => dataset.available)?.key ?? datasets[0].key);
+    const availableDataset = datasets.find((dataset) => dataset.available) ?? datasets[0];
+    if (!availableDataset) {
+      if (datasetKey) setDatasetKey("");
+      return;
+    }
+    if (!datasets.some((dataset) => dataset.key === datasetKey)) {
+      setDatasetKey(availableDataset.key);
+    }
   }, [datasetKey, datasets]);
 
   async function runTesting() {
@@ -2049,6 +2110,13 @@ export function TestingPage() {
         <section className="panel">
           <PanelTitle icon={<FlaskConical size={18} />} title="New Test" />
           {(modelsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
+          <Field label="Task">
+            <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
+              <option value="classification">Classification</option>
+              <option value="object_detection">Object detection</option>
+              <option value="segmentation">Segmentation</option>
+            </select>
+          </Field>
           <Field label="Models">
             <div className="choice-list">
               {models.map((model) => (
@@ -2089,13 +2157,18 @@ export function TestingPage() {
             onDelete={() => deleteMutation.mutate({ ids: selectedIds })}
             onClear={() => deleteMutation.mutate({ ids: [], clearAll: true })}
           />
-          <TestingJobTable jobs={jobsQuery.data ?? []} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+          <TestingJobTable
+            jobs={jobsQuery.data ?? []}
+            selectedIds={selectedIds}
+            setSelectedIds={setSelectedIds}
+            modelTaskById={modelTaskById}
+          />
           {jobsQuery.isLoading && <TableSkeleton rows={5} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
         <section className="panel xl:col-span-2">
           <PanelTitle icon={<BarChart3 size={18} />} title="Comparison" />
-          <TestingComparison jobs={comparisonJobs} />
+          <TestingComparison jobs={comparisonJobs} modelTaskById={modelTaskById} />
         </section>
       </div>
     </div>
@@ -2446,11 +2519,11 @@ function InferenceResultView({ result }: { result: InferenceResult }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
       <div className="image-frame">{overlay ? <img src={overlay} alt="Prediction overlay" /> : null}</div>
-      <div>
-        <div className="metric-grid">
-          <Metric label="Image label" value={result.image_level_label} />
-          <Metric label="Detections" value={String(result.detections.length)} />
-          <Metric label="Time" value={result.duration_ms ? `${result.duration_ms} ms` : "-"} />
+      <div className="inference-result-side">
+        <div className="inference-result-summary">
+          <span><strong>Image label</strong>{result.image_level_label}</span>
+          <span><strong>Detections</strong>{result.detections.length}</span>
+          <span><strong>Time</strong>{result.duration_ms ? `${result.duration_ms} ms` : "-"}</span>
         </div>
         {Object.keys(result.class_scores ?? {}).length > 0 ? (
           <ClassScoreTable scores={result.class_scores} />
@@ -2581,12 +2654,15 @@ function InferenceHistory({
 function TestingJobTable({
   jobs,
   selectedIds,
-  setSelectedIds
+  setSelectedIds,
+  modelTaskById = {}
 }: {
   jobs: EvaluationJob[];
   selectedIds: string[];
   setSelectedIds: (ids: string[]) => void;
+  modelTaskById?: Record<string, TaskType>;
 }) {
+  const metricColumns = testingTableColumns(jobs, modelTaskById);
   return (
     <div className="table-wrap">
       <table>
@@ -2597,7 +2673,9 @@ function TestingJobTable({
             <th>Model</th>
             <th>Dataset</th>
             <th>Samples</th>
-            <th>Accuracy</th>
+            {metricColumns.map((column) => (
+              <th key={column.key}>{column.label}</th>
+            ))}
             <th />
           </tr>
         </thead>
@@ -2615,13 +2693,15 @@ function TestingJobTable({
               <td>{job.model_id}</td>
               <td>{job.dataset_key}</td>
               <td>{job.metrics?.samples ?? "-"}</td>
-              <td>{formatMetric(job.metrics?.image?.overall?.accuracy)}</td>
+              {metricColumns.map((column) => (
+                <td key={column.key}>{formatMetric(column.get(job))}</td>
+              ))}
               <td><Link className="secondary-button" href={`/testing/${job.id}`}>Details</Link></td>
             </tr>
           ))}
           {jobs.length === 0 && (
             <tr>
-              <td colSpan={7}>No testing jobs</td>
+              <td colSpan={6 + metricColumns.length}>No testing jobs</td>
             </tr>
           )}
         </tbody>
@@ -2630,19 +2710,26 @@ function TestingJobTable({
   );
 }
 
-function TestingComparison({ jobs }: { jobs: EvaluationJob[] }) {
+function TestingComparison({
+  jobs,
+  modelTaskById = {}
+}: {
+  jobs: EvaluationJob[];
+  modelTaskById?: Record<string, TaskType>;
+}) {
   if (jobs.length === 0) return <EmptyState label="No completed results for this dataset" />;
+  const metricColumns = comparisonMetricColumns(jobs, modelTaskById);
   return (
     <div className="table-wrap">
       <table>
         <thead>
           <tr>
             <th>Model</th>
+            <th>Type</th>
             <th>Samples</th>
-            <th>Accuracy</th>
-            <th>Macro F1</th>
-            <th>Pixel Dice</th>
-            <th>Object Recall</th>
+            {metricColumns.map((column) => (
+              <th key={column.key}>{column.label}</th>
+            ))}
             <th />
           </tr>
         </thead>
@@ -2650,11 +2737,11 @@ function TestingComparison({ jobs }: { jobs: EvaluationJob[] }) {
           {jobs.map((job) => (
             <tr key={job.id}>
               <td>{job.model_id}</td>
+              <td>{evaluationKindLabel(inferEvaluationKind(job, modelTaskById[job.model_id]))}</td>
               <td>{job.metrics?.samples ?? "-"}</td>
-              <td>{formatMetric(job.metrics?.image?.overall?.accuracy)}</td>
-              <td>{formatMetric(job.metrics?.image?.overall?.macro_f1)}</td>
-              <td>{formatMetric(job.metrics?.pixel?.dice)}</td>
-              <td>{formatMetric(job.metrics?.object?.recall)}</td>
+              {metricColumns.map((column) => (
+                <td key={column.key}>{formatMetric(column.get(job))}</td>
+              ))}
               <td><Link className="secondary-button" href={`/testing/${job.id}`}>Details</Link></td>
             </tr>
           ))}
@@ -2662,6 +2749,80 @@ function TestingComparison({ jobs }: { jobs: EvaluationJob[] }) {
       </table>
     </div>
   );
+}
+
+function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>) {
+  const kinds = new Set(jobs.map((job) => inferEvaluationKind(job, modelTaskById[job.model_id])));
+  if (kinds.size === 1 && kinds.has("classification")) {
+    return classificationMetricColumns().slice(0, 2);
+  }
+  if (kinds.size === 1 && kinds.has("vision")) {
+    return visionMetricColumns().slice(0, 2);
+  }
+  return [
+    classificationMetricColumns()[0],
+    visionMetricColumns()[0]
+  ];
+}
+
+function comparisonMetricColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>) {
+  const kinds = new Set(jobs.map((job) => inferEvaluationKind(job, modelTaskById[job.model_id])));
+  if (kinds.size === 1 && kinds.has("classification")) return classificationMetricColumns();
+  if (kinds.size === 1 && kinds.has("vision")) return visionMetricColumns();
+  return [
+    ...classificationMetricColumns().slice(0, 2),
+    ...visionMetricColumns().slice(0, 2)
+  ];
+}
+
+function classificationMetricColumns() {
+  return [
+    { key: "accuracy", label: "Accuracy", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.accuracy) },
+    { key: "macro_f1", label: "Macro F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.macro_f1) },
+    { key: "weighted_f1", label: "Weighted F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.weighted_f1) },
+    { key: "mcc", label: "MCC", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.mcc) }
+  ];
+}
+
+function visionMetricColumns() {
+  return [
+    { key: "pixel_dice", label: "Pixel Dice", get: (job: EvaluationJob) => numberMetric(job.metrics?.pixel?.dice) },
+    { key: "pixel_iou", label: "Pixel IoU", get: (job: EvaluationJob) => numberMetric(job.metrics?.pixel?.iou) },
+    { key: "object_precision", label: "Object Precision", get: (job: EvaluationJob) => numberMetric(job.metrics?.object?.precision) },
+    { key: "object_recall", label: "Object Recall", get: (job: EvaluationJob) => numberMetric(job.metrics?.object?.recall) }
+  ];
+}
+
+function detailMetricEntries(job: EvaluationJob, kind: EvaluationDisplayKind): MetricEntry[] {
+  const columns = kind === "classification" ? classificationMetricColumns() : visionMetricColumns();
+  const entries = columns
+    .map((column) => ({ key: column.key, label: column.label, value: column.get(job) }))
+    .filter((entry): entry is MetricEntry => typeof entry.value === "number");
+  if (kind === "classification") {
+    const macroAuc = numberMetric(job.metrics?.classification?.macro_auc);
+    const balancedAccuracy = numberMetric(job.metrics?.image?.overall?.balanced_accuracy);
+    return [
+      ...(typeof balancedAccuracy === "number" ? [{ key: "balanced_accuracy", label: "Balanced Acc.", value: balancedAccuracy }] : []),
+      ...entries,
+      ...(typeof macroAuc === "number" ? [{ key: "macro_auc", label: "Macro AUC", value: macroAuc }] : [])
+    ];
+  }
+  return entries;
+}
+
+function inferEvaluationKind(job: EvaluationJob, modelTask?: TaskType): EvaluationDisplayKind {
+  if (modelTask === "classification") return "classification";
+  if (modelTask === "object_detection" || modelTask === "segmentation") return "vision";
+  if (job.metrics?.pixel || job.metrics?.object) return "vision";
+  return "classification";
+}
+
+function evaluationKindLabel(kind: EvaluationDisplayKind): string {
+  return kind === "classification" ? "Classification" : "Detection / segmentation";
+}
+
+function numberMetric(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function TrainingJobTable({
@@ -2719,63 +2880,26 @@ function TrainingJobTable({
 function MetricsDetails({ job, rows }: { job: EvaluationJob; rows: EvaluationPerImageRow[] }) {
   const metrics = job.metrics ?? {};
   if (!metrics.samples) return <EmptyState label="No metrics yet" />;
+  const kind = inferEvaluationKind(job);
   const labels = metrics.labels ?? metrics.image?.labels ?? [];
-  const scoreEntries = [
-    ["Accuracy", metrics.image?.overall?.accuracy],
-    ["Balanced Acc.", metrics.image?.overall?.balanced_accuracy],
-    ["Macro F1", metrics.image?.overall?.macro_f1],
-    ["Weighted F1", metrics.image?.overall?.weighted_f1],
-    ["Pixel Dice", metrics.pixel?.dice],
-    ["Pixel IoU", metrics.pixel?.iou],
-    ["Pixel Precision", metrics.pixel?.precision],
-    ["Pixel Recall", metrics.pixel?.recall],
-    ["Specificity", metrics.pixel?.specificity ?? metrics.image?.overall?.specificity],
-    ["Object Precision", metrics.object?.precision],
-    ["Object Recall", metrics.object?.recall],
-  ].filter((entry): entry is [string, number] => typeof entry[1] === "number");
+  const scoreEntries = detailMetricEntries(job, kind);
   return (
     <div className="space-y-5">
       <div className="metric-grid">
         <Metric label="Samples" value={metrics.samples} />
-        <Metric label="Pixel IoU" value={formatMetric(metrics.pixel?.iou)} />
-        <Metric label="Pixel Precision" value={formatMetric(metrics.pixel?.precision)} />
-        <Metric label="Object Recall" value={formatMetric(metrics.object?.recall)} />
-        <Metric label="Macro F1" value={formatMetric(metrics.image?.overall?.macro_f1)} />
-        <Metric label="MCC" value={formatMetric(metrics.image?.overall?.mcc)} />
+        {scoreEntries.slice(0, 5).map((entry) => (
+          <Metric key={entry.key} label={entry.label} value={formatMetric(entry.value)} />
+        ))}
       </div>
-      <MetricBarPanel title="Metric Overview" entries={scoreEntries} />
       <ObjectSummaryPanel objectMetrics={metrics.object ?? {}} />
-      <TestingRocPanel classification={metrics.classification ?? {}} />
-      <PerImageMetricChart rows={rows} />
       <div className="grid gap-4 xl:grid-cols-2">
         <ConfusionMatrix title="Image Confusion" labels={metrics.image?.labels ?? labels} matrix={metrics.image?.confusion_matrix ?? []} />
-        <ConfusionMatrix title="Object Confusion" labels={[...labels, "background"]} matrix={metrics.object?.confusion_matrix ?? []} />
+        {kind === "vision" && (
+          <ConfusionMatrix title="Object Confusion" labels={[...labels, "background"]} matrix={metrics.object?.confusion_matrix ?? []} />
+        )}
       </div>
       <PerClassReport report={metrics.image?.report ?? {}} />
-      <PerImageTable rows={rows} labels={[...labels, "Normal"]} />
-    </div>
-  );
-}
-
-function MetricBarPanel({ title, entries }: { title: string; entries: Array<[string, number]> }) {
-  if (entries.length === 0) return null;
-  return (
-    <div className="chart-card">
-      <h3 className="section-title">{title}</h3>
-      <div className="eda-bars">
-        {entries.map(([label, value], index) => {
-          const normalized = Math.max(0, Math.min(1, value));
-          return (
-            <div className="eda-bar-row" key={label}>
-              <span title={label}>{label}</span>
-              <div className="eda-bar-track">
-                <div className="eda-bar-fill" style={{ width: `${normalized * 100}%`, backgroundColor: labelColor(index) }} />
-              </div>
-              <strong>{formatMetric(value)}</strong>
-            </div>
-          );
-        })}
-      </div>
+      <PerImageTable rows={rows} labels={[...labels, "Normal"]} kind={kind} />
     </div>
   );
 }
@@ -2793,61 +2917,6 @@ function ObjectSummaryPanel({ objectMetrics }: { objectMetrics: Record<string, a
       {entries.map(([label, value]) => (
         <Metric key={label} label={label} value={formatMetric(value)} />
       ))}
-    </div>
-  );
-}
-
-function TestingRocPanel({ classification }: { classification: Record<string, any> }) {
-  const roc = classification.roc_curves as Record<string, { fpr: number[]; tpr: number[] }> | undefined;
-  if (!roc || Object.keys(roc).length === 0) return null;
-  return (
-    <div className="chart-card">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <strong>ROC / AUC</strong>
-        <span>macro {formatMetric(classification.macro_auc)} / micro {formatMetric(classification.micro_auc)}</span>
-      </div>
-      <svg className="roc-chart" viewBox="0 0 100 64" preserveAspectRatio="none">
-        <line x1="0" y1="64" x2="100" y2="0" stroke="#d7dde5" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-        {Object.entries(roc).map(([label, curve], index) => {
-          const points = (curve.fpr ?? [])
-            .map((fpr, pointIndex) => `${(fpr * 100).toFixed(2)},${(64 - ((curve.tpr?.[pointIndex] ?? 0) * 64)).toFixed(2)}`)
-            .join(" ");
-          return <polyline key={label} points={points} fill="none" stroke={labelColor(index)} strokeWidth="2" vectorEffect="non-scaling-stroke" />;
-        })}
-      </svg>
-      <div className="label-chip-row mt-3">
-        {Object.keys(roc).map((label, index) => (
-          <span className="label-chip" key={label}>
-            <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
-            {label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PerImageMetricChart({ rows }: { rows: EvaluationPerImageRow[] }) {
-  const values = rows
-    .map((row) => (typeof row.pixel?.dice === "number" ? row.pixel.dice : typeof row.pixel?.iou === "number" ? row.pixel.iou : null))
-    .filter((value): value is number => typeof value === "number")
-    .slice(0, 40);
-  if (values.length === 0) return null;
-  return (
-    <div className="chart-card">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <strong>Per-image Pixel Score</strong>
-        <span>{values.length} images</span>
-      </div>
-      <div className="spark-bar-chart">
-        {values.map((value, index) => (
-          <span
-            key={`${value}-${index}`}
-            style={{ height: `${Math.max(6, Math.min(100, value * 100))}%`, backgroundColor: labelColor(index) }}
-            title={formatMetric(value)}
-          />
-        ))}
-      </div>
     </div>
   );
 }
@@ -3038,36 +3107,64 @@ function PerClassReport({ report }: { report: Record<string, any> }) {
   );
 }
 
-function PerImageTable({ rows, labels }: { rows: EvaluationPerImageRow[]; labels: string[] }) {
+function PerImageTable({
+  rows,
+  labels,
+  kind
+}: {
+  rows: EvaluationPerImageRow[];
+  labels: string[];
+  kind: EvaluationDisplayKind;
+}) {
   if (rows.length === 0) return null;
+  const classification = kind === "classification";
   return (
     <div>
       <h3 className="section-title">Per Image</h3>
       <div className="table-wrap max-h-[420px] overflow-y-auto">
         <table>
           <thead>
-            <tr>
-              <th>Image</th>
-              <th>GT</th>
-              <th>Pred</th>
-              <th>Dice</th>
-              <th>Matched</th>
-              <th>FP</th>
-              <th>FN</th>
-            </tr>
+            {classification ? (
+              <tr>
+                <th>Image</th>
+                <th>Ground truth class</th>
+                <th>Predicted class</th>
+                <th>Accuracy score</th>
+              </tr>
+            ) : (
+              <tr>
+                <th>Image</th>
+                <th>GT</th>
+                <th>Pred</th>
+                <th>Dice</th>
+                <th>Matched</th>
+                <th>FP</th>
+                <th>FN</th>
+              </tr>
+            )}
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.image}>
-                <td>{row.image}</td>
-                <td>{labels[row.ground_truth] ?? row.ground_truth}</td>
-                <td>{labels[row.prediction] ?? row.prediction}</td>
-                <td>{formatMetric(row.pixel?.dice)}</td>
-                <td>{row.object?.matched ?? "-"}</td>
-                <td>{row.object?.false_positives ?? "-"}</td>
-                <td>{row.object?.false_negatives ?? "-"}</td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const accuracyScore = row.ground_truth === row.prediction ? 1 : 0;
+              return classification ? (
+                <tr key={row.image}>
+                  <td>{row.image}</td>
+                  <td>{labels[row.ground_truth] ?? row.ground_truth}</td>
+                  <td>{labels[row.prediction] ?? row.prediction}</td>
+                  <td>{formatMetric(accuracyScore)}</td>
+                </tr>
+              ) : (
+                <tr key={row.image}>
+                  <td>{row.image}</td>
+                  <td>{labels[row.ground_truth] ?? row.ground_truth}</td>
+                  <td>{labels[row.prediction] ?? row.prediction}</td>
+                  <td>{formatMetric(row.pixel?.dice)}</td>
+                  <td>{row.object?.matched ?? "-"}</td>
+                  <td>{row.object?.false_positives ?? "-"}</td>
+                  <td>{row.object?.false_negatives ?? "-"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

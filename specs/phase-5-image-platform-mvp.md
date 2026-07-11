@@ -54,7 +54,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 ## Behavior
 
 - A default research image project is created automatically for existing data.
-- Project creation happens on a dedicated create page where users provide a name and one or more image task types.
+- Project creation happens on a dedicated create page where users provide a name, a required short UI description, and one or more image task types.
 - Project cards open workspaces and expose a three-dot menu for deletion; projects cannot be created inline from the project list.
 - User-created projects can be removed when they do not own datasets or history; the default project cannot be deleted.
 - Dataset creation follows the active project's allowed image task types.
@@ -64,7 +64,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Editable datasets support classification label-only annotations, detection boxes, and segmentation polygons.
 - Dataset Studio is catalog-first, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, EDA for dataset health and distribution, and Config for preprocessing, split, and version artifacts.
 - The root page lists projects outside the project workspace; selecting a project opens the project sidebar at Dataset Studio.
-- Global navigation includes Projects and Settings; project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
+- Global navigation includes Projects and Settings only; project creation is launched from the project list. Project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
 - Sidebar navigation includes an Available Models section inside each project.
 - Dataset Studio uses an unassigned inbox for new uploads, a Config tab for preprocessing/augmentation/split settings, and a 70/20/10 Proceed workflow.
 - Classification datasets support upload-time labels, per-image label edits, and bulk selected-image relabeling.
@@ -90,13 +90,16 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Frontend data-loading pages use skeleton states for initial fetches and compact inline loading states for small refetches.
 - Inference forms render parameters that match the selected model task.
 - Testing dataset selection lists only reference test splits and editable dataset test splits.
-- Testing detail pages include summary metrics, charts/graphics, confusion matrices, ROC/AUC when available, and per-image detail.
+- Testing detail pages include task-aware summary metrics, task-relevant confusion matrices, object summaries, and per-image detail tables without extra chart panels.
+- Project, dataset, model, and reporting chips use compact soft-color tags sized for dense operational scanning.
+- Model catalog cards use compact recipe-style tinted cards with task/source metadata, availability tags, class tags, and pinned actions.
+- Dataset catalog cards use the same simple recipe-style card treatment as model cards, avoiding square metric blocks and overlapping tags.
 - Training progress displays epoch processed/total when epoch metrics are available.
 
 ## Acceptance Criteria
 
 - Users can create a project, create an image dataset, add labels, upload images, and save task-aware annotations.
-- Users can create a project from `/projects/new`, choose multiple image task types, delete eligible projects from a project card menu, and switch active projects inside the project workspace.
+- Users can create a project from `/projects/new`, enter a required short description, choose multiple image task types, delete eligible projects from a project card menu, and switch active projects inside the project workspace.
 - Users can manage datasets from a catalog-first view, upload multiple images, edit classification labels per image or in bulk, preview preprocessing safely, generate version artifacts, and inspect core EDA.
 - Users can delete editable datasets, selected history rows, and clear terminal history.
 - Users can view testing comparisons and training details on separate pages.
