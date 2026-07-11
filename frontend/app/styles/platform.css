@@ -465,16 +465,24 @@
   width: min(420px, 100%);
 }
 
+.create-project-page {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  padding-block: 2vh;
+}
+
 .create-project-hero {
   display: grid;
-  gap: 16px;
+  width: min(100%, 840px);
+  gap: 14px;
   overflow: hidden;
   border: 1px solid rgba(20, 184, 166, 0.22);
   border-radius: 8px;
   background:
     linear-gradient(120deg, rgba(20, 184, 166, 0.14), transparent 45%),
     linear-gradient(135deg, var(--ov-ink) 0%, var(--ov-navy) 100%);
-  padding: 20px;
+  padding: 18px 20px;
   color: #f8fafc;
 }
 
@@ -488,7 +496,7 @@
 
 .brand-kicker {
   display: inline-flex;
-  min-height: 26px;
+  min-height: 24px;
   align-items: center;
   border: 1px solid rgba(139, 207, 90, 0.34);
   border-radius: 999px;
@@ -503,9 +511,9 @@
 .create-project-hero h2 {
   margin: 10px 0 6px;
   max-width: 720px;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 900;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .create-project-hero p {
@@ -518,8 +526,9 @@
 
 .create-project-panel {
   display: grid;
-  gap: 18px;
-  max-width: 980px;
+  width: min(100%, 840px);
+  gap: 16px;
+  max-width: 840px;
   border-color: rgba(20, 184, 166, 0.2);
   box-shadow: 0 12px 28px rgba(16, 24, 40, 0.06);
 }
@@ -533,39 +542,7 @@
 
 .create-project-form {
   display: grid;
-  gap: 12px;
-}
-
-.create-project-summary {
-  display: grid;
-  align-content: center;
-  gap: 8px;
-  border: 1px solid rgba(20, 184, 166, 0.24);
-  border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(139, 207, 90, 0.18), rgba(20, 184, 166, 0.08)),
-    #f8fffc;
-  padding: 16px;
-}
-
-.create-project-summary strong {
-  color: #0f766e;
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.create-project-summary span {
-  color: var(--ov-ink);
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.create-project-summary small {
-  color: #52606d;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.45;
+  gap: 10px;
 }
 
 .create-project-actions {
@@ -857,8 +834,8 @@
 }
 
 .task-choice-grid-premium {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .task-choice {
@@ -870,6 +847,11 @@
   background: #ffffff;
   padding: 12px;
   text-align: left;
+}
+
+button.task-choice {
+  color: inherit;
+  cursor: pointer;
 }
 
 .task-choice-check {
@@ -897,20 +879,23 @@
 
 .task-choice-premium {
   position: relative;
-  grid-template-columns: 18px 40px minmax(0, 1fr);
-  min-height: 148px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-height: 118px;
   overflow: hidden;
   border-color: rgba(20, 184, 166, 0.2);
   background: #ffffff;
+  padding: 12px;
   box-shadow: 0 10px 22px rgba(16, 24, 40, 0.04);
 }
 
 .task-choice-premium::after {
   position: absolute;
-  right: -18px;
-  bottom: -22px;
-  width: 88px;
-  height: 88px;
+  right: -24px;
+  bottom: -30px;
+  width: 82px;
+  height: 82px;
   border-radius: 999px;
   background: rgba(20, 184, 166, 0.09);
   content: "";
@@ -926,8 +911,8 @@
 
 .task-choice-icon {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border: 1px solid rgba(20, 184, 166, 0.26);
   border-radius: 8px;
@@ -948,16 +933,24 @@
 }
 
 .task-choice-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
   position: relative;
   z-index: 1;
 }
 
 .task-choice-copy em {
   color: #0f766e;
-  font-size: 11px;
+  font-size: 10px;
   font-style: normal;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.task-choice-premium:hover {
+  border-color: rgba(20, 184, 166, 0.48);
+  box-shadow: 0 10px 22px rgba(16, 24, 40, 0.08);
 }
 
 .task-choice strong,
@@ -982,6 +975,22 @@
     linear-gradient(135deg, rgba(139, 207, 90, 0.14), rgba(20, 184, 166, 0.09)),
     #ffffff;
   box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.14);
+}
+
+.task-choice-premium strong {
+  white-space: normal;
+}
+
+.task-choice .task-choice-icon {
+  color: #0f766e;
+}
+
+.task-choice-object-detection .task-choice-icon {
+  color: #c2410c;
+}
+
+.task-choice-segmentation .task-choice-icon {
+  color: #3f7c22;
 }
 
 .format-preview {

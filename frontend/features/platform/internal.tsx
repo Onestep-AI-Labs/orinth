@@ -181,10 +181,13 @@ export function ProjectCreatePage() {
     }
   });
 
-  function toggleTask(task: TaskType, checked: boolean) {
+  function toggleTaskCard(task: TaskType) {
     setSelectedTasks((tasks) => {
-      const next = checked ? [...new Set([...tasks, task])] : tasks.filter((item) => item !== task);
-      return next.length ? next : tasks;
+      if (tasks.includes(task)) {
+        const next = tasks.filter((item) => item !== task);
+        return next.length ? next : tasks;
+      }
+      return [...tasks, task];
     });
   }
 
@@ -205,7 +208,7 @@ export function ProjectCreatePage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="create-project-page">
       <section className="create-project-hero">
         <Link className="project-back-link" href="/">
           <ArrowLeft size={16} />
@@ -218,27 +221,20 @@ export function ProjectCreatePage() {
         </div>
       </section>
       <section className="panel create-project-panel">
-        <div className="create-project-layout">
-          <div className="create-project-form">
-            <Field label="Project name">
-              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: Dental Radiograph Workspace" />
-            </Field>
-            <Field label="Short description">
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Example: Dental X-ray segmentation experiments for YOLO and U-Net models"
-                maxLength={PROJECT_DESCRIPTION_LIMIT}
-                rows={3}
-              />
-              <span className="field-hint">{description.length}/{PROJECT_DESCRIPTION_LIMIT}</span>
-            </Field>
-          </div>
-          <div className="create-project-summary">
-            <strong>Project blueprint</strong>
-            <span>{trimmedName || "Untitled vision project"}</span>
-            <small>{selectedTasks.map(formatDatasetTask).join(" + ")}</small>
-          </div>
+        <div className="create-project-form">
+          <Field label="Project name">
+            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: Dental Radiograph Workspace" />
+          </Field>
+          <Field label="Short description">
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Example: Dental X-ray segmentation experiments for YOLO and U-Net models"
+              maxLength={PROJECT_DESCRIPTION_LIMIT}
+              rows={3}
+            />
+            <span className="field-hint">{description.length}/{PROJECT_DESCRIPTION_LIMIT}</span>
+          </Field>
         </div>
         <div className="field">
           <label>Project type</label>
@@ -246,24 +242,22 @@ export function ProjectCreatePage() {
             {IMAGE_TASK_TYPES.map((task) => {
               const active = selectedTasks.includes(task);
               return (
-                <label
-                  className={`task-choice task-choice-check task-choice-premium task-choice-${task.replaceAll("_", "-")} ${
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  className={`task-choice task-choice-premium task-choice-${task.replaceAll("_", "-")} ${
                     active ? "task-choice-active" : ""
                   }`}
                   key={task}
+                  onClick={() => toggleTaskCard(task)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={active}
-                    onChange={(event) => toggleTask(task, event.target.checked)}
-                  />
                   <span className="task-choice-icon">{taskIcon(task)}</span>
                   <span className="task-choice-copy">
                     <strong>{formatDatasetTask(task)}</strong>
                     <small>{taskDescription(task)}</small>
-                    <em>{active ? "Included in this workspace" : "Tap to include"}</em>
+                    <em>{active ? "Included" : "Add type"}</em>
                   </span>
-                </label>
+                </button>
               );
             })}
           </div>

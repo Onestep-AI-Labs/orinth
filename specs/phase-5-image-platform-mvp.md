@@ -91,7 +91,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Dataset workspace selection is URL-backed through `/datasets?dataset={dataset_id}`; the plain `/datasets` route always shows the dataset catalog.
 - Data tables remain semantic tables and are contained in responsive horizontal scroll wrappers so narrow viewports do not overflow the page.
 - Testing and training workspaces use responsive one-column tablet layouts and card-style job rows on phone-sized viewports.
-- Project creation uses the Onestep Vision brand treatment and richer task-type cards while preserving the existing project creation payload.
+- Project creation uses a simple centered Onestep Vision form with compact selectable task-type cards while preserving the existing project creation payload.
 - Training detail pages show history charts, ROC/AUC for classification where available, and runner curve artifacts.
 - Frontend data-loading pages use skeleton states for initial fetches and compact inline loading states for small refetches.
 - Inference forms render parameters that match the selected model task.
