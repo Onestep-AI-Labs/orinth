@@ -5,8 +5,11 @@ import "./globals.css";
 import "./styles/platform.css";
 
 export const metadata: Metadata = {
-  title: "Image Platform",
-  description: "Local image dataset, inference, testing, and training platform"
+  title: "Onestep Vision",
+  description: "One workspace for image intelligence",
+  icons: {
+    icon: "/brand/logo_transparent.png"
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

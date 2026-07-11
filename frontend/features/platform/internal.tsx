@@ -3,8 +3,8 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -198,48 +198,81 @@ export function ProjectCreatePage() {
     });
   }
 
+  function taskIcon(task: TaskType) {
+    if (task === "classification") return <FileImage size={20} />;
+    if (task === "object_detection") return <Database size={20} />;
+    return <BarChart3 size={20} />;
+  }
+
   return (
     <div className="space-y-5">
-      <PageHeader title="Create Project" subtitle="Name the workspace and choose image task types" icon={<FilePlus2 size={20} />} />
-      <section className="panel create-project-panel">
-        <Link className="project-back-link mb-3" href="/">
+      <section className="create-project-hero">
+        <Link className="project-back-link" href="/">
           <ArrowLeft size={16} />
           <span>Projects</span>
         </Link>
-        <Field label="Project name">
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: Dental Radiograph Workspace" />
-        </Field>
-        <Field label="Short description">
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Example: Dental X-ray segmentation experiments for YOLO and U-Net models"
-            maxLength={PROJECT_DESCRIPTION_LIMIT}
-            rows={3}
-          />
-          <span className="field-hint">{description.length}/{PROJECT_DESCRIPTION_LIMIT}</span>
-        </Field>
-        <div className="field">
-          <label>Project type</label>
-          <div className="task-choice-grid">
-            {IMAGE_TASK_TYPES.map((task) => (
-              <label className={`task-choice task-choice-check ${selectedTasks.includes(task) ? "task-choice-active" : ""}`} key={task}>
-                <input
-                  type="checkbox"
-                  checked={selectedTasks.includes(task)}
-                  onChange={(event) => toggleTask(task, event.target.checked)}
-                />
-                <span>
-                  <strong>{formatDatasetTask(task)}</strong>
-                  <small>{taskDescription(task)}</small>
-                </span>
-              </label>
-            ))}
+        <div className="create-project-hero-copy">
+          <span className="brand-kicker">Onestep Vision</span>
+          <h2>Create an image intelligence workspace</h2>
+          <p>Shape a focused project for datasets, annotations, training runs, model tests, and inspection workflows.</p>
+        </div>
+      </section>
+      <section className="panel create-project-panel">
+        <div className="create-project-layout">
+          <div className="create-project-form">
+            <Field label="Project name">
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: Dental Radiograph Workspace" />
+            </Field>
+            <Field label="Short description">
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Example: Dental X-ray segmentation experiments for YOLO and U-Net models"
+                maxLength={PROJECT_DESCRIPTION_LIMIT}
+                rows={3}
+              />
+              <span className="field-hint">{description.length}/{PROJECT_DESCRIPTION_LIMIT}</span>
+            </Field>
+          </div>
+          <div className="create-project-summary">
+            <strong>Project blueprint</strong>
+            <span>{trimmedName || "Untitled vision project"}</span>
+            <small>{selectedTasks.map(formatDatasetTask).join(" + ")}</small>
           </div>
         </div>
-        <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>
-          <FilePlus2 size={16} /> Create Project
-        </button>
+        <div className="field">
+          <label>Project type</label>
+          <div className="task-choice-grid task-choice-grid-premium">
+            {IMAGE_TASK_TYPES.map((task) => {
+              const active = selectedTasks.includes(task);
+              return (
+                <label
+                  className={`task-choice task-choice-check task-choice-premium task-choice-${task.replaceAll("_", "-")} ${
+                    active ? "task-choice-active" : ""
+                  }`}
+                  key={task}
+                >
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={(event) => toggleTask(task, event.target.checked)}
+                  />
+                  <span className="task-choice-icon">{taskIcon(task)}</span>
+                  <span className="task-choice-copy">
+                    <strong>{formatDatasetTask(task)}</strong>
+                    <small>{taskDescription(task)}</small>
+                    <em>{active ? "Included in this workspace" : "Tap to include"}</em>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+        <div className="create-project-actions">
+          <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>
+            <FilePlus2 size={16} /> Create Project
+          </button>
+        </div>
         <MutationError mutations={[createProject]} />
       </section>
     </div>
@@ -327,7 +360,10 @@ export function SettingsPage() {
 }
 
 export function DatasetPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { projectId, project } = useProject();
+  const datasetParam = searchParams.get("dataset") ?? "";
   const [selectedDatasetId, setSelectedDatasetId] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
@@ -357,6 +393,19 @@ export function DatasetPage() {
     const tasks = (project?.task_types ?? []).filter((task): task is TaskType => IMAGE_TASK_TYPES.includes(task));
     return tasks.length ? tasks : IMAGE_TASK_TYPES;
   }, [project?.task_types]);
+  const openDataset = useCallback(
+    (datasetId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("dataset", datasetId);
+      setSelectedDatasetId(datasetId);
+      router.push(`/datasets?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
+  const showDatasetCatalog = useCallback(() => {
+    setSelectedDatasetId("");
+    router.push("/datasets");
+  }, [router]);
 
   const catalogQuery = useQuery({
     queryKey: ["dataset-catalog", projectId],
@@ -398,7 +447,7 @@ export function DatasetPage() {
   const createMutation = useMutation({
     mutationFn: api.createDataset,
     onSuccess: (dataset) => {
-      setSelectedDatasetId(dataset.id);
+      openDataset(dataset.id);
       setShowCreate(false);
       setNewDatasetName("");
       catalogQuery.refetch();
@@ -419,7 +468,7 @@ export function DatasetPage() {
     mutationFn: ({ datasetId, name }: { datasetId: string; name?: string }) =>
       api.cloneDataset(datasetId, { name, project_id: projectId }),
     onSuccess: (dataset) => {
-      setSelectedDatasetId(dataset.id);
+      openDataset(dataset.id);
       setCloneName("");
       setShowDuplicate(false);
       setShowDatasetOptions(false);
@@ -482,7 +531,7 @@ export function DatasetPage() {
   const deleteDatasetMutation = useMutation({
     mutationFn: api.deleteDataset,
     onSuccess: () => {
-      setSelectedDatasetId("");
+      showDatasetCatalog();
       setSelectedItemId("");
       setShowDatasetOptions(false);
       setCatalogMenuDatasetId("");
@@ -516,6 +565,16 @@ export function DatasetPage() {
       edaQuery.refetch();
     }
   });
+
+  useEffect(() => {
+    setSelectedDatasetId(datasetParam);
+  }, [datasetParam]);
+
+  useEffect(() => {
+    if (!catalogQuery.isLoading && selectedDatasetId && !selectedDataset) {
+      showDatasetCatalog();
+    }
+  }, [catalogQuery.isLoading, selectedDataset, selectedDatasetId, showDatasetCatalog]);
 
   useEffect(() => {
     if (items.length > 0 && !items.some((item) => item.id === selectedItemId)) {
@@ -643,7 +702,7 @@ export function DatasetPage() {
                   }`}
                   key={dataset.id}
                 >
-                  <button className="dataset-card-main" type="button" onClick={() => setSelectedDatasetId(dataset.id)}>
+                  <button className="dataset-card-main" type="button" onClick={() => openDataset(dataset.id)}>
                     <div className="dataset-card-header">
                       <span className="dataset-card-icon"><Database size={17} /></span>
                       <div className="dataset-card-title">
@@ -676,7 +735,7 @@ export function DatasetPage() {
                     </button>
                     {catalogMenuDatasetId === dataset.id && (
                       <div className="option-menu" role="menu">
-                        <button type="button" onClick={() => setSelectedDatasetId(dataset.id)}>
+                        <button type="button" onClick={() => openDataset(dataset.id)}>
                           <FolderOpen size={15} /> Open
                         </button>
                         <button
@@ -713,7 +772,7 @@ export function DatasetPage() {
       <div className="dataset-detail-header">
         <PageHeader title={selectedDataset.name} subtitle="Dataset workspace" icon={<Database size={20} />} />
         <div className="dataset-header-actions">
-          <button className="secondary-button" onClick={() => setSelectedDatasetId("")}>
+          <button className="secondary-button" onClick={showDatasetCatalog}>
             Back to catalog
           </button>
           <div className="dataset-options">
@@ -1950,7 +2009,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   return (
     <div className="space-y-5">
       <PageHeader title="Inference" subtitle="Run models on image data" icon={<ImageIcon size={20} />} />
-      <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
+      <div className="workspace-grid workspace-grid-inference">
         <section className="panel">
           <PanelTitle icon={<Upload size={18} />} title="Run" />
           {modelsLoading && <CardGridSkeleton count={1} />}
@@ -1997,7 +2056,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           <PanelTitle icon={<ImageIcon size={18} />} title="Result" />
           {result ? <InferenceResultView result={result} /> : <EmptyState label="No result selected" />}
         </section>
-        <section className="panel lg:col-span-2">
+        <section className="panel workspace-grid-full">
           <HistoryHeader
             title="Inference History"
             selectedCount={selectedIds.length}
@@ -2106,7 +2165,7 @@ export function TestingPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Testing" subtitle="Evaluate model runs" icon={<FlaskConical size={20} />} />
-      <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
+      <div className="workspace-grid workspace-grid-testing">
         <section className="panel">
           <PanelTitle icon={<FlaskConical size={18} />} title="New Test" />
           {(modelsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
@@ -2166,7 +2225,7 @@ export function TestingPage() {
           {jobsQuery.isLoading && <TableSkeleton rows={5} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
-        <section className="panel xl:col-span-2">
+        <section className="panel workspace-grid-full">
           <PanelTitle icon={<BarChart3 size={18} />} title="Comparison" />
           <TestingComparison jobs={comparisonJobs} modelTaskById={modelTaskById} />
         </section>
@@ -2305,7 +2364,7 @@ export function TrainingPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Training" subtitle="Configure model runs" icon={<Activity size={20} />} />
-      <div className="grid gap-5 xl:grid-cols-[390px_1fr]">
+      <div className="workspace-grid workspace-grid-training">
         <section className="panel">
           <PanelTitle icon={<Activity size={18} />} title="New Run" />
           {(optionsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
@@ -2336,7 +2395,7 @@ export function TrainingPage() {
               ))}
             </select>
           </Field>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="form-grid form-grid-three">
             <Field label="Epochs">
               <input type="number" min={1} max={1000} value={epochs} onChange={(event) => setEpochs(Number(event.target.value))} />
             </Field>
@@ -2347,7 +2406,7 @@ export function TrainingPage() {
               <input type="number" min={-1} max={256} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value))} />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="form-grid form-grid-two">
             <Field label="Optimizer">
               <select value={optimizer} onChange={(event) => setOptimizer(event.target.value)}>
                 <option value="AdamW">AdamW</option>
@@ -2362,7 +2421,7 @@ export function TrainingPage() {
           <Field label="Device">
             <input value={device} onChange={(event) => setDevice(event.target.value)} />
           </Field>
-          <div className="flex flex-wrap gap-2">
+          <div className="action-row action-row-split">
             <button className="secondary-button" onClick={() => prepareMutation.mutate()} disabled={!option?.needs_download || prepareMutation.isPending}>
               <Upload size={16} /> Prepare
             </button>
@@ -2472,7 +2531,7 @@ function AnnotationTable({
   editable: boolean;
 }) {
   return (
-    <div className="table-wrap">
+    <div className="table-wrap responsive-card-table">
       <table>
         <thead>
           <tr>
@@ -2517,7 +2576,7 @@ function AnnotationTable({
 function InferenceResultView({ result }: { result: InferenceResult }) {
   const overlay = mediaUrl(result.overlay_url);
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+    <div className="result-grid">
       <div className="image-frame">{overlay ? <img src={overlay} alt="Prediction overlay" /> : null}</div>
       <div className="inference-result-side">
         <div className="inference-result-summary">
@@ -2626,7 +2685,7 @@ function InferenceHistory({
         <tbody>
           {rows.map((row) => (
             <tr key={row.id} className="click-row">
-              <td>
+              <td data-label="Select">
                 <input
                   type="checkbox"
                   checked={selectedIds.includes(row.id)}
@@ -2689,19 +2748,19 @@ function TestingJobTable({
                   onChange={(event) => toggleId(job.id, event.target.checked, selectedIds, setSelectedIds)}
                 />
               </td>
-              <td><StatusBadge status={job.status} /></td>
-              <td>{job.model_id}</td>
-              <td>{job.dataset_key}</td>
-              <td>{job.metrics?.samples ?? "-"}</td>
+              <td data-label="Status"><StatusBadge status={job.status} /></td>
+              <td data-label="Model">{job.model_id}</td>
+              <td data-label="Dataset">{job.dataset_key}</td>
+              <td data-label="Samples">{job.metrics?.samples ?? "-"}</td>
               {metricColumns.map((column) => (
-                <td key={column.key}>{formatMetric(column.get(job))}</td>
+                <td data-label={column.label} key={column.key}>{formatMetric(column.get(job))}</td>
               ))}
-              <td><Link className="secondary-button" href={`/testing/${job.id}`}>Details</Link></td>
+              <td data-label="Open"><Link className="secondary-button" href={`/testing/${job.id}`}>Details</Link></td>
             </tr>
           ))}
           {jobs.length === 0 && (
             <tr>
-              <td colSpan={6 + metricColumns.length}>No testing jobs</td>
+              <td className="table-empty-cell" colSpan={6 + metricColumns.length}>No testing jobs</td>
             </tr>
           )}
         </tbody>
@@ -2720,7 +2779,7 @@ function TestingComparison({
   if (jobs.length === 0) return <EmptyState label="No completed results for this dataset" />;
   const metricColumns = comparisonMetricColumns(jobs, modelTaskById);
   return (
-    <div className="table-wrap">
+    <div className="table-wrap responsive-card-table">
       <table>
         <thead>
           <tr>
@@ -2736,13 +2795,13 @@ function TestingComparison({
         <tbody>
           {jobs.map((job) => (
             <tr key={job.id}>
-              <td>{job.model_id}</td>
-              <td>{evaluationKindLabel(inferEvaluationKind(job, modelTaskById[job.model_id]))}</td>
-              <td>{job.metrics?.samples ?? "-"}</td>
+              <td data-label="Model">{job.model_id}</td>
+              <td data-label="Type">{evaluationKindLabel(inferEvaluationKind(job, modelTaskById[job.model_id]))}</td>
+              <td data-label="Samples">{job.metrics?.samples ?? "-"}</td>
               {metricColumns.map((column) => (
-                <td key={column.key}>{formatMetric(column.get(job))}</td>
+                <td data-label={column.label} key={column.key}>{formatMetric(column.get(job))}</td>
               ))}
-              <td><Link className="secondary-button" href={`/testing/${job.id}`}>Details</Link></td>
+              <td data-label="Open"><Link className="secondary-button" href={`/testing/${job.id}`}>Details</Link></td>
             </tr>
           ))}
         </tbody>
@@ -2835,7 +2894,7 @@ function TrainingJobTable({
   setSelectedIds: (ids: string[]) => void;
 }) {
   return (
-    <div className="table-wrap">
+    <div className="table-wrap responsive-card-table">
       <table>
         <thead>
           <tr>
@@ -2851,24 +2910,24 @@ function TrainingJobTable({
         <tbody>
           {jobs.map((job) => (
             <tr key={job.id}>
-              <td>
+              <td data-label="Select">
                 <input
                   type="checkbox"
                   checked={selectedIds.includes(job.id)}
                   onChange={(event) => toggleId(job.id, event.target.checked, selectedIds, setSelectedIds)}
                 />
               </td>
-              <td><StatusBadge status={job.status} /></td>
-              <td>{job.model_family}</td>
-              <td>{job.parameters?.dataset_id ?? "-"}</td>
-              <td>{job.metrics?.epoch ?? job.progress.processed ?? "-"}</td>
-              <td>{formatMetric(job.metrics?.["metrics/mAP50(B)"] ?? job.metrics?.val_accuracy)}</td>
-              <td><Link className="secondary-button" href={`/training/${job.id}`}>Details</Link></td>
+              <td data-label="Status"><StatusBadge status={job.status} /></td>
+              <td data-label="Family">{job.model_family}</td>
+              <td data-label="Dataset">{job.parameters?.dataset_id ?? "-"}</td>
+              <td data-label="Epoch">{job.metrics?.epoch ?? job.progress.processed ?? "-"}</td>
+              <td data-label="Metric">{formatMetric(job.metrics?.["metrics/mAP50(B)"] ?? job.metrics?.val_accuracy)}</td>
+              <td data-label="Open"><Link className="secondary-button" href={`/training/${job.id}`}>Details</Link></td>
             </tr>
           ))}
           {jobs.length === 0 && (
             <tr>
-              <td colSpan={7}>No training jobs</td>
+              <td className="table-empty-cell" colSpan={7}>No training jobs</td>
             </tr>
           )}
         </tbody>
@@ -3231,9 +3290,9 @@ function HistoryHeader({
   onClear: () => void;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <div className="history-header">
       <PanelTitle icon={<RefreshCw size={18} />} title={title} />
-      <div className="flex flex-wrap gap-2">
+      <div className="history-actions">
         <button className="icon-button" onClick={onRefresh} title="Refresh"><RefreshCw size={16} /></button>
         <button className="secondary-button" onClick={onDelete} disabled={selectedCount === 0}><Trash2 size={16} /> Delete</button>
         <button className="danger-button" onClick={onClear}><Trash2 size={16} /> Clear all</button>

@@ -86,6 +86,12 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Hugging Face/transformer models are cataloged but gated until validated.
 - External Keras asset preparation is explicit and stores markers under ignored `storage/model_assets`.
 - Frontend navigation uses a global sidebar outside projects, a global rail plus separate collapsible project sidebar inside selected projects, and separate detail pages for testing/training jobs.
+- The frontend product identity is Onestep Vision with the tagline "One workspace for image intelligence" and supporting parent-brand language for ONESTEP.
+- The global sidebar brand mark/name links to the project list at `/` in both full and compact navigation states.
+- Dataset workspace selection is URL-backed through `/datasets?dataset={dataset_id}`; the plain `/datasets` route always shows the dataset catalog.
+- Data tables remain semantic tables and are contained in responsive horizontal scroll wrappers so narrow viewports do not overflow the page.
+- Testing and training workspaces use responsive one-column tablet layouts and card-style job rows on phone-sized viewports.
+- Project creation uses the Onestep Vision brand treatment and richer task-type cards while preserving the existing project creation payload.
 - Training detail pages show history charts, ROC/AUC for classification where available, and runner curve artifacts.
 - Frontend data-loading pages use skeleton states for initial fetches and compact inline loading states for small refetches.
 - Inference forms render parameters that match the selected model task.
@@ -101,7 +107,11 @@ Text data is reserved as future metadata only. The platform remains a local rese
 
 - Users can create a project, create an image dataset, add labels, upload images, and save task-aware annotations.
 - Users can create a project from `/projects/new`, enter a required short description, choose multiple image task types, delete eligible projects from a project card menu, and switch active projects inside the project workspace.
+- Users can recognize the app as Onestep Vision, click the global logo/name to return home, and use the branded create-project experience without changing project creation behavior.
 - Users can manage datasets from a catalog-first view, upload multiple images, edit classification labels per image or in bulk, preview preprocessing safely, generate version artifacts, and inspect core EDA.
+- Users can open a dataset via `/datasets?dataset={dataset_id}` and return to the catalog by clicking the Datasets sidebar link or the Back to catalog action.
+- Table-heavy pages remain usable on mobile and small desktop widths without causing page-level horizontal overflow.
+- Testing and training pages remain usable across desktop, tablet, and mobile widths, including run configuration forms, history actions, job rows, comparisons, and detail metrics.
 - Users can delete editable datasets, selected history rows, and clear terminal history.
 - Users can view testing comparisons and training details on separate pages.
 - Users can inspect EDA as a dedicated dataset tab and see skeleton loading states across data-heavy pages.

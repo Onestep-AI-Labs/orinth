@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
@@ -13,7 +14,7 @@ import {
   Database,
   FlaskConical,
   ImageIcon,
-  Layers3,
+  ScanEye,
   Settings
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -117,17 +118,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function GlobalSidebar({ pathname, compact = false }: { pathname: string; compact?: boolean }) {
   return (
     <aside className={`sidebar sidebar-global ${compact ? "sidebar-global-compact" : ""}`}>
-      <div className="brand-block">
-        <div className="grid h-10 w-10 place-items-center rounded-md bg-ink text-white">
-          <Layers3 size={21} />
-        </div>
+      <Link className="brand-block brand-link" href="/" title="Onestep Vision home">
+        <span className="brand-mark" aria-hidden="true">
+          <Image src="/brand/logo_transparent.png" alt="" width={42} height={42} priority />
+        </span>
         <div className="brand-copy">
-          <h1>Image Platform</h1>
-          <span>Local research workspace</span>
+          <h1>Onestep Vision</h1>
+          <span>Image intelligence workspace</span>
         </div>
-      </div>
+      </Link>
       <nav className="side-nav">
-        <SideLink href="/" active={pathname === "/"} icon={<Layers3 size={17} />}>
+        <SideLink href="/" active={pathname === "/"} icon={<ScanEye size={17} />}>
           Projects
         </SideLink>
         <SideLink href="/settings" active={pathname.startsWith("/settings")} icon={<Settings size={17} />}>
@@ -135,7 +136,7 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
         </SideLink>
       </nav>
       <div className="sidebar-spacer" />
-      <div className="sidebar-note">Local image research platform</div>
+      <div className="sidebar-note">ONESTEP product studio</div>
     </aside>
   );
 }
