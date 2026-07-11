@@ -1,4 +1,4 @@
-export const API_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+export const API_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 export const API_BASE = `${API_ORIGIN}/api`;
 
 export function mediaUrl(path: string | null): string | null {

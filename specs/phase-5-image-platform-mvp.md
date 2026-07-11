@@ -95,6 +95,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Model catalog cards use compact recipe-style tinted cards with task/source metadata, availability tags, class tags, and pinned actions.
 - Dataset catalog cards use the same simple recipe-style card treatment as model cards, avoiding square metric blocks and overlapping tags.
 - Training progress displays epoch processed/total when epoch metrics are available.
+- Frontend API and media requests default to same-origin `/api` and `/media`, with Next.js proxying those routes to the local FastAPI backend for single-URL tunnel sharing.
 
 ## Acceptance Criteria
 
@@ -106,4 +107,5 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Users can inspect EDA as a dedicated dataset tab and see skeleton loading states across data-heavy pages.
 - Users can choose task-compatible YOLO, Ultralytics YOLO11/YOLO26, or Keras classification training options, while unvalidated transformer/specialist options show as gated.
 - Existing dental reference data remains available under the default project.
+- The frontend can be shared through one public tunnel URL while API and media requests continue to resolve through the local backend proxy.
 - Backend tests pass and frontend typecheck/lint/build pass.
