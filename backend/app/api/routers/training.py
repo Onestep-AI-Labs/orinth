@@ -43,13 +43,14 @@ def create_training_job(
 
 @router.get("/jobs", response_model=list[TrainingJobRead])
 def list_training_jobs(
-    limit: int = 25,
+    limit: int = Query(default=25, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     project_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[TrainingJobRead]:
     return [
         training_job_read(job)
-        for job in training_service.list_jobs(db, limit=limit, project_id=project_id)
+        for job in training_service.list_jobs(db, limit=limit, offset=offset, project_id=project_id)
     ]
 
 

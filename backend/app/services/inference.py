@@ -399,9 +399,9 @@ class InferenceService:
         return InferenceResult.model_validate(result)
 
     def list(
-        self, db: Session, limit: int = 25, project_id: str | None = None
+        self, db: Session, limit: int = 25, offset: int = 0, project_id: str | None = None
     ) -> list[InferenceResult]:
-        records = job_runner.list_jobs(db, InferenceRun, limit=limit, project_id=project_id)
+        records = job_runner.list_jobs(db, InferenceRun, limit=limit, offset=offset, project_id=project_id)
         results = []
         for record in records:
             result = dict(record.result or {})

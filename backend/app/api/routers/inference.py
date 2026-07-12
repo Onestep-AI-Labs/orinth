@@ -61,11 +61,12 @@ async def create_inference_job(
 
 @router.get("", response_model=list[InferenceResult])
 def list_inference(
-    limit: int = 25,
+    limit: int = Query(default=25, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     project_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[InferenceResult]:
-    return inference_service.list(db, limit=limit, project_id=project_id)
+    return inference_service.list(db, limit=limit, offset=offset, project_id=project_id)
 
 
 @router.delete("", response_model=DeleteResponse)

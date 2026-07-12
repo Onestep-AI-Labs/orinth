@@ -324,9 +324,9 @@ class TrainingService:
         return job
 
     def list_jobs(
-        self, db: Session, limit: int = 25, project_id: str | None = None
+        self, db: Session, limit: int = 25, offset: int = 0, project_id: str | None = None
     ) -> list[TrainingJob]:
-        return job_runner.list_jobs(db, TrainingJob, limit=limit, project_id=project_id)
+        return job_runner.list_jobs(db, TrainingJob, limit=limit, offset=offset, project_id=project_id)
 
     def model_options(self, task_type: str | None = None) -> list[TrainingModelOption]:
         return training_model_options(task_type)

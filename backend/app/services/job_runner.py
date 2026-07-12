@@ -93,21 +93,25 @@ def list_jobs(
     model: Any,
     *,
     limit: int = 25,
+    offset: int = 0,
     project_id: str | None = None,
 ) -> list[Any]:
     """Shared list query: newest first, optionally scoped to a project.
 
     Matches the previously duplicated per-service filter: rows for the given
     ``project_id`` plus any rows with no project (``project_id IS NULL``)
-    are included so legacy/global rows keep showing up.
+    are included so legacy/global rows keep showing up. ``offset`` skips the
+    first ``offset`` rows of the (already newest-first) result set, so a
+    caller can page past the end and get an empty list rather than an error.
     """
 
-    query = select(model).order_by(model.created_at.desc()).limit(limit)
+    query = select(model).order_by(model.created_at.desc()).offset(offset).limit(limit)
     if project_id:
         query = (
             select(model)
             .where(or_(model.project_id == project_id, model.project_id.is_(None)))
             .order_by(model.created_at.desc())
+            .offset(offset)
             .limit(limit)
         )
     return list(db.scalars(query).all())

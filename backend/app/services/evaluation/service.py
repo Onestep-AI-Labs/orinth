@@ -202,9 +202,9 @@ class EvaluationService:
         return jobs
 
     def list_jobs(
-        self, db: Session, limit: int = 25, project_id: str | None = None
+        self, db: Session, limit: int = 25, offset: int = 0, project_id: str | None = None
     ) -> list[EvaluationJob]:
-        return job_runner.list_jobs(db, EvaluationJob, limit=limit, project_id=project_id)
+        return job_runner.list_jobs(db, EvaluationJob, limit=limit, offset=offset, project_id=project_id)
 
     def delete_jobs(self, db: Session, ids: list[str] | None = None, project_id: str | None = None) -> dict:
         def is_deletable(job: EvaluationJob) -> bool:

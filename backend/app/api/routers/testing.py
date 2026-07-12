@@ -61,13 +61,14 @@ def create_testing_jobs_batch(
 
 @router.get("/jobs", response_model=list[EvaluationJobRead])
 def list_testing_jobs(
-    limit: int = 25,
+    limit: int = Query(default=25, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     project_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[EvaluationJobRead]:
     return [
         evaluation_job_read(job)
-        for job in evaluation_service.list_jobs(db, limit=limit, project_id=project_id)
+        for job in evaluation_service.list_jobs(db, limit=limit, offset=offset, project_id=project_id)
     ]
 
 
