@@ -9,7 +9,7 @@ from time import monotonic
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -26,6 +26,7 @@ from app.schemas import (
     TrainingJobCreate,
     TrainingModelOption,
 )
+from app.services import job_runner
 from app.services.datasets import DatasetService
 from app.services.job_progress import append_log, make_progress
 from app.services.training.artifacts import (
@@ -325,15 +326,7 @@ class TrainingService:
     def list_jobs(
         self, db: Session, limit: int = 25, project_id: str | None = None
     ) -> list[TrainingJob]:
-        query = select(TrainingJob).order_by(TrainingJob.created_at.desc()).limit(limit)
-        if project_id:
-            query = (
-                select(TrainingJob)
-                .where(or_(TrainingJob.project_id == project_id, TrainingJob.project_id.is_(None)))
-                .order_by(TrainingJob.created_at.desc())
-                .limit(limit)
-            )
-        return list(db.scalars(query).all())
+        return job_runner.list_jobs(db, TrainingJob, limit=limit, project_id=project_id)
 
     def model_options(self, task_type: str | None = None) -> list[TrainingModelOption]:
         return training_model_options(task_type)
@@ -509,143 +502,122 @@ class TrainingService:
         )
 
     def delete_jobs(self, db: Session, ids: list[str] | None = None, project_id: str | None = None) -> dict:
-        query = select(TrainingJob)
-        if ids:
-            query = query.where(TrainingJob.id.in_(ids))
-        if project_id:
-            query = query.where(or_(TrainingJob.project_id == project_id, TrainingJob.project_id.is_(None)))
-        jobs = db.scalars(query).all()
-        found = {job.id for job in jobs}
-        deleted = 0
-        blocked = []
-        for job in jobs:
-            if job.status not in {"completed", "failed", "canceled"}:
-                blocked.append(job.id)
-                continue
+        def is_deletable(job: TrainingJob) -> bool:
+            return job.status in {"completed", "failed", "canceled"}
+
+        def on_delete(job: TrainingJob) -> None:
             run_dir = (job.artifacts or {}).get("run_dir")
             self.storage.delete_owned_path(run_dir or (self.storage.training_runs / job.id))
-            db.delete(job)
-            deleted += 1
-        db.commit()
-        return {
-            "deleted": deleted,
-            "blocked": blocked,
-            "missing": [item_id for item_id in (ids or []) if item_id not in found],
-        }
+
+        return job_runner.delete_jobs(
+            db,
+            TrainingJob,
+            ids=ids,
+            project_id=project_id,
+            is_deletable=is_deletable,
+            on_delete=on_delete,
+        )
 
     def run_job(self, job_id: str) -> None:
-        db = SessionLocal()
-        started_at = datetime.now(UTC).replace(tzinfo=None)
-        try:
-            job = db.get(TrainingJob, job_id)
-            if job is None:
-                return
-            job.status = "running"
-            artifacts = append_log(job.artifacts, "Training subprocess starting")
-            artifacts["progress"] = make_progress(
-                percent=1,
-                current_step="Starting subprocess",
-                started_at=started_at,
-                logs=artifacts["logs"],
-            )
-            job.artifacts = artifacts
-            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
-            db.commit()
+        job_runner.run_job_lifecycle(
+            SessionLocal,
+            TrainingJob,
+            job_id,
+            on_start=self._on_training_start,
+            execute=self._execute_training,
+            on_cleanup=self._cleanup_active_process,
+        )
 
-            run_dir = self.storage.training_runs / job.id
-            run_dir.mkdir(parents=True, exist_ok=True)
-            log_path = run_dir / "train.log"
-            command = self._command_for_job(job, run_dir)
+    def _cleanup_active_process(self, job_id: str) -> None:
+        ACTIVE_TRAINING_PROCESSES.pop(job_id, None)
 
-            artifacts = dict(job.artifacts or {})
-            artifacts.update({"run_dir": str(run_dir), "log": str(log_path), "command": command})
-            job.artifacts = artifacts
-            db.commit()
+    def _on_training_start(self, db: Session, job: TrainingJob, started_at: datetime) -> None:
+        artifacts = append_log(job.artifacts, "Training subprocess starting")
+        artifacts["progress"] = make_progress(
+            percent=1,
+            current_step="Starting subprocess",
+            started_at=started_at,
+            logs=artifacts["logs"],
+        )
+        job.artifacts = artifacts
 
-            return_code = self._run_process(db, job.id, command, run_dir, log_path, started_at)
-            job = db.get(TrainingJob, job_id)
-            if job is None:
-                return
+    def _execute_training(self, db: Session, job: TrainingJob, started_at: datetime) -> None:
+        run_dir = self.storage.training_runs / job.id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        log_path = run_dir / "train.log"
+        command = self._command_for_job(job, run_dir)
 
-            artifacts = dict(job.artifacts or {})
-            artifacts.update({"run_dir": str(run_dir), "log": str(log_path)})
-            best_model = find_best_model(run_dir)
-            if best_model:
-                artifacts["best_model"] = str(best_model)
-            history = parse_training_history(run_dir / "results.csv")
-            if history:
-                artifacts["history"] = history
-            metrics = collect_training_metrics(run_dir)
-            if metrics:
-                artifacts["metrics"] = metrics
-            curves = collect_training_curves(run_dir)
-            if curves:
-                artifacts["curves"] = curves
-            artifact_urls = self._artifact_urls(run_dir)
-            if artifact_urls:
-                artifacts["artifact_urls"] = artifact_urls
-            finished_at = datetime.now(UTC).replace(tzinfo=None)
+        artifacts = dict(job.artifacts or {})
+        artifacts.update({"run_dir": str(run_dir), "log": str(log_path), "command": command})
+        job.artifacts = artifacts
+        db.commit()
 
-            if job.status == "canceled":
-                artifacts = append_log(artifacts, "Training canceled")
-                artifacts["progress"] = make_progress(
-                    percent=100,
-                    current_step="Canceled",
-                    started_at=started_at,
-                    finished_at=finished_at,
-                    logs=artifacts["logs"],
-                )
-                job.error = "Training canceled"
-                job.artifacts = artifacts
-                job.updated_at = finished_at
-                db.commit()
-                return
+        return_code = self._run_process(db, job.id, command, run_dir, log_path, started_at)
+        refreshed_job = db.get(TrainingJob, job.id)
+        if refreshed_job is None:
+            return
+        job = refreshed_job
 
-            job.status = "completed" if return_code == 0 else "failed"
-            if return_code != 0:
-                job.error = f"Training process exited with code {return_code}"
-            elif best_model:
-                try:
-                    promoted_model_id = self._register_training_model(job, run_dir, Path(best_model), metrics)
-                    job.promoted_model_id = promoted_model_id
-                    artifacts["promoted_model_id"] = promoted_model_id
-                except Exception as exc:  # noqa: BLE001 - registration failure should be visible but not lose run
-                    artifacts = append_log(artifacts, f"Model registration failed: {exc}")
-            artifacts = append_log(
-                artifacts,
-                "Training completed" if return_code == 0 else (job.error or "Training failed"),
-            )
+        artifacts = dict(job.artifacts or {})
+        artifacts.update({"run_dir": str(run_dir), "log": str(log_path)})
+        best_model = find_best_model(run_dir)
+        if best_model:
+            artifacts["best_model"] = str(best_model)
+        history = parse_training_history(run_dir / "results.csv")
+        if history:
+            artifacts["history"] = history
+        metrics = collect_training_metrics(run_dir)
+        if metrics:
+            artifacts["metrics"] = metrics
+        curves = collect_training_curves(run_dir)
+        if curves:
+            artifacts["curves"] = curves
+        artifact_urls = self._artifact_urls(run_dir)
+        if artifact_urls:
+            artifacts["artifact_urls"] = artifact_urls
+        finished_at = datetime.now(UTC).replace(tzinfo=None)
+
+        if job.status == "canceled":
+            artifacts = append_log(artifacts, "Training canceled")
             artifacts["progress"] = make_progress(
                 percent=100,
-                processed=int(job.parameters.get("epochs", 0)),
-                total=int(job.parameters.get("epochs", 0)),
-                current_step="Completed" if return_code == 0 else "Failed",
+                current_step="Canceled",
                 started_at=started_at,
                 finished_at=finished_at,
                 logs=artifacts["logs"],
             )
+            job.error = "Training canceled"
             job.artifacts = artifacts
             job.updated_at = finished_at
             db.commit()
-        except Exception as exc:  # noqa: BLE001 - background jobs must persist errors
-            job = db.get(TrainingJob, job_id)
-            if job is not None:
-                artifacts = append_log(job.artifacts, f"Failed: {exc}")
-                artifacts["progress"] = make_progress(
-                    percent=100,
-                    current_step="Failed",
-                    started_at=started_at,
-                    finished_at=datetime.now(UTC).replace(tzinfo=None),
-                    logs=artifacts["logs"],
-                )
-                job.status = "failed"
-                job.error = str(exc)
-                job.artifacts = artifacts
-                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
-                db.commit()
-        finally:
-            ACTIVE_TRAINING_PROCESSES.pop(job_id, None)
-            db.close()
+            return
+
+        job.status = "completed" if return_code == 0 else "failed"
+        if return_code != 0:
+            job.error = f"Training process exited with code {return_code}"
+        elif best_model:
+            try:
+                promoted_model_id = self._register_training_model(job, run_dir, Path(best_model), metrics)
+                job.promoted_model_id = promoted_model_id
+                artifacts["promoted_model_id"] = promoted_model_id
+            except Exception as exc:  # noqa: BLE001 - registration failure should be visible but not lose run
+                artifacts = append_log(artifacts, f"Model registration failed: {exc}")
+        artifacts = append_log(
+            artifacts,
+            "Training completed" if return_code == 0 else (job.error or "Training failed"),
+        )
+        artifacts["progress"] = make_progress(
+            percent=100,
+            processed=int(job.parameters.get("epochs", 0)),
+            total=int(job.parameters.get("epochs", 0)),
+            current_step="Completed" if return_code == 0 else "Failed",
+            started_at=started_at,
+            finished_at=finished_at,
+            logs=artifacts["logs"],
+        )
+        job.artifacts = artifacts
+        job.updated_at = finished_at
+        db.commit()
 
     def promote(self, db: Session, job_id: str) -> str:
         job = db.get(TrainingJob, job_id)

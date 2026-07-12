@@ -7,7 +7,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -17,6 +17,7 @@ from app.db.models import InferenceJob, InferenceRun
 from app.ml.model_registry import ModelRegistry
 from app.ml.predictors.base import image_level_from_detections
 from app.schemas import InferenceJobRead, InferenceParameters, InferenceResult
+from app.services import job_runner
 from app.services.image_utils import create_overlay
 from app.services.job_progress import append_log, make_progress, progress_from_artifacts
 
@@ -120,96 +121,80 @@ class InferenceService:
         return job
 
     def run_job(self, job_id: str) -> None:
-        db = SessionLocal()
+        job_runner.run_job_lifecycle(
+            SessionLocal,
+            InferenceJob,
+            job_id,
+            on_start=self._on_inference_start,
+            execute=self._execute_inference,
+        )
+
+    def _on_inference_start(self, db: Session, job: InferenceJob, started_at: datetime) -> None:
+        artifacts = append_log(job.artifacts, "Loading model")
+        artifacts["progress"] = make_progress(
+            percent=20,
+            processed=1,
+            total=5,
+            current_step="Loading model",
+            started_at=started_at,
+            logs=artifacts["logs"],
+        )
+        job.artifacts = artifacts
+
+    def _execute_inference(self, db: Session, job: InferenceJob, started_at: datetime) -> None:
         started = perf_counter()
-        started_at = datetime.now(UTC).replace(tzinfo=None)
-        try:
-            job = db.get(InferenceJob, job_id)
-            if job is None:
-                return
-
-            job.status = "running"
-            artifacts = append_log(job.artifacts, "Loading model")
-            artifacts["progress"] = make_progress(
-                percent=20,
-                processed=1,
-                total=5,
-                current_step="Loading model",
-                started_at=started_at,
-                logs=artifacts["logs"],
+        job_id = job.id
+        timings: dict[str, int] = {}
+        spec = self.registry.get_spec(job.model_id)
+        if spec.task_type in {"text_classification", "summarization", "question_answering"}:
+            text_path = Path(job.input_path)
+            result = self._predict_text_and_store(
+                db,
+                text_path=text_path,
+                text_content=text_path.read_text(encoding="utf-8", errors="replace"),
+                model_id=job.model_id,
+                parameters=InferenceParameters.model_validate(job.parameters),
+                project_id=job.project_id or DEFAULT_PROJECT_ID,
+                timings=timings,
+                started=started,
+                progress_callback=lambda step, percent: self._update_job_progress(
+                    db, job_id, step, percent, started_at
+                ),
             )
-            job.artifacts = artifacts
-            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
-            db.commit()
-
-            timings: dict[str, int] = {}
-            spec = self.registry.get_spec(job.model_id)
-            if spec.task_type in {"text_classification", "summarization", "question_answering"}:
-                text_path = Path(job.input_path)
-                result = self._predict_text_and_store(
-                    db,
-                    text_path=text_path,
-                    text_content=text_path.read_text(encoding="utf-8", errors="replace"),
-                    model_id=job.model_id,
-                    parameters=InferenceParameters.model_validate(job.parameters),
-                    project_id=job.project_id or DEFAULT_PROJECT_ID,
-                    timings=timings,
-                    started=started,
-                    progress_callback=lambda step, percent: self._update_job_progress(
-                        db, job_id, step, percent, started_at
-                    ),
-                )
-            else:
-                result = self._predict_and_store(
-                    db,
-                    image_path=Path(job.input_path),
-                    original_filename=job.original_filename,
-                    model_id=job.model_id,
-                    parameters=InferenceParameters.model_validate(job.parameters),
-                    project_id=job.project_id or DEFAULT_PROJECT_ID,
-                    timings=timings,
-                    started=started,
-                    progress_callback=lambda step, percent: self._update_job_progress(
-                        db, job_id, step, percent, started_at
-                    ),
-                )
-
-            job = db.get(InferenceJob, job_id)
-            if job is None:
-                return
-            artifacts = append_log(job.artifacts, "Inference completed")
-            artifacts["progress"] = make_progress(
-                percent=100,
-                processed=5,
-                total=5,
-                current_step="Completed",
-                started_at=started_at,
-                finished_at=datetime.now(UTC).replace(tzinfo=None),
-                logs=artifacts["logs"],
+        else:
+            result = self._predict_and_store(
+                db,
+                image_path=Path(job.input_path),
+                original_filename=job.original_filename,
+                model_id=job.model_id,
+                parameters=InferenceParameters.model_validate(job.parameters),
+                project_id=job.project_id or DEFAULT_PROJECT_ID,
+                timings=timings,
+                started=started,
+                progress_callback=lambda step, percent: self._update_job_progress(
+                    db, job_id, step, percent, started_at
+                ),
             )
-            job.status = "completed"
-            job.result = result.model_dump(mode="json")
-            job.artifacts = artifacts
-            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
-            db.commit()
-        except Exception as exc:  # noqa: BLE001 - background jobs must persist errors
-            job = db.get(InferenceJob, job_id)
-            if job is not None:
-                artifacts = append_log(job.artifacts, f"Failed: {exc}")
-                artifacts["progress"] = make_progress(
-                    percent=100,
-                    current_step="Failed",
-                    started_at=started_at,
-                    finished_at=datetime.now(UTC).replace(tzinfo=None),
-                    logs=artifacts["logs"],
-                )
-                job.status = "failed"
-                job.error = str(exc)
-                job.artifacts = artifacts
-                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
-                db.commit()
-        finally:
-            db.close()
+
+        refreshed_job = db.get(InferenceJob, job_id)
+        if refreshed_job is None:
+            return
+        job = refreshed_job
+        artifacts = append_log(job.artifacts, "Inference completed")
+        artifacts["progress"] = make_progress(
+            percent=100,
+            processed=5,
+            total=5,
+            current_step="Completed",
+            started_at=started_at,
+            finished_at=datetime.now(UTC).replace(tzinfo=None),
+            logs=artifacts["logs"],
+        )
+        job.status = "completed"
+        job.result = result.model_dump(mode="json")
+        job.artifacts = artifacts
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
 
     def reconcile_stale_jobs(self) -> None:
         db = SessionLocal()
@@ -416,15 +401,7 @@ class InferenceService:
     def list(
         self, db: Session, limit: int = 25, project_id: str | None = None
     ) -> list[InferenceResult]:
-        query = select(InferenceRun).order_by(InferenceRun.created_at.desc()).limit(limit)
-        if project_id:
-            query = (
-                select(InferenceRun)
-                .where(or_(InferenceRun.project_id == project_id, InferenceRun.project_id.is_(None)))
-                .order_by(InferenceRun.created_at.desc())
-                .limit(limit)
-            )
-        records = db.scalars(query).all()
+        records = job_runner.list_jobs(db, InferenceRun, limit=limit, project_id=project_id)
         results = []
         for record in records:
             result = dict(record.result or {})
@@ -435,27 +412,11 @@ class InferenceService:
     def delete_runs(
         self, db: Session, ids: builtins.list[str] | None = None, project_id: str | None = None
     ) -> dict:
-        query = select(InferenceRun)
-        if ids:
-            query = query.where(InferenceRun.id.in_(ids))
-        if project_id:
-            query = query.where(or_(InferenceRun.project_id == project_id, InferenceRun.project_id.is_(None)))
-        records = db.scalars(query).all()
-        found = {record.id for record in records}
-        deleted = 0
-        for record in records:
+        def on_delete(record: InferenceRun) -> None:
             self.storage.delete_owned_path(record.input_path)
             self.storage.delete_owned_path(record.overlay_path)
-            db.delete(record)
-            deleted += 1
-        db.commit()
-        blocked: list[str] = []
-        missing: list[str] = [item_id for item_id in (ids or []) if item_id not in found]
-        return {
-            "deleted": deleted,
-            "blocked": blocked,
-            "missing": missing,
-        }
+
+        return job_runner.delete_jobs(db, InferenceRun, ids=ids, project_id=project_id, on_delete=on_delete)
 
 
 def ensure_existing_file(path: str | Path) -> Path:
