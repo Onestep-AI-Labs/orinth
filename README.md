@@ -76,6 +76,47 @@ The frontend is a Next.js app with route entrypoints, feature modules, and a dom
 - Global base styles: `frontend/app/globals.css`
 - Platform styles: `frontend/app/styles/platform.css`
 
+## Quickstart
+
+1. Copy the environment templates and adjust as needed (see
+   [Environment Variables](#environment-variables)):
+
+   ```bash
+   cp .env.example .env
+   cp frontend/.env.example frontend/.env.local
+   ```
+
+2. Verify local prerequisites (`uv`, `pnpm`, Python 3.11, Node):
+
+   ```bash
+   make doctor
+   ```
+
+3. Install dependencies once (see [Backend](#backend) and
+   [Frontend](#frontend) below), then start both servers together:
+
+   ```bash
+   make dev
+   ```
+
+   This starts the backend on `http://localhost:8000` and the frontend on
+   `http://localhost:3000` together, with interleaved logs in one terminal.
+   `make dev` fails fast if port 8000 or 3000 is already in use, and Ctrl-C
+   cleanly stops both processes (no orphaned `uvicorn`/`next` processes left
+   behind).
+
+4. Before committing, run every documented quality gate in one shot:
+
+   ```bash
+   make check
+   ```
+
+   `check` runs backend lint (`ruff`) and the fast backend test suite, then
+   frontend `typecheck`, `lint`, and `build`, and stops at the first failing
+   gate. The individual targets (`make lint-backend`, `make test`,
+   `make typecheck`, `make lint`, `make build`) are also available on their
+   own.
+
 ## Backend
 
 ```bash
@@ -111,6 +152,31 @@ cd frontend && pnpm typecheck
 cd frontend && pnpm lint
 cd frontend && pnpm build
 ```
+
+## Environment Variables
+
+Copy `.env.example` to `.env` in the repo root for backend settings, and
+`frontend/.env.example` to `frontend/.env.local` for frontend settings.
+
+Root `.env.example` (backend):
+
+- `MODELS_DIR`, `DATASETS_DIR`, `STORAGE_DIR` — local paths for reference
+  assets and generated runtime artifacts.
+- `DATABASE_URL` — SQLite connection string.
+- `BACKEND_CORS_ORIGINS` — origins allowed to call the API directly; defaults
+  to the frontend dev origin (`http://localhost:3000`).
+- `HUGGINGFACE_HUB_TOKEN` (alias `HF_TOKEN`) — only needed for private or
+  gated Hugging Face models.
+
+`frontend/.env.example` (the proxy-vs-direct URL model):
+
+- `BACKEND_PROXY_ORIGIN` — where the Next.js dev server proxies `/api/*` and
+  `/media/*` requests; defaults to `http://127.0.0.1:8000`. This is what
+  `make dev` and `pnpm dev` use, and it matches the backend's default port.
+- `NEXT_PUBLIC_BACKEND_URL` — leave unset to reach the backend through the
+  frontend origin via the proxy above (the normal local setup). Set it only
+  when intentionally exposing the backend at a separate public URL, in
+  which case the frontend calls that URL directly instead of proxying.
 
 ## Phases
 

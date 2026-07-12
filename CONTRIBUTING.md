@@ -85,15 +85,41 @@ Never commit:
 
 Use ignored `.env` files for local secrets. `HUGGINGFACE_HUB_TOKEN` may be configured for private/gated Hugging Face models, but code must never print the token or commit it to source control.
 
-## Validation
+## Getting Set Up
 
-Run the smallest useful checks for your change:
+Before making changes, verify local prerequisites (`uv`, `pnpm`, Python 3.11,
+Node) and start the stack:
 
 ```bash
-cd backend && uv run pytest
-cd frontend && pnpm typecheck
-cd frontend && pnpm lint
-cd frontend && pnpm build
+make doctor
+make dev
 ```
 
-Backend-only model changes usually require `cd backend && uv run pytest`. Frontend checks are required when UI, TypeScript types, or API client behavior changes.
+See the root [README Quickstart](README.md#quickstart) for environment
+variable setup (`.env.example`, `frontend/.env.example`) and more detail.
+
+## Validation
+
+Run the smallest useful checks for your change, or the full aggregate gate
+before opening a PR:
+
+```bash
+make check
+```
+
+`check` mirrors the documented validation commands: backend lint (`ruff`)
+and the fast backend test suite, then frontend `typecheck`, `lint`, and
+`build`. It fails on the first broken gate. Individual targets are also
+available:
+
+```bash
+make lint-backend   # cd backend && uv run ruff check .
+make test           # cd backend && uv run pytest
+make typecheck      # cd frontend && pnpm typecheck
+make lint           # cd frontend && pnpm lint
+make build          # cd frontend && pnpm build
+```
+
+Backend-only model changes usually only need `make lint-backend` and
+`make test`. Frontend checks are required when UI, TypeScript types, or API
+client behavior changes.
