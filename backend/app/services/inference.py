@@ -211,6 +211,28 @@ class InferenceService:
         finally:
             db.close()
 
+    def reconcile_stale_jobs(self) -> None:
+        db = SessionLocal()
+        try:
+            jobs = db.scalars(
+                select(InferenceJob).where(InferenceJob.status.in_(["queued", "running"]))
+            ).all()
+            for job in jobs:
+                artifacts = append_log(job.artifacts, "Backend restarted before inference completed")
+                artifacts["progress"] = make_progress(
+                    percent=100,
+                    current_step="Failed",
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
+                    logs=artifacts["logs"],
+                )
+                job.status = "failed"
+                job.error = "Backend restarted before inference completed"
+                job.artifacts = artifacts
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
+            db.commit()
+        finally:
+            db.close()
+
     def get_job(self, db: Session, job_id: str) -> InferenceJobRead:
         job = db.get(InferenceJob, job_id)
         if job is None:

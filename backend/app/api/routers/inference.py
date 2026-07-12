@@ -1,7 +1,7 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from app.container import inference_service
+from app.container import inference_service, job_executor
 from app.core.database import get_db
 from app.core.defaults import DEFAULT_PROJECT_ID
 from app.schemas import (
@@ -38,7 +38,6 @@ async def create_inference(
 
 @router.post("/jobs", response_model=InferenceJobRead)
 async def create_inference_job(
-    background_tasks: BackgroundTasks,
     model_id: str = Form(...),
     project_id: str = Form(DEFAULT_PROJECT_ID),
     confidence_threshold: float = Form(0.65),
@@ -56,7 +55,7 @@ async def create_inference_job(
         max_length=max_length,
     )
     job = await inference_service.create_job(db, file, model_id, parameters, project_id, text_content)
-    background_tasks.add_task(inference_service.run_job, job.id)
+    job_executor.submit(inference_service.run_job, job.id)
     return inference_service.get_job(db, job.id)
 
 

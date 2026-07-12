@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     )
     huggingface_hub_token: str | None = Field(default=None, alias="HUGGINGFACE_HUB_TOKEN")
     hf_token: str | None = Field(default=None, alias="HF_TOKEN")
+    job_executor_workers: int = Field(default=2, alias="JOB_EXECUTOR_WORKERS")
 
     @property
     def repo_root(self) -> Path:

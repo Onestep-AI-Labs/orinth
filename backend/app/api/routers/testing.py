@@ -1,8 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.serializers import comparison_metric_summary, evaluation_job_read
-from app.container import evaluation_service
+from app.container import evaluation_service, job_executor
 from app.core.database import get_db
 from app.core.defaults import DEFAULT_PROJECT_ID
 from app.db.models import EvaluationJob
@@ -31,7 +31,6 @@ def list_testing_datasets(
 @router.post("/jobs", response_model=EvaluationJobRead)
 def create_testing_job(
     payload: EvaluationJobCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> EvaluationJobRead:
     try:
@@ -40,14 +39,13 @@ def create_testing_job(
         raise HTTPException(status_code=404, detail=f"Unknown model or dataset: {exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    background_tasks.add_task(evaluation_service.run_job, job.id)
+    job_executor.submit(evaluation_service.run_job, job.id)
     return evaluation_job_read(job)
 
 
 @router.post("/jobs/batch", response_model=list[EvaluationJobRead])
 def create_testing_jobs_batch(
     payload: EvaluationJobBatchCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> list[EvaluationJobRead]:
     try:
@@ -57,7 +55,7 @@ def create_testing_jobs_batch(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     for job in jobs:
-        background_tasks.add_task(evaluation_service.run_job, job.id)
+        job_executor.submit(evaluation_service.run_job, job.id)
     return [evaluation_job_read(job) for job in jobs]
 
 

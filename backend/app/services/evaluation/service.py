@@ -294,6 +294,28 @@ class EvaluationService:
         finally:
             db.close()
 
+    def reconcile_stale_jobs(self) -> None:
+        db = SessionLocal()
+        try:
+            jobs = db.scalars(
+                select(EvaluationJob).where(EvaluationJob.status.in_(["queued", "running"]))
+            ).all()
+            for job in jobs:
+                artifacts = append_log(job.artifacts, "Backend restarted before evaluation completed")
+                artifacts["progress"] = make_progress(
+                    percent=100,
+                    current_step="Failed",
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
+                    logs=artifacts["logs"],
+                )
+                job.status = "failed"
+                job.error = "Backend restarted before evaluation completed"
+                job.artifacts = artifacts
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
+            db.commit()
+        finally:
+            db.close()
+
     def per_image_rows(self, db: Session, job_id: str) -> list[EvaluationPerImageRow]:
         job = db.get(EvaluationJob, job_id)
         if job is None:
