@@ -1,4 +1,5 @@
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -101,12 +102,7 @@ class ModelRegistry:
     ) -> list[ModelInfo]:
         models = [spec.to_info() for spec in self.list_specs()]
         if project_id:
-            models = [
-                model
-                for model in models
-                if model.project_id in {project_id, DEFAULT_PROJECT_ID}
-                or model.source == "reference"
-            ]
+            models = [model for model in models if model.project_id == project_id]
         if task_type:
             models = [model for model in models if model.task_type == task_type]
         return models
@@ -159,7 +155,7 @@ class ModelRegistry:
             "name": name,
             "family": family,
             "description": description,
-            "paths": {key: str(path.resolve()) for key, path in paths.items()},
+            "paths": {key: self._registry_path(path) for key, path in paths.items()},
             "promoted": True,
             "project_id": project_id,
             "task_type": task_type,
@@ -171,7 +167,7 @@ class ModelRegistry:
             "artifacts": artifacts or {},
         }
         self.storage.registry_file.parent.mkdir(parents=True, exist_ok=True)
-        self.storage.registry_file.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+        self._write_registry(registry)
         self._predictors.pop(model_id, None)
         return self.get_spec(model_id).to_info()
 
@@ -260,7 +256,10 @@ class ModelRegistry:
         registry = self._read_registry()
         specs = []
         for item in registry.values():
-            paths = {key: Path(value) for key, value in item.get("paths", {}).items()}
+            paths = {
+                key: self._resolve_registry_path(value, item=item, path_key=key)
+                for key, value in item.get("paths", {}).items()
+            }
             created_at = None
             if item.get("created_at"):
                 try:
@@ -294,7 +293,10 @@ class ModelRegistry:
 
     def _write_registry(self, registry: dict[str, Any]) -> None:
         self.storage.registry_file.parent.mkdir(parents=True, exist_ok=True)
-        self.storage.registry_file.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+        self.storage.registry_file.write_text(
+            json.dumps(self._json_safe(registry), indent=2, allow_nan=False),
+            encoding="utf-8",
+        )
 
     def _move_owned_model_dir(self, item: dict[str, Any]) -> dict[str, Any]:
         model_id = str(item["id"])
@@ -304,7 +306,7 @@ class ModelRegistry:
         )
         if current_dir is None or not current_dir.exists() or current_dir.resolve() == desired_dir.resolve():
             artifacts = dict(item.get("artifacts") or {})
-            artifacts["model_dir"] = str(desired_dir.resolve())
+            artifacts["model_dir"] = self._registry_path(desired_dir)
             item["artifacts"] = artifacts
             return item
         if desired_dir.exists():
@@ -313,7 +315,7 @@ class ModelRegistry:
         current_dir.rename(desired_dir)
         item["paths"] = self._rewrite_model_paths(item.get("paths") or {}, current_dir, desired_dir)
         artifacts = dict(item.get("artifacts") or {})
-        artifacts["model_dir"] = str(desired_dir.resolve())
+        artifacts["model_dir"] = self._registry_path(desired_dir)
         item["artifacts"] = artifacts
         metadata_path = desired_dir / "metadata.json"
         if metadata_path.exists():
@@ -337,7 +339,7 @@ class ModelRegistry:
             except ValueError:
                 rewritten[key] = value
                 continue
-            rewritten[key] = str((desired_dir / relative).resolve())
+            rewritten[key] = self._registry_path(desired_dir / relative)
         return rewritten
 
     def _model_dir_for_registry_item(self, item: dict[str, Any]) -> Path | None:
@@ -351,8 +353,10 @@ class ModelRegistry:
             return legacy_dir
         for raw_path in (item.get("paths") or {}).values():
             owned_path = self.storage.owned_path(raw_path)
-            if owned_path is None:
-                continue
+            if owned_path is None or not owned_path.exists():
+                owned_path = self._resolve_registry_path(raw_path, item=item)
+                if not owned_path.exists():
+                    continue
             try:
                 relative = owned_path.resolve().relative_to(self.storage.trained_models.resolve())
             except ValueError:
@@ -367,6 +371,62 @@ class ModelRegistry:
         except ValueError:
             return False
         return True
+
+    def _registry_path(self, path: Path) -> str:
+        resolved = path.resolve()
+        try:
+            return resolved.relative_to(self.storage.root.resolve()).as_posix()
+        except ValueError:
+            return str(resolved)
+
+    def _resolve_registry_path(
+        self,
+        value: str | Path,
+        *,
+        item: dict[str, Any] | None = None,
+        path_key: str | None = None,
+    ) -> Path:
+        raw_path = Path(value)
+        path = raw_path if raw_path.is_absolute() else self.storage.root / raw_path
+        path = path.resolve()
+        if path.exists():
+            return path
+
+        moved_path = self._moved_storage_path(path)
+        if moved_path is not None:
+            return moved_path
+
+        model_id = str((item or {}).get("id") or "")
+        if model_id and path_key:
+            suffix = path.name
+            candidates = [
+                self.storage.trained_models / model_id / suffix,
+                self.storage.trained_models / model_id / path_key / suffix,
+            ]
+            for candidate in candidates:
+                if candidate.exists():
+                    return candidate.resolve()
+        return path
+
+    def _moved_storage_path(self, path: Path) -> Path | None:
+        parts = path.parts
+        if "storage" not in parts:
+            return None
+        storage_index = len(parts) - 1 - list(reversed(parts)).index("storage")
+        relative_parts = parts[storage_index + 1 :]
+        if not relative_parts:
+            return None
+        candidate = self.storage.root.joinpath(*relative_parts)
+        return candidate.resolve() if candidate.exists() else None
+
+    def _json_safe(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: self._json_safe(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._json_safe(item) for item in value]
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        return value
 
 
 def model_storage_dir_name(name: str, model_id: str) -> str:

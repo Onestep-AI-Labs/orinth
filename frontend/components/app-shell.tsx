@@ -8,6 +8,7 @@ import {
   Activity,
   ArrowLeft,
   BarChart3,
+  BookOpen,
   Boxes,
   ChevronsLeft,
   ChevronsRight,
@@ -143,6 +144,9 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
       <nav className="side-nav">
         <SideLink href="/" active={pathname === "/"} icon={<ScanEye size={17} />}>
           Projects
+        </SideLink>
+        <SideLink href="/documentation" active={pathname.startsWith("/documentation")} icon={<BookOpen size={17} />}>
+          Documentation
         </SideLink>
         <SideLink href="/settings" active={pathname.startsWith("/settings")} icon={<Settings size={17} />}>
           Settings
