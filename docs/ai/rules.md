@@ -17,6 +17,7 @@
 - Keep settings path-safe and relative to the workspace root.
 - Keep predictors behind `backend/app/ml/predictors`.
 - Avoid importing TensorFlow, Ultralytics, OpenCV, or PyTorch at module import unless unavoidable.
+- Manage schema changes with Alembic migrations under `backend/migrations/`, not `Base.metadata.create_all` or hand-written `ALTER TABLE` patches. When you change `backend/app/db/models.py`, generate a matching migration with `uv run alembic revision --autogenerate -m "..."`, review it, and commit it alongside the model change. See `backend/README.md` for the full workflow.
 
 ## Frontend
 

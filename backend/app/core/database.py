@@ -1,7 +1,11 @@
 from collections.abc import Generator
 from datetime import datetime
+from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from alembic import command
+from alembic.config import Config as AlembicConfig
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME, DEFAULT_TASK_TYPE
@@ -23,6 +27,16 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# backend/ directory: parents[0]=core, [1]=app, [2]=backend
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+def _alembic_config() -> AlembicConfig:
+    alembic_cfg = AlembicConfig(str(BACKEND_DIR / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.sqlalchemy_database_url)
+    return alembic_cfg
+
 
 def init_db() -> None:
     from app.db.models import (  # noqa: F401
@@ -33,43 +47,34 @@ def init_db() -> None:
         TrainingJob,
     )
 
-    Base.metadata.create_all(bind=engine)
-    _ensure_sqlite_schema()
+    _stamp_or_upgrade()
     _ensure_default_project()
 
 
-def _ensure_sqlite_schema() -> None:
-    if not settings.sqlalchemy_database_url.startswith("sqlite"):
-        return
+def _stamp_or_upgrade() -> None:
+    """Bring the database schema up to date via Alembic migrations.
 
+    A database created by the pre-Alembic `create_all` + hand-patch path has
+    tables but no `alembic_version` table. Its schema already matches the
+    baseline migration, so it is stamped at the baseline revision (not
+    literally re-run) before upgrading to head, in case newer migrations
+    have been added since. A brand-new (empty) database, or one that already
+    has an `alembic_version` table, just upgrades straight to head.
+    """
+
+    alembic_cfg = _alembic_config()
     inspector = inspect(engine)
-    table_columns = {
-        table_name: {column["name"] for column in inspector.get_columns(table_name)}
-        for table_name in inspector.get_table_names()
-    }
-    project_columns = {
-        "inference_runs": "project_id VARCHAR(64)",
-        "inference_jobs": "project_id VARCHAR(64)",
-        "evaluation_jobs": "project_id VARCHAR(64)",
-        "training_jobs": "project_id VARCHAR(64)",
-    }
-    extra_columns = {
-        "evaluation_jobs": {"comparison_id": "comparison_id VARCHAR(64)"},
-    }
-    with engine.begin() as connection:
-        for table_name, column_sql in project_columns.items():
-            if table_name in table_columns and "project_id" not in table_columns[table_name]:
-                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
-        for table_name, columns in extra_columns.items():
-            for column_name, column_sql in columns.items():
-                if table_name in table_columns and column_name not in table_columns[table_name]:
-                    connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
-        connection.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_evaluation_jobs_comparison_id "
-                "ON evaluation_jobs (comparison_id)"
-            )
-        )
+    table_names = set(inspector.get_table_names())
+    has_alembic_version = "alembic_version" in table_names
+    has_app_tables = bool(table_names - {"alembic_version"})
+
+    if has_app_tables and not has_alembic_version:
+        script_dir = ScriptDirectory.from_config(alembic_cfg)
+        baseline_revisions = script_dir.get_bases()
+        baseline_revision = baseline_revisions[0] if baseline_revisions else "head"
+        command.stamp(alembic_cfg, baseline_revision)
+
+    command.upgrade(alembic_cfg, "head")
 
 
 def _ensure_default_project() -> None:
