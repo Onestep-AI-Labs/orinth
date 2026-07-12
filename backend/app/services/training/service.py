@@ -3,23 +3,29 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.database import SessionLocal
+from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.storage import Storage
 from app.db.models import TrainingJob
-from app.ml.nlp.huggingface.catalog import huggingface_model_id
 from app.ml.model_registry import ModelRegistry, model_storage_dir_name
+from app.ml.nlp.huggingface.catalog import huggingface_model_id
 from app.ml.training_catalog import training_model_options
-from app.schemas import ModelAssetPrepareRequest, ModelAssetStatus, TrainingJobCreate, TrainingModelOption
+from app.schemas import (
+    ModelAssetPrepareRequest,
+    ModelAssetStatus,
+    TrainingJobCreate,
+    TrainingModelOption,
+)
 from app.services.datasets import DatasetService
 from app.services.job_progress import append_log, make_progress
 from app.services.training.artifacts import (
@@ -32,7 +38,7 @@ from app.services.training.artifacts import (
 
 ACTIVE_TRAINING_PROCESSES: dict[str, subprocess.Popen] = {}
 
-KERAS_APPLICATION_OPTIONS = [
+KERAS_APPLICATION_OPTIONS: list[dict[str, Any]] = [
     {
         "id": "keras_mobilenet_v2",
         "name": "Keras MobileNetV2",
@@ -173,7 +179,7 @@ KERAS_APPLICATION_OPTIONS = [
 
 KERAS_APPLICATIONS_BY_ID = {item["id"]: item for item in KERAS_APPLICATION_OPTIONS}
 
-ULTRALYTICS_MODEL_OPTIONS = [
+ULTRALYTICS_MODEL_OPTIONS: list[dict[str, Any]] = [
     {
         "id": "ultralytics_yolo11_detect",
         "name": "Ultralytics YOLO11 Detection",
@@ -327,7 +333,7 @@ class TrainingService:
                 .order_by(TrainingJob.created_at.desc())
                 .limit(limit)
             )
-        return db.scalars(query).all()
+        return list(db.scalars(query).all())
 
     def model_options(self, task_type: str | None = None) -> list[TrainingModelOption]:
         return training_model_options(task_type)
@@ -381,7 +387,7 @@ class TrainingService:
                             "option_id": payload.option_id,
                             "model_id": model_id,
                             "token_configured": bool(token),
-                            "prepared_at": datetime.utcnow().isoformat(),
+                            "prepared_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
                         },
                         indent=2,
                     ),
@@ -438,7 +444,7 @@ class TrainingService:
                 marker = asset_dir / "prepared.json"
                 marker.write_text(
                     f'{{"option_id": "{payload.option_id}", "weights": "{weights}", '
-                    f'"prepared_at": "{datetime.utcnow().isoformat()}"}}\n',
+                    f'"prepared_at": "{datetime.now(UTC).replace(tzinfo=None).isoformat()}"}}\n',
                     encoding="utf-8",
                 )
                 return ModelAssetStatus(
@@ -480,7 +486,7 @@ class TrainingService:
                 )
                 marker = asset_dir / "prepared.json"
                 marker.write_text(
-                    f'{{"option_id": "{payload.option_id}", "prepared_at": "{datetime.utcnow().isoformat()}"}}\n',
+                    f'{{"option_id": "{payload.option_id}", "prepared_at": "{datetime.now(UTC).replace(tzinfo=None).isoformat()}"}}\n',
                     encoding="utf-8",
                 )
                 return ModelAssetStatus(
@@ -529,7 +535,7 @@ class TrainingService:
 
     def run_job(self, job_id: str) -> None:
         db = SessionLocal()
-        started_at = datetime.utcnow()
+        started_at = datetime.now(UTC).replace(tzinfo=None)
         try:
             job = db.get(TrainingJob, job_id)
             if job is None:
@@ -543,7 +549,7 @@ class TrainingService:
                 logs=artifacts["logs"],
             )
             job.artifacts = artifacts
-            job.updated_at = datetime.utcnow()
+            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
 
             run_dir = self.storage.training_runs / job.id
@@ -578,7 +584,7 @@ class TrainingService:
             artifact_urls = self._artifact_urls(run_dir)
             if artifact_urls:
                 artifacts["artifact_urls"] = artifact_urls
-            finished_at = datetime.utcnow()
+            finished_at = datetime.now(UTC).replace(tzinfo=None)
 
             if job.status == "canceled":
                 artifacts = append_log(artifacts, "Training canceled")
@@ -605,7 +611,10 @@ class TrainingService:
                     artifacts["promoted_model_id"] = promoted_model_id
                 except Exception as exc:  # noqa: BLE001 - registration failure should be visible but not lose run
                     artifacts = append_log(artifacts, f"Model registration failed: {exc}")
-            artifacts = append_log(artifacts, "Training completed" if return_code == 0 else job.error)
+            artifacts = append_log(
+                artifacts,
+                "Training completed" if return_code == 0 else (job.error or "Training failed"),
+            )
             artifacts["progress"] = make_progress(
                 percent=100,
                 processed=int(job.parameters.get("epochs", 0)),
@@ -626,13 +635,13 @@ class TrainingService:
                     percent=100,
                     current_step="Failed",
                     started_at=started_at,
-                    finished_at=datetime.utcnow(),
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
                     logs=artifacts["logs"],
                 )
                 job.status = "failed"
                 job.error = str(exc)
                 job.artifacts = artifacts
-                job.updated_at = datetime.utcnow()
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
                 db.commit()
         finally:
             ACTIVE_TRAINING_PROCESSES.pop(job_id, None)
@@ -670,7 +679,7 @@ class TrainingService:
             (job.artifacts or {}).get("metrics") or {},
         )
         job.promoted_model_id = model_id
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
         return model_id
 
@@ -687,13 +696,13 @@ class TrainingService:
         artifacts["progress"] = make_progress(
             percent=100,
             current_step="Canceled",
-            finished_at=datetime.utcnow(),
+            finished_at=datetime.now(UTC).replace(tzinfo=None),
             logs=artifacts["logs"],
         )
         job.status = "canceled"
         job.error = "Training canceled"
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
         db.refresh(job)
         return job
@@ -709,13 +718,13 @@ class TrainingService:
                 artifacts["progress"] = make_progress(
                     percent=100,
                     current_step="Failed",
-                    finished_at=datetime.utcnow(),
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
                     logs=artifacts["logs"],
                 )
                 job.status = "failed"
                 job.error = "Backend restarted before training completed"
                 job.artifacts = artifacts
-                job.updated_at = datetime.utcnow()
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
         finally:
             db.close()
@@ -940,7 +949,7 @@ class TrainingService:
         artifacts = dict(job.artifacts or {})
         artifacts["pid"] = pid
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
 
     def _update_training_progress(
@@ -975,7 +984,7 @@ class TrainingService:
             logs=artifacts["logs"],
         )
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
 
     def _register_training_model(
@@ -1037,15 +1046,15 @@ class TrainingService:
                     source_sidecar = run_dir / sidecar
                     if source_sidecar.exists() and source_sidecar != best_model:
                         shutil.copy2(source_sidecar, model_dir / sidecar)
-                runner_metadata = run_dir / "metadata.json"
-                if runner_metadata.exists():
-                    shutil.copy2(runner_metadata, model_dir / "runner_metadata.json")
+                runner_metadata_source = run_dir / "metadata.json"
+                if runner_metadata_source.exists():
+                    shutil.copy2(runner_metadata_source, model_dir / "runner_metadata.json")
             paths = {"model": stable_model}
             family = job.model_family
         else:
             raise ValueError(f"Unsupported trained model family: {job.model_family}")
 
-        runner_metadata = {}
+        runner_metadata: dict[str, Any] = {}
         runner_metadata_path = run_dir / "metadata.json"
         if runner_metadata_path.exists():
             try:
@@ -1055,7 +1064,7 @@ class TrainingService:
             if isinstance(loaded_metadata, dict):
                 runner_metadata = loaded_metadata
 
-        metadata = {
+        metadata: dict[str, Any] = {
             **runner_metadata,
             "labels": labels,
             "task_type": params.get("task_type", DEFAULT_TASK_TYPE),

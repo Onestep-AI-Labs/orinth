@@ -4,7 +4,8 @@ import json
 import random
 import re
 import shutil
-from datetime import datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 from urllib.parse import quote
@@ -16,18 +17,6 @@ from PIL import Image
 from app.core.config import Settings
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.storage import Storage
-from app.services.datasets.constants import (
-    ALLOWED_PREPROCESS_TRANSFORMS,
-    IMAGE_SUFFIXES,
-    IMAGE_TASK_TYPES,
-    NLP_TASK_TYPES,
-    PREPROCESS_PRESETS,
-    SPLITS,
-    TASK_TYPE_ALIASES,
-    TEXT_SUFFIXES,
-    TRAINING_SPLITS,
-)
-from app.services.datasets.types import DatasetLocation
 from app.schemas import (
     Box,
     DatasetAnnotation,
@@ -45,10 +34,10 @@ from app.schemas import (
     DatasetItemMoveResponse,
     DatasetItemPage,
     DatasetItemSummary,
-    DatasetProcessRequest,
-    DatasetProcessResponse,
     DatasetPreprocessConfig,
     DatasetPreprocessPreview,
+    DatasetProcessRequest,
+    DatasetProcessResponse,
     DatasetSplitConfig,
     DatasetSplitSummary,
     DatasetSummary,
@@ -57,6 +46,19 @@ from app.schemas import (
     DatasetVersionSummary,
     DeleteResponse,
 )
+from app.services.datasets.constants import (
+    ALLOWED_PREPROCESS_TRANSFORMS,
+    IMAGE_SUFFIXES,
+    IMAGE_TASK_TYPES,
+    NLP_TASK_TYPES,
+    PREPROCESS_PRESETS,
+    SPLITS,
+    TASK_TYPE_ALIASES,
+    TEXT_SUFFIXES,
+    TRAINING_SPLITS,
+)
+from app.services.datasets.types import DatasetLocation
+
 
 class DatasetService:
     def __init__(self, settings: Settings, storage: Storage) -> None:
@@ -315,7 +317,7 @@ class DatasetService:
 
         moved = 0
         missing = []
-        items = []
+        items: list[DatasetItemSummary] = []
         for item_id in payload.ids:
             try:
                 new_name = self._move_item(location, payload.source_split, payload.target_split, item_id)
@@ -335,7 +337,7 @@ class DatasetService:
                 mode="json"
             )
         metadata["split_config"] = split_config.model_dump(mode="json")
-        metadata["processed_at"] = datetime.utcnow().isoformat()
+        metadata["processed_at"] = datetime.now(UTC).replace(tzinfo=None).isoformat()
         self._update_manifest(location, metadata=metadata)
         location = self._location(dataset_id)
 
@@ -359,7 +361,7 @@ class DatasetService:
         for rows in grouped.values():
             rng.shuffle(rows)
             targets = self._targets_for_count(len(rows), split_config)
-            for (source_split, item), target_split in zip(rows, targets):
+            for (source_split, item), target_split in zip(rows, targets, strict=True):
                 if source_split == target_split:
                     continue
                 new_name = self._move_item(location, source_split, target_split, item.id)
@@ -383,7 +385,7 @@ class DatasetService:
         annotation = self._classification_annotation(location, payload.class_id, payload.class_name)
         updated = 0
         missing = []
-        items = []
+        items: list[DatasetItemSummary] = []
         for item_id in payload.ids:
             try:
                 item_path = self._item_path(location, split, item_id)
@@ -562,11 +564,13 @@ class DatasetService:
         self._validate_split(split)
         item_path = self._item_path(location, split, item_id)
         if self._is_nlp_task(location.task_type):
-            annotations = [
+            raw_annotations = [
                 self._normalize_annotation(annotation, location, 0, 0)
                 for annotation in payload.annotations
             ]
-            annotations = [annotation for annotation in annotations if annotation is not None]
+            annotations: list[DatasetAnnotation] = [
+                annotation for annotation in raw_annotations if annotation is not None
+            ]
             annotation_path = location.root / split / "annotations" / f"{item_path.stem}.json"
             self._write_annotation_json(annotation_path, annotations)
             return self.item_detail(dataset_id, split, item_path.name)
@@ -575,11 +579,11 @@ class DatasetService:
         with Image.open(image_path) as image:
             width, height = image.size
 
-        annotations = [
+        raw_annotations = [
             self._normalize_annotation(annotation, location, width, height)
             for annotation in payload.annotations
         ]
-        annotations = [annotation for annotation in annotations if annotation is not None]
+        annotations = [annotation for annotation in raw_annotations if annotation is not None]
         annotation_path = location.root / split / "annotations" / f"{image_path.stem}.json"
         self._write_annotation_json(annotation_path, annotations)
         self._write_yolo_label(location, split, image_path.stem, annotations, width, height)
@@ -667,7 +671,7 @@ class DatasetService:
         )
         version_id = uuid4().hex
         version_root = self.storage.dataset_versions / dataset_id / version_id
-        version_name = payload.name or f"{location.name} version {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+        version_name = payload.name or f"{location.name} version {datetime.now(UTC).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M')}"
         self._create_layout(version_root, location.format, location.task_type, location.labels)
         if self._is_nlp_task(location.task_type):
             return self._create_text_version(
@@ -745,7 +749,7 @@ class DatasetService:
                     image_count += 1
                     generated_count += 1
 
-        created_at = datetime.utcnow()
+        created_at = datetime.now(UTC).replace(tzinfo=None)
         metadata = {
             "dataset_id": dataset_id,
             "version_id": version_id,
@@ -1586,7 +1590,7 @@ class DatasetService:
         self, location: DatasetLocation, split: str, image_path: Path, width: int, height: int
     ) -> list[DatasetAnnotation]:
         label_path = location.root / split / "labels" / f"{image_path.stem}.txt"
-        annotations = []
+        annotations: list[DatasetAnnotation] = []
         if not label_path.exists():
             return annotations
         for line in label_path.read_text(encoding="utf-8").splitlines():
@@ -2093,7 +2097,7 @@ class DatasetService:
                     self._write_annotation_json(version_root / split / "annotations" / f"{aug_stem}.json", annotations)
                     text_count += 1
                     generated_count += 1
-        created_at = datetime.utcnow()
+        created_at = datetime.now(UTC).replace(tzinfo=None)
         metadata = {
             "dataset_id": dataset_id,
             "version_id": version_id,
@@ -2230,7 +2234,7 @@ class DatasetService:
         if split not in SPLITS:
             raise HTTPException(status_code=400, detail="Unknown dataset split")
 
-    def _normalize_splits(self, splits: list[str]) -> list[str]:
+    def _normalize_splits(self, splits: Sequence[str]) -> list[str]:
         normalized = []
         for split in splits or list(SPLITS):
             self._validate_split(split)
@@ -2248,7 +2252,7 @@ class DatasetService:
         created_at = (
             datetime.fromisoformat(created_at_raw)
             if isinstance(created_at_raw, str)
-            else datetime.fromtimestamp(manifest_path.stat().st_mtime)
+            else datetime.fromtimestamp(manifest_path.stat().st_mtime, tz=UTC)
         )
         root = manifest_path.parent
         task_type = self._normalize_task_type(manifest.get("task_type", DEFAULT_TASK_TYPE))

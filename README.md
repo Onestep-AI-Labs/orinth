@@ -5,6 +5,8 @@
 # Onestep AI Platform
 
 ![license](https://img.shields.io/badge/license-Apache%202.0-blue)
+[![Backend CI](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml/badge.svg)](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml)
+[![Frontend CI](https://github.com/L007/onestep-ai-platform/actions/workflows/frontend.yml/badge.svg)](https://github.com/L007/onestep-ai-platform/actions/workflows/frontend.yml)
 
 **One workspace for Computer Vision and NLP intelligence.**
 

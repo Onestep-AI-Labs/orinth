@@ -1,6 +1,6 @@
-from collections import Counter
 import re
-from typing import Iterable
+from collections import Counter
+from collections.abc import Iterable
 
 import numpy as np
 

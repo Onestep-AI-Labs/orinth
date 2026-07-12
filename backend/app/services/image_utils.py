@@ -4,7 +4,6 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.schemas import Detection
 
-
 CLASS_COLORS = {
     "granuloma": (70, 180, 160),
     "kista": (250, 128, 114),

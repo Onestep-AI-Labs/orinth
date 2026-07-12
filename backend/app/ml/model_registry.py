@@ -4,13 +4,13 @@ import os
 import tempfile
 import threading
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.config import Settings
+from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.storage import Storage
 from app.ml.common.base import Predictor
 from app.ml.nlp.baseline.predictors import (
@@ -56,7 +56,7 @@ class ModelSpec:
         return ModelInfo(
             id=self.id,
             name=self.name,
-            family=self.family,  # type: ignore[arg-type]
+            family=self.family,
             description=self.description,
             available=self.available,
             paths={key: str(path) for key, path in self.paths.items()},
@@ -274,7 +274,7 @@ class ModelRegistry:
                 "labels": labels,
                 "source": source,
                 "training_job_id": training_job_id,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
                 "metrics": metrics or {},
                 "artifacts": artifacts or {},
             }

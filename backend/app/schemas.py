@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
@@ -26,12 +26,20 @@ DatasetFormat = Literal[
 DatasetSource = Literal["reference", "editable"]
 SplitName = Literal["unassigned", "train", "valid", "test"]
 
+# `DEFAULT_TASK_TYPE` lives in app.core.defaults as a plain `str` (shared with
+# non-Pydantic code), so it needs a one-time cast here to satisfy the `TaskType`
+# Literal used by the fields below.
+_DEFAULT_TASK_TYPE: TaskType = cast(TaskType, DEFAULT_TASK_TYPE)
+_DEFAULT_TASK_TYPES: list[TaskType] = [_DEFAULT_TASK_TYPE]
+_DEFAULT_SPLITS: list[SplitName] = ["train", "valid", "test"]
+_DEFAULT_AUGMENTATION_SPLITS: list[SplitName] = ["train"]
+
 
 class ProjectSummary(BaseModel):
     id: str
     name: str
     description: str | None = None
-    task_types: list[TaskType] = Field(default_factory=lambda: ["segmentation"])
+    task_types: list[TaskType] = Field(default_factory=lambda: list(_DEFAULT_TASK_TYPES))
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
@@ -40,7 +48,7 @@ class ProjectSummary(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
-    task_types: list[TaskType] = Field(default_factory=lambda: ["segmentation"])
+    task_types: list[TaskType] = Field(default_factory=lambda: list(_DEFAULT_TASK_TYPES))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -127,7 +135,7 @@ class ModelInfo(BaseModel):
     paths: dict[str, str]
     promoted: bool = False
     project_id: str = DEFAULT_PROJECT_ID
-    task_type: TaskType = DEFAULT_TASK_TYPE
+    task_type: TaskType = _DEFAULT_TASK_TYPE
     labels: list[str] = Field(default_factory=lambda: DEFAULT_LABELS.copy())
     source: Literal["reference", "trained", "promoted"] = "reference"
     training_job_id: str | None = None
@@ -152,7 +160,7 @@ class EvaluationDatasetInfo(BaseModel):
     key: str
     name: str
     project_id: str = DEFAULT_PROJECT_ID
-    task_type: TaskType = DEFAULT_TASK_TYPE
+    task_type: TaskType = _DEFAULT_TASK_TYPE
     format: DatasetFormat
     split: str
     available: bool
@@ -214,7 +222,7 @@ class EvaluationPerImageRow(BaseModel):
 
 class TrainingJobCreate(BaseModel):
     project_id: str = DEFAULT_PROJECT_ID
-    task_type: TaskType = DEFAULT_TASK_TYPE
+    task_type: TaskType = _DEFAULT_TASK_TYPE
     model_family: str = "yolo"
     model_option_id: str = "yolo_local"
     model_name: str | None = Field(default=None, max_length=120)
@@ -264,7 +272,7 @@ class DatasetSummary(BaseModel):
     id: str
     project_id: str = DEFAULT_PROJECT_ID
     name: str
-    task_type: TaskType = DEFAULT_TASK_TYPE
+    task_type: TaskType = _DEFAULT_TASK_TYPE
     format: DatasetFormat
     source: DatasetSource
     editable: bool
@@ -278,7 +286,7 @@ class DatasetSummary(BaseModel):
 class DatasetCreate(BaseModel):
     project_id: str = DEFAULT_PROJECT_ID
     name: str = Field(min_length=1, max_length=120)
-    task_type: TaskType = DEFAULT_TASK_TYPE
+    task_type: TaskType = _DEFAULT_TASK_TYPE
     format: DatasetFormat = "yolo"
     labels: list[str] = Field(default_factory=lambda: DEFAULT_LABELS.copy())
 
@@ -313,7 +321,7 @@ class DatasetImportRequest(BaseModel):
     project_id: str = DEFAULT_PROJECT_ID
     path: str
     name: str | None = Field(default=None, max_length=120)
-    task_type: TaskType = DEFAULT_TASK_TYPE
+    task_type: TaskType = _DEFAULT_TASK_TYPE
     format: DatasetFormat = "yolo"
     labels: list[str] | None = None
 
@@ -425,8 +433,8 @@ class DatasetPreprocessPreview(BaseModel):
 class DatasetVersionCreate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     config: DatasetPreprocessConfig | None = None
-    splits: list[SplitName] = Field(default_factory=lambda: ["train", "valid", "test"])
-    augmentation_splits: list[SplitName] = Field(default_factory=lambda: ["train"])
+    splits: list[SplitName] = Field(default_factory=lambda: list(_DEFAULT_SPLITS))
+    augmentation_splits: list[SplitName] = Field(default_factory=lambda: list(_DEFAULT_AUGMENTATION_SPLITS))
 
 
 class DatasetVersionSummary(BaseModel):

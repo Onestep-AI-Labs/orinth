@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 from app.container import inference_service
 from app.core.database import get_db
 from app.core.defaults import DEFAULT_PROJECT_ID
-from app.schemas import DeleteRequest, DeleteResponse, InferenceJobRead, InferenceParameters, InferenceResult
+from app.schemas import (
+    DeleteRequest,
+    DeleteResponse,
+    InferenceJobRead,
+    InferenceParameters,
+    InferenceResult,
+)
 
 router = APIRouter(prefix="/inference")
 

@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+from typing import Any
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -104,7 +105,7 @@ def main() -> None:
         }
         for index, (image_path, class_id) in enumerate(valid_items)
     ]
-    metrics = {key: float(values[-1]) for key, values in history.history.items() if values}
+    metrics: dict[str, Any] = {key: float(values[-1]) for key, values in history.history.items() if values}
     metrics["classes"] = labels
     metrics.update(validation)
     (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
@@ -129,7 +130,7 @@ def load_labels(dataset_root: Path) -> list[str]:
 def load_split(dataset_root: Path, split: str) -> list[tuple[Path, int]]:
     image_dir = dataset_root / split / "images"
     annotation_dir = dataset_root / split / "annotations"
-    items = []
+    items: list[tuple[Path, int]] = []
     if not image_dir.exists():
         return items
     for image_path in sorted(path for path in image_dir.iterdir() if path.suffix.lower() in IMAGE_SUFFIXES):

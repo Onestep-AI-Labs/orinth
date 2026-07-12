@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+import builtins
+from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
@@ -9,8 +10,8 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.defaults import DEFAULT_PROJECT_ID
 from app.core.database import SessionLocal
+from app.core.defaults import DEFAULT_PROJECT_ID
 from app.core.storage import Storage
 from app.db.models import InferenceJob, InferenceRun
 from app.ml.model_registry import ModelRegistry
@@ -81,6 +82,7 @@ class InferenceService:
         self.storage.ensure()
         spec = self.registry.get_spec(model_id)
         input_type = "text" if spec.task_type in {"text_classification", "summarization", "question_answering"} else "image"
+        original_filename: str | None
         if input_type == "text":
             if not text_content or not text_content.strip():
                 raise HTTPException(status_code=400, detail="Text content is required for NLP inference")
@@ -99,7 +101,7 @@ class InferenceService:
             current_step="Upload saved",
             processed=1,
             total=5,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC).replace(tzinfo=None),
             logs=artifacts["logs"],
         )
         job = InferenceJob(
@@ -120,7 +122,7 @@ class InferenceService:
     def run_job(self, job_id: str) -> None:
         db = SessionLocal()
         started = perf_counter()
-        started_at = datetime.utcnow()
+        started_at = datetime.now(UTC).replace(tzinfo=None)
         try:
             job = db.get(InferenceJob, job_id)
             if job is None:
@@ -137,7 +139,7 @@ class InferenceService:
                 logs=artifacts["logs"],
             )
             job.artifacts = artifacts
-            job.updated_at = datetime.utcnow()
+            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
 
             timings: dict[str, int] = {}
@@ -182,13 +184,13 @@ class InferenceService:
                 total=5,
                 current_step="Completed",
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(UTC).replace(tzinfo=None),
                 logs=artifacts["logs"],
             )
             job.status = "completed"
             job.result = result.model_dump(mode="json")
             job.artifacts = artifacts
-            job.updated_at = datetime.utcnow()
+            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
         except Exception as exc:  # noqa: BLE001 - background jobs must persist errors
             job = db.get(InferenceJob, job_id)
@@ -198,13 +200,13 @@ class InferenceService:
                     percent=100,
                     current_step="Failed",
                     started_at=started_at,
-                    finished_at=datetime.utcnow(),
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
                     logs=artifacts["logs"],
                 )
                 job.status = "failed"
                 job.error = str(exc)
                 job.artifacts = artifacts
-                job.updated_at = datetime.utcnow()
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
                 db.commit()
         finally:
             db.close()
@@ -271,7 +273,7 @@ class InferenceService:
             overlay_url=self.storage.media_url(overlay_path),
             original_url=self.storage.media_url(image_path),
             parameters=parameters,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC).replace(tzinfo=None),
             duration_ms=timings["total_ms"],
             timings=timings,
         )
@@ -326,7 +328,8 @@ class InferenceService:
             or nlp_result.get("answer")
             or "Text result"
         )
-        class_scores = nlp_result.get("scores") if isinstance(nlp_result.get("scores"), dict) else {}
+        raw_scores = nlp_result.get("scores")
+        class_scores: dict[str, float] = raw_scores if isinstance(raw_scores, dict) else {}
         timings["total_ms"] = elapsed_ms(started)
         result = InferenceResult(
             id=inference_id,
@@ -341,7 +344,7 @@ class InferenceService:
             text_content=text_content,
             nlp_result=nlp_result,
             parameters=parameters,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC).replace(tzinfo=None),
             duration_ms=timings["total_ms"],
             timings=timings,
         )
@@ -377,7 +380,7 @@ class InferenceService:
             logs=artifacts["logs"],
         )
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
 
     def get(self, db: Session, inference_id: str) -> InferenceResult:
@@ -408,7 +411,7 @@ class InferenceService:
         return results
 
     def delete_runs(
-        self, db: Session, ids: list[str] | None = None, project_id: str | None = None
+        self, db: Session, ids: builtins.list[str] | None = None, project_id: str | None = None
     ) -> dict:
         query = select(InferenceRun)
         if ids:
@@ -424,10 +427,12 @@ class InferenceService:
             db.delete(record)
             deleted += 1
         db.commit()
+        blocked: list[str] = []
+        missing: list[str] = [item_id for item_id in (ids or []) if item_id not in found]
         return {
             "deleted": deleted,
-            "blocked": [],
-            "missing": [item_id for item_id in (ids or []) if item_id not in found],
+            "blocked": blocked,
+            "missing": missing,
         }
 
 

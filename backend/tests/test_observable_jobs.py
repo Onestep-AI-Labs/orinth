@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from PIL import Image
 from sqlalchemy.orm import Session
 
@@ -473,6 +474,7 @@ def test_classification_evaluation_uses_predictor_scores(settings: Settings, db_
     assert metrics["classification"]["macro_auc"] == 1.0
 
 
+@pytest.mark.slow
 def test_nlp_training_option_command_and_runner(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
@@ -565,6 +567,7 @@ def test_nlp_training_option_command_and_runner(tmp_path: Path, settings: Settin
     assert "--max-length" in keras_command
 
 
+@pytest.mark.slow
 def test_keras_nlp_runner_artifacts_and_predictor(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()

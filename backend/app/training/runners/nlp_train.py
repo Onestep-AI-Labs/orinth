@@ -5,6 +5,7 @@ import os
 import pickle
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 
 def main() -> None:
@@ -113,8 +114,8 @@ def main() -> None:
 def train_text_classifier(
     dataset_root: Path, run_dir: Path, labels: list[str], epochs: int, learning_rate: float
 ) -> tuple[dict, list[dict]]:
-    from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.dummy import DummyClassifier
+    from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 
@@ -379,7 +380,7 @@ def train_keras_seq2seq_summarizer(
                 "scores": score,
             }
         )
-    metrics = average_scores(rows)
+    metrics: dict[str, Any] = average_scores(rows)
     metrics["model_kind"] = "keras_seq2seq"
     write_keras_history_csv(run_dir / "results.csv", history.history)
     return metrics, predictions
@@ -409,7 +410,7 @@ def train_summarizer(dataset_root: Path, run_dir: Path, epochs: int) -> tuple[di
                 "scores": score,
             }
         )
-    metrics = average_scores(rows)
+    metrics: dict[str, Any] = average_scores(rows)
     metrics["keywords"] = keywords
     write_results_csv(run_dir / "results.csv", epochs, metrics)
     return metrics, predictions
@@ -458,7 +459,8 @@ def train_hf_text_classifier(
 ) -> tuple[dict, list[dict]]:
     import torch
     from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer, logging as transformers_logging
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    from transformers import logging as transformers_logging
 
     run_dir.mkdir(parents=True, exist_ok=True)
     train = load_text_classification_split(dataset_root, "train")
@@ -633,7 +635,7 @@ def train_hf_summarizer(
         inputs = tokenizer(item["text"], return_tensors="pt", truncation=True, max_length=max_length)
         with torch.no_grad():
             output_ids = model.generate(**inputs, max_length=target_max_length, num_beams=2)
-        prediction = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        prediction = str(tokenizer.decode(output_ids[0], skip_special_tokens=True))
         scores = rouge_scores(prediction, item["summary"])
         rows.append(scores)
         predictions.append(
@@ -644,7 +646,7 @@ def train_hf_summarizer(
                 "scores": scores,
             }
         )
-    metrics = average_scores(rows)
+    metrics: dict[str, Any] = average_scores(rows)
     metrics["model_id"] = model_id
     write_metric_rows_csv(run_dir / "results.csv", history)
     return metrics, predictions
@@ -662,7 +664,8 @@ def train_hf_qa(
     cache_dir: Path | None,
 ) -> tuple[dict, list[dict]]:
     import torch
-    from transformers import AutoModelForQuestionAnswering, AutoTokenizer, logging as transformers_logging
+    from transformers import AutoModelForQuestionAnswering, AutoTokenizer
+    from transformers import logging as transformers_logging
 
     from app.services.metrics import qa_scores
 
@@ -719,7 +722,7 @@ def train_hf_qa(
         if end < start:
             end = start
         answer_ids = inputs["input_ids"][0][start : end + 1]
-        prediction = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
+        prediction = str(tokenizer.decode(answer_ids, skip_special_tokens=True)).strip()
         scores = qa_scores(prediction, item["answer"])
         rows.append(scores)
         predictions.append(
@@ -731,7 +734,7 @@ def train_hf_qa(
                 "scores": scores,
             }
         )
-    metrics = average_scores(rows)
+    metrics: dict[str, Any] = average_scores(rows)
     metrics["model_id"] = model_id
     write_metric_rows_csv(run_dir / "results.csv", history)
     return metrics, predictions
@@ -1051,7 +1054,7 @@ def write_results_csv(path: Path, epochs: int, metrics: dict[str, float]) -> Non
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for epoch in range(1, epochs + 1):
-            row = {"epoch": epoch}
+            row: dict[str, float] = {"epoch": epoch}
             row.update({key: value for key, value in metrics.items() if key in fieldnames})
             writer.writerow(row)
 
@@ -1060,7 +1063,7 @@ def write_keras_history_csv(path: Path, history: dict[str, list]) -> None:
     epochs = max((len(values) for values in history.values()), default=0)
     rows = []
     for index in range(epochs):
-        row = {"epoch": index + 1}
+        row: dict[str, float] = {"epoch": index + 1}
         for key, values in history.items():
             if index < len(values):
                 try:

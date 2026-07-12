@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,8 +9,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.database import SessionLocal
+from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.storage import Storage
 from app.db.models import EvaluationJob
 from app.ml.model_registry import ModelRegistry
@@ -195,7 +195,7 @@ class EvaluationService:
             .where(EvaluationJob.comparison_id == comparison_id)
             .order_by(EvaluationJob.created_at.asc())
         )
-        jobs = db.scalars(query).all()
+        jobs = list(db.scalars(query).all())
         if not jobs:
             jobs = [job]
         return jobs
@@ -211,7 +211,7 @@ class EvaluationService:
                 .order_by(EvaluationJob.created_at.desc())
                 .limit(limit)
             )
-        return db.scalars(query).all()
+        return list(db.scalars(query).all())
 
     def delete_jobs(self, db: Session, ids: list[str] | None = None, project_id: str | None = None) -> dict:
         query = select(EvaluationJob)
@@ -246,7 +246,7 @@ class EvaluationService:
             job = db.get(EvaluationJob, job_id)
             if job is None:
                 return
-            started_at = datetime.utcnow()
+            started_at = datetime.now(UTC).replace(tzinfo=None)
             job.status = "running"
             artifacts = append_log(job.artifacts, "Evaluation started")
             artifacts["progress"] = make_progress(
@@ -256,7 +256,7 @@ class EvaluationService:
                 logs=artifacts["logs"],
             )
             job.artifacts = artifacts
-            job.updated_at = datetime.utcnow()
+            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
 
             metrics, artifacts = self._evaluate(db, job, started_at)
@@ -270,11 +270,11 @@ class EvaluationService:
                 total=metrics["samples"],
                 current_step="Completed",
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(UTC).replace(tzinfo=None),
                 logs=merged_artifacts["logs"],
             )
             job.artifacts = merged_artifacts
-            job.updated_at = datetime.utcnow()
+            job.updated_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
         except Exception as exc:  # noqa: BLE001 - background jobs must persist errors
             job = db.get(EvaluationJob, job_id)
@@ -283,13 +283,13 @@ class EvaluationService:
                 artifacts["progress"] = make_progress(
                     percent=100,
                     current_step="Failed",
-                    finished_at=datetime.utcnow(),
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
                     logs=artifacts["logs"],
                 )
                 job.status = "failed"
                 job.error = str(exc)
                 job.artifacts = artifacts
-                job.updated_at = datetime.utcnow()
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
                 db.commit()
         finally:
             db.close()
@@ -480,8 +480,8 @@ class EvaluationService:
             rows = []
             for index, sample in enumerate(samples, start=1):
                 result = predictor.predict_text(sample["text"], InferenceParameters())
-                prediction = str(result.get("summary", ""))
-                scores = rouge_scores(prediction, sample["summary"])
+                prediction_text = str(result.get("summary", ""))
+                scores = rouge_scores(prediction_text, sample["summary"])
                 rows.append(scores)
                 per_image.append(
                     {
@@ -494,7 +494,7 @@ class EvaluationService:
                         "object": {},
                         "text_preview": sample["text"][:180],
                         "reference_text": sample["summary"],
-                        "prediction_text": prediction,
+                        "prediction_text": prediction_text,
                         "scores": scores,
                     }
                 )
@@ -515,8 +515,8 @@ class EvaluationService:
             for index, sample in enumerate(samples, start=1):
                 params = InferenceParameters(question=sample["question"])
                 result = predictor.predict_text(sample["text"], params)
-                prediction = str(result.get("answer", ""))
-                scores = qa_scores(prediction, sample["answer"])
+                prediction_text = str(result.get("answer", ""))
+                scores = qa_scores(prediction_text, sample["answer"])
                 rows.append(scores)
                 per_image.append(
                     {
@@ -529,7 +529,7 @@ class EvaluationService:
                         "object": {},
                         "text_preview": sample["text"][:180],
                         "reference_text": sample["answer"],
-                        "prediction_text": prediction,
+                        "prediction_text": prediction_text,
                         "scores": scores,
                     }
                 )
@@ -651,7 +651,7 @@ class EvaluationService:
         split_root = self.dataset_service.split_root(dataset_id, split)
         image_dir = split_root / "images"
         annotation_dir = split_root / "annotations"
-        samples = []
+        samples: list[ClassificationSample] = []
         if not image_dir.exists():
             return samples
         for image_path in sorted(image_dir.iterdir()):
@@ -681,7 +681,7 @@ class EvaluationService:
         split_root = self.dataset_service.split_root(dataset_id, split)
         text_dir = split_root / "texts"
         annotation_dir = split_root / "annotations"
-        samples = []
+        samples: list[dict] = []
         if not text_dir.exists():
             return samples
         for text_path in sorted(text_dir.glob("*.txt")):
@@ -894,7 +894,7 @@ class EvaluationService:
             logs=artifacts.get("logs", []),
         )
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
 
 

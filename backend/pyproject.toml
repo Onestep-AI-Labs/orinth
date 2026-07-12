@@ -29,6 +29,7 @@ dev = [
     "pytest>=8.3.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.5.7",
+    "mypy>=1.11.0",
 ]
 
 [build-system]
@@ -41,6 +42,9 @@ packages = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "slow: heavy ML training tests excluded from the default fast run (run with `uv run pytest -m slow` or without `-m` to include them).",
+]
 filterwarnings = [
     "ignore:Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.:starlette.exceptions.StarletteDeprecationWarning",
     "ignore:__array__ implementation doesn't accept a copy keyword, so passing copy=False failed.*:DeprecationWarning",
@@ -49,3 +53,29 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "DTZ"]
+ignore = [
+    "E501", # line length: many long lines predate this gate; a dedicated formatting pass is out of scope here
+    "B008", # FastAPI's `Depends()`/`File()` default-argument pattern is idiomatic, not a bug
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["app"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+# Pragmatic baseline: start non-strict and tighten incrementally rather than
+# requiring a full-strict pass across the ML-heavy service layer up front.
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.ruff.lint.per-file-ignores]
+# app/core/database.py is out of scope for this spec's edits (owned elsewhere);
+# ignore the violations a full fix/reformat would otherwise touch there.
+"app/core/database.py" = ["DTZ003", "I001"]
+# Test-file cleanup is out of scope for this spec beyond the new `slow` markers.
+"tests/*" = ["I001", "DTZ003"]

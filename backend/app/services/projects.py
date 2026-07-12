@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -12,7 +13,12 @@ from app.core.defaults import (
     DEFAULT_TASK_TYPE,
 )
 from app.db.models import EvaluationJob, InferenceJob, InferenceRun, Project, TrainingJob
-from app.schemas import DeleteResponse, ProjectCreate, ProjectSummary, ProjectUpdate
+from app.schemas import DeleteResponse, ProjectCreate, ProjectSummary, ProjectUpdate, TaskType
+
+# `DEFAULT_TASK_TYPE`/`DEFAULT_PROJECT_TASK_TYPES` live in app.core.defaults as plain
+# `str`/`list[str]` (shared with non-Pydantic code); cast once here where they need to
+# satisfy the `TaskType` Literal used by the Pydantic schemas.
+_DEFAULT_TASK_TYPE_LITERAL = cast(TaskType, DEFAULT_TASK_TYPE)
 
 
 class ProjectService:
@@ -22,15 +28,15 @@ class ProjectService:
         return [project_read(project) for project in projects]
 
     def create_project(self, db: Session, payload: ProjectCreate) -> ProjectSummary:
-        task_types = payload.task_types or [DEFAULT_TASK_TYPE]
+        task_types = payload.task_types or [_DEFAULT_TASK_TYPE_LITERAL]
         project = Project(
             id=self._new_project_id(payload.name),
             name=payload.name,
             description=payload.description,
             task_types=task_types,
             metadata_json=payload.metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC).replace(tzinfo=None),
+            updated_at=datetime.now(UTC).replace(tzinfo=None),
         )
         db.add(project)
         db.commit()
@@ -46,10 +52,10 @@ class ProjectService:
         if payload.description is not None:
             project.description = payload.description
         if payload.task_types is not None:
-            project.task_types = payload.task_types
+            project.task_types = [str(task_type) for task_type in payload.task_types]
         if payload.metadata is not None:
             project.metadata_json = payload.metadata
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
         db.refresh(project)
         return project_read(project)
@@ -78,7 +84,7 @@ class ProjectService:
             missing = [task for task in DEFAULT_PROJECT_TASK_TYPES if task not in task_types]
             if missing:
                 project.task_types = [*task_types, *missing]
-                project.updated_at = datetime.utcnow()
+                project.updated_at = datetime.now(UTC).replace(tzinfo=None)
                 db.commit()
                 db.refresh(project)
             return project
@@ -88,8 +94,8 @@ class ProjectService:
             description="Default local AI research workspace.",
             task_types=DEFAULT_PROJECT_TASK_TYPES.copy(),
             metadata_json={"created_from": "system_default"},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC).replace(tzinfo=None),
+            updated_at=datetime.now(UTC).replace(tzinfo=None),
         )
         db.add(project)
         db.commit()
@@ -116,7 +122,9 @@ def project_read(project: Project) -> ProjectSummary:
         id=project.id,
         name=project.name,
         description=project.description,
-        task_types=project.task_types or [DEFAULT_TASK_TYPE],
+        # project.task_types is a `list[str]` DB column; values are always drawn from
+        # the TaskType Literal at write time (see create_project/update_project above).
+        task_types=cast("list[TaskType]", project.task_types) or [_DEFAULT_TASK_TYPE_LITERAL],
         metadata=project.metadata_json or {},
         created_at=project.created_at,
         updated_at=project.updated_at,

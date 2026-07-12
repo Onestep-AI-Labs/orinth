@@ -1,6 +1,8 @@
+from typing import Any
+
 from app.ml.common.catalog import TrainingModelDefinition
 
-HUGGINGFACE_MODEL_OPTIONS = [
+HUGGINGFACE_MODEL_OPTIONS: list[dict[str, Any]] = [
     {
         "id": "hf_bert_text_classifier",
         "name": "Hugging Face BERT Classifier",
