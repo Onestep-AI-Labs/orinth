@@ -38,6 +38,14 @@ export type ModelInfo = {
   artifacts: Record<string, any>;
 };
 
+export type PlatformSettings = {
+  huggingface_hub_token_configured: boolean;
+};
+
+export type PlatformSettingsUpdate = {
+  huggingface_hub_token: string | null;
+};
+
 export type Detection = {
   class_id: number;
   class_name: string;

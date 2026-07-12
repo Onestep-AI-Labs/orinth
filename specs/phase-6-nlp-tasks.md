@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented V1 with offline local baselines
+Implemented V1 with local baselines; neural Keras and Hugging Face transformer adoption in progress
 
 ## Goal
 
@@ -34,9 +34,14 @@ This extension enables users to create projects with NLP task types, upload/impo
     - `extractive_summarizer` (Summarization, runnable)
     - `keyword_qa` (Question Answering, runnable)
   - Implement predictors for NLP tasks that read input text and parameters, executing predictions without transformer downloads.
+  - Organize ML code by task and model family under `backend/app/ml/nlp/{model_family}`.
+  - Add trained-model predictors for Keras text classifiers, Keras seq2seq summarizers, and Hugging Face transformer artifacts.
 - **Training**:
   - Add training options for NLP task types.
   - Implement a runnable `app/training/runners/nlp_train.py` script that trains TF-IDF + Logistic Regression for text classification and lightweight extractive JSON baselines for summarization / QA, generating `results.csv`, `metrics.json`, `validation_predictions.json`, and model artifacts.
+  - Add runnable Keras text-classification options: CNN, LSTM, and BiLSTM.
+  - Add runnable Keras seq2seq summarization.
+  - Add runnable Hugging Face options for BERT text classification, BERT extractive QA, and BART summarization.
 - **Testing & Evaluation**:
   - Support testing comparison runs on NLP datasets.
   - Implement NLP evaluation metrics:
@@ -68,12 +73,16 @@ This extension enables users to create projects with NLP task types, upload/impo
   - `max_length: int = 120`
 
 ### V1 Base Model Policy
-- V1 is intentionally offline-first. Hugging Face BART/DistilBERT-style transformer downloads are out of scope for the first runnable implementation.
-- Future transformer entries may be added as gated catalog items after dependency and asset preparation flows are validated.
+- V1 keeps offline baselines available for fast local smoke tests.
+- Neural NLP training is task-first and catalog-driven.
+- Hugging Face transformer options are runnable when dependencies and model assets are prepared locally. Private/gated assets use `HUGGINGFACE_HUB_TOKEN`.
+- The backend also accepts `HF_TOKEN` as an alias for Hugging Face access, and the Settings page persists `HUGGINGFACE_HUB_TOKEN` to the ignored workspace `.env` without returning the secret value.
+- BERT options use `bert-base-uncased` as a neutral base checkpoint and treat task-head initialization as expected fine-tuning behavior.
 
 ### Storage & DB
 - Existing database tables `projects`, `inference_runs`, `inference_jobs`, `evaluation_jobs`, and `training_jobs` utilize flexible `JSON` columns (`metadata`, `result`, `parameters`, `metrics`, `artifacts`) and thus do not require database migration.
 - NLP dataset files are stored under `storage/datasets/{dataset_id}/{split}/texts/{item_id}.txt` instead of `images/`. Annotations are stored under `storage/datasets/{dataset_id}/{split}/annotations/{item_id}.json`.
+- Bundled sample NLP datasets are visible in project-scoped dataset selectors, including the default workspace, and split summaries report text counts separately from image counts.
 
 ## Data Flow
 
@@ -90,7 +99,7 @@ This extension enables users to create projects with NLP task types, upload/impo
 ### Training
 1. Frontend calls `POST /api/training/jobs`.
 2. Backend spawns `app/training/runners/nlp_train.py`.
-3. Runner computes TF-IDF + Classifier or mimics Transformer training, outputs `metrics.json` and `validation_predictions.json`.
+3. Runner computes the selected local baseline, Keras model, or Hugging Face transformer training path, outputs `metrics.json` and `validation_predictions.json`.
 4. Backend promotes/registers the model weights.
 
 ### Testing
@@ -99,6 +108,10 @@ This extension enables users to create projects with NLP task types, upload/impo
 
 ## Acceptance Criteria
 - User can create a project with NLP task types (`text_classification`, `summarization`, `question_answering`).
+- The default research workspace exposes NLP task types and bundled sample NLP datasets.
 - User can create a dataset with NLP format, upload text files, edit annotations, and run cleaning/augmentations.
 - Each bundled NLP task sample dataset has at least 20 annotated text items across train, valid, and test splits.
 - User can train NLP models, monitor training logs, view evaluation comparison results, and run text-based inference.
+- Text classification model options include TF-IDF, Keras CNN, Keras LSTM, Keras BiLSTM, and Hugging Face BERT.
+- Summarization model options include extractive baseline, Keras seq2seq, and Hugging Face BART.
+- Question answering model options include keyword QA and Hugging Face BERT QA.

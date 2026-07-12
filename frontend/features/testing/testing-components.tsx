@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FlaskConical } from "lucide-react";
 import { areTasksCompatible, formatMetric } from "@/features/platform/utils";
 import { EmptyState, Metric, StatusBadge, toggleId } from "@/features/platform/ui";
 import type { EvaluationJob, EvaluationPerImageRow, TaskType } from "@/types/api";
@@ -17,15 +18,17 @@ export function TestingJobTable({
   selectedIds,
   setSelectedIds,
   modelTaskById = {},
-  modelNameById = {}
+  modelNameById = {},
+  taskType
 }: {
   jobs: EvaluationJob[];
   selectedIds: string[];
   setSelectedIds: (ids: string[]) => void;
   modelTaskById?: Record<string, TaskType>;
   modelNameById?: Record<string, string>;
+  taskType?: TaskType;
 }) {
-  const metricColumns = testingTableColumns(jobs, modelTaskById);
+  const metricColumns = testingTableColumns(jobs, modelTaskById, taskType);
   return (
     <div className="table-wrap">
       <table>
@@ -76,14 +79,16 @@ export function TestingJobTable({
 export function TestingComparison({
   jobs,
   modelTaskById = {},
-  modelNameById = {}
+  modelNameById = {},
+  taskType
 }: {
   jobs: EvaluationJob[];
   modelTaskById?: Record<string, TaskType>;
   modelNameById?: Record<string, string>;
+  taskType?: TaskType;
 }) {
-  if (jobs.length === 0) return <EmptyState label="No completed results for this dataset" />;
-  const metricColumns = comparisonMetricColumns(jobs, modelTaskById);
+  if (jobs.length === 0) return <EmptyState label="No completed results for this dataset" icon={<FlaskConical size={28} />} />;
+  const metricColumns = comparisonMetricColumns(jobs, modelTaskById, taskType);
   return (
     <div className="table-wrap responsive-card-table">
       <table>
@@ -116,7 +121,13 @@ export function TestingComparison({
   );
 }
 
-function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>) {
+function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>, taskType?: TaskType) {
+  const taskKind = taskType ? evaluationKindFromTask(taskType) : null;
+  if (taskKind === "classification") return classificationMetricColumns().slice(0, 2);
+  if (taskKind === "text_classification") return textClassificationMetricColumns().slice(0, 2);
+  if (taskKind === "summarization") return summarizationMetricColumns().slice(0, 2);
+  if (taskKind === "question_answering") return qaMetricColumns().slice(0, 2);
+  if (taskKind === "vision") return visionMetricColumns().slice(0, 2);
   const kinds = new Set(jobs.map((job) => inferEvaluationKind(job, modelTaskById[job.model_id])));
   if (kinds.size === 1 && kinds.has("classification")) {
     return classificationMetricColumns().slice(0, 2);
@@ -133,7 +144,13 @@ function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string
   ];
 }
 
-function comparisonMetricColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>) {
+function comparisonMetricColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>, taskType?: TaskType) {
+  const taskKind = taskType ? evaluationKindFromTask(taskType) : null;
+  if (taskKind === "classification") return classificationMetricColumns();
+  if (taskKind === "text_classification") return textClassificationMetricColumns();
+  if (taskKind === "summarization") return summarizationMetricColumns();
+  if (taskKind === "question_answering") return qaMetricColumns();
+  if (taskKind === "vision") return visionMetricColumns();
   const kinds = new Set(jobs.map((job) => inferEvaluationKind(job, modelTaskById[job.model_id])));
   if (kinds.size === 1 && kinds.has("classification")) return classificationMetricColumns();
   if (kinds.size === 1 && kinds.has("text_classification")) return textClassificationMetricColumns();
@@ -223,6 +240,14 @@ function inferEvaluationKind(job: EvaluationJob, modelTask?: TaskType): Evaluati
   return "classification";
 }
 
+function evaluationKindFromTask(taskType: TaskType): EvaluationDisplayKind {
+  if (taskType === "classification") return "classification";
+  if (taskType === "text_classification" || taskType === "text") return "text_classification";
+  if (taskType === "summarization") return "summarization";
+  if (taskType === "question_answering") return "question_answering";
+  return "vision";
+}
+
 function evaluationKindLabel(kind: EvaluationDisplayKind): string {
   if (kind === "classification") return "Classification";
   if (kind === "vision") return "Detection / segmentation";
@@ -235,10 +260,10 @@ function numberMetric(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-export function MetricsDetails({ job, rows }: { job: EvaluationJob; rows: EvaluationPerImageRow[] }) {
+export function MetricsDetails({ job, rows, modelTask }: { job: EvaluationJob; rows: EvaluationPerImageRow[]; modelTask?: TaskType }) {
   const metrics = job.metrics ?? {};
-  if (!metrics.samples) return <EmptyState label="No metrics yet" />;
-  const kind = inferEvaluationKind(job);
+  if (!metrics.samples) return <EmptyState label="No metrics yet" icon={<FlaskConical size={28} />} />;
+  const kind = inferEvaluationKind(job, modelTask);
   const labels = metrics.labels ?? metrics.image?.labels ?? metrics.text_classification?.labels ?? [];
   const scoreEntries = detailMetricEntries(job, kind);
   return (
@@ -282,7 +307,7 @@ function ObjectSummaryPanel({ objectMetrics }: { objectMetrics: Record<string, a
 }
 
 function ConfusionMatrix({ title, labels, matrix }: { title: string; labels: string[]; matrix: number[][] }) {
-  if (!matrix.length) return <EmptyState label={title} />;
+  if (!matrix.length) return <EmptyState label={title} icon={<FlaskConical size={28} />} />;
   return (
     <div>
       <h3 className="section-title">{title}</h3>

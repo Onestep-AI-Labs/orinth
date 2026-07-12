@@ -4,9 +4,9 @@
 
 import Link from "next/link";
 import { mediaUrl } from "@/lib/api";
-import { formatMetric, labelColor } from "@/features/platform/utils";
+import { formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
 import { Metric, StatusBadge, toggleId } from "@/features/platform/ui";
-import type { TrainingJob } from "@/types/api";
+import type { TaskType, TrainingJob } from "@/types/api";
 
 export function TrainingJobTable({
   jobs,
@@ -65,7 +65,7 @@ export function TrainingDetails({ job }: { job: TrainingJob }) {
   const chartKeys = trainingChartKeys(job);
   return (
     <div className="space-y-4">
-      <KeyValueTable title="Parameters" value={job.parameters} />
+      <KeyValueTable title="Parameters" value={visibleTrainingParameters(job)} />
       {metricRows.length > 0 && (
         <div className="metric-grid">
           {metricRows.slice(0, 10).map(([key, value]) => (
@@ -112,6 +112,53 @@ function trainingChartKeys(job: TrainingJob): string[] {
   ];
   const available = new Set(Object.keys(job.history[0] ?? {}));
   return preferred.filter((key) => available.has(key)).slice(0, 6);
+}
+
+function visibleTrainingParameters(job: TrainingJob): Record<string, any> {
+  const params = job.parameters ?? {};
+  const hyperparameters = params.hyperparameters ?? {};
+  const taskType = String(params.task_type ?? job.task_type ?? "");
+  const modelOptionId = String(params.model_option_id ?? "");
+  const rows: Record<string, any> = {
+    Task: formatDatasetTask(taskType as TaskType),
+    Model: modelOptionId || job.model_family,
+    Dataset: params.dataset_id ?? "-"
+  };
+  if (params.model_name) rows["Model name"] = params.model_name;
+  if (params.epochs !== undefined) rows.Epochs = params.epochs;
+
+  if (isNlpTask(taskType)) {
+    if (modelOptionId === "nlp_tfidf_classifier") {
+      rows.Strategy = "TF-IDF + Logistic Regression";
+      rows.C = params.learning_rate ?? "-";
+      return rows;
+    }
+    if (modelOptionId === "nlp_extractive_summarizer") {
+      rows.Strategy = "Extractive summary baseline";
+      return rows;
+    }
+    if (modelOptionId === "nlp_keyword_qa") {
+      rows.Strategy = "Keyword QA baseline";
+      return rows;
+    }
+    rows.Batch = params.batch_size ?? "-";
+    rows.Optimizer = params.optimizer ?? "-";
+    rows.LR = params.learning_rate ?? "-";
+    if (hyperparameters.max_length !== undefined) rows["Max length"] = hyperparameters.max_length;
+    if (hyperparameters.target_max_length !== undefined) rows["Target length"] = hyperparameters.target_max_length;
+    if (hyperparameters.vocab_size !== undefined) rows.Vocab = hyperparameters.vocab_size;
+    return rows;
+  }
+
+  rows.Size = params.image_size ?? "-";
+  rows.Batch = params.batch_size ?? "-";
+  rows.Optimizer = params.optimizer ?? "-";
+  rows.LR = params.learning_rate ?? "-";
+  rows.Device = params.device || "auto";
+  rows.Cache = params.cache ?? "-";
+  rows.Workers = params.workers ?? "-";
+  rows.Patience = params.patience ?? "-";
+  return rows;
 }
 
 function MiniLineChart({ rows, valueKey, color }: { rows: Array<Record<string, any>>; valueKey: string; color: string }) {

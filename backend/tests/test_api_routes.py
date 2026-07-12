@@ -8,8 +8,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.routes import router
+from app.api.routers import settings as settings_router
+from app.core.config import Settings
 from app.core.database import Base, get_db
 from app.db import models  # noqa: F401
+from app.services.settings import SettingsService
 
 
 @pytest.fixture
@@ -60,3 +63,56 @@ def test_core_api_routes_are_wired(client: TestClient) -> None:
     training_options_response = client.get("/api/training/model-options?task_type=classification")
     assert training_options_response.status_code == 200
     assert any(option["family"] == "keras_classification" for option in training_options_response.json())
+
+
+def test_settings_routes_save_hf_token_to_temp_env(
+    client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env_path = tmp_path / ".env"
+
+    def make_settings(token: str | None = None) -> Settings:
+        kwargs = {
+            "MODELS_DIR": str(tmp_path / "models"),
+            "DATASETS_DIR": str(tmp_path / "datasets"),
+            "STORAGE_DIR": str(tmp_path / "storage"),
+            "DATABASE_URL": f"sqlite:///{tmp_path / 'settings.db'}",
+            "HF_TOKEN": "",
+            "HUGGINGFACE_HUB_TOKEN": "",
+        }
+        if token:
+            kwargs["HUGGINGFACE_HUB_TOKEN"] = token
+        return Settings(**kwargs)
+
+    service = SettingsService(make_settings(), env_path=env_path)
+
+    def refresh_settings() -> None:
+        token = None
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("HUGGINGFACE_HUB_TOKEN="):
+                    token = line.split("=", 1)[1] or None
+        service.settings = make_settings(token)
+
+    monkeypatch.setattr(settings_router, "settings_service", service)
+    monkeypatch.setattr(settings_router, "refresh_settings", refresh_settings)
+    env_path.write_text("HF_TOKEN=legacy_alias\n", encoding="utf-8")
+
+    assert client.get("/api/settings").json() == {"huggingface_hub_token_configured": False}
+
+    saved = client.patch("/api/settings", json={"huggingface_hub_token": "hf_test_token"})
+    assert saved.status_code == 200
+    assert saved.json() == {"huggingface_hub_token_configured": True}
+    saved_env = env_path.read_text(encoding="utf-8")
+    assert "hf_test_token" in saved_env
+    assert "HF_TOKEN" not in saved_env
+    assert "hf_test_token" not in str(saved.json())
+
+    rejected = client.patch("/api/settings", json={"huggingface_hub_token": "bad\ntoken"})
+    assert rejected.status_code == 400
+
+    cleared = client.patch("/api/settings", json={"huggingface_hub_token": None})
+    assert cleared.status_code == 200
+    assert cleared.json() == {"huggingface_hub_token_configured": False}
+    assert "HUGGINGFACE_HUB_TOKEN" not in env_path.read_text(encoding="utf-8")

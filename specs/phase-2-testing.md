@@ -42,6 +42,7 @@ Run local evaluation jobs against image dataset splits and store metrics/artifac
 
 - Testing dashboard can create jobs.
 - Testing dashboard selection is task-first, then compatible models, then compatible datasets.
+- Testing empty states use the same testing icon as the project sidebar entry.
 - Testing dashboard can select multiple available models and create one evaluation job per model for comparison.
 - Testing only accepts model/dataset task-compatible pairs.
 - Keras classification trained models can be evaluated on classification dataset splits.

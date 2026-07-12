@@ -1141,7 +1141,7 @@ class DatasetService:
         for item_path in items:
             annotation_count += len(self._annotations(location, split, item_path, 1, 1))
         text_count = len(items) if self._is_nlp_task(location.task_type) else 0
-        image_count = len(items) if not self._is_nlp_task(location.task_type) else len(items)
+        image_count = len(items) if not self._is_nlp_task(location.task_type) else 0
         return DatasetSplitSummary(
             split=split,  # type: ignore[arg-type]
             image_count=image_count,

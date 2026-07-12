@@ -14,7 +14,6 @@ import {
   ChevronsRight,
   Database,
   FlaskConical,
-  ImageIcon,
   ScanEye,
   Settings
 } from "lucide-react";
@@ -194,7 +193,7 @@ function ProjectSidebar({
           <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />} iconOnly>
             Testing
           </SideLink>
-          <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ImageIcon size={17} />} iconOnly>
+          <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ScanEye size={17} />} iconOnly>
             Inference
           </SideLink>
         </nav>
@@ -243,7 +242,7 @@ function ProjectSidebar({
         <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />}>
           Testing
         </SideLink>
-        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ImageIcon size={17} />}>
+        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ScanEye size={17} />}>
           Inference
         </SideLink>
       </nav>

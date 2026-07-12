@@ -4,6 +4,7 @@ import { datasetsApi } from "@/lib/api/datasets";
 import { inferenceApi } from "@/lib/api/inference";
 import { modelsApi } from "@/lib/api/models";
 import { projectsApi } from "@/lib/api/projects";
+import { settingsApi } from "@/lib/api/settings";
 import { testingApi } from "@/lib/api/testing";
 import { trainingApi } from "@/lib/api/training";
 
@@ -13,5 +14,6 @@ export const api = {
   ...datasetsApi,
   ...inferenceApi,
   ...testingApi,
-  ...trainingApi
+  ...trainingApi,
+  ...settingsApi
 };

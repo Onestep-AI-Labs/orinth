@@ -25,7 +25,7 @@ export const trainingApi = {
     model_name?: string | null;
     base_model?: string | null;
     epochs: number;
-    image_size: number;
+    image_size?: number;
     batch_size: number;
     dataset_id?: string;
     optimizer?: string;

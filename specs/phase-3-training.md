@@ -2,7 +2,7 @@
 
 ## Status
 
-YOLO observable job MVP; Keras classification runner MVP; U-Net + Inception and transformer paths gated
+YOLO observable job MVP; Keras image classification MVP; NLP Keras and Hugging Face transformer paths in progress
 
 ## Goal
 
@@ -42,11 +42,17 @@ Provide a local, project-scoped training job platform that runs long image train
 - Keras classification runs write validation predictions, confusion matrix, classification report, ROC curve data, and macro/micro AUC when computable.
 - Dataset preprocessing is applied at training time by preparing transformed copies under the training run directory; original dataset images are never overwritten.
 - Preprocessing uses allowlisted Albumentations transforms with image-only classification, bbox-aware detection, and mask/polygon-compatible segmentation handling where applicable.
-- Model options list local YOLO, Ultralytics YOLO11/YOLO26 runnable entries, Keras Applications CNNs, gated Ultralytics specialist families, and gated Hugging Face transformer entries.
+- Model options list local YOLO, Ultralytics YOLO11/YOLO26 runnable entries, Keras Applications CNNs, task-declared NLP baselines, Keras NLP models, runnable Hugging Face NLP transformers, and gated unvalidated specialist families.
 - Runnable Ultralytics YOLO options use the YOLO family runner with weights such as `yolo11n.pt`, `yolo11n-seg.pt`, `yolo26n.pt`, and `yolo26n-seg.pt`.
 - Ultralytics SAM3, MobileSAM, FastSAM, YOLO-NAS, RT-DETR, and YOLO-World are cataloged but gated until their dataset and runner flows are validated.
 - Keras Applications options follow the official constructor pattern: `weights="imagenet"`, `include_top=False`, `pooling="avg"`, dataset-driven `input_shape`, and option-specific constructor kwargs such as MobileNetV2 `alpha` or EfficientNetB7 `name`.
-- Keras, Ultralytics, and Hugging Face asset preparation is explicit; unvalidated specialist and transformer preparation returns a gated status.
+- Keras, Ultralytics, and Hugging Face asset preparation is explicit; unvalidated specialist preparation returns a gated status.
+- Hugging Face asset preparation uses `HUGGINGFACE_HUB_TOKEN`/`HF_TOKEN` when configured and prepares BERT backbone assets without instantiating task heads.
+- NLP model options are discovered from task/model package catalogs instead of being hardcoded directly in the training service.
+- Runnable NLP Keras text-classification jobs write `best_model.keras`, `last_model.keras`, `tokenizer.json`, `metadata.json`, `results.csv`, `metrics.json`, and `validation_predictions.json`.
+- Runnable Hugging Face NLP jobs write a saved model directory plus tokenizer/config files and run-level metrics/prediction artifacts.
+- Hugging Face BERT training keeps `bert-base-uncased` as a neutral base checkpoint, suppresses expected task-head load reports, and logs a concise note that task heads are initialized for the selected dataset.
+- Training UI and detail views show task-relevant parameters; NLP length and vocabulary settings are sent through `hyperparameters`.
 - Terminal jobs can be deleted singly, in selected batches, or by clear-all; active jobs are blocked.
 - Backend startup marks queued/running jobs as failed because FastAPI background subprocesses do not survive restarts.
 - Completed YOLO and Keras classification runs can be used directly from the model registry; manual promotion remains idempotent.
@@ -60,6 +66,8 @@ Provide a local, project-scoped training job platform that runs long image train
 - Training dashboard defaults to classification and keeps model selection synchronized with the selected task.
 - YOLO runner writes logs, progress, parsed metrics, and artifacts.
 - Keras classification runner command generation is tested for official application examples and runnable when an annotated classification dataset is available.
+- Hugging Face token aliases are exported to subprocess training environments when configured.
+- Training forms and detail pages do not show image-only parameters for NLP jobs.
 - Active YOLO jobs can be canceled.
 - Failed jobs persist a clear error.
 - Promotion registers a completed YOLO `best.pt` as an inference model.
@@ -71,4 +79,4 @@ Provide a local, project-scoped training job platform that runs long image train
 ## Deferred
 
 - Full U-Net + Inception two-stage training runner.
-- Runnable Hugging Face transformer training.
+- Additional Hugging Face model families beyond initial BERT text classification/QA and BART summarization.

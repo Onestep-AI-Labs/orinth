@@ -21,6 +21,9 @@ export function TrainingPage() {
   const [batchSize, setBatchSize] = useState(16);
   const [optimizer, setOptimizer] = useState("AdamW");
   const [learningRate, setLearningRate] = useState(0.002);
+  const [maxLength, setMaxLength] = useState(160);
+  const [targetMaxLength, setTargetMaxLength] = useState(64);
+  const [vocabSize, setVocabSize] = useState(12000);
   const [device, setDevice] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { confirm, confirmationDialog } = useConfirmationDialog();
@@ -57,6 +60,16 @@ export function TrainingPage() {
     return tasks.length ? tasks : VISION_TASK_TYPES;
   }, [project?.task_types]);
   const nlp = isNlpTask(taskType);
+  const nlpBaseline = nlp && option?.source === "local" && ["nlp_tfidf_classifier", "nlp_extractive_summarizer", "nlp_keyword_qa"].includes(option.id);
+  const nlpNeural = nlp && !nlpBaseline;
+  const showBatch = !nlp || nlpNeural;
+  const showOptimization = !nlp || nlpNeural || option?.id === "nlp_tfidf_classifier";
+  const showMaxLength = nlpNeural || Boolean(option?.defaults.max_length);
+  const showTargetMaxLength = nlp && taskType === "summarization" && Boolean(option?.defaults.target_max_length);
+  const showVocabSize =
+    nlp &&
+    option?.source === "local" &&
+    (option.family === "nlp_keras_seq2seq" || Boolean(option.family?.startsWith("nlp_keras_")));
   const datasets = useMemo(
     () => (datasetsQuery.data ?? []).filter((dataset) => dataset.task_type === taskType),
     [datasetsQuery.data, taskType]
@@ -77,9 +90,14 @@ export function TrainingPage() {
 
   useEffect(() => {
     if (!option) return;
+    setEpochs((value) => Number(option.defaults.epochs ?? value));
     setImageSize((value) => Number(option.defaults.image_size ?? value));
+    setBatchSize((value) => Number(option.defaults.batch_size ?? value));
     setOptimizer((value) => String(option.defaults.optimizer ?? value));
     setLearningRate((value) => Number(option.defaults.learning_rate ?? value));
+    setMaxLength((value) => Number(option.defaults.max_length ?? value));
+    setTargetMaxLength((value) => Number(option.defaults.target_max_length ?? value));
+    setVocabSize((value) => Number(option.defaults.vocab_size ?? value));
   }, [option]);
 
   useEffect(() => {
@@ -93,6 +111,10 @@ export function TrainingPage() {
   async function runTraining() {
     const selectedOption = option ?? options[0];
     if (!selectedOption || !datasetId) return;
+    const hyperparameters: Record<string, number> = {};
+    if (nlp && showMaxLength) hyperparameters.max_length = maxLength;
+    if (nlp && showTargetMaxLength) hyperparameters.target_max_length = targetMaxLength;
+    if (nlp && showVocabSize) hyperparameters.vocab_size = vocabSize;
     await createMutation.mutateAsync({
       project_id: projectId,
       task_type: taskType,
@@ -100,15 +122,20 @@ export function TrainingPage() {
       model_option_id: selectedOption.id,
       model_name: modelName.trim() || null,
       epochs,
-      image_size: imageSize,
+      ...(nlp ? {} : { image_size: imageSize }),
       batch_size: batchSize,
       dataset_id: datasetId,
       optimizer,
       learning_rate: learningRate,
-      device,
-      cache: "disk",
-      workers: 0,
-      patience: 50
+      hyperparameters,
+      ...(nlp
+        ? {}
+        : {
+            device,
+            cache: "disk" as const,
+            workers: 0,
+            patience: 50
+          })
     });
   }
 
@@ -168,7 +195,7 @@ export function TrainingPage() {
               ))}
             </select>
           </Field>
-          <div className={`form-grid ${nlp ? "form-grid-two" : "form-grid-three"}`}>
+          <div className={`form-grid ${showBatch ? "form-grid-three" : "form-grid-two"}`}>
             <Field label="Epochs">
               <input type="number" min={1} max={1000} value={epochs} onChange={(event) => setEpochs(Number(event.target.value))} />
             </Field>
@@ -177,22 +204,50 @@ export function TrainingPage() {
                 <input type="number" min={128} max={2048} value={imageSize} onChange={(event) => setImageSize(Number(event.target.value))} />
               </Field>
             )}
-            <Field label="Batch">
-              <input type="number" min={-1} max={256} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value))} />
-            </Field>
+            {showBatch && (
+              <Field label="Batch">
+                <input type="number" min={1} max={256} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value))} />
+              </Field>
+            )}
           </div>
-          <div className="form-grid form-grid-two">
-            <Field label="Optimizer">
-              <select value={optimizer} onChange={(event) => setOptimizer(event.target.value)}>
-                <option value="AdamW">AdamW</option>
-                <option value="adam">Adam</option>
-                <option value="sgd">SGD</option>
-              </select>
+          {showMaxLength && (
+            <div className="form-grid form-grid-two">
+              <Field label="Max length">
+                <input type="number" min={8} max={2048} value={maxLength} onChange={(event) => setMaxLength(Number(event.target.value))} />
+              </Field>
+              {showTargetMaxLength ? (
+                <Field label="Target length">
+                  <input type="number" min={8} max={512} value={targetMaxLength} onChange={(event) => setTargetMaxLength(Number(event.target.value))} />
+                </Field>
+              ) : showVocabSize ? (
+                <Field label="Vocab">
+                  <input type="number" min={100} max={100000} value={vocabSize} onChange={(event) => setVocabSize(Number(event.target.value))} />
+                </Field>
+              ) : null}
+            </div>
+          )}
+          {showTargetMaxLength && showVocabSize && (
+            <Field label="Vocab">
+              <input type="number" min={100} max={100000} value={vocabSize} onChange={(event) => setVocabSize(Number(event.target.value))} />
             </Field>
-            <Field label="LR">
-              <input type="number" step={0.0001} value={learningRate} onChange={(event) => setLearningRate(Number(event.target.value))} />
-            </Field>
-          </div>
+          )}
+          {showOptimization && (
+            <div className="form-grid form-grid-two">
+              <Field label="Optimizer">
+                <select value={optimizer} onChange={(event) => setOptimizer(event.target.value)}>
+                  <option value="AdamW">AdamW</option>
+                  <option value="adam">Adam</option>
+                  <option value="adamw">AdamW</option>
+                  <option value="sgd">SGD</option>
+                  <option value="liblinear">Liblinear</option>
+                  <option value="keyword">Keyword</option>
+                </select>
+              </Field>
+              <Field label={option?.id === "nlp_tfidf_classifier" ? "C" : "LR"}>
+                <input type="number" step={0.0001} value={learningRate} onChange={(event) => setLearningRate(Number(event.target.value))} />
+              </Field>
+            </div>
+          )}
           {!nlp && (
             <Field label="Device">
               <input value={device} onChange={(event) => setDevice(event.target.value)} />

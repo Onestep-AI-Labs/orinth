@@ -181,6 +181,8 @@ def validation_metrics(y_true: list[int], y_pred: list[int], scores, labels: lis
     if not y_true or len(labels) < 2:
         return metrics
 
+    import numpy as np
+
     y_bin = label_binarize(y_true, classes=label_indices)
     if len(labels) == 2 and y_bin.ndim == 2 and y_bin.shape[1] == 1:
         y_bin = np.concatenate([1 - y_bin, y_bin], axis=1)

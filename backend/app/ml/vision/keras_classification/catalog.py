@@ -1,0 +1,168 @@
+from app.ml.common.catalog import TrainingModelDefinition
+
+KERAS_APPLICATION_OPTIONS = [
+    {
+        "id": "keras_mobilenet_v2",
+        "name": "Keras MobileNetV2",
+        "app_name": "MobileNetV2",
+        "image_size": 224,
+        "kwargs": {"alpha": 1.0},
+        "description": "Lightweight ImageNet CNN suitable for fast transfer learning.",
+    },
+    {
+        "id": "keras_efficientnet_b0",
+        "name": "Keras EfficientNetB0",
+        "app_name": "EfficientNetB0",
+        "image_size": 224,
+        "kwargs": {},
+        "description": "Balanced EfficientNet baseline for image classification transfer learning.",
+    },
+    {
+        "id": "keras_efficientnet_b1",
+        "name": "Keras EfficientNetB1",
+        "app_name": "EfficientNetB1",
+        "image_size": 240,
+        "kwargs": {},
+        "description": "EfficientNet B1 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_b2",
+        "name": "Keras EfficientNetB2",
+        "app_name": "EfficientNetB2",
+        "image_size": 260,
+        "kwargs": {},
+        "description": "EfficientNet B2 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_b3",
+        "name": "Keras EfficientNetB3",
+        "app_name": "EfficientNetB3",
+        "image_size": 300,
+        "kwargs": {},
+        "description": "EfficientNet B3 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_b4",
+        "name": "Keras EfficientNetB4",
+        "app_name": "EfficientNetB4",
+        "image_size": 380,
+        "kwargs": {},
+        "description": "EfficientNet B4 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_b5",
+        "name": "Keras EfficientNetB5",
+        "app_name": "EfficientNetB5",
+        "image_size": 456,
+        "kwargs": {},
+        "description": "EfficientNet B5 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_b6",
+        "name": "Keras EfficientNetB6",
+        "app_name": "EfficientNetB6",
+        "image_size": 528,
+        "kwargs": {},
+        "description": "EfficientNet B6 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_b7",
+        "name": "Keras EfficientNetB7",
+        "app_name": "EfficientNetB7",
+        "image_size": 600,
+        "kwargs": {"name": "efficientnetb7"},
+        "description": "Large EfficientNet B7 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_v2_b0",
+        "name": "Keras EfficientNetV2B0",
+        "app_name": "EfficientNetV2B0",
+        "image_size": 224,
+        "kwargs": {},
+        "description": "EfficientNetV2 B0 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_v2_b3",
+        "name": "Keras EfficientNetV2B3",
+        "app_name": "EfficientNetV2B3",
+        "image_size": 300,
+        "kwargs": {},
+        "description": "EfficientNetV2 B3 ImageNet backbone.",
+    },
+    {
+        "id": "keras_efficientnet_v2_s",
+        "name": "Keras EfficientNetV2S",
+        "app_name": "EfficientNetV2S",
+        "image_size": 384,
+        "kwargs": {},
+        "description": "EfficientNetV2 S ImageNet backbone.",
+    },
+    {
+        "id": "keras_resnet50",
+        "name": "Keras ResNet50",
+        "app_name": "ResNet50",
+        "image_size": 224,
+        "kwargs": {},
+        "description": "Classic ResNet50 ImageNet backbone.",
+    },
+    {
+        "id": "keras_xception",
+        "name": "Keras Xception",
+        "app_name": "Xception",
+        "image_size": 299,
+        "kwargs": {},
+        "description": "Xception ImageNet backbone.",
+    },
+    {
+        "id": "keras_inception_v3",
+        "name": "Keras InceptionV3",
+        "app_name": "InceptionV3",
+        "image_size": 299,
+        "kwargs": {},
+        "description": "InceptionV3 ImageNet backbone.",
+    },
+    {
+        "id": "keras_densenet121",
+        "name": "Keras DenseNet121",
+        "app_name": "DenseNet121",
+        "image_size": 224,
+        "kwargs": {},
+        "description": "DenseNet121 ImageNet backbone.",
+    },
+    {
+        "id": "keras_convnext_tiny",
+        "name": "Keras ConvNeXtTiny",
+        "app_name": "ConvNeXtTiny",
+        "image_size": 224,
+        "kwargs": {},
+        "description": "ConvNeXt Tiny ImageNet backbone.",
+    },
+]
+
+KERAS_APPLICATIONS_BY_ID = {item["id"]: item for item in KERAS_APPLICATION_OPTIONS}
+
+
+def keras_classification_training_options() -> list[TrainingModelDefinition]:
+    return [
+        TrainingModelDefinition(
+            id=item["id"],
+            name=item["name"],
+            family="keras_classification",
+            task_types=["classification"],
+            source="keras_applications",
+            runnable=True,
+            needs_download=True,
+            description=item["description"],
+            defaults={
+                "epochs": 10,
+                "image_size": item["image_size"],
+                "optimizer": "adam",
+                "weights": "imagenet",
+                "include_top": False,
+                "pooling": "avg",
+                "base_model": item["app_name"],
+                "application_kwargs": item["kwargs"],
+            },
+        )
+        for item in KERAS_APPLICATION_OPTIONS
+    ]

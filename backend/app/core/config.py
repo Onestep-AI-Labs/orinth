@@ -22,6 +22,8 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://127.0.0.1:3000",
         alias="BACKEND_CORS_ORIGINS",
     )
+    huggingface_hub_token: str | None = Field(default=None, alias="HUGGINGFACE_HUB_TOKEN")
+    hf_token: str | None = Field(default=None, alias="HF_TOKEN")
 
     @property
     def repo_root(self) -> Path:
@@ -61,6 +63,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.backend_cors_origins.split(",") if origin.strip()]
+
+    @property
+    def huggingface_token(self) -> str | None:
+        token = (self.hf_token or self.huggingface_hub_token or "").strip()
+        return token or None
 
 
 @lru_cache

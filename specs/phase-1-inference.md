@@ -34,10 +34,12 @@ Serve local image inference for registered model families. The original referenc
 - Inference UI queries `GET /api/models?available_only=true`; users can only run models with local or promoted trained assets available.
 - Inference UI selection is task-first, then available models filtered to the selected task.
 - Inference UI renders task-aware parameters: classification models hide detection-specific thresholds, while detection and segmentation models expose confidence and IoU controls.
+- Inference UI uses neutral inference iconography because the page supports both image and text inference.
 - Inference UI keeps model task metadata and result summary as compact inline rows instead of boxed metric grids.
 - Predictors are lazy-loaded.
 - YOLO predictors use registry-provided labels so trained project models are not limited to dental labels.
 - Keras classification models return image-level labels and class scores with no object detections.
+- Text inference supports baseline NLP models, trained Keras NLP artifacts, and trained Hugging Face NLP artifact directories through normalized `nlp_result` payloads.
 - Uploads and overlays are stored under ignored `storage/`.
 - Both model families return the same `InferenceResult` shape.
 - No detections returns image-level `Normal`.
@@ -62,10 +64,12 @@ Serve local image inference for registered model families. The original referenc
 - Models can be downloaded from the model catalog options menu when their local assets are available.
 - Inference forms list only available trained/registered models.
 - Completed runnable training jobs appear as available models for inference.
+- Completed NLP Keras/Hugging Face training jobs appear as available text models for compatible tasks.
 - Uploading an image returns detections, normalized boxes/polygons, image label, and overlay URL.
 - Job-based inference shows upload/model/prediction/overlay/persistence progress.
 - Frontend can choose a project/model and display result/history in the sidebar app.
 - Frontend inference parameters match the selected model task.
+- Inference result empty states use the same neutral icon as the inference sidebar entry.
 - Frontend can delete selected inference history rows or clear project history.
 - Backend tests pass.
 - At least one local smoke inference passes for each available model.

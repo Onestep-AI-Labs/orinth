@@ -9,9 +9,11 @@ import {
   FileText,
   FlaskConical,
   ImageIcon,
+  KeyRound,
   Layers3,
   Route,
-  ScanEye
+  ScanEye,
+  Settings
 } from "lucide-react";
 import { PageHeader, PanelTitle } from "@/features/platform/ui";
 
@@ -47,7 +49,7 @@ const sections = [
   {
     title: "NLP Workspace",
     status: "Active",
-    description: "Text classification, summarization, and question answering use offline local baselines across dataset, training, testing, and inference.",
+    description: "Text classification, summarization, and question answering support samples, local baselines, Keras models, and Hugging Face options.",
     href: "/documentation",
     icon: <FileText size={17} />
   }
@@ -80,10 +82,26 @@ const notes = [
     icon: <Route size={17} />
   },
   {
-    title: "Current domain",
-    description: "Vision and NLP workflows are active using the same project-first model.",
+    title: "Local assets",
+    description: "Uploads, overlays, datasets, model assets, and training runs stay in ignored workspace storage.",
     icon: <CheckCircle2 size={17} />
   }
+];
+
+const workflowSteps = [
+  "Create or select a project with the task types you need.",
+  "Create, import, clone, or use a bundled sample dataset.",
+  "Train a compatible local, Keras, Ultralytics, or Hugging Face model.",
+  "Test completed models against task-compatible test splits.",
+  "Run inference on images or text and inspect saved history."
+];
+
+const developerSteps = [
+  "Add a task-first model catalog entry.",
+  "Write a subprocess runner and normalized artifacts.",
+  "Register a lazy predictor and promotion path.",
+  "Keep frontend controls task-aware through option defaults.",
+  "Add tests and update the matching spec."
 ];
 
 export function DocumentationPage() {
@@ -95,9 +113,9 @@ export function DocumentationPage() {
           <span className="badge badge-ok">General AI research platform</span>
           <h3>One project structure for datasets, training, testing, and inference.</h3>
           <p>
-            Onestep AI Platform is organized around project-scoped AI research workflows. The current
-            implementation focuses on vision tasks, and the next expansion will bring NLP workflows into
-            the same workspace model.
+            Onestep AI Platform is organized around project-scoped AI research workflows for vision and
+            NLP tasks. Use it to prepare local datasets, train runnable models, compare test metrics, and
+            inspect inference outputs without turning the workspace into a clinical decision system.
           </p>
         </div>
       </section>
@@ -124,6 +142,19 @@ export function DocumentationPage() {
         </div>
       </section>
       <section className="panel">
+        <PanelTitle icon={<Route size={18} />} title="Workflow" />
+        <div className="documentation-note-grid">
+          {workflowSteps.map((step, index) => (
+            <article className="documentation-note" key={step}>
+              <span className="documentation-note-icon">{index + 1}</span>
+              <div>
+                <strong>{step}</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className="panel">
         <PanelTitle icon={<Route size={18} />} title="Research Tracks" />
         <div className="documentation-track-grid">
           {tracks.map((track) => (
@@ -135,6 +166,38 @@ export function DocumentationPage() {
                   <span className="badge">{track.status}</span>
                 </div>
                 <p>{track.description}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className="panel">
+        <PanelTitle icon={<Settings size={18} />} title="Settings" />
+        <div className="documentation-note-grid">
+          <article className="documentation-note">
+            <span className="documentation-note-icon"><KeyRound size={17} /></span>
+            <div>
+              <strong>Hugging Face token</strong>
+              <p>Settings can save `HUGGINGFACE_HUB_TOKEN` to the ignored workspace `.env` for authenticated Hub downloads.</p>
+            </div>
+          </article>
+          <article className="documentation-note">
+            <span className="documentation-note-icon"><CheckCircle2 size={17} /></span>
+            <div>
+              <strong>Secret handling</strong>
+              <p>The token status is visible, but the token value is never returned by the API.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+      <section className="panel">
+        <PanelTitle icon={<FileText size={18} />} title="Model Extensions" />
+        <div className="documentation-note-grid">
+          {developerSteps.map((step, index) => (
+            <article className="documentation-note" key={step}>
+              <span className="documentation-note-icon">{index + 1}</span>
+              <div>
+                <strong>{step}</strong>
               </div>
             </article>
           ))}

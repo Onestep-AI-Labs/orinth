@@ -9,15 +9,22 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.config import Settings
 from app.core.storage import Storage
-from app.ml.predictors.base import Predictor
-from app.ml.predictors.keras_classification import KerasClassificationPredictor
-from app.ml.predictors.nlp import (
+from app.ml.common.base import Predictor
+from app.ml.nlp.baseline.predictors import (
     ExtractiveSummarizerPredictor,
     KeywordQAPredictor,
     TextClassificationPredictor,
 )
-from app.ml.predictors.unet_inception import UnetInceptionPredictor
-from app.ml.predictors.yolo import YoloPredictor
+from app.ml.nlp.huggingface.predictors import (
+    HuggingFaceQAPredictor,
+    HuggingFaceSummarizerPredictor,
+    HuggingFaceTextClassificationPredictor,
+)
+from app.ml.nlp.keras_classifier import KerasTextClassificationPredictor
+from app.ml.nlp.seq2seq.predictor import KerasSeq2SeqSummarizerPredictor
+from app.ml.vision.keras_classification.predictor import KerasClassificationPredictor
+from app.ml.vision.unet_inception.predictor import UnetInceptionPredictor
+from app.ml.vision.yolo.predictor import YoloPredictor
 from app.schemas import ModelInfo
 
 
@@ -181,6 +188,31 @@ class ModelRegistry:
                     spec.paths.get("model"),
                     spec.labels or ["answer"],
                 )
+            elif spec.family in {"nlp_keras_cnn", "nlp_keras_lstm", "nlp_keras_bilstm"}:
+                self._predictors[model_id] = KerasTextClassificationPredictor(
+                    spec.paths["model"],
+                    spec.labels or ["positive", "negative", "neutral"],
+                )
+            elif spec.family == "nlp_keras_seq2seq":
+                self._predictors[model_id] = KerasSeq2SeqSummarizerPredictor(
+                    spec.paths["model"],
+                    spec.labels or ["summary"],
+                )
+            elif spec.family == "hf_bert_text_classification":
+                self._predictors[model_id] = HuggingFaceTextClassificationPredictor(
+                    spec.paths["model"],
+                    spec.labels or ["positive", "negative", "neutral"],
+                )
+            elif spec.family == "hf_bart_summarization":
+                self._predictors[model_id] = HuggingFaceSummarizerPredictor(
+                    spec.paths["model"],
+                    spec.labels or ["summary"],
+                )
+            elif spec.family == "hf_bert_question_answering":
+                self._predictors[model_id] = HuggingFaceQAPredictor(
+                    spec.paths["model"],
+                    spec.labels or ["answer"],
+                )
             else:
                 raise ValueError(f"Unsupported model family: {spec.family}")
         return self._predictors[model_id]
@@ -257,7 +289,7 @@ class ModelRegistry:
         if len(paths) != len(spec.paths):
             missing = [str(path) for path in spec.paths.values() if not path.exists()]
             raise FileNotFoundError(f"Model assets are missing for {model_id}: {missing}")
-        if len(paths) == 1:
+        if len(paths) == 1 and next(iter(paths.values())).is_file():
             key, path = next(iter(paths.items()))
             suffix = path.suffix or ".bin"
             return path, f"{slugify_model_name(spec.name)}-{model_id}-{key}{suffix}"
@@ -276,7 +308,12 @@ class ModelRegistry:
             }
             archive.writestr("metadata.json", json.dumps(metadata, indent=2))
             for key, path in paths.items():
-                archive.write(path, arcname=f"{key}{path.suffix or '.bin'}")
+                if path.is_dir():
+                    for nested in sorted(path.rglob("*")):
+                        if nested.is_file():
+                            archive.write(nested, arcname=f"{key}/{nested.relative_to(path).as_posix()}")
+                else:
+                    archive.write(path, arcname=f"{key}{path.suffix or '.bin'}")
         return archive_path, archive_path.name
 
     def promote_yolo_model(
