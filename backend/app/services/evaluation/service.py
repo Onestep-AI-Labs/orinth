@@ -107,7 +107,7 @@ class EvaluationService:
                 }
                 if (not dataset.editable and not sample_nlp) or dataset.format not in {"yolo", "image_folder", "text_folder", "jsonl", "csv"}:
                     continue
-                if project_id and dataset.project_id != project_id:
+                if project_id and dataset.project_id != project_id and not sample_nlp:
                     continue
                 for split, summary in dataset.splits.items():
                     if split != "test":

@@ -777,6 +777,11 @@ def test_nlp_reference_models_and_evaluation(tmp_path: Path):
     assert all(dataset.task_type == "summarization" for dataset in summary_datasets)
     assert any(dataset.key == "dataset:sample_summarization:test" for dataset in summary_datasets)
 
+    # Test that sample datasets are also listed when a custom project_id is provided
+    custom_project_datasets = service.list_datasets(project_id="custom-project-id", task_type="summarization")
+    assert custom_project_datasets
+    assert any(dataset.key == "dataset:sample_summarization:test" for dataset in custom_project_datasets)
+
     job = service.create_job(
         db,
         EvaluationJobCreate(
