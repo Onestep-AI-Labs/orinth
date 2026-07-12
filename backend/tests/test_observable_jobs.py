@@ -16,6 +16,7 @@ from app.schemas import (
     DatasetCreate,
     EvaluationJobBatchCreate,
     EvaluationJobCreate,
+    InferenceParameters,
     ModelAssetPrepareRequest,
     TrainingJobCreate,
 )
@@ -31,6 +32,7 @@ from app.services.training import (
     TrainingService,
     ultralytics_initial_weights,
 )
+from app.training.runners.nlp_train import train_text_classifier
 
 
 def make_settings(tmp_path: Path) -> Settings:
@@ -473,4 +475,102 @@ def test_classification_evaluation_uses_predictor_scores(tmp_path: Path):
     assert metrics["samples"] == 2
     assert metrics["image"]["overall"]["accuracy"] == 1.0
     assert metrics["classification"]["macro_auc"] == 1.0
+    db.close()
+
+
+def test_nlp_training_option_command_and_runner(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    storage = Storage(settings)
+    storage.ensure()
+    dataset_service = DatasetService(settings, storage)
+    dataset = dataset_service.create_dataset(
+        DatasetCreate(
+            name="NLP Train",
+            task_type="text_classification",
+            format="text_folder",
+            labels=["positive", "negative"],
+        )
+    )
+    for split, rows in {
+        "train": [("good.txt", "good stable workflow", 0), ("bad.txt", "bad broken import", 1)],
+        "valid": [("ok.txt", "good clear output", 0)],
+    }.items():
+        for filename, text, class_id in rows:
+            text_path = storage.datasets / dataset.id / split / "texts" / filename
+            text_path.parent.mkdir(parents=True, exist_ok=True)
+            text_path.write_text(text, encoding="utf-8")
+            dataset_service.save_annotations(
+                dataset.id,
+                split,
+                filename,
+                DatasetAnnotationSave(
+                    annotations=[
+                        DatasetAnnotation(
+                            class_id=class_id,
+                            class_name="positive" if class_id == 0 else "negative",
+                            kind="classification",
+                        )
+                    ]
+                ),
+            )
+    service = TrainingService(settings, storage, ModelRegistry(settings, storage), dataset_service)
+    option = service.option_by_id("nlp_tfidf_classifier")
+    assert option.runnable is True
+    payload = TrainingJobCreate(
+        model_option_id="nlp_tfidf_classifier",
+        model_family="nlp_text_classification",
+        task_type="text_classification",
+        dataset_id=dataset.id,
+        epochs=2,
+    )
+    job = TrainingJob(id="nlp-job", model_family="nlp_text_classification", status="queued", parameters=payload.model_dump())
+
+    command = service._command_for_job(job, tmp_path / "run")
+    assert "app.training.runners.nlp_train" in command
+    assert "--task-type" in command
+
+    metrics, predictions = train_text_classifier(
+        dataset_service.dataset_root(dataset.id),
+        tmp_path / "runner",
+        ["positive", "negative"],
+        epochs=1,
+        learning_rate=1.0,
+    )
+    assert (tmp_path / "runner" / "model.pkl").exists()
+    assert "accuracy" in metrics
+    assert predictions
+
+
+def test_nlp_reference_models_and_evaluation(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    storage = Storage(settings)
+    storage.ensure()
+    dataset_service = DatasetService(settings, storage)
+    registry = ModelRegistry(settings, storage)
+
+    model_ids = {model.id for model in registry.list_models()}
+    assert {"keyword_text_classifier", "extractive_summarizer", "keyword_qa"}.issubset(model_ids)
+    prediction = registry.get_predictor("keyword_text_classifier").predict_text(
+        "The run completed with good stable metrics",
+        InferenceParameters(),
+    )
+    assert prediction["label"] in {"positive", "negative", "neutral"}
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'nlp-eval.db'}", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    service = EvaluationService(settings, storage, registry, dataset_service)
+    job = service.create_job(
+        db,
+        EvaluationJobCreate(
+            model_id="keyword_text_classifier",
+            dataset_key="dataset:sample_text_classification:test",
+        ),
+    )
+    metrics, artifacts = service._evaluate_nlp(db, job, datetime.utcnow(), "text_classification")
+
+    assert metrics["samples"] == 3
+    assert "text_classification" in metrics
+    assert Path(artifacts["metrics"]).exists()
     db.close()

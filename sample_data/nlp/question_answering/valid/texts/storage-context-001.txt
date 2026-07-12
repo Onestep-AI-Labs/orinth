@@ -1,0 +1,1 @@
+Generated uploads, overlays, database files, logs, and training artifacts are kept under ignored local storage.

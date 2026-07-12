@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Testing jobs use task-specific NLP metrics for classification, summarization, and QA.",
+      "answer": "Testing jobs use task-specific NLP metrics for classification, summarization, and QA.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

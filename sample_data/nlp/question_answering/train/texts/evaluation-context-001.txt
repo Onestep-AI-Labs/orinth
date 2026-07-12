@@ -1,0 +1,1 @@
+Evaluation metrics depend on the NLP task. Classification reports accuracy and F1 scores, summarization reports ROUGE scores, and question answering reports exact match and token F1.

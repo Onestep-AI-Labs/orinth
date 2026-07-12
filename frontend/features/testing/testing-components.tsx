@@ -5,7 +5,7 @@ import { areTasksCompatible, formatMetric } from "@/features/platform/utils";
 import { EmptyState, Metric, StatusBadge, toggleId } from "@/features/platform/ui";
 import type { EvaluationJob, EvaluationPerImageRow, TaskType } from "@/types/api";
 
-type EvaluationDisplayKind = "classification" | "vision";
+type EvaluationDisplayKind = "classification" | "vision" | "text_classification" | "summarization" | "question_answering";
 type MetricEntry = { key: string; label: string; value: number };
 
 function displayModelName(modelId: string, modelNameById: Record<string, string>): string {
@@ -121,6 +121,9 @@ function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string
   if (kinds.size === 1 && kinds.has("classification")) {
     return classificationMetricColumns().slice(0, 2);
   }
+  if (kinds.size === 1 && kinds.has("text_classification")) return textClassificationMetricColumns().slice(0, 2);
+  if (kinds.size === 1 && kinds.has("summarization")) return summarizationMetricColumns().slice(0, 2);
+  if (kinds.size === 1 && kinds.has("question_answering")) return qaMetricColumns().slice(0, 2);
   if (kinds.size === 1 && kinds.has("vision")) {
     return visionMetricColumns().slice(0, 2);
   }
@@ -133,6 +136,9 @@ function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string
 function comparisonMetricColumns(jobs: EvaluationJob[], modelTaskById: Record<string, TaskType>) {
   const kinds = new Set(jobs.map((job) => inferEvaluationKind(job, modelTaskById[job.model_id])));
   if (kinds.size === 1 && kinds.has("classification")) return classificationMetricColumns();
+  if (kinds.size === 1 && kinds.has("text_classification")) return textClassificationMetricColumns();
+  if (kinds.size === 1 && kinds.has("summarization")) return summarizationMetricColumns();
+  if (kinds.size === 1 && kinds.has("question_answering")) return qaMetricColumns();
   if (kinds.size === 1 && kinds.has("vision")) return visionMetricColumns();
   return [
     ...classificationMetricColumns().slice(0, 2),
@@ -158,8 +164,39 @@ function visionMetricColumns() {
   ];
 }
 
+function textClassificationMetricColumns() {
+  return [
+    { key: "text_accuracy", label: "Accuracy", get: (job: EvaluationJob) => numberMetric(job.metrics?.text_classification?.overall?.accuracy) },
+    { key: "text_macro_f1", label: "Macro F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.text_classification?.overall?.macro_f1) },
+    { key: "text_weighted_f1", label: "Weighted F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.text_classification?.overall?.weighted_f1) }
+  ];
+}
+
+function summarizationMetricColumns() {
+  return [
+    { key: "rouge1", label: "ROUGE-1", get: (job: EvaluationJob) => numberMetric(job.metrics?.summarization?.rouge1) },
+    { key: "rouge2", label: "ROUGE-2", get: (job: EvaluationJob) => numberMetric(job.metrics?.summarization?.rouge2) },
+    { key: "rougeL", label: "ROUGE-L", get: (job: EvaluationJob) => numberMetric(job.metrics?.summarization?.rougeL) }
+  ];
+}
+
+function qaMetricColumns() {
+  return [
+    { key: "exact_match", label: "Exact match", get: (job: EvaluationJob) => numberMetric(job.metrics?.question_answering?.exact_match) },
+    { key: "qa_f1", label: "F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.question_answering?.f1) }
+  ];
+}
+
 function detailMetricEntries(job: EvaluationJob, kind: EvaluationDisplayKind): MetricEntry[] {
-  const columns = kind === "classification" ? classificationMetricColumns() : visionMetricColumns();
+  const columns = kind === "classification"
+    ? classificationMetricColumns()
+    : kind === "text_classification"
+      ? textClassificationMetricColumns()
+      : kind === "summarization"
+        ? summarizationMetricColumns()
+        : kind === "question_answering"
+          ? qaMetricColumns()
+          : visionMetricColumns();
   const entries = columns
     .map((column) => ({ key: column.key, label: column.label, value: column.get(job) }))
     .filter((entry): entry is MetricEntry => typeof entry.value === "number");
@@ -178,12 +215,20 @@ function detailMetricEntries(job: EvaluationJob, kind: EvaluationDisplayKind): M
 function inferEvaluationKind(job: EvaluationJob, modelTask?: TaskType): EvaluationDisplayKind {
   if (modelTask === "classification") return "classification";
   if (modelTask === "object_detection" || modelTask === "segmentation") return "vision";
+  if (modelTask === "text_classification" || modelTask === "summarization" || modelTask === "question_answering") return modelTask;
   if (job.metrics?.pixel || job.metrics?.object) return "vision";
+  if (job.metrics?.text_classification) return "text_classification";
+  if (job.metrics?.summarization) return "summarization";
+  if (job.metrics?.question_answering) return "question_answering";
   return "classification";
 }
 
 function evaluationKindLabel(kind: EvaluationDisplayKind): string {
-  return kind === "classification" ? "Classification" : "Detection / segmentation";
+  if (kind === "classification") return "Classification";
+  if (kind === "vision") return "Detection / segmentation";
+  if (kind === "text_classification") return "Text classification";
+  if (kind === "summarization") return "Summarization";
+  return "Question answering";
 }
 
 function numberMetric(value: unknown): number | undefined {
@@ -194,7 +239,7 @@ export function MetricsDetails({ job, rows }: { job: EvaluationJob; rows: Evalua
   const metrics = job.metrics ?? {};
   if (!metrics.samples) return <EmptyState label="No metrics yet" />;
   const kind = inferEvaluationKind(job);
-  const labels = metrics.labels ?? metrics.image?.labels ?? [];
+  const labels = metrics.labels ?? metrics.image?.labels ?? metrics.text_classification?.labels ?? [];
   const scoreEntries = detailMetricEntries(job, kind);
   return (
     <div className="space-y-5">
@@ -204,14 +249,16 @@ export function MetricsDetails({ job, rows }: { job: EvaluationJob; rows: Evalua
           <Metric key={entry.key} label={entry.label} value={formatMetric(entry.value)} />
         ))}
       </div>
-      <ObjectSummaryPanel objectMetrics={metrics.object ?? {}} />
-      <div className="grid gap-4 xl:grid-cols-2">
-        <ConfusionMatrix title="Image Confusion" labels={metrics.image?.labels ?? labels} matrix={metrics.image?.confusion_matrix ?? []} />
-        {kind === "vision" && (
-          <ConfusionMatrix title="Object Confusion" labels={[...labels, "background"]} matrix={metrics.object?.confusion_matrix ?? []} />
-        )}
-      </div>
-      <PerClassReport report={metrics.image?.report ?? {}} />
+      {kind === "vision" && <ObjectSummaryPanel objectMetrics={metrics.object ?? {}} />}
+      {(kind === "classification" || kind === "text_classification" || kind === "vision") && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ConfusionMatrix title={kind === "text_classification" ? "Text Confusion" : "Image Confusion"} labels={metrics.image?.labels ?? metrics.text_classification?.labels ?? labels} matrix={metrics.image?.confusion_matrix ?? metrics.text_classification?.confusion_matrix ?? []} />
+          {kind === "vision" && (
+            <ConfusionMatrix title="Object Confusion" labels={[...labels, "background"]} matrix={metrics.object?.confusion_matrix ?? []} />
+          )}
+        </div>
+      )}
+      <PerClassReport report={metrics.image?.report ?? metrics.text_classification?.report ?? {}} />
       <PerImageTable rows={rows} labels={[...labels, "Normal"]} kind={kind} />
     </div>
   );
@@ -306,18 +353,27 @@ function PerImageTable({
 }) {
   if (rows.length === 0) return null;
   const classification = kind === "classification";
+  const textClassification = kind === "text_classification";
+  const generativeText = kind === "summarization" || kind === "question_answering";
   return (
     <div>
-      <h3 className="section-title">Per Image</h3>
+      <h3 className="section-title">{kind === "vision" || kind === "classification" ? "Per Image" : "Per Text"}</h3>
       <div className="table-wrap max-h-[420px] overflow-y-auto">
         <table>
           <thead>
-            {classification ? (
+            {classification || textClassification ? (
               <tr>
-                <th>Image</th>
+                <th>{textClassification ? "Text" : "Image"}</th>
                 <th>Ground truth class</th>
                 <th>Predicted class</th>
                 <th>Accuracy score</th>
+              </tr>
+            ) : generativeText ? (
+              <tr>
+                <th>Text</th>
+                <th>Reference</th>
+                <th>Prediction</th>
+                <th>Score</th>
               </tr>
             ) : (
               <tr>
@@ -334,12 +390,19 @@ function PerImageTable({
           <tbody>
             {rows.map((row) => {
               const accuracyScore = row.ground_truth === row.prediction ? 1 : 0;
-              return classification ? (
+              return classification || textClassification ? (
                 <tr key={row.image}>
-                  <td>{row.image}</td>
+                  <td>{textClassification ? (row.text_preview || row.image) : row.image}</td>
                   <td>{labels[row.ground_truth] ?? row.ground_truth}</td>
                   <td>{labels[row.prediction] ?? row.prediction}</td>
                   <td>{formatMetric(accuracyScore)}</td>
+                </tr>
+              ) : generativeText ? (
+                <tr key={row.image}>
+                  <td>{row.text_preview || row.image}</td>
+                  <td>{row.reference_text ?? "-"}</td>
+                  <td>{row.prediction_text ?? "-"}</td>
+                  <td>{formatMetric(kind === "summarization" ? row.scores?.rougeL : row.scores?.f1)}</td>
                 </tr>
               ) : (
                 <tr key={row.image}>
@@ -359,4 +422,3 @@ function PerImageTable({
     </div>
   );
 }
-

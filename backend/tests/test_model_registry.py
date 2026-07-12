@@ -116,8 +116,9 @@ def test_model_registry_filters_models_to_exact_project(tmp_path: Path):
     project_a_ids = {model.id for model in registry.list_models(project_id="project-a")}
     project_b_ids = {model.id for model in registry.list_models(project_id="project-b")}
 
-    assert project_a_ids == {project_a_model}
-    assert project_b_ids == {project_b_model}
+    nlp_reference_ids = {"keyword_text_classifier", "extractive_summarizer", "keyword_qa"}
+    assert project_a_ids == {project_a_model, *nlp_reference_ids}
+    assert project_b_ids == {project_b_model, *nlp_reference_ids}
     assert "yolo_11_best" not in project_a_ids
 
 

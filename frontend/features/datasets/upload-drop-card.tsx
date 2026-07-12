@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { FileImage, FolderOpen, Upload, UploadCloud } from "lucide-react";
+import { isNlpTask } from "@/features/platform/utils";
 import type { DatasetSummary } from "@/types/api";
 
 type FileSystemFileHandleLike = {
@@ -43,39 +44,44 @@ export function UploadDropCard({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [folderError, setFolderError] = useState("");
+  const nlp = isNlpTask(dataset.task_type);
 
   function addFiles(fileList: FileList | null) {
     if (!fileList) return;
-    const imageFiles = Array.from(fileList).filter((file) => file.type.startsWith("image/"));
-    setFiles(imageFiles);
-    if (imageFiles.length > 0) setUploadDialogOpen(true);
+    const acceptedFiles = Array.from(fileList).filter((file) =>
+      nlp ? [".txt", ".csv", ".jsonl"].some((suffix) => file.name.toLowerCase().endsWith(suffix)) : file.type.startsWith("image/")
+    );
+    setFiles(acceptedFiles);
+    if (acceptedFiles.length > 0) setUploadDialogOpen(true);
   }
 
   async function collectDirectoryImages(directory: FileSystemDirectoryHandleLike): Promise<File[]> {
-    const imageFiles: File[] = [];
+    const acceptedFiles: File[] = [];
     for await (const entry of directory.values()) {
       if (entry.kind === "directory") {
-        imageFiles.push(...await collectDirectoryImages(entry));
+        acceptedFiles.push(...await collectDirectoryImages(entry));
         continue;
       }
       const file = await entry.getFile();
-      if (file.type.startsWith("image/")) imageFiles.push(file);
+      if (nlp ? [".txt", ".csv", ".jsonl"].some((suffix) => file.name.toLowerCase().endsWith(suffix)) : file.type.startsWith("image/")) {
+        acceptedFiles.push(file);
+      }
     }
-    return imageFiles;
+    return acceptedFiles;
   }
 
   async function selectFolder() {
     setFolderError("");
     if (!window.showDirectoryPicker) {
-      setFolderError("Folder selection is not supported in this browser. Select files or drag image files instead.");
+      setFolderError(`Folder selection is not supported in this browser. Select files or drag ${nlp ? "text" : "image"} files instead.`);
       return;
     }
     try {
       const directory = await window.showDirectoryPicker();
-      const imageFiles = await collectDirectoryImages(directory);
-      setFiles(imageFiles);
-      if (imageFiles.length > 0) setUploadDialogOpen(true);
-      if (imageFiles.length === 0) setFolderError("No supported image files were found in that folder.");
+      const acceptedFiles = await collectDirectoryImages(directory);
+      setFiles(acceptedFiles);
+      if (acceptedFiles.length > 0) setUploadDialogOpen(true);
+      if (acceptedFiles.length === 0) setFolderError(`No supported ${nlp ? "text" : "image"} files were found in that folder.`);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setFolderError(error instanceof Error ? error.message : "Could not read the selected folder.");
@@ -101,7 +107,7 @@ export function UploadDropCard({
         type="file"
         hidden
         multiple
-        accept="image/png,image/jpeg,image/jpg,image/webp,image/bmp,image/avif"
+        accept={nlp ? ".txt,.csv,.jsonl,text/plain,text/csv,application/jsonl" : "image/png,image/jpeg,image/jpg,image/webp,image/bmp,image/avif"}
         onChange={(event) => addFiles(event.target.files)}
       />
       <div className="upload-drop-main">
@@ -109,8 +115,8 @@ export function UploadDropCard({
           <UploadCloud size={28} />
         </div>
         <div>
-          <strong>Drag and drop image file(s) to upload</strong>
-          <span>{files.length ? `${files.length} image${files.length === 1 ? "" : "s"} selected` : "Choose one or more image files"}</span>
+          <strong>Drag and drop {nlp ? "text" : "image"} file(s) to upload</strong>
+          <span>{files.length ? `${files.length} ${nlp ? "text" : "image"}${files.length === 1 ? "" : "s"} selected` : `Choose one or more ${nlp ? "text" : "image"} files`}</span>
         </div>
         <div className="upload-actions">
           <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}>
@@ -122,8 +128,8 @@ export function UploadDropCard({
         </div>
       </div>
       <div className="upload-support">
-        <span>Images: .jpg, .png, .bmp, .webp, .avif</span>
-        {dataset.task_type === "classification" && (
+        <span>{nlp ? "Text: .txt, .csv, .jsonl" : "Images: .jpg, .png, .bmp, .webp, .avif"}</span>
+        {(dataset.task_type === "classification" || dataset.task_type === "text_classification") && (
           <label className="select-label">
             Class label
             <select value={uploadClassId} onChange={(event) => setUploadClassId(Number(event.target.value))}>
@@ -153,8 +159,8 @@ export function UploadDropCard({
                 <UploadCloud size={19} />
               </span>
               <div>
-                <h2 id="upload-review-title">Review image batch</h2>
-                <p>{files.length ? `${files.length} image${files.length === 1 ? "" : "s"} ready for upload.` : "Choose image files or a folder."}</p>
+                <h2 id="upload-review-title">Review {nlp ? "text" : "image"} batch</h2>
+                <p>{files.length ? `${files.length} ${nlp ? "text" : "image"}${files.length === 1 ? "" : "s"} ready for upload.` : `Choose ${nlp ? "text" : "image"} files or a folder.`}</p>
               </div>
             </div>
             <div className="upload-review-list">

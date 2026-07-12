@@ -1,0 +1,1 @@
+The NLP training runner writes results.csv, metrics.json, validation_predictions.json, and a model artifact. Completed jobs can register the artifact back into the model catalog.

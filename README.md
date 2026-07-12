@@ -1,6 +1,6 @@
 # Onestep AI Platform
 
-Production-oriented local image intelligence workspace for dataset preparation, annotation, training, testing, and model inspection.
+Production-oriented local AI workspace for dataset preparation, annotation, training, testing, and model inspection across vision and NLP tasks.
 
 The repository keeps existing research assets local-only:
 

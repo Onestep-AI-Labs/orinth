@@ -1,0 +1,1 @@
+The exported metrics file contains columns for epoch, accuracy, and macro F1.

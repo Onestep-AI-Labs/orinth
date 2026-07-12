@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Evaluation artifacts power comparison cards and per-item NLP result tables.",
+      "answer": "Evaluation artifacts power comparison cards and per-item NLP result tables.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

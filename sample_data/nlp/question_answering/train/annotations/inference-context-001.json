@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What extra field can question answering include?",
+      "answer": "Question answering can include a question field.",
+      "text": "Question answering can include a question field.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

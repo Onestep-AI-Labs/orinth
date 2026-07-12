@@ -1,0 +1,1 @@
+Text preprocessing can lowercase content, remove punctuation, remove common stop words, and normalize whitespace. The original item remains unchanged while generated versions are saved separately.

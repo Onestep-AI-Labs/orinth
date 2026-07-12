@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "NLP augmentation creates versioned training copies using synonym replacement, swaps, or deletion.",
+      "answer": "NLP augmentation creates versioned training copies using synonym replacement, swaps, or deletion.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

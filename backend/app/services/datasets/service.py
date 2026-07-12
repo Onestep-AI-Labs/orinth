@@ -1,6 +1,8 @@
 import ast
+import csv
 import json
 import random
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -18,8 +20,11 @@ from app.services.datasets.constants import (
     ALLOWED_PREPROCESS_TRANSFORMS,
     IMAGE_SUFFIXES,
     IMAGE_TASK_TYPES,
+    NLP_TASK_TYPES,
     PREPROCESS_PRESETS,
     SPLITS,
+    TASK_TYPE_ALIASES,
+    TEXT_SUFFIXES,
     TRAINING_SPLITS,
 )
 from app.services.datasets.types import DatasetLocation
@@ -61,7 +66,11 @@ class DatasetService:
     def list_datasets(self, project_id: str | None = None) -> list[DatasetSummary]:
         summaries = [self.summary(location.id) for location in self._locations()]
         if project_id:
-            summaries = [dataset for dataset in summaries if dataset.project_id == project_id]
+            summaries = [
+                dataset
+                for dataset in summaries
+                if dataset.project_id == project_id or dataset.id.startswith("sample_")
+            ]
         return summaries
 
     def summary(self, dataset_id: str) -> DatasetSummary:
@@ -82,19 +91,21 @@ class DatasetService:
         )
 
     def create_dataset(self, payload: DatasetCreate) -> DatasetSummary:
-        if payload.task_type not in IMAGE_TASK_TYPES:
-            raise HTTPException(status_code=400, detail="Only image task datasets are supported")
-        labels = self._normalize_labels(payload.labels)
+        task_type = self._normalize_task_type(payload.task_type)
+        if task_type not in IMAGE_TASK_TYPES | NLP_TASK_TYPES:
+            raise HTTPException(status_code=400, detail="Unsupported dataset task type")
+        labels = self._normalize_labels(payload.labels, task_type)
         dataset_id = self._new_dataset_id(payload.name)
         root = self.storage.datasets / dataset_id
-        self._create_layout(root, payload.format, payload.task_type, labels)
+        format_name = self._default_format_for_task(task_type, payload.format)
+        self._create_layout(root, format_name, task_type, labels)
         self._write_manifest(
             root,
             dataset_id=dataset_id,
             name=payload.name,
-            format_name=payload.format,
+            format_name=format_name,
             project_id=payload.project_id,
-            task_type=payload.task_type,
+            task_type=task_type,
             labels=labels,
             metadata={
                 "created_from": "empty",
@@ -125,21 +136,27 @@ class DatasetService:
         source = Path(payload.path).expanduser().resolve()
         if not source.exists():
             raise HTTPException(status_code=404, detail=f"Dataset path not found: {source}")
+        task_type = self._normalize_task_type(payload.task_type)
+        if task_type in NLP_TASK_TYPES:
+            return self._import_nlp_dataset(source, payload, task_type)
         if not self._is_yolo_root(source):
             raise HTTPException(status_code=400, detail="Only YOLO dataset imports are supported")
 
-        labels = self._normalize_labels(payload.labels or self._labels_from_yolo_yaml(source) or DEFAULT_LABELS)
+        labels = self._normalize_labels(
+            payload.labels or self._labels_from_yolo_yaml(source) or DEFAULT_LABELS,
+            task_type,
+        )
         dataset_id = self._new_dataset_id(payload.name or source.name)
         root = self.storage.datasets / dataset_id
         shutil.copytree(source, root)
-        self._create_layout(root, payload.format, payload.task_type, labels)
+        self._create_layout(root, payload.format, task_type, labels)
         self._write_manifest(
             root,
             dataset_id=dataset_id,
             name=payload.name or source.name,
             format_name=payload.format,
             project_id=payload.project_id,
-            task_type=payload.task_type,
+            task_type=task_type,
             labels=labels,
             metadata={"imported_from": str(source)},
         )
@@ -149,8 +166,8 @@ class DatasetService:
         self, dataset_id: str, name: str | None = None, project_id: str | None = None
     ) -> DatasetSummary:
         source = self._location(dataset_id)
-        if source.format not in {"yolo", "image_folder", "image_manifest"}:
-            raise HTTPException(status_code=400, detail="Only image datasets can be cloned")
+        if source.format not in {"yolo", "image_folder", "image_manifest", "text_folder", "jsonl", "csv"}:
+            raise HTTPException(status_code=400, detail="Only supported datasets can be cloned")
 
         new_name = name or f"{source.name} Copy"
         new_id = self._new_dataset_id(new_name)
@@ -228,6 +245,11 @@ class DatasetService:
     ) -> DatasetItemDetail:
         location = self._editable_location(dataset_id)
         self._validate_split(split)
+        if self._is_nlp_task(location.task_type):
+            items = await self._save_uploaded_text(location, split, file, class_id, class_name)
+            if not items:
+                raise HTTPException(status_code=400, detail="No text rows were found")
+            return items[0]
         return await self._save_uploaded_image(location, split, file, class_id, class_name)
 
     async def upload_images(
@@ -244,11 +266,16 @@ class DatasetService:
         errors = []
         for file in files:
             try:
-                uploaded.append(await self._save_uploaded_image(location, split, file, class_id, class_name))
+                if self._is_nlp_task(location.task_type):
+                    uploaded.extend(
+                        await self._save_uploaded_text(location, split, file, class_id, class_name)
+                    )
+                else:
+                    uploaded.append(await self._save_uploaded_image(location, split, file, class_id, class_name))
             except HTTPException as exc:
                 errors.append(
                     {
-                        "filename": file.filename or "image",
+                        "filename": file.filename or "item",
                         "error": str(exc.detail),
                     }
                 )
@@ -261,12 +288,12 @@ class DatasetService:
         missing = []
         for item_id in payload.ids:
             try:
-                image_path = self._image_path(location, payload.split, item_id)
+                item_path = self._item_path(location, payload.split, item_id)
             except HTTPException:
                 missing.append(item_id)
                 continue
-            stem = image_path.stem
-            image_path.unlink(missing_ok=True)
+            stem = item_path.stem
+            item_path.unlink(missing_ok=True)
             (location.root / payload.split / "annotations" / f"{stem}.json").unlink(missing_ok=True)
             (location.root / payload.split / "labels" / f"{stem}.txt").unlink(missing_ok=True)
             deleted += 1
@@ -315,8 +342,8 @@ class DatasetService:
         source_splits = list(SPLITS if split_config.resplit_all else ("unassigned",))
         candidates = []
         for source_split in source_splits:
-            for image_path in self._image_paths(location, source_split):
-                detail = self._item_from_path(location, source_split, image_path, include_annotations=True)
+            for item_path in self._item_paths(location, source_split):
+                detail = self._item_from_path(location, source_split, item_path, include_annotations=True)
                 candidates.append((source_split, detail))
 
         grouped: dict[str, list[tuple[str, DatasetItemDetail]]] = {}
@@ -350,7 +377,7 @@ class DatasetService:
         self, dataset_id: str, split: str, payload: DatasetItemBulkLabelUpdate
     ) -> DatasetItemBulkLabelUpdateResponse:
         location = self._editable_location(dataset_id)
-        if location.task_type != "classification":
+        if location.task_type not in {"classification", "text_classification"}:
             raise HTTPException(status_code=409, detail="Bulk labels are only for classification datasets")
         self._validate_split(split)
         annotation = self._classification_annotation(location, payload.class_id, payload.class_name)
@@ -359,20 +386,20 @@ class DatasetService:
         items = []
         for item_id in payload.ids:
             try:
-                image_path = self._image_path(location, split, item_id)
+                item_path = self._item_path(location, split, item_id)
             except HTTPException:
                 missing.append(item_id)
                 continue
             self._write_annotation_json(
-                location.root / split / "annotations" / f"{image_path.stem}.json",
+                location.root / split / "annotations" / f"{item_path.stem}.json",
                 [annotation],
             )
-            (location.root / split / "labels" / f"{image_path.stem}.txt").write_text(
+            (location.root / split / "labels" / f"{item_path.stem}.txt").write_text(
                 "",
                 encoding="utf-8",
             )
             updated += 1
-            items.append(self.item_detail(dataset_id, split, image_path.name))
+            items.append(self.item_detail(dataset_id, split, item_path.name))
         return DatasetItemBulkLabelUpdateResponse(updated=updated, missing=missing, items=items)
 
     async def _save_uploaded_image(
@@ -405,6 +432,53 @@ class DatasetService:
         (label_dir / f"{path.stem}.txt").write_text("", encoding="utf-8")
         return self.item_detail(location.id, split, filename)
 
+    async def _save_uploaded_text(
+        self,
+        location: DatasetLocation,
+        split: str,
+        file: UploadFile,
+        class_id: int | None = None,
+        class_name: str | None = None,
+    ) -> list[DatasetItemDetail]:
+        suffix = Path(file.filename or "sample.txt").suffix.lower() or ".txt"
+        if suffix not in TEXT_SUFFIXES:
+            raise HTTPException(status_code=400, detail="Unsupported text file type")
+        raw = (await file.read()).decode("utf-8", errors="replace")
+        rows = self._text_upload_rows(raw, suffix)
+        if not rows:
+            raise HTTPException(status_code=400, detail="No text rows were found")
+        uploaded = []
+        for row_index, row in enumerate(rows, start=1):
+            text = self._text_from_upload_row(row)
+            if not text.strip():
+                continue
+            row_class_id = class_id
+            row_class_name = class_name or self._string_value(row, "label", "class", "class_name")
+            annotation = self._annotation_from_text_row(
+                location,
+                row,
+                class_id=row_class_id,
+                class_name=row_class_name,
+            )
+            stem = Path(file.filename or "sample").stem.replace(" ", "-")[:72] or "sample"
+            filename = (
+                f"{stem}-{uuid4().hex[:8]}.txt"
+                if len(rows) == 1
+                else f"{stem}-{row_index:04d}-{uuid4().hex[:8]}.txt"
+            )
+            text_dir = location.root / split / "texts"
+            annotation_dir = location.root / split / "annotations"
+            label_dir = location.root / split / "labels"
+            text_dir.mkdir(parents=True, exist_ok=True)
+            annotation_dir.mkdir(parents=True, exist_ok=True)
+            label_dir.mkdir(parents=True, exist_ok=True)
+            path = text_dir / filename
+            path.write_text(text, encoding="utf-8")
+            self._write_annotation_json(annotation_dir / f"{path.stem}.json", [annotation] if annotation else [])
+            (label_dir / f"{path.stem}.txt").write_text("", encoding="utf-8")
+            uploaded.append(self.item_detail(location.id, split, filename))
+        return uploaded
+
     def list_items(
         self,
         dataset_id: str,
@@ -431,8 +505,8 @@ class DatasetService:
         location = self._location(dataset_id)
         items = []
         for split_name in splits:
-            for image_path in self._image_paths(location, split_name):
-                detail = self._item_from_path(location, split_name, image_path, include_annotations=True)
+            for item_path in self._item_paths(location, split_name):
+                detail = self._item_from_path(location, split_name, item_path, include_annotations=True)
                 if unlabeled and detail.is_labeled:
                     continue
                 if class_filter and class_filter not in detail.classes:
@@ -443,7 +517,10 @@ class DatasetService:
                         dataset_id=detail.dataset_id,
                         split=detail.split,
                         filename=detail.filename,
+                        media_type=detail.media_type,
                         image_url=detail.image_url,
+                        text_url=detail.text_url,
+                        text_preview=detail.text_preview,
                         width=detail.width,
                         height=detail.height,
                         annotation_count=detail.annotation_count,
@@ -464,19 +541,37 @@ class DatasetService:
     def item_detail(self, dataset_id: str, split: str, item_id: str) -> DatasetItemDetail:
         self._validate_split(split)
         location = self._location(dataset_id)
-        image_path = self._image_path(location, split, item_id)
-        return self._item_from_path(location, split, image_path, include_annotations=True)
+        item_path = self._item_path(location, split, item_id)
+        return self._item_from_path(location, split, item_path, include_annotations=True)
 
     def image_path(self, dataset_id: str, split: str, item_id: str) -> Path:
         self._validate_split(split)
         return self._image_path(self._location(dataset_id), split, item_id)
+
+    def text_path(self, dataset_id: str, split: str, item_id: str) -> Path:
+        self._validate_split(split)
+        location = self._location(dataset_id)
+        if not self._is_nlp_task(location.task_type):
+            raise HTTPException(status_code=409, detail="Dataset item is not text")
+        return self._text_path(location, split, item_id)
 
     def save_annotations(
         self, dataset_id: str, split: str, item_id: str, payload: DatasetAnnotationSave
     ) -> DatasetItemDetail:
         location = self._editable_location(dataset_id)
         self._validate_split(split)
-        image_path = self._image_path(location, split, item_id)
+        item_path = self._item_path(location, split, item_id)
+        if self._is_nlp_task(location.task_type):
+            annotations = [
+                self._normalize_annotation(annotation, location, 0, 0)
+                for annotation in payload.annotations
+            ]
+            annotations = [annotation for annotation in annotations if annotation is not None]
+            annotation_path = location.root / split / "annotations" / f"{item_path.stem}.json"
+            self._write_annotation_json(annotation_path, annotations)
+            return self.item_detail(dataset_id, split, item_path.name)
+
+        image_path = item_path
         with Image.open(image_path) as image:
             width, height = image.size
 
@@ -494,16 +589,16 @@ class DatasetService:
         self, dataset_id: str, split: str, item_id: str, payload: DatasetItemLabelUpdate
     ) -> DatasetItemDetail:
         location = self._editable_location(dataset_id)
-        if location.task_type != "classification":
+        if location.task_type not in {"classification", "text_classification"}:
             raise HTTPException(status_code=409, detail="Quick labels are only for classification datasets")
         self._validate_split(split)
-        image_path = self._image_path(location, split, item_id)
+        item_path = self._item_path(location, split, item_id)
         annotation = self._classification_annotation(location, payload.class_id, payload.class_name)
         self._write_annotation_json(
-            location.root / split / "annotations" / f"{image_path.stem}.json",
+            location.root / split / "annotations" / f"{item_path.stem}.json",
             [annotation],
         )
-        return self.item_detail(dataset_id, split, image_path.name)
+        return self.item_detail(dataset_id, split, item_path.name)
 
     def preprocess_preview(
         self,
@@ -514,6 +609,23 @@ class DatasetService:
     ) -> DatasetPreprocessPreview:
         self._validate_split(split)
         location = self._location(dataset_id)
+        if self._is_nlp_task(location.task_type):
+            text_path = self._text_path(location, split, item_id)
+            preprocess = self._normalize_preprocess_config(
+                config or (location.metadata or {}).get("preprocess") or DatasetPreprocessConfig()
+            )
+            text = text_path.read_text(encoding="utf-8")
+            processed = self._process_text(text, preprocess)
+            preview = processed[:800] + ("..." if len(processed) > 800 else "")
+            return DatasetPreprocessPreview(
+                dataset_id=dataset_id,
+                split=split,  # type: ignore[arg-type]
+                item_id=text_path.name,
+                media_type="text",
+                image_url="",
+                text_preview=preview,
+                config=preprocess,
+            )
         image_path = self._image_path(location, split, item_id)
         preprocess = self._normalize_preprocess_config(
             config or (location.metadata or {}).get("preprocess") or DatasetPreprocessConfig()
@@ -557,6 +669,17 @@ class DatasetService:
         version_root = self.storage.dataset_versions / dataset_id / version_id
         version_name = payload.name or f"{location.name} version {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
         self._create_layout(version_root, location.format, location.task_type, location.labels)
+        if self._is_nlp_task(location.task_type):
+            return self._create_text_version(
+                location,
+                dataset_id=dataset_id,
+                version_id=version_id,
+                version_root=version_root,
+                version_name=version_name,
+                splits=splits,
+                augmentation_splits=augmentation_splits,
+                config=config,
+            )
 
         image_count = 0
         generated_count = 0
@@ -654,6 +777,8 @@ class DatasetService:
         for split_name in splits:
             self._validate_split(split_name)
         location = self._location(dataset_id)
+        if self._is_nlp_task(location.task_type):
+            return self._text_eda_summary(location, dataset_id, split, splits)
         class_counts = {label: 0 for label in location.labels}
         widths = []
         heights = []
@@ -732,6 +857,10 @@ class DatasetService:
         preprocess = self._normalize_preprocess_config(
             (location.metadata or {}).get("preprocess") or DatasetPreprocessConfig()
         )
+        if self._is_nlp_task(location.task_type):
+            if not preprocess.enabled:
+                return location.root
+            return self._prepared_text_root(location, output_root, preprocess)
         if not preprocess.enabled:
             return self.training_root(dataset_id) if location.format == "yolo" else location.root
 
@@ -838,7 +967,7 @@ class DatasetService:
 
     def _item_exists(self, location: DatasetLocation, split: str, item_id: str) -> bool:
         try:
-            self._image_path(location, split, item_id)
+            self._item_path(location, split, item_id)
         except HTTPException:
             return False
         return True
@@ -850,21 +979,22 @@ class DatasetService:
         target_split: str,
         item_id: str,
     ) -> str:
-        image_path = self._image_path(location, source_split, item_id)
-        source_stem = image_path.stem
-        target_image_dir = location.root / target_split / "images"
+        item_path = self._item_path(location, source_split, item_id)
+        source_stem = item_path.stem
+        media_dir = "texts" if self._is_nlp_task(location.task_type) else "images"
+        target_image_dir = location.root / target_split / media_dir
         target_annotation_dir = location.root / target_split / "annotations"
         target_label_dir = location.root / target_split / "labels"
         target_image_dir.mkdir(parents=True, exist_ok=True)
         target_annotation_dir.mkdir(parents=True, exist_ok=True)
         target_label_dir.mkdir(parents=True, exist_ok=True)
 
-        target_name = image_path.name
+        target_name = item_path.name
         if (target_image_dir / target_name).exists():
-            target_name = f"{image_path.stem}-{uuid4().hex[:8]}{image_path.suffix}"
+            target_name = f"{item_path.stem}-{uuid4().hex[:8]}{item_path.suffix}"
         target_stem = Path(target_name).stem
 
-        shutil.move(str(image_path), target_image_dir / target_name)
+        shutil.move(str(item_path), target_image_dir / target_name)
         source_annotation = location.root / source_split / "annotations" / f"{source_stem}.json"
         if source_annotation.exists():
             shutil.move(str(source_annotation), target_annotation_dir / f"{target_stem}.json")
@@ -937,19 +1067,24 @@ class DatasetService:
                 metadata=self._reference_metadata("dental dataset_coco_format"),
             ),
         ]
+        locations.extend(self._sample_nlp_locations())
         if self.storage.datasets.exists():
             for manifest_path in sorted(self.storage.datasets.glob("*/manifest.json")):
                 try:
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, KeyError):
                     continue
-                labels = self._normalize_labels(manifest.get("labels") or manifest.get("classes") or DEFAULT_LABELS)
+                task_type = self._normalize_task_type(manifest.get("task_type", DEFAULT_TASK_TYPE))
+                labels = self._normalize_labels(
+                    manifest.get("labels") or manifest.get("classes") or self._default_labels_for_task(task_type),
+                    task_type,
+                )
                 locations.append(
                     DatasetLocation(
                         id=manifest["id"],
                         project_id=manifest.get("project_id", DEFAULT_PROJECT_ID),
                         name=manifest["name"],
-                        task_type=manifest.get("task_type", DEFAULT_TASK_TYPE),
+                        task_type=task_type,
                         format=manifest.get("format", "yolo"),
                         source="editable",
                         root=manifest_path.parent,
@@ -958,6 +1093,34 @@ class DatasetService:
                         metadata=manifest.get("metadata", {}),
                     )
                 )
+        return locations
+
+    def _sample_nlp_locations(self) -> list[DatasetLocation]:
+        root = self.settings.repo_root / "sample_data" / "nlp"
+        specs = [
+            ("sample_text_classification", "Sample Text Classification", "text_classification", "text_classification", ["positive", "negative", "neutral"]),
+            ("sample_summarization", "Sample Summarization", "summarization", "summarization", ["summary"]),
+            ("sample_question_answering", "Sample Question Answering", "question_answering", "question_answering", ["answer"]),
+        ]
+        locations = []
+        for dataset_id, name, dirname, task_type, labels in specs:
+            dataset_root = root / dirname
+            if not dataset_root.exists():
+                continue
+            locations.append(
+                DatasetLocation(
+                    id=dataset_id,
+                    project_id=DEFAULT_PROJECT_ID,
+                    name=name,
+                    task_type=task_type,
+                    format="text_folder",
+                    source="reference",
+                    root=dataset_root,
+                    editable=False,
+                    labels=labels,
+                    metadata={"created_from": "tracked_sample"},
+                )
+            )
         return locations
 
     def _location(self, dataset_id: str) -> DatasetLocation:
@@ -973,19 +1136,25 @@ class DatasetService:
         return location
 
     def _split_summary(self, location: DatasetLocation, split: str) -> DatasetSplitSummary:
-        images = self._image_paths(location, split)
+        items = self._item_paths(location, split)
         annotation_count = 0
-        for image_path in images:
-            annotation_count += len(self._annotations(location, split, image_path, 1, 1))
+        for item_path in items:
+            annotation_count += len(self._annotations(location, split, item_path, 1, 1))
+        text_count = len(items) if self._is_nlp_task(location.task_type) else 0
+        image_count = len(items) if not self._is_nlp_task(location.task_type) else len(items)
         return DatasetSplitSummary(
             split=split,  # type: ignore[arg-type]
-            image_count=len(images),
+            image_count=image_count,
+            text_count=text_count,
+            item_count=len(items),
             annotation_count=annotation_count,
         )
 
     def _item_from_path(
         self, location: DatasetLocation, split: str, image_path: Path, include_annotations: bool
     ) -> DatasetItemDetail:
+        if self._is_nlp_task(location.task_type):
+            return self._text_item_from_path(location, split, image_path, include_annotations)
         with Image.open(image_path) as image:
             width, height = image.size
         annotations = self._annotations(location, split, image_path, width, height)
@@ -1005,6 +1174,34 @@ class DatasetService:
             label=primary.class_name if primary else None,
             is_labeled=primary is not None,
             annotations=annotations if include_annotations else [],
+        )
+
+    def _text_item_from_path(
+        self, location: DatasetLocation, split: str, text_path: Path, include_annotations: bool
+    ) -> DatasetItemDetail:
+        text = text_path.read_text(encoding="utf-8", errors="replace")
+        annotations = self._annotations(location, split, text_path, 0, 0)
+        classes = sorted({annotation.class_name for annotation in annotations if annotation.class_name})
+        primary = annotations[0] if annotations else None
+        label = primary.class_name if primary and primary.kind == "classification" else None
+        return DatasetItemDetail(
+            id=text_path.name,
+            dataset_id=location.id,
+            split=split,  # type: ignore[arg-type]
+            filename=text_path.name,
+            media_type="text",
+            image_url="",
+            text_url=f"/api/datasets/{location.id}/items/{split}/{quote(text_path.name)}/text",
+            text_preview=self._text_preview(text),
+            width=0,
+            height=0,
+            annotation_count=len(annotations),
+            classes=classes,
+            class_id=primary.class_id if primary and primary.kind == "classification" else None,
+            label=label,
+            is_labeled=self._is_text_labeled(location.task_type, annotations),
+            annotations=annotations if include_annotations else [],
+            text_content=text if include_annotations else None,
         )
 
     def _annotations(
@@ -1028,12 +1225,31 @@ class DatasetService:
             return []
         return sorted(path for path in image_dir.iterdir() if path.suffix.lower() in IMAGE_SUFFIXES)
 
+    def _text_paths(self, location: DatasetLocation, split: str) -> list[Path]:
+        text_dir = location.root / split / "texts"
+        if not text_dir.exists():
+            return []
+        return sorted(path for path in text_dir.iterdir() if path.suffix.lower() == ".txt")
+
+    def _item_paths(self, location: DatasetLocation, split: str) -> list[Path]:
+        return self._text_paths(location, split) if self._is_nlp_task(location.task_type) else self._image_paths(location, split)
+
     def _image_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
         filename = Path(item_id).name
         for image_path in self._image_paths(location, split):
             if image_path.name == filename:
                 return image_path
         raise HTTPException(status_code=404, detail="Dataset image not found")
+
+    def _text_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
+        filename = Path(item_id).name
+        for text_path in self._text_paths(location, split):
+            if text_path.name == filename:
+                return text_path
+        raise HTTPException(status_code=404, detail="Dataset text item not found")
+
+    def _item_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
+        return self._text_path(location, split, item_id) if self._is_nlp_task(location.task_type) else self._image_path(location, split, item_id)
 
     def _read_annotation_json(self, path: Path, labels: list[str]) -> list[DatasetAnnotation]:
         try:
@@ -1056,6 +1272,9 @@ class DatasetService:
                     kind=row.get("kind", "polygon"),
                     bbox=Box.model_validate(bbox) if bbox else None,
                     polygon=row.get("polygon", []),
+                    text=row.get("text") or row.get("summary"),
+                    question=row.get("question"),
+                    answer=row.get("answer"),
                 )
             )
         return annotations
@@ -1073,6 +1292,41 @@ class DatasetService:
     def _normalize_annotation(
         self, annotation: DatasetAnnotation, location: DatasetLocation, width: int, height: int
     ) -> DatasetAnnotation | None:
+        if self._is_nlp_task(location.task_type):
+            if location.task_type == "text_classification":
+                return self._classification_annotation(
+                    location,
+                    annotation.class_id,
+                    annotation.class_name or None,
+                )
+            if location.task_type == "summarization":
+                summary = (annotation.text or annotation.answer or "").strip()
+                if not summary:
+                    return None
+                return DatasetAnnotation(
+                    class_id=0,
+                    class_name=location.labels[0] if location.labels else "summary",
+                    kind="summary",
+                    text=summary,
+                    answer=summary,
+                    polygon=[],
+                    bbox=None,
+                )
+            question = (annotation.question or "").strip()
+            answer = (annotation.answer or annotation.text or "").strip()
+            if not question or not answer:
+                return None
+            return DatasetAnnotation(
+                class_id=0,
+                class_name=location.labels[0] if location.labels else "answer",
+                kind="qa",
+                question=question,
+                answer=answer,
+                text=answer,
+                polygon=[],
+                bbox=None,
+            )
+
         if annotation.class_id >= len(location.labels):
             return None
         class_name = location.labels[annotation.class_id]
@@ -1466,10 +1720,11 @@ class DatasetService:
 
     def _create_layout(self, root: Path, format_name: str, task_type: str, labels: list[str]) -> None:
         for split in SPLITS:
-            (root / split / "images").mkdir(parents=True, exist_ok=True)
+            media_dir = "texts" if self._is_nlp_task(task_type) else "images"
+            (root / split / media_dir).mkdir(parents=True, exist_ok=True)
             (root / split / "annotations").mkdir(parents=True, exist_ok=True)
             (root / split / "labels").mkdir(parents=True, exist_ok=True)
-        if format_name == "yolo":
+        if format_name == "yolo" and not self._is_nlp_task(task_type):
             self._write_data_yaml(root, labels)
 
     def _write_data_yaml(self, root: Path, labels: list[str]) -> None:
@@ -1537,10 +1792,12 @@ class DatasetService:
 
     def _label_is_used(self, location: DatasetLocation, label_index: int) -> bool:
         for split in SPLITS:
-            for image_path in self._image_paths(location, split):
-                with Image.open(image_path) as image:
-                    width, height = image.size
-                for annotation in self._annotations(location, split, image_path, width, height):
+            for item_path in self._item_paths(location, split):
+                width, height = 1, 1
+                if not self._is_nlp_task(location.task_type):
+                    with Image.open(item_path) as image:
+                        width, height = image.size
+                for annotation in self._annotations(location, split, item_path, width, height):
                     if annotation.class_id == label_index:
                         return True
         return False
@@ -1549,9 +1806,11 @@ class DatasetService:
         self, location: DatasetLocation, deleted_index: int, labels: list[str]
     ) -> None:
         for split in SPLITS:
-            for image_path in self._image_paths(location, split):
-                with Image.open(image_path) as image:
-                    width, height = image.size
+            for image_path in self._item_paths(location, split):
+                width, height = 1, 1
+                if not self._is_nlp_task(location.task_type):
+                    with Image.open(image_path) as image:
+                        width, height = image.size
                 annotations = []
                 for annotation in self._annotations(location, split, image_path, width, height):
                     if annotation.class_id == deleted_index:
@@ -1568,7 +1827,390 @@ class DatasetService:
                     location.root / split / "annotations" / f"{image_path.stem}.json",
                     annotations,
                 )
-                self._write_yolo_label(location, split, image_path.stem, annotations, width, height)
+                if not self._is_nlp_task(location.task_type):
+                    self._write_yolo_label(location, split, image_path.stem, annotations, width, height)
+
+    def _is_nlp_task(self, task_type: str) -> bool:
+        return self._normalize_task_type(task_type) in NLP_TASK_TYPES
+
+    def _normalize_task_type(self, task_type: str) -> str:
+        return TASK_TYPE_ALIASES.get(str(task_type), str(task_type))
+
+    def _default_format_for_task(self, task_type: str, format_name: str) -> str:
+        if task_type in NLP_TASK_TYPES and format_name in {"yolo", "image_folder", "image_manifest"}:
+            return "text_folder"
+        return format_name
+
+    def _default_labels_for_task(self, task_type: str) -> list[str]:
+        if task_type == "text_classification":
+            return ["positive", "negative", "neutral"]
+        if task_type == "summarization":
+            return ["summary"]
+        if task_type == "question_answering":
+            return ["answer"]
+        return DEFAULT_LABELS.copy()
+
+    def _normalize_labels(self, labels: list[str], task_type: str = DEFAULT_TASK_TYPE) -> list[str]:
+        normalized = []
+        for label in labels or []:
+            cleaned = self._clean_label(label)
+            if cleaned not in normalized:
+                normalized.append(cleaned)
+        return normalized or self._default_labels_for_task(task_type)
+
+    def _text_upload_rows(self, raw: str, suffix: str) -> list[dict]:
+        if suffix == ".jsonl":
+            rows = []
+            for line in raw.splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    parsed = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(parsed, dict):
+                    rows.append(parsed)
+            return rows
+        if suffix == ".csv":
+            return [dict(row) for row in csv.DictReader(raw.splitlines())]
+        return [{"text": raw}]
+
+    def _import_nlp_dataset(
+        self, source: Path, payload: DatasetImportRequest, task_type: str
+    ) -> DatasetSummary:
+        labels = self._normalize_labels(payload.labels or self._default_labels_for_task(task_type), task_type)
+        dataset_id = self._new_dataset_id(payload.name or source.stem)
+        root = self.storage.datasets / dataset_id
+        format_name = self._default_format_for_task(task_type, payload.format)
+        self._create_layout(root, format_name, task_type, labels)
+        location = DatasetLocation(
+            id=dataset_id,
+            project_id=payload.project_id,
+            name=payload.name or source.stem,
+            task_type=task_type,
+            format=format_name,
+            source="editable",
+            root=root,
+            editable=True,
+            labels=labels,
+            metadata={},
+        )
+        if source.is_dir():
+            for text_file in sorted(source.rglob("*.txt")):
+                text = text_file.read_text(encoding="utf-8", errors="replace")
+                annotation = self._annotation_from_text_row(location, {"text": text})
+                self._write_text_item(location, "unassigned", text_file.name, text, annotation)
+        elif source.suffix.lower() in TEXT_SUFFIXES:
+            rows = self._text_upload_rows(source.read_text(encoding="utf-8", errors="replace"), source.suffix.lower())
+            for index, row in enumerate(rows, start=1):
+                text = self._text_from_upload_row(row)
+                annotation = self._annotation_from_text_row(location, row)
+                self._write_text_item(location, "unassigned", f"{source.stem}-{index:04d}.txt", text, annotation)
+        else:
+            raise HTTPException(status_code=400, detail="Only .txt, .csv, .jsonl, or folders are supported for NLP import")
+        self._write_manifest(
+            root,
+            dataset_id=dataset_id,
+            name=payload.name or source.stem,
+            format_name=format_name,
+            project_id=payload.project_id,
+            task_type=task_type,
+            labels=labels,
+            metadata={
+                "imported_from": str(source),
+                "split_config": DatasetSplitConfig().model_dump(mode="json"),
+            },
+        )
+        return self.summary(dataset_id)
+
+    def _write_text_item(
+        self,
+        location: DatasetLocation,
+        split: str,
+        filename: str,
+        text: str,
+        annotation: DatasetAnnotation | None,
+    ) -> Path:
+        safe_stem = Path(filename).stem.replace(" ", "-")[:72] or "sample"
+        target_name = f"{safe_stem}-{uuid4().hex[:8]}.txt"
+        text_dir = location.root / split / "texts"
+        text_dir.mkdir(parents=True, exist_ok=True)
+        path = text_dir / target_name
+        path.write_text(text, encoding="utf-8")
+        self._write_annotation_json(
+            location.root / split / "annotations" / f"{path.stem}.json",
+            [annotation] if annotation else [],
+        )
+        (location.root / split / "labels" / f"{path.stem}.txt").parent.mkdir(parents=True, exist_ok=True)
+        (location.root / split / "labels" / f"{path.stem}.txt").write_text("", encoding="utf-8")
+        return path
+
+    def _text_from_upload_row(self, row: dict) -> str:
+        return self._string_value(row, "text", "content", "source", "document", "context", "body")
+
+    def _string_value(self, row: dict, *keys: str) -> str:
+        for key in keys:
+            value = row.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        return ""
+
+    def _annotation_from_text_row(
+        self,
+        location: DatasetLocation,
+        row: dict,
+        *,
+        class_id: int | None = None,
+        class_name: str | None = None,
+    ) -> DatasetAnnotation | None:
+        if location.task_type == "text_classification":
+            raw_class_id = class_id
+            if raw_class_id is None and self._string_value(row, "class_id"):
+                try:
+                    raw_class_id = int(self._string_value(row, "class_id"))
+                except ValueError:
+                    raw_class_id = None
+            raw_class_name = class_name or self._string_value(row, "label", "class", "class_name")
+            if raw_class_id is None and not raw_class_name:
+                return None
+            return self._classification_annotation(location, raw_class_id, raw_class_name)
+        if location.task_type == "summarization":
+            summary = self._string_value(row, "summary", "reference_summary", "target", "answer")
+            if not summary:
+                return None
+            return DatasetAnnotation(
+                class_id=0,
+                class_name=location.labels[0],
+                kind="summary",
+                text=summary,
+                answer=summary,
+            )
+        question = self._string_value(row, "question", "query")
+        answer = self._string_value(row, "answer", "answers", "target")
+        if not question or not answer:
+            return None
+        return DatasetAnnotation(
+            class_id=0,
+            class_name=location.labels[0],
+            kind="qa",
+            question=question,
+            answer=answer,
+            text=answer,
+        )
+
+    def _text_preview(self, text: str, limit: int = 180) -> str:
+        compact = " ".join(text.split())
+        return compact[:limit] + ("..." if len(compact) > limit else "")
+
+    def _is_text_labeled(self, task_type: str, annotations: list[DatasetAnnotation]) -> bool:
+        if task_type == "text_classification":
+            return any(annotation.kind == "classification" for annotation in annotations)
+        if task_type == "summarization":
+            return any(annotation.kind == "summary" and (annotation.text or annotation.answer) for annotation in annotations)
+        if task_type == "question_answering":
+            return any(annotation.kind == "qa" and annotation.question and annotation.answer for annotation in annotations)
+        return False
+
+    def _process_text(self, text: str, config: DatasetPreprocessConfig) -> str:
+        if not config.enabled:
+            return text
+        tokens = text
+        if "lowercase" in config.transforms:
+            tokens = tokens.lower()
+        if "remove_punctuation" in config.transforms:
+            tokens = re.sub(r"[^\w\s]", " ", tokens)
+        if "remove_stopwords" in config.transforms:
+            stopwords = {
+                "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+                "has", "he", "in", "is", "it", "its", "of", "on", "that", "the",
+                "to", "was", "were", "will", "with",
+            }
+            tokens = " ".join(word for word in tokens.split() if word.lower() not in stopwords)
+        if "normalize_whitespace" in config.transforms:
+            tokens = " ".join(tokens.split())
+        return tokens
+
+    def _augment_text(self, text: str, copy_index: int) -> str:
+        words = text.split()
+        if len(words) < 2:
+            return text
+        rng = random.Random(copy_index + len(text))
+        synonyms = {
+            "good": "positive",
+            "great": "excellent",
+            "bad": "negative",
+            "small": "compact",
+            "large": "big",
+            "fast": "quick",
+            "slow": "delayed",
+        }
+        if copy_index % 3 == 0:
+            candidates = [idx for idx, word in enumerate(words) if word.lower().strip(".,;:!?") in synonyms]
+            if candidates:
+                idx = rng.choice(candidates)
+                clean = words[idx].lower().strip(".,;:!?")
+                words[idx] = synonyms[clean]
+        elif copy_index % 3 == 1 and len(words) > 3:
+            left = rng.randrange(0, len(words) - 1)
+            words[left], words[left + 1] = words[left + 1], words[left]
+        elif len(words) > 5:
+            words.pop(rng.randrange(0, len(words)))
+        return " ".join(words)
+
+    def _create_text_version(
+        self,
+        location: DatasetLocation,
+        *,
+        dataset_id: str,
+        version_id: str,
+        version_root: Path,
+        version_name: str,
+        splits: list[str],
+        augmentation_splits: list[str],
+        config: DatasetPreprocessConfig,
+    ) -> DatasetVersionSummary:
+        text_count = 0
+        generated_count = 0
+        for split in splits:
+            for text_path in self._text_paths(location, split):
+                text = self._process_text(text_path.read_text(encoding="utf-8"), config)
+                annotations = self._annotations(location, split, text_path, 0, 0)
+                output = version_root / split / "texts" / text_path.name
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(text, encoding="utf-8")
+                self._write_annotation_json(version_root / split / "annotations" / f"{text_path.stem}.json", annotations)
+                text_count += 1
+                if (
+                    not config.enabled
+                    or config.augmentation_mode != "materialize"
+                    or split not in augmentation_splits
+                ):
+                    continue
+                for copy_index in range(config.copies_per_image):
+                    aug_stem = f"{text_path.stem}-aug-{copy_index + 1:02d}"
+                    aug_text = self._augment_text(text, copy_index)
+                    (version_root / split / "texts" / f"{aug_stem}.txt").write_text(aug_text, encoding="utf-8")
+                    self._write_annotation_json(version_root / split / "annotations" / f"{aug_stem}.json", annotations)
+                    text_count += 1
+                    generated_count += 1
+        created_at = datetime.utcnow()
+        metadata = {
+            "dataset_id": dataset_id,
+            "version_id": version_id,
+            "version_name": version_name,
+            "created_at": created_at.isoformat(),
+            "preprocess": config.model_dump(mode="json"),
+            "selected_splits": splits,
+            "augmentation_splits": augmentation_splits,
+            "text_count": text_count,
+            "item_count": text_count,
+            "generated_count": generated_count,
+            "source_path": str(location.root),
+        }
+        self._write_manifest(
+            version_root,
+            dataset_id=version_id,
+            name=version_name,
+            format_name=location.format,
+            project_id=location.project_id,
+            task_type=location.task_type,
+            labels=location.labels,
+            metadata=metadata,
+        )
+        return self._version_summary_from_manifest(dataset_id, version_root / "manifest.json")
+
+    def _prepared_text_root(
+        self,
+        location: DatasetLocation,
+        output_root: Path,
+        preprocess: DatasetPreprocessConfig,
+    ) -> Path:
+        if output_root.exists():
+            shutil.rmtree(output_root)
+        self._create_layout(output_root, location.format, location.task_type, location.labels)
+        self._write_manifest(
+            output_root,
+            dataset_id=location.id,
+            name=location.name,
+            format_name=location.format,
+            project_id=location.project_id,
+            task_type=location.task_type,
+            labels=location.labels,
+            metadata={**location.metadata, "prepared_from": str(location.root)},
+        )
+        for split in TRAINING_SPLITS:
+            for text_path in self._text_paths(location, split):
+                text = self._process_text(text_path.read_text(encoding="utf-8"), preprocess)
+                annotations = self._annotations(location, split, text_path, 0, 0)
+                output = output_root / split / "texts" / text_path.name
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(text, encoding="utf-8")
+                self._write_annotation_json(output_root / split / "annotations" / f"{text_path.stem}.json", annotations)
+                if preprocess.augmentation_mode == "materialize" and split == "train":
+                    for copy_index in range(preprocess.copies_per_image):
+                        aug_stem = f"{text_path.stem}-aug-{copy_index + 1:02d}"
+                        (output_root / split / "texts" / f"{aug_stem}.txt").write_text(
+                            self._augment_text(text, copy_index),
+                            encoding="utf-8",
+                        )
+                        self._write_annotation_json(output_root / split / "annotations" / f"{aug_stem}.json", annotations)
+        return output_root
+
+    def _text_eda_summary(
+        self, location: DatasetLocation, dataset_id: str, split: str, splits: list[str]
+    ) -> DatasetEdaSummary:
+        class_counts = {label: 0 for label in location.labels}
+        lengths = []
+        token_counts = []
+        annotation_count = 0
+        unlabeled_count = 0
+        missing_annotation_count = 0
+        item_count = 0
+        for split_name in splits:
+            for text_path in self._text_paths(location, split_name):
+                text = text_path.read_text(encoding="utf-8", errors="replace")
+                lengths.append(len(text))
+                token_counts.append(len(text.split()))
+                item_count += 1
+                annotations = self._annotations(location, split_name, text_path, 0, 0)
+                annotation_count += len(annotations)
+                if not self._is_text_labeled(location.task_type, annotations):
+                    unlabeled_count += 1
+                    missing_annotation_count += 1
+                for annotation in annotations:
+                    if annotation.class_name:
+                        class_counts[annotation.class_name] = class_counts.get(annotation.class_name, 0) + 1
+        warnings = []
+        if unlabeled_count:
+            warnings.append(f"{unlabeled_count} text items are missing task annotations")
+        nonzero_counts = [count for count in class_counts.values() if count > 0]
+        if len(nonzero_counts) >= 2 and max(nonzero_counts) / max(min(nonzero_counts), 1) >= 3:
+            warnings.append("Class distribution is imbalanced")
+        if item_count == 0:
+            warnings.append("No text items found in this split")
+        return DatasetEdaSummary(
+            dataset_id=dataset_id,
+            split=split,
+            split_counts={name: len(self._text_paths(location, name)) for name in SPLITS},
+            class_counts=class_counts,
+            unlabeled_count=unlabeled_count,
+            missing_annotation_count=missing_annotation_count,
+            image_count=item_count,
+            text_count=item_count,
+            item_count=item_count,
+            annotation_count=annotation_count,
+            image_size={},
+            aspect_ratio={},
+            text_length={
+                "min_chars": min(lengths) if lengths else None,
+                "max_chars": max(lengths) if lengths else None,
+                "mean_chars": round(mean(lengths), 2) if lengths else None,
+                "min_tokens": min(token_counts) if token_counts else None,
+                "max_tokens": max(token_counts) if token_counts else None,
+                "mean_tokens": round(mean(token_counts), 2) if token_counts else None,
+            },
+            warnings=warnings,
+        )
 
     def _new_dataset_id(self, name: str) -> str:
         slug = "".join(char.lower() if char.isalnum() else "-" for char in name).strip("-")
@@ -1577,14 +2219,6 @@ class DatasetService:
 
     def _is_yolo_root(self, root: Path) -> bool:
         return any((root / split / "images").exists() for split in SPLITS)
-
-    def _normalize_labels(self, labels: list[str]) -> list[str]:
-        normalized = []
-        for label in labels:
-            cleaned = self._clean_label(label)
-            if cleaned not in normalized:
-                normalized.append(cleaned)
-        return normalized or DEFAULT_LABELS.copy()
 
     def _clean_label(self, label: str) -> str:
         cleaned = " ".join(label.strip().split())
@@ -1617,16 +2251,20 @@ class DatasetService:
             else datetime.fromtimestamp(manifest_path.stat().st_mtime)
         )
         root = manifest_path.parent
+        task_type = self._normalize_task_type(manifest.get("task_type", DEFAULT_TASK_TYPE))
         location = DatasetLocation(
             id=manifest["id"],
             project_id=manifest.get("project_id", DEFAULT_PROJECT_ID),
             name=manifest.get("name", root.name),
-            task_type=manifest.get("task_type", DEFAULT_TASK_TYPE),
+            task_type=task_type,
             format=manifest.get("format", "yolo"),
             source="editable",
             root=root,
             editable=True,
-            labels=self._normalize_labels(manifest.get("labels") or DEFAULT_LABELS),
+            labels=self._normalize_labels(
+                manifest.get("labels") or self._default_labels_for_task(task_type),
+                task_type,
+            ),
             metadata=metadata,
         )
         return DatasetVersionSummary(
@@ -1635,6 +2273,8 @@ class DatasetService:
             name=metadata.get("version_name", manifest.get("name", root.name)),
             path=str(root),
             image_count=int(metadata.get("image_count", 0)),
+            text_count=int(metadata.get("text_count", 0)),
+            item_count=int(metadata.get("item_count", metadata.get("image_count", metadata.get("text_count", 0)))),
             generated_count=int(metadata.get("generated_count", 0)),
             splits={split: self._split_summary(location, split) for split in SPLITS},
             config=config,

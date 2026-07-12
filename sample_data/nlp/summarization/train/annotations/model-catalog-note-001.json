@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The catalog shows global offline NLP baselines and project-scoped trained models.",
+      "answer": "The catalog shows global offline NLP baselines and project-scoped trained models.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "sample_question_answering",
+  "name": "Sample Question Answering",
+  "task_type": "question_answering",
+  "format": "text_folder",
+  "labels": ["answer"],
+  "metadata": {
+    "created_from": "tracked_sample",
+    "sample_count": 20,
+    "split_counts": {
+      "train": 12,
+      "valid": 4,
+      "test": 4
+    }
+  }
+}

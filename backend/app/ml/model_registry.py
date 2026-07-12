@@ -11,6 +11,11 @@ from app.core.config import Settings
 from app.core.storage import Storage
 from app.ml.predictors.base import Predictor
 from app.ml.predictors.keras_classification import KerasClassificationPredictor
+from app.ml.predictors.nlp import (
+    ExtractiveSummarizerPredictor,
+    KeywordQAPredictor,
+    TextClassificationPredictor,
+)
 from app.ml.predictors.unet_inception import UnetInceptionPredictor
 from app.ml.predictors.yolo import YoloPredictor
 from app.schemas import ModelInfo
@@ -87,6 +92,33 @@ class ModelRegistry:
                 },
                 labels=DEFAULT_LABELS.copy(),
             ),
+            ModelSpec(
+                id="keyword_text_classifier",
+                name="Keyword Text Classifier",
+                family="nlp_text_classification",
+                description="Offline keyword and TF-IDF compatible baseline for text classification.",
+                paths={},
+                labels=["positive", "negative", "neutral"],
+                task_type="text_classification",
+            ),
+            ModelSpec(
+                id="extractive_summarizer",
+                name="Extractive Summarizer",
+                family="nlp_summarization",
+                description="Offline extractive baseline for text summarization.",
+                paths={},
+                labels=["summary"],
+                task_type="summarization",
+            ),
+            ModelSpec(
+                id="keyword_qa",
+                name="Keyword QA",
+                family="nlp_qa",
+                description="Offline keyword-overlap baseline for question answering.",
+                paths={},
+                labels=["answer"],
+                task_type="question_answering",
+            ),
         ]
         specs.extend(self._load_promoted_specs())
         return specs
@@ -102,7 +134,12 @@ class ModelRegistry:
     ) -> list[ModelInfo]:
         models = [spec.to_info() for spec in self.list_specs()]
         if project_id:
-            models = [model for model in models if model.project_id == project_id]
+            models = [
+                model
+                for model in models
+                if model.project_id == project_id
+                or (model.source == "reference" and model.family.startswith("nlp_"))
+            ]
         if task_type:
             models = [model for model in models if model.task_type == task_type]
         return models
@@ -128,6 +165,21 @@ class ModelRegistry:
                     spec.paths["model"],
                     spec.labels or DEFAULT_LABELS,
                     image_size=int((spec.artifacts or {}).get("image_size") or 224),
+                )
+            elif spec.family == "nlp_text_classification":
+                self._predictors[model_id] = TextClassificationPredictor(
+                    spec.paths.get("model"),
+                    spec.labels or ["positive", "negative", "neutral"],
+                )
+            elif spec.family == "nlp_summarization":
+                self._predictors[model_id] = ExtractiveSummarizerPredictor(
+                    spec.paths.get("model"),
+                    spec.labels or ["summary"],
+                )
+            elif spec.family == "nlp_qa":
+                self._predictors[model_id] = KeywordQAPredictor(
+                    spec.paths.get("model"),
+                    spec.labels or ["answer"],
                 )
             else:
                 raise ValueError(f"Unsupported model family: {spec.family}")

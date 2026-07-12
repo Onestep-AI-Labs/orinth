@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does the documentation page describe?",
+      "answer": "It describes active modules, project-scoped workflows, dataset operations, model testing, training, and inference capabilities.",
+      "text": "It describes active modules, project-scoped workflows, dataset operations, model testing, training, and inference capabilities.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

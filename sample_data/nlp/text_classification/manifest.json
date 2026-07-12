@@ -1,0 +1,16 @@
+{
+  "id": "sample_text_classification",
+  "name": "Sample Text Classification",
+  "task_type": "text_classification",
+  "format": "text_folder",
+  "labels": ["positive", "negative", "neutral"],
+  "metadata": {
+    "created_from": "tracked_sample",
+    "sample_count": 20,
+    "split_counts": {
+      "train": 12,
+      "valid": 5,
+      "test": 3
+    }
+  }
+}

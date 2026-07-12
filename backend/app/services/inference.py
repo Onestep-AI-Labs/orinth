@@ -28,13 +28,33 @@ class InferenceService:
     async def run(
         self,
         db: Session,
-        file: UploadFile,
+        file: UploadFile | None,
         model_id: str,
         parameters: InferenceParameters,
         project_id: str = DEFAULT_PROJECT_ID,
+        text_content: str | None = None,
     ) -> InferenceResult:
         self.storage.ensure()
         started = perf_counter()
+        spec = self.registry.get_spec(model_id)
+        if spec.task_type in {"text_classification", "summarization", "question_answering"}:
+            if not text_content or not text_content.strip():
+                raise HTTPException(status_code=400, detail="Text content is required for NLP inference")
+            upload_started = perf_counter()
+            _upload_id, text_path = self.storage.save_text_input(text_content)
+            timings = {"upload_ms": elapsed_ms(upload_started)}
+            return self._predict_text_and_store(
+                db,
+                text_path=text_path,
+                text_content=text_content,
+                model_id=model_id,
+                parameters=parameters,
+                project_id=project_id,
+                timings=timings,
+                started=started,
+            )
+        if file is None:
+            raise HTTPException(status_code=400, detail="Image file is required for vision inference")
         upload_started = perf_counter()
         _upload_id, image_path = await self.storage.save_upload(file)
         timings = {"upload_ms": elapsed_ms(upload_started)}
@@ -52,15 +72,28 @@ class InferenceService:
     async def create_job(
         self,
         db: Session,
-        file: UploadFile,
+        file: UploadFile | None,
         model_id: str,
         parameters: InferenceParameters,
         project_id: str = DEFAULT_PROJECT_ID,
+        text_content: str | None = None,
     ) -> InferenceJob:
         self.storage.ensure()
-        _upload_id, image_path = await self.storage.save_upload(file)
+        spec = self.registry.get_spec(model_id)
+        input_type = "text" if spec.task_type in {"text_classification", "summarization", "question_answering"} else "image"
+        if input_type == "text":
+            if not text_content or not text_content.strip():
+                raise HTTPException(status_code=400, detail="Text content is required for NLP inference")
+            _upload_id, input_path = self.storage.save_text_input(text_content)
+            original_filename = "text-input.txt"
+        else:
+            if file is None:
+                raise HTTPException(status_code=400, detail="Image file is required for vision inference")
+            _upload_id, input_path = await self.storage.save_upload(file)
+            original_filename = file.filename
         job_id = uuid4().hex
         artifacts = append_log({}, "Upload saved")
+        artifacts["input_type"] = input_type
         artifacts["progress"] = make_progress(
             percent=10,
             current_step="Upload saved",
@@ -74,8 +107,8 @@ class InferenceService:
             project_id=project_id,
             model_id=model_id,
             status="queued",
-            input_path=str(image_path),
-            original_filename=file.filename,
+            input_path=str(input_path),
+            original_filename=original_filename,
             parameters=parameters.model_dump(),
             artifacts=artifacts,
         )
@@ -108,19 +141,36 @@ class InferenceService:
             db.commit()
 
             timings: dict[str, int] = {}
-            result = self._predict_and_store(
-                db,
-                image_path=Path(job.input_path),
-                original_filename=job.original_filename,
-                model_id=job.model_id,
-                parameters=InferenceParameters.model_validate(job.parameters),
-                project_id=job.project_id or DEFAULT_PROJECT_ID,
-                timings=timings,
-                started=started,
-                progress_callback=lambda step, percent: self._update_job_progress(
-                    db, job_id, step, percent, started_at
-                ),
-            )
+            spec = self.registry.get_spec(job.model_id)
+            if spec.task_type in {"text_classification", "summarization", "question_answering"}:
+                text_path = Path(job.input_path)
+                result = self._predict_text_and_store(
+                    db,
+                    text_path=text_path,
+                    text_content=text_path.read_text(encoding="utf-8", errors="replace"),
+                    model_id=job.model_id,
+                    parameters=InferenceParameters.model_validate(job.parameters),
+                    project_id=job.project_id or DEFAULT_PROJECT_ID,
+                    timings=timings,
+                    started=started,
+                    progress_callback=lambda step, percent: self._update_job_progress(
+                        db, job_id, step, percent, started_at
+                    ),
+                )
+            else:
+                result = self._predict_and_store(
+                    db,
+                    image_path=Path(job.input_path),
+                    original_filename=job.original_filename,
+                    model_id=job.model_id,
+                    parameters=InferenceParameters.model_validate(job.parameters),
+                    project_id=job.project_id or DEFAULT_PROJECT_ID,
+                    timings=timings,
+                    started=started,
+                    progress_callback=lambda step, percent: self._update_job_progress(
+                        db, job_id, step, percent, started_at
+                    ),
+                )
 
             job = db.get(InferenceJob, job_id)
             if job is None:
@@ -235,6 +285,75 @@ class InferenceService:
                 input_path=str(image_path),
                 overlay_path=str(overlay_path),
                 image_level_label=image_label,
+                parameters=parameters.model_dump(),
+                result=result.model_dump(mode="json"),
+            )
+        )
+        db.commit()
+        return result
+
+    def _predict_text_and_store(
+        self,
+        db: Session,
+        *,
+        text_path: Path,
+        text_content: str,
+        model_id: str,
+        parameters: InferenceParameters,
+        project_id: str,
+        timings: dict[str, int],
+        started: float,
+        progress_callback=None,
+    ) -> InferenceResult:
+        inference_id = uuid4().hex
+        try:
+            model_started = perf_counter()
+            predictor = self.registry.get_predictor(model_id)
+            timings["model_load_ms"] = elapsed_ms(model_started)
+            if progress_callback:
+                progress_callback("Running text prediction", 60)
+            prediction_started = perf_counter()
+            nlp_result = predictor.predict_text(text_content, parameters)
+            timings["prediction_ms"] = elapsed_ms(prediction_started)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}") from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        label = (
+            nlp_result.get("label")
+            or nlp_result.get("summary")
+            or nlp_result.get("answer")
+            or "Text result"
+        )
+        class_scores = nlp_result.get("scores") if isinstance(nlp_result.get("scores"), dict) else {}
+        timings["total_ms"] = elapsed_ms(started)
+        result = InferenceResult(
+            id=inference_id,
+            project_id=project_id,
+            model_id=model_id,
+            input_type="text",
+            image_level_label=str(label),
+            detections=[],
+            class_scores=class_scores,
+            overlay_url=None,
+            original_url=self.storage.media_url(text_path),
+            text_content=text_content,
+            nlp_result=nlp_result,
+            parameters=parameters,
+            created_at=datetime.utcnow(),
+            duration_ms=timings["total_ms"],
+            timings=timings,
+        )
+        db.add(
+            InferenceRun(
+                id=inference_id,
+                project_id=project_id,
+                model_id=model_id,
+                original_filename=text_path.name,
+                input_path=str(text_path),
+                overlay_path=None,
+                image_level_label=str(label)[:64],
                 parameters=parameters.model_dump(),
                 result=result.model_dump(mode="json"),
             )

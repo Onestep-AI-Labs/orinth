@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, MousePointer2, Pentagon, Save, Square, Trash2, Undo2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
-import { labelColor, pointsAttr } from "@/features/platform/utils";
+import { isNlpTask, labelColor, pointsAttr } from "@/features/platform/utils";
 import type { DatasetAnnotation, DatasetItemDetail, DatasetSummary } from "@/types/api";
 
 type AnnotationTool = "select" | "box" | "polygon";
@@ -28,6 +28,9 @@ export function AnnotationEditor({
   item: DatasetItemDetail;
   onSaved: () => void | Promise<void>;
 }) {
+  if (isNlpTask(dataset.task_type)) {
+    return <NlpAnnotationEditor dataset={dataset} item={item} onSaved={onSaved} />;
+  }
   const [annotations, setAnnotations] = useState<DatasetAnnotation[]>(item.annotations);
   const [draft, setDraft] = useState<number[][]>([]);
   const [classId, setClassId] = useState(0);
@@ -148,7 +151,10 @@ export function AnnotationEditor({
         class_name: dataset.labels[classId],
         kind: "box",
         bbox: nextBox,
-        polygon: []
+        polygon: [],
+        text: null,
+        question: null,
+        answer: null
       }
     ]);
   }
@@ -162,7 +168,10 @@ export function AnnotationEditor({
         class_name: dataset.labels[classId],
         kind: "polygon",
         bbox: null,
-        polygon: draft
+        polygon: draft,
+        text: null,
+        question: null,
+        answer: null
       }
     ]);
     setDraft([]);
@@ -341,6 +350,110 @@ export function AnnotationEditor({
         setSelectedIndex={setSelectedIndex}
       />
       <MutationError mutations={[saveMutation, labelMutation]} />
+    </div>
+  );
+}
+
+function NlpAnnotationEditor({
+  dataset,
+  item,
+  onSaved
+}: {
+  dataset: DatasetSummary;
+  item: DatasetItemDetail;
+  onSaved: () => void | Promise<void>;
+}) {
+  const initial = item.annotations[0];
+  const [classId, setClassId] = useState(initial?.class_id ?? 0);
+  const [summary, setSummary] = useState(initial?.text ?? initial?.answer ?? "");
+  const [question, setQuestion] = useState(initial?.question ?? "");
+  const [answer, setAnswer] = useState(initial?.answer ?? initial?.text ?? "");
+  const editable = dataset.editable;
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      let annotations: DatasetAnnotation[] = [];
+      if (dataset.task_type === "text_classification") {
+        annotations = [
+          {
+            class_id: classId,
+            class_name: dataset.labels[classId] ?? String(classId),
+            kind: "classification",
+            bbox: null,
+            polygon: [],
+            text: null,
+            question: null,
+            answer: null
+          }
+        ];
+      } else if (dataset.task_type === "summarization") {
+        annotations = summary.trim()
+          ? [
+              {
+                class_id: 0,
+                class_name: dataset.labels[0] ?? "summary",
+                kind: "summary",
+                bbox: null,
+                polygon: [],
+                text: summary.trim(),
+                question: null,
+                answer: summary.trim()
+              }
+            ]
+          : [];
+      } else {
+        annotations = question.trim() && answer.trim()
+          ? [
+              {
+                class_id: 0,
+                class_name: dataset.labels[0] ?? "answer",
+                kind: "qa",
+                bbox: null,
+                polygon: [],
+                text: answer.trim(),
+                question: question.trim(),
+                answer: answer.trim()
+              }
+            ]
+          : [];
+      }
+      return api.saveDatasetAnnotations(dataset.id, item.split, item.id, annotations);
+    },
+    onSuccess: async () => {
+      await onSaved();
+    }
+  });
+
+  useEffect(() => {
+    const next = item.annotations[0];
+    setClassId(next?.class_id ?? 0);
+    setSummary(next?.text ?? next?.answer ?? "");
+    setQuestion(next?.question ?? "");
+    setAnswer(next?.answer ?? next?.text ?? "");
+  }, [item.annotations, item.id]);
+
+  return (
+    <div className="annotation-panel nlp-annotation-panel">
+      <div className="text-item-preview">
+        {item.text_content || item.text_preview || ""}
+      </div>
+      {dataset.task_type === "text_classification" ? (
+        <select value={classId} onChange={(event) => setClassId(Number(event.target.value))} disabled={!editable}>
+          {dataset.labels.map((label, index) => (
+            <option value={index} key={label}>{label}</option>
+          ))}
+        </select>
+      ) : dataset.task_type === "summarization" ? (
+        <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={5} disabled={!editable} />
+      ) : (
+        <>
+          <input value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!editable} placeholder="Question" />
+          <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={4} disabled={!editable} placeholder="Answer" />
+        </>
+      )}
+      <button className="primary-button" onClick={() => saveMutation.mutate()} disabled={!editable || saveMutation.isPending}>
+        <Save size={16} /> Save
+      </button>
+      <MutationError mutations={[saveMutation]} />
     </div>
   );
 }

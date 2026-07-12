@@ -1,0 +1,1 @@
+Question answering samples store a context paragraph with one or more question-answer annotations. Evaluation compares predicted answers to references using exact match and token F1.

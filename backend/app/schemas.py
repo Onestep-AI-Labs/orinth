@@ -5,8 +5,24 @@ from pydantic import BaseModel, Field
 
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 
-TaskType = Literal["classification", "object_detection", "segmentation", "text"]
-DatasetFormat = Literal["yolo", "coco", "image_folder", "image_manifest"]
+TaskType = Literal[
+    "classification",
+    "object_detection",
+    "segmentation",
+    "text",
+    "text_classification",
+    "summarization",
+    "question_answering",
+]
+DatasetFormat = Literal[
+    "yolo",
+    "coco",
+    "image_folder",
+    "image_manifest",
+    "text_folder",
+    "jsonl",
+    "csv",
+]
 DatasetSource = Literal["reference", "editable"]
 SplitName = Literal["unassigned", "train", "valid", "test"]
 
@@ -54,17 +70,22 @@ class Detection(BaseModel):
 class InferenceParameters(BaseModel):
     confidence_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
     iou_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+    question: str | None = Field(default=None, max_length=1000)
+    max_length: int = Field(default=120, ge=1, le=2000)
 
 
 class InferenceResult(BaseModel):
     id: str
     project_id: str = DEFAULT_PROJECT_ID
     model_id: str
+    input_type: Literal["image", "text"] = "image"
     image_level_label: str
-    detections: list[Detection]
+    detections: list[Detection] = Field(default_factory=list)
     class_scores: dict[str, float] = Field(default_factory=dict)
     overlay_url: str | None = None
     original_url: str | None = None
+    text_content: str | None = None
+    nlp_result: dict[str, Any] | None = None
     parameters: InferenceParameters
     created_at: datetime
     duration_ms: int | None = None
@@ -177,6 +198,10 @@ class EvaluationPerImageRow(BaseModel):
     objects: int
     pixel: dict[str, float] = Field(default_factory=dict)
     object: dict[str, int] = Field(default_factory=dict)
+    text_preview: str | None = None
+    reference_text: str | None = None
+    prediction_text: str | None = None
+    scores: dict[str, float] = Field(default_factory=dict)
 
 
 class TrainingJobCreate(BaseModel):
@@ -222,6 +247,8 @@ class TrainingJobRead(BaseModel):
 class DatasetSplitSummary(BaseModel):
     split: SplitName
     image_count: int = 0
+    text_count: int = 0
+    item_count: int = 0
     annotation_count: int = 0
 
 
@@ -250,7 +277,7 @@ class DatasetCreate(BaseModel):
 
 class DatasetPreprocessConfig(BaseModel):
     enabled: bool = False
-    preset: Literal["none", "light", "inspection"] = "none"
+    preset: Literal["none", "light", "inspection", "nlp_clean", "nlp_augment"] = "none"
     resize_width: int | None = Field(default=None, ge=32, le=4096)
     resize_height: int | None = Field(default=None, ge=32, le=4096)
     normalize: bool = False
@@ -289,11 +316,14 @@ class DatasetCloneRequest(BaseModel):
 
 
 class DatasetAnnotation(BaseModel):
-    class_id: int = Field(ge=0)
-    class_name: str
-    kind: Literal["classification", "box", "polygon"] = "polygon"
+    class_id: int = Field(default=0, ge=0)
+    class_name: str = ""
+    kind: Literal["classification", "box", "polygon", "summary", "qa"] = "polygon"
     bbox: Box | None = None
     polygon: list[list[float]] = Field(default_factory=list)
+    text: str | None = None
+    question: str | None = None
+    answer: str | None = None
 
 
 class DatasetItemSummary(BaseModel):
@@ -301,9 +331,12 @@ class DatasetItemSummary(BaseModel):
     dataset_id: str
     split: SplitName
     filename: str
-    image_url: str
-    width: int
-    height: int
+    media_type: Literal["image", "text"] = "image"
+    image_url: str = ""
+    text_url: str | None = None
+    text_preview: str | None = None
+    width: int = 0
+    height: int = 0
     annotation_count: int
     classes: list[str]
     class_id: int | None = None
@@ -314,6 +347,7 @@ class DatasetItemSummary(BaseModel):
 
 class DatasetItemDetail(DatasetItemSummary):
     annotations: list[DatasetAnnotation]
+    text_content: str | None = None
 
 
 class DatasetItemPage(BaseModel):
@@ -374,7 +408,9 @@ class DatasetPreprocessPreview(BaseModel):
     dataset_id: str
     split: SplitName
     item_id: str
-    image_url: str
+    media_type: Literal["image", "text"] = "image"
+    image_url: str = ""
+    text_preview: str | None = None
     config: DatasetPreprocessConfig
 
 
@@ -391,6 +427,8 @@ class DatasetVersionSummary(BaseModel):
     name: str
     path: str
     image_count: int = 0
+    text_count: int = 0
+    item_count: int = 0
     generated_count: int = 0
     splits: dict[str, DatasetSplitSummary]
     config: DatasetPreprocessConfig
@@ -416,9 +454,12 @@ class DatasetEdaSummary(BaseModel):
     unlabeled_count: int = 0
     missing_annotation_count: int = 0
     image_count: int = 0
+    text_count: int = 0
+    item_count: int = 0
     annotation_count: int = 0
     image_size: dict[str, float | int | None] = Field(default_factory=dict)
     aspect_ratio: dict[str, float | None] = Field(default_factory=dict)
+    text_length: dict[str, float | int | None] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
 

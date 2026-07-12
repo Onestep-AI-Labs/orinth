@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which file types are accepted for NLP upload?",
+      "answer": "Text upload accepts .txt, .csv, and .jsonl files.",
+      "text": "Text upload accepts .txt, .csv, and .jsonl files.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

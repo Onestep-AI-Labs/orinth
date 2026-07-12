@@ -1,0 +1,16 @@
+{
+  "id": "sample_summarization",
+  "name": "Sample Summarization",
+  "task_type": "summarization",
+  "format": "text_folder",
+  "labels": ["summary"],
+  "metadata": {
+    "created_from": "tracked_sample",
+    "sample_count": 20,
+    "split_counts": {
+      "train": 12,
+      "valid": 4,
+      "test": 4
+    }
+  }
+}

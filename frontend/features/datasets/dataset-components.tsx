@@ -7,7 +7,7 @@ import { BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, 
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
 import { SPLIT_FILTERS, SPLITS, TRAINING_SPLITS } from "@/features/platform/constants";
-import { formatDatasetFormat, formatDatasetTask, labelColor, pointsAttr, taskDescription } from "@/features/platform/utils";
+import { formatDatasetFormat, formatDatasetTask, isNlpTask, labelColor, pointsAttr, taskDescription } from "@/features/platform/utils";
 import { CardGridSkeleton, EmptyState, Field, InlineSpinner, Metric, MutationError, PanelTitle, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetEdaSummary, DatasetItemSummary, DatasetPreprocessConfig, DatasetSplitConfig, DatasetSplitFilter, DatasetSummary, DatasetVersionSummary, SplitKey, TaskType } from "@/types/api";
 
@@ -38,7 +38,8 @@ export function DatasetCreatePanel({
     .filter(Boolean);
   const visibleLabels = labels.length ? labels : ["object"];
   const [labelInput, setLabelInput] = useState("");
-  const format = taskType === "classification" ? "image_folder" : "yolo";
+  const nlp = isNlpTask(taskType);
+  const format = nlp ? "text_folder" : taskType === "classification" ? "image_folder" : "yolo";
 
   function syncLabels(nextLabels: string[]) {
     setLabelDraft((nextLabels.length ? nextLabels : ["object"]).join(", "));
@@ -90,7 +91,7 @@ export function DatasetCreatePanel({
         <strong>{formatDatasetFormat(format)}</strong>
       </div>
       <div className="field">
-        <label>Class labels</label>
+        <label>{taskType === "text_classification" || taskType === "classification" ? "Class labels" : "Annotation target"}</label>
         <div className="label-add-row">
           <input
             value={labelInput}
@@ -101,7 +102,7 @@ export function DatasetCreatePanel({
                 addLabels();
               }
             }}
-            placeholder="Add label, e.g. plastic"
+            placeholder={nlp ? "Add label, e.g. urgent" : "Add label, e.g. plastic"}
           />
           <button className="secondary-button" type="button" onClick={addLabels} disabled={!labelInput.trim()}>
             Add label
@@ -137,14 +138,18 @@ export function PreprocessPanel({
   editable,
   onPreview,
   previewUrl,
-  previewPending
+  previewText,
+  previewPending,
+  nlp = false
 }: {
   config: DatasetPreprocessConfig;
   setConfig: (value: DatasetPreprocessConfig) => void;
   editable: boolean;
   onPreview: () => void;
   previewUrl: string | null;
+  previewText?: string | null;
   previewPending: boolean;
+  nlp?: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -183,37 +188,58 @@ export function PreprocessPanel({
                 onChange={(event) => setConfig({ ...config, preset: event.target.value as DatasetPreprocessConfig["preset"] })}
               >
                 <option value="none">None</option>
-                <option value="light">Light</option>
-                <option value="inspection">Inspection</option>
+                {nlp ? (
+                  <>
+                    <option value="nlp_clean">Clean text</option>
+                    <option value="nlp_augment">Augment text</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="light">Light</option>
+                    <option value="inspection">Inspection</option>
+                  </>
+                )}
               </select>
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Width">
-                <input
-                  type="number"
-                  min={32}
-                  value={config.resize_width ?? ""}
-                  disabled={!editable}
-                  onChange={(event) => setConfig({ ...config, resize_width: event.target.value ? Number(event.target.value) : null })}
-                />
-              </Field>
-              <Field label="Height">
-                <input
-                  type="number"
-                  min={32}
-                  value={config.resize_height ?? ""}
-                  disabled={!editable}
-                  onChange={(event) => setConfig({ ...config, resize_height: event.target.value ? Number(event.target.value) : null })}
-                />
-              </Field>
-            </div>
+            {!nlp && (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Width">
+                  <input
+                    type="number"
+                    min={32}
+                    value={config.resize_width ?? ""}
+                    disabled={!editable}
+                    onChange={(event) => setConfig({ ...config, resize_width: event.target.value ? Number(event.target.value) : null })}
+                  />
+                </Field>
+                <Field label="Height">
+                  <input
+                    type="number"
+                    min={32}
+                    value={config.resize_height ?? ""}
+                    disabled={!editable}
+                    onChange={(event) => setConfig({ ...config, resize_height: event.target.value ? Number(event.target.value) : null })}
+                  />
+                </Field>
+              </div>
+            )}
             <div className="choice-list compact">
-              {[
-                ["horizontal_flip", "Horizontal flip"],
-                ["vertical_flip", "Vertical flip"],
-                ["brightness_contrast", "Brightness/contrast"],
-                ["gaussian_blur", "Gaussian blur"]
-              ].map(([value, label]) => (
+              {(nlp
+                ? [
+                    ["lowercase", "Lowercase"],
+                    ["remove_punctuation", "Remove punctuation"],
+                    ["remove_stopwords", "Remove stop words"],
+                    ["normalize_whitespace", "Normalize whitespace"],
+                    ["synonym_replacement", "Synonym replacement"],
+                    ["word_swap", "Word swap"],
+                    ["word_deletion", "Word deletion"]
+                  ]
+                : [
+                    ["horizontal_flip", "Horizontal flip"],
+                    ["vertical_flip", "Vertical flip"],
+                    ["brightness_contrast", "Brightness/contrast"],
+                    ["gaussian_blur", "Gaussian blur"]
+                  ]).map(([value, label]) => (
                 <label key={value}>
                   <input
                     type="checkbox"
@@ -236,7 +262,7 @@ export function PreprocessPanel({
               </select>
             </Field>
             {config.augmentation_mode === "materialize" && (
-              <Field label="Generated copies per train image">
+              <Field label={`Generated copies per train ${nlp ? "text" : "image"}`}>
                 <input
                   type="number"
                   min={0}
@@ -251,6 +277,7 @@ export function PreprocessPanel({
               {previewPending ? <InlineSpinner label="Previewing" /> : <><ImageIcon size={16} /> Preview</>}
             </button>
             {previewUrl && <div className="image-frame compact"><img src={previewUrl} alt="Preprocess preview" /></div>}
+            {previewText && <div className="text-item-preview compact">{previewText}</div>}
           </div>
         ) : (
           <div className="accordion-empty">Preprocess is disabled.</div>
@@ -277,7 +304,7 @@ export function SplitConfigPanel({
 }) {
   const [expanded, setExpanded] = useState(true);
   const total = config.train + config.valid + config.test;
-  const unassigned = dataset.splits.unassigned?.image_count ?? 0;
+  const unassigned = dataset.splits.unassigned?.item_count ?? dataset.splits.unassigned?.image_count ?? 0;
   function setRatio(key: "train" | "valid" | "test", value: number) {
     setConfig({ ...config, [key]: Math.max(0, Math.min(1, value)) });
   }
@@ -330,7 +357,7 @@ export function SplitConfigPanel({
             {pending ? <InlineSpinner label="Processing" /> : <><CheckCircle2 size={16} /> Proceed</>}
           </button>
           <p className="hint-text">
-            Proceed saves preprocessing and distributes inbox images into train, valid, and test.
+            Proceed saves preprocessing and distributes inbox items into train, valid, and test.
           </p>
         </div>
       )}
@@ -368,7 +395,7 @@ export function VersionPanel({
       </button>
       <p className="hint-text">
         {config.augmentation_mode === "materialize"
-          ? `Creates ${config.copies_per_image} generated train copies per image in storage.`
+          ? `Creates ${config.copies_per_image} generated train copies per item in storage.`
           : "Random mode stores config for training without generated augmentation copies."}
       </p>
       {loading ? (
@@ -378,7 +405,7 @@ export function VersionPanel({
           {versions.slice(0, 4).map((version) => (
             <div className="version-row" key={version.id}>
               <strong title={version.name}>{version.name}</strong>
-              <span>{version.image_count} images / {version.generated_count} generated</span>
+              <span>{version.item_count || version.image_count || version.text_count} items / {version.generated_count} generated</span>
             </div>
           ))}
         </div>
@@ -434,6 +461,7 @@ export function EdaPanel({
   setSplit: (split: DatasetSplitFilter) => void;
 }) {
   const totalImages = eda ? Object.values(eda.split_counts).reduce((total, count) => total + count, 0) : 0;
+  const nlp = isNlpTask(dataset.task_type);
   const maxClassCount = eda ? Math.max(1, ...Object.values(eda.class_counts)) : 1;
   const maxSplitCount = eda ? Math.max(1, ...Object.values(eda.split_counts)) : 1;
   const coverage = eda && eda.image_count > 0 ? ((eda.image_count - eda.unlabeled_count) / eda.image_count) * 100 : 0;
@@ -450,7 +478,7 @@ export function EdaPanel({
       ) : eda ? (
         <>
           <div className="eda-metric-grid">
-            <Metric label="Images" value={eda.image_count} />
+            <Metric label={nlp ? "Texts" : "Images"} value={nlp ? (eda.text_count || eda.item_count) : eda.image_count} />
             <Metric label="Annotations" value={eda.annotation_count} />
             <Metric label="Unlabeled" value={eda.unlabeled_count} />
             <Metric label="Coverage" value={`${coverage.toFixed(1)}%`} />
@@ -495,10 +523,21 @@ export function EdaPanel({
             <div className="eda-chart-card">
               <h3>Image Geometry</h3>
               <div className="eda-stats-list">
-                <span>Mean size <strong>{eda.image_size.mean_width ?? "-"} x {eda.image_size.mean_height ?? "-"}</strong></span>
-                <span>Width range <strong>{eda.image_size.min_width ?? "-"} - {eda.image_size.max_width ?? "-"}</strong></span>
-                <span>Height range <strong>{eda.image_size.min_height ?? "-"} - {eda.image_size.max_height ?? "-"}</strong></span>
-                <span>Aspect ratio <strong>{eda.aspect_ratio.mean ?? "-"}</strong></span>
+                {nlp ? (
+                  <>
+                    <span>Mean tokens <strong>{eda.text_length.mean_tokens ?? "-"}</strong></span>
+                    <span>Token range <strong>{eda.text_length.min_tokens ?? "-"} - {eda.text_length.max_tokens ?? "-"}</strong></span>
+                    <span>Mean chars <strong>{eda.text_length.mean_chars ?? "-"}</strong></span>
+                    <span>Char range <strong>{eda.text_length.min_chars ?? "-"} - {eda.text_length.max_chars ?? "-"}</strong></span>
+                  </>
+                ) : (
+                  <>
+                    <span>Mean size <strong>{eda.image_size.mean_width ?? "-"} x {eda.image_size.mean_height ?? "-"}</strong></span>
+                    <span>Width range <strong>{eda.image_size.min_width ?? "-"} - {eda.image_size.max_width ?? "-"}</strong></span>
+                    <span>Height range <strong>{eda.image_size.min_height ?? "-"} - {eda.image_size.max_height ?? "-"}</strong></span>
+                    <span>Aspect ratio <strong>{eda.aspect_ratio.mean ?? "-"}</strong></span>
+                  </>
+                )}
               </div>
             </div>
             <div className="eda-chart-card">
@@ -533,11 +572,13 @@ export function DatasetSummaryBar({
   split: DatasetSplitFilter;
   setSplit: (split: DatasetSplitFilter) => void;
 }) {
-  const allCount = SPLITS.reduce((total, splitName) => total + (dataset.splits[splitName]?.image_count ?? 0), 0);
+  const nlp = isNlpTask(dataset.task_type);
+  const countFor = (splitName: string) => dataset.splits[splitName]?.item_count ?? dataset.splits[splitName]?.image_count ?? 0;
+  const allCount = SPLITS.reduce((total, splitName) => total + countFor(splitName), 0);
   return (
     <div className="summary-strip">
       {SPLIT_FILTERS.map((splitName) => {
-        const count = splitName === "all" ? allCount : dataset.splits[splitName]?.image_count ?? 0;
+        const count = splitName === "all" ? allCount : countFor(splitName);
         return (
           <button
             className={`split-pill ${split === splitName ? "split-pill-active" : ""}`}
@@ -545,7 +586,7 @@ export function DatasetSummaryBar({
             onClick={() => setSplit(splitName)}
           >
             <strong>{splitName}</strong>
-            <span>{count} img</span>
+            <span>{count} {nlp ? "txt" : "img"}</span>
           </button>
         );
       })}
@@ -669,6 +710,28 @@ export function DatasetThumb({
 }) {
   const imageUrl = apiAssetUrl(item.image_url);
   const labelText = item.label ?? (item.classes.join(", ") || "Unlabeled");
+  if (item.media_type === "text") {
+    return (
+      <div className={`text-table-row ${active ? "text-table-row-active" : ""}`}>
+        <label className="text-row-check" title={selected ? "Deselect text" : "Select text"}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onSelected(event.target.checked)}
+          />
+        </label>
+        <button className="text-row-main" onClick={onClick} type="button">
+          <span className="text-row-file">
+            <strong title={item.filename}>{item.filename}</strong>
+            <small>{item.split}</small>
+          </span>
+          <span className="text-row-preview" title={item.text_preview || item.filename}>{item.text_preview || item.filename}</span>
+          <span className="text-row-label" title={labelText}>{labelText}</span>
+          <span className="text-row-ann">{item.annotation_count} ann</span>
+        </button>
+      </div>
+    );
+  }
   return (
     <div className={`thumb ${active ? "thumb-active" : ""}`}>
       <label className="thumb-check">
@@ -713,4 +776,3 @@ export function DatasetThumb({
     </div>
   );
 }
-

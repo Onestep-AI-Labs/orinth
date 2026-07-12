@@ -1,0 +1,1 @@
+Text upload accepts .txt, .csv, and .jsonl files for NLP datasets. Unsupported file types are rejected before items are added to the dataset.

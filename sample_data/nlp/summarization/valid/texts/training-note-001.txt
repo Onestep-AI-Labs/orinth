@@ -1,0 +1,1 @@
+Training jobs run outside the request path and write logs, metrics, model artifacts, and validation predictions into local storage. Completed runnable jobs are registered back into the model catalog.

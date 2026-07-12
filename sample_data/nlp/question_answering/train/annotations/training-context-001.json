@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What model is trained for text classification?",
+      "answer": "The NLP training runner trains TF-IDF Logistic Regression for text classification.",
+      "text": "The NLP training runner trains TF-IDF Logistic Regression for text classification.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

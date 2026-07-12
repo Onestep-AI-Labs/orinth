@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does each project own?",
+      "answer": "Each project can own datasets, training jobs, testing jobs, models, and inference history.",
+      "text": "Each project can own datasets, training jobs, testing jobs, models, and inference history.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

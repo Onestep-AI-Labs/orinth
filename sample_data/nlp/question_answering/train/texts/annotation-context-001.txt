@@ -1,0 +1,1 @@
+The annotation editor is task aware. Text classification saves a class label, summarization saves a reference summary, and question answering saves question and answer values.

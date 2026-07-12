@@ -1,0 +1,1 @@
+The NLP annotation editor changes based on the selected task. Classification uses labels, summarization stores a reference summary, and question answering stores question and answer pairs.

@@ -46,6 +46,12 @@ class Storage:
         path.write_bytes(content)
         return upload_id, path
 
+    def save_text_input(self, text: str, suffix: str = ".txt") -> tuple[str, Path]:
+        upload_id = uuid4().hex
+        path = self.uploads / f"{upload_id}{suffix}"
+        path.write_text(text, encoding="utf-8")
+        return upload_id, path
+
     def overlay_path(self, inference_id: str) -> Path:
         return self.overlays / f"{inference_id}.jpg"
 

@@ -45,7 +45,7 @@ export function TrainingJobTable({
               <td data-label="Family">{job.model_family}</td>
               <td data-label="Dataset">{job.parameters?.dataset_id ?? "-"}</td>
               <td data-label="Epoch">{job.metrics?.epoch ?? job.progress.processed ?? "-"}</td>
-              <td data-label="Metric">{formatMetric(job.metrics?.["metrics/mAP50(B)"] ?? job.metrics?.val_accuracy)}</td>
+              <td data-label="Metric">{formatMetric(job.metrics?.["metrics/mAP50(B)"] ?? job.metrics?.val_accuracy ?? job.metrics?.accuracy ?? job.metrics?.macro_f1 ?? job.metrics?.rougeL ?? job.metrics?.f1)}</td>
               <td data-label="Open"><Link className="secondary-button" href={`/training/${job.id}`}>Details</Link></td>
             </tr>
           ))}
@@ -104,6 +104,9 @@ function trainingChartKeys(job: TrainingJob): string[] {
     "train/cls_loss",
     "val_accuracy",
     "accuracy",
+    "macro_f1",
+    "rougeL",
+    "f1",
     "val_loss",
     "loss"
   ];
@@ -204,4 +207,3 @@ function KeyValueTable({ title, value }: { title: string; value: Record<string, 
     </div>
   );
 }
-

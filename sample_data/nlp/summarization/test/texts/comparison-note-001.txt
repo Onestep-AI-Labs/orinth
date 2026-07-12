@@ -1,0 +1,1 @@
+Comparison pages collect multiple evaluation jobs for the same dataset. They show aligned metrics so users can choose the model that works best for the task.
