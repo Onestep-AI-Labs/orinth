@@ -69,23 +69,18 @@ def test_settings_routes_save_hf_token_to_temp_env(
     client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    make_settings,
 ) -> None:
     env_path = tmp_path / ".env"
 
-    def make_settings(token: str | None = None) -> Settings:
-        kwargs = {
-            "MODELS_DIR": str(tmp_path / "models"),
-            "DATASETS_DIR": str(tmp_path / "datasets"),
-            "STORAGE_DIR": str(tmp_path / "storage"),
-            "DATABASE_URL": f"sqlite:///{tmp_path / 'settings.db'}",
-            "HF_TOKEN": "",
-            "HUGGINGFACE_HUB_TOKEN": "",
-        }
-        if token:
-            kwargs["HUGGINGFACE_HUB_TOKEN"] = token
-        return Settings(**kwargs)
+    def build_settings(token: str | None = None) -> Settings:
+        return make_settings(
+            DATABASE_URL=f"sqlite:///{tmp_path / 'settings.db'}",
+            HF_TOKEN="",
+            HUGGINGFACE_HUB_TOKEN=token or "",
+        )
 
-    service = SettingsService(make_settings(), env_path=env_path)
+    service = SettingsService(build_settings(), env_path=env_path)
 
     def refresh_settings() -> None:
         token = None
@@ -93,7 +88,7 @@ def test_settings_routes_save_hf_token_to_temp_env(
             for line in env_path.read_text(encoding="utf-8").splitlines():
                 if line.startswith("HUGGINGFACE_HUB_TOKEN="):
                     token = line.split("=", 1)[1] or None
-        service.settings = make_settings(token)
+        service.settings = build_settings(token)
 
     monkeypatch.setattr(settings_router, "settings_service", service)
     monkeypatch.setattr(settings_router, "refresh_settings", refresh_settings)

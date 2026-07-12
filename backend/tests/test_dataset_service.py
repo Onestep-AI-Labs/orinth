@@ -26,14 +26,6 @@ from app.schemas import (
 from app.services.datasets import DatasetService
 
 
-def make_settings(tmp_path: Path) -> Settings:
-    return Settings(
-        MODELS_DIR=str(tmp_path / "models"),
-        DATASETS_DIR=str(tmp_path / "datasets"),
-        STORAGE_DIR=str(tmp_path / "storage"),
-        DATABASE_URL=f"sqlite:///{tmp_path / 'app.db'}",
-    )
-
 
 def write_image(path: Path, size: tuple[int, int] = (100, 80)) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,8 +54,7 @@ def write_yolo_dataset(root: Path) -> None:
         )
 
 
-def test_dataset_service_creates_and_saves_yolo_annotations(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_dataset_service_creates_and_saves_yolo_annotations(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -95,8 +86,7 @@ def test_dataset_service_creates_and_saves_yolo_annotations(tmp_path: Path):
     assert label_text.startswith("1 ")
 
 
-def test_reference_dataset_annotations_are_read_only(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_reference_dataset_annotations_are_read_only(tmp_path: Path, settings: Settings):
     reference_root = settings.datasets_path / "dental dataset_yolov11_format"
     write_yolo_dataset(reference_root)
     service = DatasetService(settings, Storage(settings))
@@ -112,8 +102,7 @@ def test_reference_dataset_annotations_are_read_only(tmp_path: Path):
     assert exc.value.status_code == 409
 
 
-def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path, settings: Settings):
     service = DatasetService(settings, Storage(settings))
     expected_tasks = {
         "sample_text_classification": "text_classification",
@@ -137,8 +126,7 @@ def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path):
     assert set(expected_tasks).issubset(listed_ids)
 
 
-def test_dataset_import_copies_yolo_layout_to_storage(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_dataset_import_copies_yolo_layout_to_storage(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     source = tmp_path / "source-yolo"
@@ -152,8 +140,7 @@ def test_dataset_import_copies_yolo_layout_to_storage(tmp_path: Path):
     assert (storage.datasets / dataset.id / "train" / "images" / "train.jpg").exists()
 
 
-def test_dataset_items_page_can_list_all_splits(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_dataset_items_page_can_list_all_splits(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -185,8 +172,7 @@ def test_dataset_items_page_can_list_all_splits(tmp_path: Path):
     assert page.items[0].annotations[0].kind == "polygon"
 
 
-def test_dataset_labels_are_manifest_driven_and_can_exceed_two_classes(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_dataset_labels_are_manifest_driven_and_can_exceed_two_classes(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -217,8 +203,7 @@ def test_dataset_labels_are_manifest_driven_and_can_exceed_two_classes(tmp_path:
     assert service.summary(dataset.id).labels == ["cat", "dog", "horse"]
 
 
-def test_classification_dataset_stores_label_only_annotations(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_classification_dataset_stores_label_only_annotations(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -243,8 +228,7 @@ def test_classification_dataset_stores_label_only_annotations(tmp_path: Path):
     assert detail.annotations[0].polygon == []
 
 
-def test_classification_upload_and_label_patch(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_classification_upload_and_label_patch(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -277,8 +261,7 @@ def test_classification_upload_and_label_patch(tmp_path: Path):
     assert updated.annotations[0].class_name == "ok"
 
 
-def test_batch_upload_delete_and_bulk_label_edit(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_batch_upload_delete_and_bulk_label_edit(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -327,8 +310,7 @@ def test_batch_upload_delete_and_bulk_label_edit(tmp_path: Path):
     ).exists()
 
 
-def test_dataset_process_splits_unassigned_and_move_items(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_dataset_process_splits_unassigned_and_move_items(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -374,8 +356,7 @@ def test_dataset_process_splits_unassigned_and_move_items(tmp_path: Path):
     assert service.summary(dataset.id).splits["test"].image_count == 2
 
 
-def test_reference_dataset_rejects_item_mutations(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_reference_dataset_rejects_item_mutations(tmp_path: Path, settings: Settings):
     reference_root = settings.datasets_path / "dental dataset_yolov11_format"
     write_yolo_dataset(reference_root)
     storage = Storage(settings)
@@ -402,8 +383,7 @@ def test_reference_dataset_rejects_item_mutations(tmp_path: Path):
     assert exc.value.status_code == 409
 
 
-def test_dataset_update_and_preprocess_validation(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_dataset_update_and_preprocess_validation(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -439,8 +419,7 @@ def test_dataset_update_and_preprocess_validation(tmp_path: Path):
     assert exc.value.status_code == 400
 
 
-def test_preprocess_preview_and_prepared_training_copy_do_not_modify_source(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_preprocess_preview_and_prepared_training_copy_do_not_modify_source(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -480,8 +459,7 @@ def test_preprocess_preview_and_prepared_training_copy_do_not_modify_source(tmp_
         assert transformed.size == (64, 64)
 
 
-def test_materialized_version_creates_augmented_artifacts_without_touching_source(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_materialized_version_creates_augmented_artifacts_without_touching_source(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -522,8 +500,7 @@ def test_materialized_version_creates_augmented_artifacts_without_touching_sourc
         assert original.size == (100, 80)
 
 
-def test_random_augmentation_mode_does_not_generate_extra_files(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_random_augmentation_mode_does_not_generate_extra_files(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -558,8 +535,7 @@ def test_random_augmentation_mode_does_not_generate_extra_files(tmp_path: Path):
     assert len(list((version_root / "train" / "images").glob("*.jpg"))) == 1
 
 
-def test_eda_summary_reports_counts_and_warnings(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_eda_summary_reports_counts_and_warnings(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -586,8 +562,7 @@ def test_eda_summary_reports_counts_and_warnings(tmp_path: Path):
     assert eda.warnings
 
 
-def test_dataset_delete_removes_editable_storage_and_blocks_reference(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_dataset_delete_removes_editable_storage_and_blocks_reference(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -602,8 +577,7 @@ def test_dataset_delete_removes_editable_storage_and_blocks_reference(tmp_path: 
     assert exc.value.status_code == 409
 
 
-def test_label_delete_blocks_used_annotations(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_label_delete_blocks_used_annotations(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
@@ -632,8 +606,7 @@ def test_label_delete_blocks_used_annotations(tmp_path: Path):
     assert exc.value.status_code == 409
 
 
-def test_nlp_dataset_upload_process_version_and_eda(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_nlp_dataset_upload_process_version_and_eda(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = DatasetService(settings, storage)
