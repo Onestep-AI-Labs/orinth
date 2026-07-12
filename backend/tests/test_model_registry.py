@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import threading
 
 from app.core.config import Settings, get_settings
 from app.core.storage import Storage
@@ -167,6 +168,179 @@ def test_model_storage_dir_name_uses_name_and_id():
         model_storage_dir_name("My Keras Model!", "trained_keras_classification_abcd1234")
         == "my-keras-model-trained_keras_classification_abcd1234"
     )
+
+
+def test_model_registry_write_registry_is_atomic_under_concurrent_writes(tmp_path: Path):
+    settings = Settings(
+        MODELS_DIR=str(tmp_path / "models"),
+        DATASETS_DIR=str(tmp_path / "datasets"),
+        STORAGE_DIR=str(tmp_path / "storage"),
+        DATABASE_URL=f"sqlite:///{tmp_path / 'app.db'}",
+    )
+    storage = Storage(settings)
+    storage.ensure()
+    registry = ModelRegistry(settings, storage)
+
+    stop = threading.Event()
+    errors: list[Exception] = []
+
+    def writer(worker_id: int) -> None:
+        counter = 0
+        while not stop.is_set():
+            try:
+                registry._write_registry(
+                    {f"model_{worker_id}_{counter}": {"id": f"model_{worker_id}_{counter}"}}
+                )
+            except Exception as exc:  # pragma: no cover - failure path
+                errors.append(exc)
+                return
+            counter += 1
+
+    def reader() -> None:
+        while not stop.is_set():
+            if storage.registry_file.exists():
+                try:
+                    raw = storage.registry_file.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                if raw:
+                    try:
+                        json.loads(raw)
+                    except json.JSONDecodeError as exc:  # pragma: no cover - failure path
+                        errors.append(exc)
+                        return
+
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(4)]
+    threads.append(threading.Thread(target=reader))
+    threads.append(threading.Thread(target=reader))
+
+    for thread in threads:
+        thread.start()
+    stop.wait(0.5)
+    stop.set()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert errors == []
+    assert json.loads(storage.registry_file.read_text(encoding="utf-8")) is not None
+
+
+def test_model_registry_concurrent_register_update_delete_preserves_entries(tmp_path: Path):
+    settings = Settings(
+        MODELS_DIR=str(tmp_path / "models"),
+        DATASETS_DIR=str(tmp_path / "datasets"),
+        STORAGE_DIR=str(tmp_path / "storage"),
+        DATABASE_URL=f"sqlite:///{tmp_path / 'app.db'}",
+    )
+    storage = Storage(settings)
+    storage.ensure()
+    registry = ModelRegistry(settings, storage)
+
+    model_ids = [f"trained_concurrent_{i}" for i in range(8)]
+    for model_id in model_ids:
+        weights_path = storage.trained_models / model_id / "weights" / "best.pt"
+        weights_path.parent.mkdir(parents=True)
+        weights_path.write_text("weights", encoding="utf-8")
+
+    errors: list[Exception] = []
+
+    def register(model_id: str) -> None:
+        try:
+            registry.register_model(
+                model_id=model_id,
+                name=f"Model {model_id}",
+                family="yolo",
+                task_type="segmentation",
+                paths={"weights": storage.trained_models / model_id / "weights" / "best.pt"},
+                labels=["granuloma", "kista"],
+            )
+        except Exception as exc:  # pragma: no cover - failure path
+            errors.append(exc)
+
+    threads = [threading.Thread(target=register, args=(model_id,)) for model_id in model_ids]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert errors == []
+    registry_payload = json.loads(storage.registry_file.read_text(encoding="utf-8"))
+    assert set(registry_payload.keys()) == set(model_ids)
+
+    def update(model_id: str) -> None:
+        try:
+            registry.update_model(model_id, name=f"Updated {model_id}")
+        except Exception as exc:  # pragma: no cover - failure path
+            errors.append(exc)
+
+    def delete(model_id: str) -> None:
+        try:
+            registry.delete_model(model_id)
+        except Exception as exc:  # pragma: no cover - failure path
+            errors.append(exc)
+
+    to_update = model_ids[: len(model_ids) // 2]
+    to_delete = model_ids[len(model_ids) // 2 :]
+
+    threads = [threading.Thread(target=update, args=(model_id,)) for model_id in to_update]
+    threads += [threading.Thread(target=delete, args=(model_id,)) for model_id in to_delete]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert errors == []
+    registry_payload = json.loads(storage.registry_file.read_text(encoding="utf-8"))
+    assert set(registry_payload.keys()) == set(to_update)
+    for model_id in to_update:
+        assert registry_payload[model_id]["name"] == f"Updated {model_id}"
+
+
+def test_model_registry_get_predictor_double_checked_locking_is_thread_safe():
+    settings = get_settings()
+    registry = ModelRegistry(settings, Storage(settings))
+
+    construct_calls: list[str] = []
+    construct_started = threading.Event()
+    release_construct = threading.Event()
+
+    def fake_construct(spec):
+        construct_calls.append(spec.id)
+        construct_started.set()
+        assert release_construct.wait(timeout=5)
+        return object()
+
+    registry._construct_predictor = fake_construct  # type: ignore[method-assign]
+
+    results: list[object] = []
+    errors: list[Exception] = []
+
+    def call() -> None:
+        try:
+            results.append(registry.get_predictor("keyword_text_classifier"))
+        except Exception as exc:  # pragma: no cover - failure path
+            errors.append(exc)
+
+    threads = [threading.Thread(target=call) for _ in range(5)]
+    for thread in threads:
+        thread.start()
+
+    assert construct_started.wait(timeout=5)
+
+    # While construction is blocked (simulating heavy model loading), the
+    # registry lock must be free -- construction must happen outside it.
+    acquired = registry._lock.acquire(timeout=1)
+    assert acquired, "registry lock was held during predictor construction"
+    registry._lock.release()
+
+    release_construct.set()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert errors == []
+    assert len(results) == 5
+    assert all(result is results[0] for result in results)
+    assert registry._predictors["keyword_text_classifier"] is results[0]
 
 
 def test_model_registry_creates_download_archives_for_multi_asset_models(tmp_path: Path):

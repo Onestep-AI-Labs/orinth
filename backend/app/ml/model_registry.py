@@ -1,5 +1,8 @@
 import json
 import math
+import os
+import tempfile
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -74,6 +77,10 @@ class ModelRegistry:
         self.settings = settings
         self.storage = storage
         self._predictors: dict[str, Predictor] = {}
+        # Re-entrant because registry methods call each other (e.g.
+        # register_model -> get_spec -> list_specs -> _load_promoted_specs)
+        # and get_predictor uses it for double-checked cache access too.
+        self._lock = threading.RLock()
 
     def list_specs(self) -> list[ModelSpec]:
         models_dir = self.settings.models_path
@@ -156,66 +163,86 @@ class ModelRegistry:
         if not spec.available:
             missing = [str(path) for path in spec.paths.values() if not path.exists()]
             raise FileNotFoundError(f"Model assets are missing for {model_id}: {missing}")
-        if model_id not in self._predictors:
-            if spec.family == "yolo":
-                self._predictors[model_id] = YoloPredictor(
-                    spec.paths["weights"],
-                    spec.labels or DEFAULT_LABELS,
-                )
-            elif spec.family == "unet_inception":
-                self._predictors[model_id] = UnetInceptionPredictor(
-                    spec.paths["unet"],
-                    spec.paths["classifier"],
-                )
-            elif spec.family == "keras_classification":
-                self._predictors[model_id] = KerasClassificationPredictor(
-                    spec.paths["model"],
-                    spec.labels or DEFAULT_LABELS,
-                    image_size=int((spec.artifacts or {}).get("image_size") or 224),
-                )
-            elif spec.family == "nlp_text_classification":
-                self._predictors[model_id] = TextClassificationPredictor(
-                    spec.paths.get("model"),
-                    spec.labels or ["positive", "negative", "neutral"],
-                )
-            elif spec.family == "nlp_summarization":
-                self._predictors[model_id] = ExtractiveSummarizerPredictor(
-                    spec.paths.get("model"),
-                    spec.labels or ["summary"],
-                )
-            elif spec.family == "nlp_qa":
-                self._predictors[model_id] = KeywordQAPredictor(
-                    spec.paths.get("model"),
-                    spec.labels or ["answer"],
-                )
-            elif spec.family in {"nlp_keras_cnn", "nlp_keras_lstm", "nlp_keras_bilstm"}:
-                self._predictors[model_id] = KerasTextClassificationPredictor(
-                    spec.paths["model"],
-                    spec.labels or ["positive", "negative", "neutral"],
-                )
-            elif spec.family == "nlp_keras_seq2seq":
-                self._predictors[model_id] = KerasSeq2SeqSummarizerPredictor(
-                    spec.paths["model"],
-                    spec.labels or ["summary"],
-                )
-            elif spec.family == "hf_bert_text_classification":
-                self._predictors[model_id] = HuggingFaceTextClassificationPredictor(
-                    spec.paths["model"],
-                    spec.labels or ["positive", "negative", "neutral"],
-                )
-            elif spec.family == "hf_bart_summarization":
-                self._predictors[model_id] = HuggingFaceSummarizerPredictor(
-                    spec.paths["model"],
-                    spec.labels or ["summary"],
-                )
-            elif spec.family == "hf_bert_question_answering":
-                self._predictors[model_id] = HuggingFaceQAPredictor(
-                    spec.paths["model"],
-                    spec.labels or ["answer"],
-                )
-            else:
-                raise ValueError(f"Unsupported model family: {spec.family}")
-        return self._predictors[model_id]
+
+        with self._lock:
+            cached = self._predictors.get(model_id)
+        if cached is not None:
+            return cached
+
+        # Heavy model construction (loading weights, building TF/Torch
+        # graphs, etc.) happens outside the lock so it never blocks other
+        # registry operations or other predictor lookups. If construction
+        # raises, nothing is written to the cache.
+        predictor = self._construct_predictor(spec)
+
+        with self._lock:
+            # Double-checked: another thread may have constructed and
+            # cached a predictor for this model_id while we were building
+            # ours. Keep whichever was cached first and discard the rest.
+            existing = self._predictors.get(model_id)
+            if existing is not None:
+                return existing
+            self._predictors[model_id] = predictor
+            return predictor
+
+    def _construct_predictor(self, spec: ModelSpec) -> Predictor:
+        if spec.family == "yolo":
+            return YoloPredictor(
+                spec.paths["weights"],
+                spec.labels or DEFAULT_LABELS,
+            )
+        if spec.family == "unet_inception":
+            return UnetInceptionPredictor(
+                spec.paths["unet"],
+                spec.paths["classifier"],
+            )
+        if spec.family == "keras_classification":
+            return KerasClassificationPredictor(
+                spec.paths["model"],
+                spec.labels or DEFAULT_LABELS,
+                image_size=int((spec.artifacts or {}).get("image_size") or 224),
+            )
+        if spec.family == "nlp_text_classification":
+            return TextClassificationPredictor(
+                spec.paths.get("model"),
+                spec.labels or ["positive", "negative", "neutral"],
+            )
+        if spec.family == "nlp_summarization":
+            return ExtractiveSummarizerPredictor(
+                spec.paths.get("model"),
+                spec.labels or ["summary"],
+            )
+        if spec.family == "nlp_qa":
+            return KeywordQAPredictor(
+                spec.paths.get("model"),
+                spec.labels or ["answer"],
+            )
+        if spec.family in {"nlp_keras_cnn", "nlp_keras_lstm", "nlp_keras_bilstm"}:
+            return KerasTextClassificationPredictor(
+                spec.paths["model"],
+                spec.labels or ["positive", "negative", "neutral"],
+            )
+        if spec.family == "nlp_keras_seq2seq":
+            return KerasSeq2SeqSummarizerPredictor(
+                spec.paths["model"],
+                spec.labels or ["summary"],
+            )
+        if spec.family == "hf_bert_text_classification":
+            return HuggingFaceTextClassificationPredictor(
+                spec.paths["model"],
+                spec.labels or ["positive", "negative", "neutral"],
+            )
+        if spec.family == "hf_bart_summarization":
+            return HuggingFaceSummarizerPredictor(
+                spec.paths["model"],
+                spec.labels or ["summary"],
+            )
+        if spec.family == "hf_bert_question_answering":
+            return HuggingFaceQAPredictor(
+                spec.paths["model"],
+                spec.labels or ["answer"],
+            )
+        raise ValueError(f"Unsupported model family: {spec.family}")
 
     def register_model(
         self,
@@ -233,55 +260,58 @@ class ModelRegistry:
         artifacts: dict[str, Any] | None = None,
         source: str = "trained",
     ) -> ModelInfo:
-        registry = self._read_registry()
-        registry[model_id] = {
-            "id": model_id,
-            "name": name,
-            "family": family,
-            "description": description,
-            "paths": {key: self._registry_path(path) for key, path in paths.items()},
-            "promoted": True,
-            "project_id": project_id,
-            "task_type": task_type,
-            "labels": labels,
-            "source": source,
-            "training_job_id": training_job_id,
-            "created_at": datetime.utcnow().isoformat(),
-            "metrics": metrics or {},
-            "artifacts": artifacts or {},
-        }
-        self.storage.registry_file.parent.mkdir(parents=True, exist_ok=True)
-        self._write_registry(registry)
-        self._predictors.pop(model_id, None)
-        return self.get_spec(model_id).to_info()
+        with self._lock:
+            registry = self._read_registry()
+            registry[model_id] = {
+                "id": model_id,
+                "name": name,
+                "family": family,
+                "description": description,
+                "paths": {key: self._registry_path(path) for key, path in paths.items()},
+                "promoted": True,
+                "project_id": project_id,
+                "task_type": task_type,
+                "labels": labels,
+                "source": source,
+                "training_job_id": training_job_id,
+                "created_at": datetime.utcnow().isoformat(),
+                "metrics": metrics or {},
+                "artifacts": artifacts or {},
+            }
+            self.storage.registry_file.parent.mkdir(parents=True, exist_ok=True)
+            self._write_registry(registry)
+            self._predictors.pop(model_id, None)
+            return self.get_spec(model_id).to_info()
 
     def update_model(self, model_id: str, *, name: str) -> ModelInfo:
-        registry = self._read_registry()
-        if model_id not in registry:
-            raise KeyError(model_id)
-        clean_name = name.strip()
-        if not clean_name:
-            raise ValueError("Model name is required")
-        item = dict(registry[model_id])
-        item["name"] = clean_name
-        item = self._move_owned_model_dir(item)
-        registry[model_id] = item
-        self._write_registry(registry)
-        return self.get_spec(model_id).to_info()
+        with self._lock:
+            registry = self._read_registry()
+            if model_id not in registry:
+                raise KeyError(model_id)
+            clean_name = name.strip()
+            if not clean_name:
+                raise ValueError("Model name is required")
+            item = dict(registry[model_id])
+            item["name"] = clean_name
+            item = self._move_owned_model_dir(item)
+            registry[model_id] = item
+            self._write_registry(registry)
+            return self.get_spec(model_id).to_info()
 
     def delete_model(self, model_id: str) -> bool:
-        registry = self._read_registry()
-        item = registry.pop(model_id, None)
-        if item is None:
-            raise KeyError(model_id)
-        self._write_registry(registry)
-        model_dir = self._model_dir_for_registry_item(item)
-        deleted_storage = self.storage.delete_owned_path(model_dir)
-        if not deleted_storage:
-            for raw_path in (item.get("paths") or {}).values():
-                self.storage.delete_owned_path(raw_path)
-        self._predictors.pop(model_id, None)
-        return True
+        with self._lock:
+            registry = self._read_registry()
+            item = registry.pop(model_id, None)
+            if item is None:
+                raise KeyError(model_id)
+            self._write_registry(registry)
+            model_dir = self._model_dir_for_registry_item(item)
+            deleted_storage = self.storage.delete_owned_path(model_dir)
+            if not deleted_storage:
+                for raw_path in (item.get("paths") or {}).values():
+                    self.storage.delete_owned_path(raw_path)
+            self._predictors.pop(model_id, None)
+            return True
 
     def model_download(self, model_id: str) -> tuple[Path, str]:
         spec = self.get_spec(model_id)
@@ -381,11 +411,24 @@ class ModelRegistry:
         return json.loads(self.storage.registry_file.read_text(encoding="utf-8"))
 
     def _write_registry(self, registry: dict[str, Any]) -> None:
-        self.storage.registry_file.parent.mkdir(parents=True, exist_ok=True)
-        self.storage.registry_file.write_text(
-            json.dumps(self._json_safe(registry), indent=2, allow_nan=False),
-            encoding="utf-8",
+        target = self.storage.registry_file
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(self._json_safe(registry), indent=2, allow_nan=False)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=".model_registry.", suffix=".tmp", dir=str(target.parent)
         )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+                tmp_file.write(payload)
+                tmp_file.flush()
+                os.fsync(tmp_file.fileno())
+            os.replace(tmp_name, target)
+        except BaseException:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
 
     def _move_owned_model_dir(self, item: dict[str, Any]) -> dict[str, Any]:
         model_id = str(item["id"])
