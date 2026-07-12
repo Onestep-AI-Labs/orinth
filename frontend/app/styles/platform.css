@@ -2728,7 +2728,66 @@ tr:last-child td {
   place-items: center;
   align-content: center;
   gap: 10px;
+  justify-items: center;
   color: #8795a1;
+  text-align: center;
+  font-weight: 800;
+}
+
+.empty-state-centered {
+  min-height: max(50vh, 340px);
+  grid-column: 1 / -1;
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(139, 207, 90, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 30% 60%, rgba(20, 184, 166, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 50%, rgba(168, 130, 240, 0.06) 0%, transparent 50%),
+    linear-gradient(180deg, #f8fafb 0%, #f0f4f8 50%, #f8fafb 100%);
+}
+
+.model-grid:has(.empty-state-centered:only-child),
+.dataset-catalog-grid:has(.empty-state-centered:only-child),
+.project-grid:has(.empty-state-centered:only-child) {
+  grid-template-columns: 1fr;
+}
+
+.empty-state-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid rgba(70, 180, 162, 0.24);
+  border-radius: 12px;
+  background: #f0fbf7;
+  color: #246b61;
+}
+
+.empty-state-centered .empty-state-icon {
+  width: 68px;
+  height: 68px;
+  border: 1px dashed rgba(130, 100, 220, 0.32);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #000000;
+}
+
+.empty-state > span:last-child {
+  color: #52606d;
+  font-size: 14px;
+}
+
+.empty-state-centered > strong {
+  color: #1f2933;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.empty-state-centered > span:last-child {
+  max-width: 360px;
+  color: #66788a;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
 }
 
 .skeleton-card-grid {
@@ -3079,6 +3138,26 @@ tr:last-child td {
   .tab-button {
     padding: 0 10px;
   }
+
+  .empty-state-centered {
+    min-height: max(40vh, 280px);
+    border-radius: 12px;
+    padding: 24px 16px;
+  }
+
+  .empty-state-centered .empty-state-icon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .empty-state-centered > strong {
+    font-size: 16px;
+  }
+
+  .empty-state-centered > span:last-child {
+    max-width: 300px;
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -3189,5 +3268,26 @@ tr:last-child td {
   .responsive-card-table td {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+
+  .empty-state-centered {
+    min-height: max(35vh, 220px);
+    border-radius: 10px;
+    padding: 20px 12px;
+  }
+
+  .empty-state-centered .empty-state-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+  }
+
+  .empty-state-centered > strong {
+    font-size: 15px;
+  }
+
+  .empty-state-centered > span:last-child {
+    max-width: 260px;
+    font-size: 12px;
   }
 }

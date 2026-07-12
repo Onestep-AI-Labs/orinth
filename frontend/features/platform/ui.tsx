@@ -263,11 +263,12 @@ export function StatusBadge({ status }: { status: string }) {
   return <span className={`badge ${ok ? "badge-ok" : failed ? "badge-fail" : ""}`}>{status}</span>;
 }
 
-export function EmptyState({ label }: { label: string }) {
+export function EmptyState({ label, icon, centered, description }: { label: string; icon?: React.ReactNode; centered?: boolean; description?: string }) {
   return (
-    <div className="empty-state">
-      <ImageIcon size={28} />
-      <span>{label}</span>
+    <div className={`empty-state${centered ? " empty-state-centered" : ""}`}>
+      <span className="empty-state-icon">{icon ?? <ImageIcon size={centered ? 32 : 28} />}</span>
+      {centered ? <strong>{label}</strong> : <span>{label}</span>}
+      {description && <span>{description}</span>}
     </div>
   );
 }
@@ -280,4 +281,3 @@ export function MutationError({ mutations }: { mutations: Array<{ error: Error |
 export function toggleId(id: string, checked: boolean, selectedIds: string[], setSelectedIds: (ids: string[]) => void) {
   setSelectedIds(checked ? [...selectedIds, id] : selectedIds.filter((item) => item !== id));
 }
-

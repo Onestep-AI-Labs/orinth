@@ -598,7 +598,7 @@ export function DatasetPage() {
                 </article>
               );
             })}
-            {datasets.length === 0 && <EmptyState label="No datasets" />}
+            {datasets.length === 0 && <EmptyState label="No datasets yet." icon={<Database size={30} />} centered description="Create or import a dataset to start annotating and training models." />}
           </div>
           <MutationError mutations={[createMutation, updateDatasetMutation, cloneMutation, deleteDatasetMutation]} />
         </section>
@@ -951,4 +951,3 @@ export function DatasetPage() {
     </div>
   );
 }
-

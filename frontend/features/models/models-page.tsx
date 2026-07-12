@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Activity, Download, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Activity, Boxes, Download, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
@@ -62,10 +62,10 @@ export function ModelsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Models" subtitle={project?.name ?? "Available trained models"} icon={<Activity size={20} />} />
+      <PageHeader title="Models" subtitle={project?.name ?? "Available trained models"} icon={<Boxes size={20} />} />
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={<Activity size={18} />} title="Available Models" />
+          <PanelTitle icon={<Boxes size={18} />} title="Available Models" />
           <div className="flex flex-wrap gap-2">
             <Metric label="Registered" value={models.length} />
             <Metric label="Available" value={availableCount} />
@@ -163,7 +163,7 @@ export function ModelsPage() {
                 </article>
               );
             })}
-            {models.length === 0 && <EmptyState label="No models registered" />}
+            {models.length === 0 && <EmptyState label="No trained models yet." icon={<Boxes size={30} />} centered description="Create a project and train a model to see it here. You can also upload custom model weights." />}
           </div>
         )}
         <MutationError mutations={[renameModel, deleteModel]} />
