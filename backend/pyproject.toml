@@ -18,6 +18,8 @@ dependencies = [
     "pycocotools>=2.0.8",
     "ultralytics>=8.3.0",
     "tensorflow>=2.16.1",
+    "torch>=2.3.0",
+    "transformers>=4.57.0",
     "albumentations>=1.4.24,<2.0",
 ]
 

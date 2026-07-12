@@ -56,7 +56,11 @@ class EvaluationService:
         self.registry = registry
         self.dataset_service = dataset_service
 
-    def list_datasets(self, project_id: str | None = None) -> list[EvaluationDatasetInfo]:
+    def list_datasets(
+        self,
+        project_id: str | None = None,
+        task_type: str | None = None,
+    ) -> list[EvaluationDatasetInfo]:
         datasets_root = self.settings.datasets_path
         yolo_path = datasets_root / "dental dataset_yolov11_format" / "test"
         coco_path = datasets_root / "dental dataset_coco_format" / "test"
@@ -129,6 +133,9 @@ class EvaluationService:
                 for dataset in datasets
                 if dataset.project_id == project_id or dataset.key.startswith("dataset:sample_")
             ]
+        if task_type:
+            normalized_task = "text_classification" if task_type == "text" else task_type
+            datasets = [dataset for dataset in datasets if dataset.task_type == normalized_task]
         return datasets
 
     def create_job(self, db: Session, payload: EvaluationJobCreate) -> EvaluationJob:

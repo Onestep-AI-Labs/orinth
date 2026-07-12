@@ -23,8 +23,9 @@ router = APIRouter(prefix="/testing")
 @router.get("/datasets", response_model=list[EvaluationDatasetInfo])
 def list_testing_datasets(
     project_id: str | None = Query(default=None),
+    task_type: str | None = Query(default=None),
 ) -> list[EvaluationDatasetInfo]:
-    return evaluation_service.list_datasets(project_id)
+    return evaluation_service.list_datasets(project_id, task_type)
 
 
 @router.post("/jobs", response_model=EvaluationJobRead)

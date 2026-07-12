@@ -140,6 +140,14 @@ class ModelUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
 
+class PlatformSettingsRead(BaseModel):
+    huggingface_hub_token_configured: bool = False
+
+
+class PlatformSettingsUpdate(BaseModel):
+    huggingface_hub_token: str | None = Field(default=None, max_length=4096)
+
+
 class EvaluationDatasetInfo(BaseModel):
     key: str
     name: str

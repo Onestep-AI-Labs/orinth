@@ -32,7 +32,11 @@ from app.services.training import (
     TrainingService,
     ultralytics_initial_weights,
 )
-from app.training.runners.nlp_train import train_text_classifier
+from app.training.runners.nlp_train import (
+    train_keras_seq2seq_summarizer,
+    train_keras_text_classifier,
+    train_text_classifier,
+)
 
 
 def make_settings(tmp_path: Path) -> Settings:
@@ -296,6 +300,39 @@ def test_clean_log_line_removes_ansi_sequences():
     assert clean_log_line("\x1b[34mtrain:\x1b[0m 1/5\r") == "train: 1/5"
 
 
+def test_clean_log_line_filters_expected_transformer_load_report():
+    assert (
+        clean_log_line(
+            "[transformers] BertForSequenceClassification LOAD REPORT from: bert-base-uncased"
+        )
+        == ""
+    )
+    assert clean_log_line("classifier.weight | MISSING |") == ""
+    assert clean_log_line("Hugging Face BERT classifier: loading the base checkpoint") != ""
+
+
+def test_training_process_env_exports_hf_token_aliases(tmp_path: Path):
+    settings = Settings(
+        MODELS_DIR=str(tmp_path / "models"),
+        DATASETS_DIR=str(tmp_path / "datasets"),
+        STORAGE_DIR=str(tmp_path / "storage"),
+        DATABASE_URL=f"sqlite:///{tmp_path / 'app.db'}",
+        HF_TOKEN="hf_alias_token",
+    )
+    storage = Storage(settings)
+    service = TrainingService(
+        settings,
+        storage,
+        ModelRegistry(settings, storage),
+        DatasetService(settings, storage),
+    )
+
+    env = service._process_env()
+
+    assert env["HF_TOKEN"] == "hf_alias_token"
+    assert env["HUGGINGFACE_HUB_TOKEN"] == "hf_alias_token"
+
+
 def test_evaluation_batch_creates_one_job_per_model(tmp_path: Path):
     settings = make_settings(tmp_path)
     storage = Storage(settings)
@@ -514,6 +551,17 @@ def test_nlp_training_option_command_and_runner(tmp_path: Path):
                 ),
             )
     service = TrainingService(settings, storage, ModelRegistry(settings, storage), dataset_service)
+    text_option_ids = [option.id for option in service.model_options("text_classification")]
+    assert text_option_ids[:3] == [
+        "nlp_keras_cnn_classifier",
+        "nlp_keras_lstm_classifier",
+        "nlp_keras_bilstm_classifier",
+    ]
+    assert "nlp_tfidf_classifier" in text_option_ids
+    assert "hf_bert_text_classifier" in text_option_ids
+    assert service.prepare_model_asset(
+        ModelAssetPrepareRequest(option_id="hf_bert_text_classifier", download=False)
+    ).status == "missing"
     option = service.option_by_id("nlp_tfidf_classifier")
     assert option.runnable is True
     payload = TrainingJobCreate(
@@ -540,6 +588,169 @@ def test_nlp_training_option_command_and_runner(tmp_path: Path):
     assert "accuracy" in metrics
     assert predictions
 
+    keras_payload = TrainingJobCreate(
+        model_option_id="nlp_keras_bilstm_classifier",
+        model_family="nlp_keras_bilstm",
+        task_type="text_classification",
+        dataset_id=dataset.id,
+        epochs=1,
+        batch_size=1,
+    )
+    keras_job = TrainingJob(
+        id="keras-nlp-job",
+        model_family="nlp_keras_bilstm",
+        status="queued",
+        parameters=keras_payload.model_dump(),
+    )
+    keras_command = service._command_for_job(keras_job, tmp_path / "keras-run")
+    assert "app.training.runners.nlp_train" in keras_command
+    assert "nlp_keras_bilstm_classifier" in keras_command
+    assert "--max-length" in keras_command
+
+
+def test_keras_nlp_runner_artifacts_and_predictor(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    storage = Storage(settings)
+    storage.ensure()
+    dataset_service = DatasetService(settings, storage)
+    dataset = dataset_service.create_dataset(
+        DatasetCreate(
+            name="Keras NLP Train",
+            task_type="text_classification",
+            format="text_folder",
+            labels=["positive", "negative"],
+        )
+    )
+    for split, rows in {
+        "train": [
+            ("good.txt", "good stable workflow", 0),
+            ("clear.txt", "clear helpful output", 0),
+            ("bad.txt", "bad broken import", 1),
+            ("slow.txt", "slow failed job", 1),
+        ],
+        "valid": [("ok.txt", "good clear output", 0), ("risk.txt", "broken error path", 1)],
+    }.items():
+        for filename, text, class_id in rows:
+            text_path = storage.datasets / dataset.id / split / "texts" / filename
+            text_path.parent.mkdir(parents=True, exist_ok=True)
+            text_path.write_text(text, encoding="utf-8")
+            dataset_service.save_annotations(
+                dataset.id,
+                split,
+                filename,
+                DatasetAnnotationSave(
+                    annotations=[
+                        DatasetAnnotation(
+                            class_id=class_id,
+                            class_name="positive" if class_id == 0 else "negative",
+                            kind="classification",
+                        )
+                    ]
+                ),
+            )
+
+    run_dirs = {}
+    for kind in ["cnn", "lstm", "bilstm"]:
+        run_dir = tmp_path / f"keras-{kind}"
+        metrics, predictions = train_keras_text_classifier(
+            dataset_root=dataset_service.dataset_root(dataset.id),
+            run_dir=run_dir,
+            labels=["positive", "negative"],
+            epochs=1,
+            learning_rate=0.001,
+            batch_size=1,
+            max_length=12,
+            vocab_size=128,
+            model_kind=kind,
+        )
+        run_dirs[kind] = run_dir
+        assert (run_dir / "best_model.keras").exists()
+        assert (run_dir / "last_model.keras").exists()
+        assert (run_dir / "tokenizer.json").exists()
+        assert (run_dir / "metadata.json").exists()
+        assert (run_dir / "results.csv").exists()
+        assert "accuracy" in metrics
+        assert predictions
+
+    registry = ModelRegistry(settings, storage)
+    registry.register_model(
+        model_id="trained_nlp_keras_cnn_test",
+        name="Trained Keras CNN",
+        family="nlp_keras_cnn",
+        task_type="text_classification",
+        paths={"model": run_dirs["cnn"] / "best_model.keras"},
+        labels=["positive", "negative"],
+    )
+    prediction = registry.get_predictor("trained_nlp_keras_cnn_test").predict_text(
+        "good helpful workflow",
+        InferenceParameters(),
+    )
+    assert prediction["label"] in {"positive", "negative"}
+    assert set(prediction["scores"]) == {"positive", "negative"}
+
+
+def test_keras_seq2seq_and_hf_catalog(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    storage = Storage(settings)
+    storage.ensure()
+    dataset_service = DatasetService(settings, storage)
+    dataset = dataset_service.create_dataset(
+        DatasetCreate(
+            name="Summary Train",
+            task_type="summarization",
+            format="text_folder",
+            labels=["summary"],
+        )
+    )
+    for split, rows in {
+        "train": [
+            ("one.txt", "The platform trains models from local datasets. It writes metrics.", "The platform trains models."),
+            ("two.txt", "The dataset studio stores text files safely. It keeps annotations.", "The dataset studio stores text."),
+        ],
+        "valid": [
+            ("valid.txt", "Testing compares model predictions with references. It records metrics.", "Testing compares predictions."),
+        ],
+    }.items():
+        for filename, text, summary in rows:
+            text_path = storage.datasets / dataset.id / split / "texts" / filename
+            text_path.parent.mkdir(parents=True, exist_ok=True)
+            text_path.write_text(text, encoding="utf-8")
+            dataset_service.save_annotations(
+                dataset.id,
+                split,
+                filename,
+                DatasetAnnotationSave(
+                    annotations=[
+                        DatasetAnnotation(class_id=0, class_name="summary", kind="summary", text=summary)
+                    ]
+                ),
+            )
+
+    service = TrainingService(settings, storage, ModelRegistry(settings, storage), dataset_service)
+    summary_option_ids = {option.id for option in service.model_options("summarization")}
+    qa_option_ids = {option.id for option in service.model_options("question_answering")}
+    assert "nlp_keras_seq2seq_summarizer" in summary_option_ids
+    assert "hf_bart_summarizer" in summary_option_ids
+    assert "hf_bert_question_answering" in qa_option_ids
+
+    run_dir = tmp_path / "seq2seq"
+    metrics, predictions = train_keras_seq2seq_summarizer(
+        dataset_root=dataset_service.dataset_root(dataset.id),
+        run_dir=run_dir,
+        epochs=1,
+        learning_rate=0.001,
+        batch_size=1,
+        max_length=16,
+        target_max_length=8,
+        vocab_size=160,
+    )
+    assert (run_dir / "best_model.keras").exists()
+    assert (run_dir / "tokenizer.json").exists()
+    assert (run_dir / "metadata.json").exists()
+    assert (run_dir / "results.csv").exists()
+    assert "model_kind" in metrics
+    assert predictions
+
 
 def test_nlp_reference_models_and_evaluation(tmp_path: Path):
     settings = make_settings(tmp_path)
@@ -561,6 +772,11 @@ def test_nlp_reference_models_and_evaluation(tmp_path: Path):
     Session = sessionmaker(bind=engine)
     db = Session()
     service = EvaluationService(settings, storage, registry, dataset_service)
+    summary_datasets = service.list_datasets(task_type="summarization")
+    assert summary_datasets
+    assert all(dataset.task_type == "summarization" for dataset in summary_datasets)
+    assert any(dataset.key == "dataset:sample_summarization:test" for dataset in summary_datasets)
+
     job = service.create_job(
         db,
         EvaluationJobCreate(

@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 import pytest
 from fastapi import HTTPException
 
-from app.core.defaults import DEFAULT_PROJECT_ID
+from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_TASK_TYPES
 from app.core.database import Base
 from app.db.models import Project
 from app.schemas import ProjectCreate
@@ -20,6 +20,7 @@ def test_project_service_creates_default_and_user_project(tmp_path):
     try:
         projects = service.list_projects(db)
         assert projects[0].id == DEFAULT_PROJECT_ID
+        assert projects[0].task_types == DEFAULT_PROJECT_TASK_TYPES
 
         created = service.create_project(
             db,
@@ -40,5 +41,36 @@ def test_project_service_creates_default_and_user_project(tmp_path):
         with pytest.raises(HTTPException) as exc:
             service.delete_project(db, DEFAULT_PROJECT_ID)
         assert exc.value.status_code == 409
+    finally:
+        db.close()
+
+
+def test_project_service_backfills_default_nlp_tasks(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'projects-backfill.db'}")
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine)
+    db = session_local()
+    service = ProjectService()
+    try:
+        db.add(
+            Project(
+                id=DEFAULT_PROJECT_ID,
+                name="Legacy Default",
+                task_types=["segmentation", "classification"],
+                metadata_json={},
+            )
+        )
+        db.commit()
+
+        default = service.ensure_default(db)
+
+        assert default.task_types == [
+            "segmentation",
+            "classification",
+            "object_detection",
+            "text_classification",
+            "summarization",
+            "question_answering",
+        ]
     finally:
         db.close()

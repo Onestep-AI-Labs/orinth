@@ -22,7 +22,7 @@ export function TestingPage() {
     queryKey: ["models", "available", projectId],
     queryFn: () => api.models(true, projectId)
   });
-  const datasetsQuery = useQuery({ queryKey: ["testing-datasets", projectId], queryFn: () => api.datasets(projectId) });
+  const datasetsQuery = useQuery({ queryKey: ["testing-datasets", projectId, taskType], queryFn: () => api.datasets(projectId, taskType) });
   const jobsQuery = useQuery({
     queryKey: ["testing-jobs", projectId],
     queryFn: () => api.testingJobs(projectId),
@@ -49,7 +49,7 @@ export function TestingPage() {
     return tasks.length ? tasks : VISION_TASK_TYPES;
   }, [project?.task_types]);
   const datasets = useMemo(
-    () => rawDatasets.filter((dataset) => areTasksCompatible(taskType, dataset.task_type)),
+    () => rawDatasets.filter((dataset) => dataset.task_type === taskType),
     [rawDatasets, taskType]
   );
   const models = useMemo(
@@ -64,12 +64,20 @@ export function TestingPage() {
     () => Object.fromEntries(rawModels.map((model) => [model.id, model.name])) as Record<string, string>,
     [rawModels]
   );
+  const datasetTaskByKey = useMemo(
+    () => Object.fromEntries(rawDatasets.map((dataset) => [dataset.key, dataset.task_type])) as Record<string, TaskType>,
+    [rawDatasets]
+  );
+  const jobsForTask = useMemo(
+    () => (jobsQuery.data ?? []).filter((job) => datasetTaskByKey[job.dataset_key] === taskType),
+    [datasetTaskByKey, jobsQuery.data, taskType]
+  );
   const comparisonJobs = useMemo(
     () =>
-      (jobsQuery.data ?? [])
+      jobsForTask
         .filter((job) => job.dataset_key === datasetKey && job.status === "completed")
         .slice(0, 8),
-    [datasetKey, jobsQuery.data]
+    [datasetKey, jobsForTask]
   );
 
   useEffect(() => {
@@ -77,6 +85,9 @@ export function TestingPage() {
       setTaskType(taskOptions[0] ?? "classification");
     }
   }, [taskOptions, taskType]);
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [taskType]);
   useEffect(() => {
     setModelIds((current) => {
       const availableIds = new Set(models.map((model) => model.id));
@@ -151,7 +162,7 @@ export function TestingPage() {
                   <span>{model.name}</span>
                 </label>
               ))}
-              {models.length === 0 && <EmptyState label="No trained models available" />}
+              {models.length === 0 && <EmptyState label="No trained models available" icon={<FlaskConical size={28} />} />}
             </div>
           </Field>
           <Field label="Dataset">
@@ -180,18 +191,19 @@ export function TestingPage() {
             onClear={confirmClearTestingJobs}
           />
           <TestingJobTable
-            jobs={jobsQuery.data ?? []}
+            jobs={jobsForTask}
             selectedIds={selectedIds}
             setSelectedIds={setSelectedIds}
             modelTaskById={modelTaskById}
             modelNameById={modelNameById}
+            taskType={taskType}
           />
           {jobsQuery.isLoading && <TableSkeleton rows={5} />}
           <MutationError mutations={[deleteMutation]} />
         </section>
         <section className="panel workspace-grid-full">
           <PanelTitle icon={<BarChart3 size={18} />} title="Comparison" />
-          <TestingComparison jobs={comparisonJobs} modelTaskById={modelTaskById} modelNameById={modelNameById} />
+          <TestingComparison jobs={comparisonJobs} modelTaskById={modelTaskById} modelNameById={modelNameById} taskType={taskType} />
         </section>
       </div>
       {confirmationDialog}

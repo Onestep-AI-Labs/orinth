@@ -4,6 +4,18 @@ import re
 from pathlib import Path
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+HF_LOAD_REPORT_RE = re.compile(
+    r"^("
+    r"\[transformers\].*LOAD REPORT.*|"
+    r"Key\s+\|\s+Status.*|"
+    r"[-+\s|]+|"
+    r".*\|\s+(UNEXPECTED|MISSING)\s*\|?.*|"
+    r"Notes:|"
+    r"-\s+(UNEXPECTED|MISSING):.*|"
+    r".*newly initialized.*|"
+    r".*different task/architecture.*"
+    r")$"
+)
 
 
 def find_best_model(run_dir: Path) -> Path | None:
@@ -12,6 +24,7 @@ def find_best_model(run_dir: Path) -> Path | None:
         run_dir / "best.pt",
         run_dir / "best_model.keras",
         run_dir / "best_unet_model.keras",
+        run_dir / "hf_model",
         run_dir / "model.pkl",
         run_dir / "model.json",
     ]
@@ -23,6 +36,8 @@ def find_best_model(run_dir: Path) -> Path | None:
     for candidate in run_dir.rglob("best_model.keras"):
         return candidate
     for candidate in run_dir.rglob("best_unet_model.keras"):
+        return candidate
+    for candidate in run_dir.rglob("hf_model"):
         return candidate
     for candidate in run_dir.rglob("model.pkl"):
         return candidate
@@ -113,4 +128,7 @@ def collect_training_curves(run_dir: Path) -> dict:
 
 def clean_log_line(line: str) -> str:
     clean = ANSI_RE.sub("", line.replace("\r", "\n")).strip()
-    return " ".join(clean.split())
+    compact = " ".join(clean.split())
+    if HF_LOAD_REPORT_RE.match(compact):
+        return ""
+    return compact

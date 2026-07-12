@@ -56,12 +56,17 @@ export function TestingDetailPage({ jobId }: { jobId: string }) {
                 jobs={comparisonQuery.data?.jobs ?? [job]}
                 modelTaskById={modelTaskById}
                 modelNameById={modelNameById}
+                taskType={modelTaskById[job.model_id]}
               />
             )}
           </section>
           <section className="panel space-y-5">
             <ProgressPanel progress={job.progress} status={job.status} error={job.error} />
-            {perImageQuery.isLoading ? <TableSkeleton rows={6} /> : <MetricsDetails job={job} rows={perImageQuery.data ?? []} />}
+            {perImageQuery.isLoading ? (
+              <TableSkeleton rows={6} />
+            ) : (
+              <MetricsDetails job={job} rows={perImageQuery.data ?? []} modelTask={modelTaskById[job.model_id]} />
+            )}
           </section>
         </>
       ) : (
@@ -70,4 +75,3 @@ export function TestingDetailPage({ jobId }: { jobId: string }) {
     </div>
   );
 }
-

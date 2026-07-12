@@ -5,7 +5,12 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME, DEFAULT_TASK_TYPE
+from app.core.defaults import (
+    DEFAULT_PROJECT_ID,
+    DEFAULT_PROJECT_NAME,
+    DEFAULT_PROJECT_TASK_TYPES,
+    DEFAULT_TASK_TYPE,
+)
 from app.db.models import EvaluationJob, InferenceJob, InferenceRun, Project, TrainingJob
 from app.schemas import DeleteResponse, ProjectCreate, ProjectSummary, ProjectUpdate
 
@@ -69,12 +74,19 @@ class ProjectService:
     def ensure_default(self, db: Session) -> Project:
         project = db.get(Project, DEFAULT_PROJECT_ID)
         if project is not None:
+            task_types = list(project.task_types or [])
+            missing = [task for task in DEFAULT_PROJECT_TASK_TYPES if task not in task_types]
+            if missing:
+                project.task_types = [*task_types, *missing]
+                project.updated_at = datetime.utcnow()
+                db.commit()
+                db.refresh(project)
             return project
         project = Project(
             id=DEFAULT_PROJECT_ID,
             name=DEFAULT_PROJECT_NAME,
             description="Default local AI research workspace.",
-            task_types=[DEFAULT_TASK_TYPE, "classification", "object_detection"],
+            task_types=DEFAULT_PROJECT_TASK_TYPES.copy(),
             metadata_json={"created_from": "system_default"},
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),

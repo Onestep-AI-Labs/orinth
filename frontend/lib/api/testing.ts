@@ -3,13 +3,14 @@ import type {
   EvaluationComparison,
   EvaluationDataset,
   EvaluationJob,
-  EvaluationPerImageRow
+  EvaluationPerImageRow,
+  TaskType
 } from "@/types/api";
 import { jsonFetch, query } from "@/lib/api/client";
 
 export const testingApi = {
-  datasets: (projectId?: string) =>
-    jsonFetch<EvaluationDataset[]>(`/testing/datasets${query({ project_id: projectId })}`),
+  datasets: (projectId?: string, taskType?: TaskType) =>
+    jsonFetch<EvaluationDataset[]>(`/testing/datasets${query({ project_id: projectId, task_type: taskType })}`),
   testingJobs: (projectId?: string) =>
     jsonFetch<EvaluationJob[]>(`/testing/jobs${query({ project_id: projectId })}`),
   testingJob: (jobId: string) => jsonFetch<EvaluationJob>(`/testing/jobs/${jobId}`),

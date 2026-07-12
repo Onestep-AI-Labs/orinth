@@ -16,7 +16,9 @@ from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_T
 from app.core.database import SessionLocal
 from app.core.storage import Storage
 from app.db.models import TrainingJob
+from app.ml.nlp.huggingface.catalog import huggingface_model_id
 from app.ml.model_registry import ModelRegistry, model_storage_dir_name
+from app.ml.training_catalog import training_model_options
 from app.schemas import ModelAssetPrepareRequest, ModelAssetStatus, TrainingJobCreate, TrainingModelOption
 from app.services.datasets import DatasetService
 from app.services.job_progress import append_log, make_progress
@@ -328,127 +330,7 @@ class TrainingService:
         return db.scalars(query).all()
 
     def model_options(self, task_type: str | None = None) -> list[TrainingModelOption]:
-        options = [
-            TrainingModelOption(
-                id="yolo_local",
-                name="Local YOLO segmentation weights",
-                family="yolo",
-                task_types=["object_detection", "segmentation"],
-                source="local",
-                runnable=True,
-                needs_download=False,
-                description="Fine-tune from the local YOLO weights already referenced by the project.",
-                defaults={
-                    "epochs": 50,
-                    "image_size": 512,
-                    "optimizer": "AdamW",
-                    "learning_rate": 0.002,
-                    "weights": "local",
-                },
-            ),
-        ]
-        options.extend(
-            TrainingModelOption(
-                id=item["id"],
-                name=item["name"],
-                family=item["family"],
-                task_types=item["task_types"],
-                source="ultralytics",
-                runnable=item["runnable"],
-                needs_download=item["needs_download"],
-                description=item["description"],
-                defaults={
-                    "epochs": 50,
-                    "image_size": 640,
-                    "optimizer": "AdamW",
-                    "learning_rate": 0.002,
-                    "weights": item["weights"],
-                    "loader": "YOLO" if item["family"] == "yolo" else item["family"],
-                },
-            )
-            for item in ULTRALYTICS_MODEL_OPTIONS
-        )
-        options.extend(
-            TrainingModelOption(
-                id=item["id"],
-                name=item["name"],
-                family="keras_classification",
-                task_types=["classification"],
-                source="keras_applications",
-                runnable=True,
-                needs_download=True,
-                description=item["description"],
-                defaults={
-                    "epochs": 10,
-                    "image_size": item["image_size"],
-                    "optimizer": "adam",
-                    "weights": "imagenet",
-                    "include_top": False,
-                    "pooling": "avg",
-                    "base_model": item["app_name"],
-                    "application_kwargs": item["kwargs"],
-                },
-            )
-            for item in KERAS_APPLICATION_OPTIONS
-        )
-        options.append(
-            TrainingModelOption(
-                id="hf_vit_base",
-                name="Hugging Face ViT Base",
-                family="transformer_classification",
-                task_types=["classification"],
-                source="huggingface",
-                runnable=False,
-                needs_download=True,
-                description="Catalog entry for future transformer-based image classification training.",
-                defaults={"epochs": 5, "image_size": 224, "optimizer": "adamw"},
-            )
-        )
-        options.extend(
-            [
-                TrainingModelOption(
-                    id="nlp_tfidf_classifier",
-                    name="TF-IDF Logistic Regression",
-                    family="nlp_text_classification",
-                    task_types=["text_classification"],
-                    source="local",
-                    runnable=True,
-                    needs_download=False,
-                    description="Offline TF-IDF + Logistic Regression baseline for text classification.",
-                    defaults={
-                        "epochs": 5,
-                        "optimizer": "liblinear",
-                        "learning_rate": 1.0,
-                        "batch_size": 0,
-                    },
-                ),
-                TrainingModelOption(
-                    id="nlp_extractive_summarizer",
-                    name="Extractive Summarizer",
-                    family="nlp_summarization",
-                    task_types=["summarization"],
-                    source="local",
-                    runnable=True,
-                    needs_download=False,
-                    description="Offline extractive summarization baseline using reference-summary keywords.",
-                    defaults={"epochs": 1, "optimizer": "keyword", "learning_rate": 1.0, "batch_size": 0},
-                ),
-                TrainingModelOption(
-                    id="nlp_keyword_qa",
-                    name="Keyword QA",
-                    family="nlp_qa",
-                    task_types=["question_answering"],
-                    source="local",
-                    runnable=True,
-                    needs_download=False,
-                    description="Offline question-answering baseline using question/context keyword overlap.",
-                    defaults={"epochs": 1, "optimizer": "keyword", "learning_rate": 1.0, "batch_size": 0},
-                ),
-            ]
-        )
-        if task_type:
-            options = [option for option in options if task_type in option.task_types]
-        return options
+        return training_model_options(task_type)
 
     def option_by_id(self, option_id: str) -> TrainingModelOption:
         for option in self.model_options():
@@ -459,11 +341,65 @@ class TrainingService:
     def prepare_model_asset(self, payload: ModelAssetPrepareRequest) -> ModelAssetStatus:
         option = self.option_by_id(payload.option_id)
         if option.source == "huggingface":
-            return ModelAssetStatus(
-                option_id=payload.option_id,
-                status="gated",
-                message="Transformer/Hugging Face training is listed for planning but not runnable yet.",
-            )
+            if not option.runnable:
+                return ModelAssetStatus(
+                    option_id=payload.option_id,
+                    status="gated",
+                    message="This Hugging Face model family is listed but not runnable until validated.",
+                )
+            asset_dir = self.storage.model_assets / "huggingface" / payload.option_id
+            cache_dir = self.storage.model_assets / "huggingface_cache"
+            asset_dir.mkdir(parents=True, exist_ok=True)
+            if not payload.download:
+                return ModelAssetStatus(
+                    option_id=payload.option_id,
+                    status="missing",
+                    path=str(asset_dir),
+                    message="Download was not requested.",
+                )
+            try:
+                from transformers import (  # noqa: PLC0415
+                    AutoModel,
+                    AutoModelForSeq2SeqLM,
+                    AutoTokenizer,
+                )
+
+                model_id = huggingface_model_id(payload.option_id)
+                token = self.settings.huggingface_token
+                kwargs = {"cache_dir": str(cache_dir)}
+                if token:
+                    kwargs["token"] = token
+                AutoTokenizer.from_pretrained(model_id, **kwargs)
+                if option.family == "hf_bart_summarization":
+                    AutoModelForSeq2SeqLM.from_pretrained(model_id, **kwargs)
+                else:
+                    AutoModel.from_pretrained(model_id, **kwargs)
+                marker = asset_dir / "prepared.json"
+                marker.write_text(
+                    json.dumps(
+                        {
+                            "option_id": payload.option_id,
+                            "model_id": model_id,
+                            "token_configured": bool(token),
+                            "prepared_at": datetime.utcnow().isoformat(),
+                        },
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+                return ModelAssetStatus(
+                    option_id=payload.option_id,
+                    status="ready",
+                    path=str(asset_dir),
+                    message=f"Hugging Face assets are prepared for {model_id}.",
+                )
+            except Exception as exc:  # noqa: BLE001 - surfaced to the user as asset status
+                return ModelAssetStatus(
+                    option_id=payload.option_id,
+                    status="failed",
+                    path=str(asset_dir),
+                    message=str(exc),
+                )
         if option.id == "yolo_local":
             path = self.settings.models_path / "yolo_11_best" / "weights" / "best.pt"
             return ModelAssetStatus(
@@ -712,6 +648,13 @@ class TrainingService:
             "nlp_text_classification",
             "nlp_summarization",
             "nlp_qa",
+            "nlp_keras_cnn",
+            "nlp_keras_lstm",
+            "nlp_keras_bilstm",
+            "nlp_keras_seq2seq",
+            "hf_bert_text_classification",
+            "hf_bert_question_answering",
+            "hf_bart_summarization",
         }:
             raise ValueError("Only runnable training artifacts can be promoted")
         if job.promoted_model_id:
@@ -779,13 +722,44 @@ class TrainingService:
 
     def _command_for_job(self, job: TrainingJob, run_dir: Path) -> list[str]:
         params = job.parameters
-        if job.model_family in {"nlp_text_classification", "nlp_summarization", "nlp_qa"}:
+        if job.model_family in {
+            "nlp_text_classification",
+            "nlp_summarization",
+            "nlp_qa",
+            "nlp_keras_cnn",
+            "nlp_keras_lstm",
+            "nlp_keras_bilstm",
+            "nlp_keras_seq2seq",
+            "hf_bert_text_classification",
+            "hf_bert_question_answering",
+            "hf_bart_summarization",
+        }:
             dataset_id = params.get("dataset_id")
             if not dataset_id or self.dataset_service is None:
                 raise ValueError("NLP training requires a project text dataset")
             dataset_root = self.dataset_service.prepared_training_root(
                 dataset_id, run_dir / "prepared_dataset"
             )
+            option_id = str(params.get("model_option_id") or "")
+            if not option_id:
+                option_id = {
+                    "text_classification": "nlp_tfidf_classifier",
+                    "summarization": "nlp_extractive_summarizer",
+                    "question_answering": "nlp_keyword_qa",
+                }.get(str(params.get("task_type")), "nlp_tfidf_classifier")
+            option = self.option_by_id(option_id)
+            defaults = option.defaults or {}
+            hyperparameters = params.get("hyperparameters") or {}
+            max_length = hyperparameters.get("max_length") or defaults.get("max_length") or 160
+            target_max_length = (
+                hyperparameters.get("target_max_length")
+                or defaults.get("target_max_length")
+                or max(32, int(max_length) // 3)
+            )
+            vocab_size = hyperparameters.get("vocab_size") or defaults.get("vocab_size") or 12000
+            batch_size = int(params.get("batch_size") or defaults.get("batch_size") or 8)
+            if batch_size <= 0:
+                batch_size = int(defaults.get("batch_size") or 8)
             return [
                 sys.executable,
                 "-m",
@@ -796,10 +770,24 @@ class TrainingService:
                 str(dataset_root),
                 "--task-type",
                 str(params.get("task_type")),
+                "--model-option-id",
+                option_id,
                 "--epochs",
                 str(params.get("epochs", 1)),
                 "--learning-rate",
                 str(params.get("learning_rate", 1.0)),
+                "--batch-size",
+                str(batch_size),
+                "--max-length",
+                str(max_length),
+                "--target-max-length",
+                str(target_max_length),
+                "--vocab-size",
+                str(vocab_size),
+                "--hf-model-id",
+                str(defaults.get("model_id") or huggingface_model_id(option_id)),
+                "--hf-cache-dir",
+                str(self.storage.model_assets / "huggingface_cache"),
             ]
         if job.model_family == "yolo":
             dataset_id = params.get("dataset_id", "reference_yolo")
@@ -909,6 +897,7 @@ class TrainingService:
     ) -> int:
         logs: list[str] = []
         with log_path.open("w", encoding="utf-8") as log_file:
+            env = self._process_env()
             process = subprocess.Popen(
                 command,
                 cwd=self.settings.repo_root / "backend",
@@ -916,6 +905,7 @@ class TrainingService:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                env=env,
             )
             ACTIVE_TRAINING_PROCESSES[job_id] = process
             self._set_pid(db, job_id, process.pid)
@@ -932,6 +922,16 @@ class TrainingService:
                     last_update = now
                     self._update_training_progress(db, job_id, run_dir, logs, started_at)
             return process.wait()
+
+    def _process_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        env.setdefault("HF_HOME", str(self.storage.model_assets / "huggingface_home"))
+        env.setdefault("TRANSFORMERS_CACHE", str(self.storage.model_assets / "huggingface_cache"))
+        token = self.settings.huggingface_token
+        if token:
+            env["HUGGINGFACE_HUB_TOKEN"] = token
+            env["HF_TOKEN"] = token
+        return env
 
     def _set_pid(self, db: Session, job_id: str, pid: int) -> None:
         job = db.get(TrainingJob, job_id)
@@ -1009,15 +1009,54 @@ class TrainingService:
             shutil.copy2(best_model, stable_model)
             paths = {"model": stable_model}
             family = "keras_classification"
-        elif job.model_family in {"nlp_text_classification", "nlp_summarization", "nlp_qa"}:
+        elif job.model_family in {
+            "nlp_text_classification",
+            "nlp_summarization",
+            "nlp_qa",
+            "nlp_keras_cnn",
+            "nlp_keras_lstm",
+            "nlp_keras_bilstm",
+            "nlp_keras_seq2seq",
+            "hf_bert_text_classification",
+            "hf_bert_question_answering",
+            "hf_bart_summarization",
+        }:
             stable_model = model_dir / best_model.name
-            shutil.copy2(best_model, stable_model)
+            if best_model.is_dir():
+                if stable_model.exists():
+                    shutil.rmtree(stable_model)
+                shutil.copytree(best_model, stable_model)
+            else:
+                shutil.copy2(best_model, stable_model)
+                for sidecar in [
+                    "last_model.keras",
+                    "tokenizer.json",
+                    "metrics.json",
+                    "validation_predictions.json",
+                ]:
+                    source_sidecar = run_dir / sidecar
+                    if source_sidecar.exists() and source_sidecar != best_model:
+                        shutil.copy2(source_sidecar, model_dir / sidecar)
+                runner_metadata = run_dir / "metadata.json"
+                if runner_metadata.exists():
+                    shutil.copy2(runner_metadata, model_dir / "runner_metadata.json")
             paths = {"model": stable_model}
             family = job.model_family
         else:
             raise ValueError(f"Unsupported trained model family: {job.model_family}")
 
+        runner_metadata = {}
+        runner_metadata_path = run_dir / "metadata.json"
+        if runner_metadata_path.exists():
+            try:
+                loaded_metadata = json.loads(runner_metadata_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                loaded_metadata = {}
+            if isinstance(loaded_metadata, dict):
+                runner_metadata = loaded_metadata
+
         metadata = {
+            **runner_metadata,
             "labels": labels,
             "task_type": params.get("task_type", DEFAULT_TASK_TYPE),
             "model_family": job.model_family,

@@ -129,6 +129,12 @@ def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path):
         assert summary.task_type == task_type
         assert item_count >= 20
         assert annotation_count >= 20
+        assert sum(split.text_count for split in summary.splits.values()) == item_count
+        assert sum(split.image_count for split in summary.splits.values()) == 0
+
+    listed = service.list_datasets("custom-nlp-project")
+    listed_ids = {dataset.id for dataset in listed}
+    assert set(expected_tasks).issubset(listed_ids)
 
 
 def test_dataset_import_copies_yolo_layout_to_storage(tmp_path: Path):

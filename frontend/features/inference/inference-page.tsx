@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useMemo, useState } from "react";
-import { ImageIcon, Play, Upload } from "lucide-react";
+import { Play, ScanEye, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
@@ -130,7 +130,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Inference" subtitle="Run models on project samples" icon={<ImageIcon size={20} />} />
+      <PageHeader title="Inference" subtitle="Run models on project samples" icon={<ScanEye size={20} />} />
       <div className="workspace-grid workspace-grid-inference">
         <section className="panel">
           <PanelTitle icon={<Upload size={18} />} title="Run" />
@@ -188,8 +188,8 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           {jobQuery.data && <ProgressPanel progress={jobQuery.data.progress} status={jobQuery.data.status} error={jobQuery.data.error} />}
         </section>
         <section className="panel min-h-[520px]">
-          <PanelTitle icon={<ImageIcon size={18} />} title="Result" />
-          {result ? <InferenceResultView result={result} modelNameById={modelNameById} /> : <EmptyState label="No result selected" />}
+          <PanelTitle icon={<ScanEye size={18} />} title="Result" />
+          {result ? <InferenceResultView result={result} modelNameById={modelNameById} /> : <EmptyState label="No result selected" icon={<ScanEye size={28} />} />}
         </section>
         <section className="panel workspace-grid-full">
           <HistoryHeader
