@@ -56,7 +56,8 @@ class Storage:
     def owned_path(self, path: str | Path | None) -> Path | None:
         if not path:
             return None
-        resolved = Path(path).resolve()
+        raw_path = Path(path)
+        resolved = raw_path.resolve() if raw_path.is_absolute() else (self.root / raw_path).resolve()
         try:
             resolved.relative_to(self.root.resolve())
         except ValueError:

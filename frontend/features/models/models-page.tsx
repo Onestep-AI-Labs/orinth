@@ -1,22 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, Download, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { useState } from "react";
+import { Activity, Download, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { formatDatasetTask, labelColor } from "@/features/platform/utils";
+import { CardGridSkeleton, EmptyState, Field, Metric, MutationError, PageHeader, PanelTitle, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
 import type { ModelInfo } from "@/types/api";
-
-type ConfirmationTone = "danger" | "warning";
-type ConfirmationDialogOptions = {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  tone?: ConfirmationTone;
-  onConfirm: () => void | Promise<void>;
-};
 
 export function ModelsPage() {
   const { projectId, project } = useProject();
@@ -179,149 +171,4 @@ export function ModelsPage() {
       {confirmationDialog}
     </div>
   );
-}
-
-function useConfirmationDialog() {
-  const [dialog, setDialog] = useState<ConfirmationDialogOptions | null>(null);
-  const confirm = (options: ConfirmationDialogOptions) => setDialog(options);
-  const close = () => setDialog(null);
-  const confirmationDialog = dialog ? (
-    <ConfirmationDialog
-      {...dialog}
-      onCancel={close}
-      onConfirm={async () => {
-        await dialog.onConfirm();
-        close();
-      }}
-    />
-  ) : null;
-
-  return { confirm, confirmationDialog };
-}
-
-function ConfirmationDialog({
-  title,
-  message,
-  confirmLabel,
-  tone = "danger",
-  onCancel,
-  onConfirm
-}: ConfirmationDialogOptions & { onCancel: () => void; onConfirm: () => void | Promise<void> }) {
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onCancel]);
-
-  return (
-    <div className="confirmation-overlay" role="presentation" onMouseDown={onCancel}>
-      <section
-        className={`confirmation-dialog confirmation-dialog-${tone}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirmation-dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="confirmation-dialog-header">
-          <span className="confirmation-dialog-icon" aria-hidden="true">
-            <AlertTriangle size={19} />
-          </span>
-          <div>
-            <h2 id="confirmation-dialog-title">{title}</h2>
-            <p>{message}</p>
-          </div>
-        </div>
-        <div className="confirmation-dialog-actions">
-          <button className="secondary-button" type="button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button className={tone === "danger" ? "danger-button" : "primary-button"} type="button" onClick={onConfirm} autoFocus>
-            {confirmLabel}
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="field">
-      <label>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function PageHeader({ title, subtitle, icon }: { title: string; subtitle: string; icon: React.ReactNode }) {
-  return (
-    <header className="page-header">
-      <div>
-        <span>{icon}</span>
-        <div>
-          <h2>{title}</h2>
-          <p>{subtitle}</p>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function PanelTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return (
-    <div className="mb-4 flex items-center gap-2">
-      <span className="text-slate-500">{icon}</span>
-      <h2 className="text-base font-semibold">{title}</h2>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function CardGridSkeleton({ count = 4 }: { count?: number }) {
-  return (
-    <div className="skeleton-card-grid">
-      {Array.from({ length: count }).map((_, index) => (
-        <div className="skeleton-card" key={index}>
-          <span className="skeleton skeleton-title" />
-          <span className="skeleton skeleton-line" />
-          <span className="skeleton skeleton-line short" />
-          <div className="skeleton-chip-row">
-            <span className="skeleton skeleton-chip" />
-            <span className="skeleton skeleton-chip" />
-            <span className="skeleton skeleton-chip" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const ok = status === "completed" || status === "editable" || status === "available";
-  const failed = status === "failed" || status === "canceled" || status === "missing";
-  return <span className={`badge ${ok ? "badge-ok" : failed ? "badge-fail" : ""}`}>{status}</span>;
-}
-
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="empty-state">
-      <Activity size={28} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function MutationError({ mutations }: { mutations: Array<{ error: Error | null }> }) {
-  const error = mutations.find((mutation) => mutation.error)?.error;
-  return error ? <p className="error-text">{error.message}</p> : null;
 }

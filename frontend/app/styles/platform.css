@@ -820,6 +820,124 @@
   font-size: 13px;
 }
 
+.documentation-intro {
+  display: grid;
+  gap: 10px;
+}
+
+.documentation-intro h3 {
+  margin: 10px 0 6px;
+  color: #1f2933;
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.documentation-intro p,
+.documentation-card p,
+.documentation-track p,
+.documentation-note p {
+  margin: 0;
+  color: #52606d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.documentation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+
+.documentation-card {
+  display: grid;
+  min-height: 190px;
+  align-content: space-between;
+  gap: 12px;
+  border: 1px solid #d7dde5;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.documentation-card-header {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.documentation-card-header strong,
+.documentation-note strong,
+.documentation-track-title strong {
+  display: block;
+  color: #1f2933;
+  font-weight: 800;
+}
+
+.documentation-card-header span:not(.documentation-card-icon) {
+  display: block;
+  margin-top: 2px;
+  color: #66788a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.documentation-card-icon,
+.documentation-note-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(70, 180, 162, 0.24);
+  border-radius: 8px;
+  background: #f0fbf7;
+  color: #246b61;
+}
+
+.documentation-card-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.documentation-track-grid,
+.documentation-note-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.documentation-track {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid #d7dde5;
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 14px;
+}
+
+.documentation-track-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.documentation-note-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+
+.documentation-note {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid #d7dde5;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
 .card-rename-popover,
 .model-rename-popover {
   position: absolute;

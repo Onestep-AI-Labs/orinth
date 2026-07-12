@@ -67,7 +67,7 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Annotation editing includes icon tools for select/move, bounding boxes, and polygons, with existing boxes and polygons draggable within image bounds before saving.
 - Dataset Studio is catalog-first, with dataset-card three-dot actions for editable dataset rename, duplicate, and delete, then opens a tabbed workspace: Images for upload/browse/move/delete, Annotate for labels and annotation editing, EDA for dataset health and distribution, and Config for preprocessing, split, and version artifacts.
 - The root page lists projects outside the project workspace; selecting a project opens the project sidebar at Dataset Studio.
-- Global navigation includes Projects and Settings only; project creation is launched from the project list. Project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
+- Global navigation includes Projects, Documentation, and Settings; project creation is launched from the project list. Project pages render global navigation first, then a collapsible project sidebar with project switching and Datasets, Models, Inference, Testing, and Training links.
 - Sidebar navigation includes an Available Models section inside each project.
 - Dataset Studio uses an image browser that defaults to All before Unassigned, Train, Valid, and Test filters, an unassigned inbox for new uploads, a Config tab for preprocessing/augmentation/split settings, and a 70/20/10 Proceed workflow.
 - Classification datasets support upload-time labels, per-image label edits, and bulk selected-image relabeling.
