@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does summarization save?",
+      "answer": "Summarization saves a reference summary.",
+      "text": "Summarization saves a reference summary.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

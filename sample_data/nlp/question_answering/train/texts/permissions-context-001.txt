@@ -1,0 +1,1 @@
+Runtime artifacts such as uploads, overlays, logs, model outputs, and database files are kept under ignored storage. Source files should not contain secrets or private data.

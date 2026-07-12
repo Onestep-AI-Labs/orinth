@@ -87,7 +87,7 @@ export function ProjectLandingPage() {
                     <span>{project.id === DEFAULT_PROJECT_ID ? "Default workspace" : "Project workspace"}</span>
                   </div>
                   <p className="project-card-description">
-                    {project.description ?? "Local image workspace"}
+                    {project.description ?? "Local AI workspace"}
                   </p>
                   <div className="label-chip-row tag-row-compact">
                     {project.task_types.map((task) => (
@@ -158,4 +158,3 @@ export function ProjectLandingPage() {
     </div>
   );
 }
-

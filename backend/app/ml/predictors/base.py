@@ -12,6 +12,9 @@ class Predictor(ABC):
     def classify(self, image_path: Path, parameters: InferenceParameters) -> dict[str, float] | None:
         return None
 
+    def predict_text(self, text: str, parameters: InferenceParameters) -> dict:
+        raise NotImplementedError("This model does not support text inference")
+
 
 def image_level_from_detections(detections: list[Detection]) -> str:
     if not detections:

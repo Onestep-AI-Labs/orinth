@@ -12,6 +12,8 @@ def find_best_model(run_dir: Path) -> Path | None:
         run_dir / "best.pt",
         run_dir / "best_model.keras",
         run_dir / "best_unet_model.keras",
+        run_dir / "model.pkl",
+        run_dir / "model.json",
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -21,6 +23,10 @@ def find_best_model(run_dir: Path) -> Path | None:
     for candidate in run_dir.rglob("best_model.keras"):
         return candidate
     for candidate in run_dir.rglob("best_unet_model.keras"):
+        return candidate
+    for candidate in run_dir.rglob("model.pkl"):
+        return candidate
+    for candidate in run_dir.rglob("model.json"):
         return candidate
     return None
 

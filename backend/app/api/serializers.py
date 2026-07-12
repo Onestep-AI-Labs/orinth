@@ -30,6 +30,11 @@ def comparison_metric_summary(job) -> dict:
         "samples": metrics.get("samples"),
         "accuracy": ((metrics.get("image") or {}).get("overall") or {}).get("accuracy"),
         "macro_f1": ((metrics.get("image") or {}).get("overall") or {}).get("macro_f1"),
+        "text_accuracy": ((metrics.get("text_classification") or {}).get("overall") or {}).get("accuracy"),
+        "text_macro_f1": ((metrics.get("text_classification") or {}).get("overall") or {}).get("macro_f1"),
+        "rougeL": (metrics.get("summarization") or {}).get("rougeL"),
+        "exact_match": (metrics.get("question_answering") or {}).get("exact_match"),
+        "qa_f1": (metrics.get("question_answering") or {}).get("f1"),
         "pixel_dice": (metrics.get("pixel") or {}).get("dice"),
         "object_recall": (metrics.get("object") or {}).get("recall"),
     }

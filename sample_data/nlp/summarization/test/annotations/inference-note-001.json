@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Inference saves project-scoped prediction results and history for later inspection.",
+      "answer": "Inference saves project-scoped prediction results and history for later inspection.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

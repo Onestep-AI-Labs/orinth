@@ -1,5 +1,12 @@
-export type TaskType = "classification" | "object_detection" | "segmentation" | "text";
-export type DatasetFormat = "yolo" | "coco" | "image_folder" | "image_manifest";
+export type TaskType =
+  | "classification"
+  | "object_detection"
+  | "segmentation"
+  | "text"
+  | "text_classification"
+  | "summarization"
+  | "question_answering";
+export type DatasetFormat = "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv";
 export type SplitKey = "unassigned" | "train" | "valid" | "test";
 export type DatasetSplitFilter = "all" | SplitKey;
 
@@ -44,14 +51,19 @@ export type InferenceResult = {
   id: string;
   project_id: string;
   model_id: string;
+  input_type: "image" | "text";
   image_level_label: string;
   detections: Detection[];
   class_scores: Record<string, number>;
   overlay_url: string | null;
   original_url: string | null;
+  text_content: string | null;
+  nlp_result: Record<string, any> | null;
   parameters: {
     confidence_threshold: number;
     iou_threshold: number;
+    question: string | null;
+    max_length: number;
   };
   created_at: string;
   duration_ms: number | null;
@@ -128,6 +140,10 @@ export type EvaluationPerImageRow = {
   objects: number;
   pixel: Record<string, number>;
   object: Record<string, number>;
+  text_preview: string | null;
+  reference_text: string | null;
+  prediction_text: string | null;
+  scores: Record<string, number>;
 };
 
 export type TrainingJob = {
@@ -177,6 +193,8 @@ export type DeleteResponse = {
 export type DatasetSplitSummary = {
   split: SplitKey;
   image_count: number;
+  text_count: number;
+  item_count: number;
   annotation_count: number;
 };
 
@@ -197,7 +215,7 @@ export type DatasetSummary = {
 
 export type DatasetPreprocessConfig = {
   enabled: boolean;
-  preset: "none" | "light" | "inspection";
+  preset: "none" | "light" | "inspection" | "nlp_clean" | "nlp_augment";
   resize_width: number | null;
   resize_height: number | null;
   normalize: boolean;
@@ -225,7 +243,9 @@ export type DatasetPreprocessPreview = {
   dataset_id: string;
   split: SplitKey;
   item_id: string;
+  media_type: "image" | "text";
   image_url: string;
+  text_preview: string | null;
   config: DatasetPreprocessConfig;
 };
 
@@ -235,6 +255,8 @@ export type DatasetVersionSummary = {
   name: string;
   path: string;
   image_count: number;
+  text_count: number;
+  item_count: number;
   generated_count: number;
   splits: Record<string, DatasetSplitSummary>;
   config: DatasetPreprocessConfig;
@@ -249,18 +271,24 @@ export type DatasetEdaSummary = {
   unlabeled_count: number;
   missing_annotation_count: number;
   image_count: number;
+  text_count: number;
+  item_count: number;
   annotation_count: number;
   image_size: Record<string, number | null>;
   aspect_ratio: Record<string, number | null>;
+  text_length: Record<string, number | null>;
   warnings: string[];
 };
 
 export type DatasetAnnotation = {
   class_id: number;
   class_name: string;
-  kind: "classification" | "box" | "polygon";
+  kind: "classification" | "box" | "polygon" | "summary" | "qa";
   bbox: { x: number; y: number; width: number; height: number } | null;
   polygon: number[][];
+  text: string | null;
+  question: string | null;
+  answer: string | null;
 };
 
 export type DatasetItemSummary = {
@@ -268,7 +296,10 @@ export type DatasetItemSummary = {
   dataset_id: string;
   split: SplitKey;
   filename: string;
+  media_type: "image" | "text";
   image_url: string;
+  text_url: string | null;
+  text_preview: string | null;
   width: number;
   height: number;
   annotation_count: number;
@@ -288,4 +319,5 @@ export type DatasetItemPage = {
 
 export type DatasetItemDetail = DatasetItemSummary & {
   annotations: DatasetAnnotation[];
+  text_content: string | null;
 };

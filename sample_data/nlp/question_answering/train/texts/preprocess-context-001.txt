@@ -1,0 +1,1 @@
+Cleaning options for text can lowercase words, remove punctuation, remove stop words, and normalize whitespace. These transforms are visible only for NLP datasets.

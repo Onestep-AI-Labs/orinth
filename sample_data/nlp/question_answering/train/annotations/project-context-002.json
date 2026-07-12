@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How can workspace records be separated?",
+      "answer": "Records can be filtered by project id so one project does not mix with another.",
+      "text": "Records can be filtered by project id so one project does not mix with another.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

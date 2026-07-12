@@ -82,7 +82,7 @@ def _ensure_default_project() -> None:
             project = Project(
                 id=DEFAULT_PROJECT_ID,
                 name=DEFAULT_PROJECT_NAME,
-                description="Default local image research workspace.",
+                description="Default local AI research workspace.",
                 task_types=[DEFAULT_TASK_TYPE, "classification", "object_detection"],
                 metadata_json={"created_from": "system_default"},
                 created_at=datetime.utcnow(),

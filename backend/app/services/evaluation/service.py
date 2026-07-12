@@ -38,6 +38,8 @@ from app.services.metrics import (
     classification_metrics,
     image_label_from_class_ids,
     image_label_from_detections,
+    qa_scores,
+    rouge_scores,
 )
 
 
@@ -94,14 +96,19 @@ class EvaluationService:
         ]
         if self.dataset_service is not None:
             for dataset in self.dataset_service.list_datasets():
-                if not dataset.editable or dataset.format not in {"yolo", "image_folder"}:
+                sample_nlp = dataset.id.startswith("sample_") and dataset.task_type in {
+                    "text_classification",
+                    "summarization",
+                    "question_answering",
+                }
+                if (not dataset.editable and not sample_nlp) or dataset.format not in {"yolo", "image_folder", "text_folder", "jsonl", "csv"}:
                     continue
                 if project_id and dataset.project_id != project_id:
                     continue
                 for split, summary in dataset.splits.items():
                     if split != "test":
                         continue
-                    if summary.image_count <= 0:
+                    if summary.image_count <= 0 and summary.text_count <= 0 and summary.item_count <= 0:
                         continue
                     datasets.append(
                         EvaluationDatasetInfo(
@@ -117,7 +124,11 @@ class EvaluationService:
                         )
                     )
         if project_id:
-            datasets = [dataset for dataset in datasets if dataset.project_id == project_id]
+            datasets = [
+                dataset
+                for dataset in datasets
+                if dataset.project_id == project_id or dataset.key.startswith("dataset:sample_")
+            ]
         return datasets
 
     def create_job(self, db: Session, payload: EvaluationJobCreate) -> EvaluationJob:
@@ -292,6 +303,8 @@ class EvaluationService:
         spec = self.registry.get_spec(job.model_id)
         if spec.task_type == "classification":
             return self._evaluate_classification(db, job, started_at)
+        if spec.task_type in {"text_classification", "summarization", "question_answering"}:
+            return self._evaluate_nlp(db, job, started_at, spec.task_type)
 
         samples = self._load_samples(job.dataset_key)
         labels = (
@@ -383,6 +396,149 @@ class EvaluationService:
             "image": classification_metrics(image_true, image_pred, labels),
             "labels": labels,
         }
+        output_dir = self.storage.evaluations / job.id
+        output_dir.mkdir(parents=True, exist_ok=True)
+        metrics_path = output_dir / "metrics.json"
+        per_image_path = output_dir / "per_image.json"
+        metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        per_image_path.write_text(json.dumps(per_image, indent=2), encoding="utf-8")
+        return metrics, {"metrics": str(metrics_path), "per_image": str(per_image_path)}
+
+    def _evaluate_nlp(
+        self, db: Session, job: EvaluationJob, started_at: datetime, task_type: str
+    ) -> tuple[dict, dict]:
+        samples = self._load_nlp_samples(job.dataset_key, task_type)
+        labels = (
+            self.dataset_service.labels_for_dataset_key(job.dataset_key)
+            if self.dataset_service is not None
+            else []
+        )
+        if job.limit:
+            samples = samples[: job.limit]
+        if not samples:
+            raise ValueError(f"No NLP samples found for dataset: {job.dataset_key}")
+        predictor = self.registry.get_predictor(job.model_id)
+        total = len(samples)
+        per_image = []
+        self._update_progress(
+            db,
+            job,
+            percent=5,
+            processed=0,
+            total=total,
+            step="Running text evaluation",
+            started_at=started_at,
+        )
+
+        if task_type == "text_classification":
+            y_true: list[int] = []
+            y_pred: list[int] = []
+            for index, sample in enumerate(samples, start=1):
+                result = predictor.predict_text(sample["text"], InferenceParameters())
+                label = result.get("label", "")
+                prediction = labels.index(label) if label in labels else 0
+                ground_truth = int(sample["class_id"])
+                y_true.append(ground_truth)
+                y_pred.append(prediction)
+                per_image.append(
+                    {
+                        "image": sample["id"],
+                        "ground_truth": ground_truth,
+                        "prediction": prediction,
+                        "detections": 0,
+                        "objects": 1,
+                        "pixel": {},
+                        "object": {},
+                        "text_preview": sample["text"][:180],
+                        "scores": result.get("scores", {}),
+                    }
+                )
+                self._update_progress(
+                    db,
+                    job,
+                    percent=5 + (90 * index / total),
+                    processed=index,
+                    total=total,
+                    step="Running text classification",
+                    current_item=sample["id"],
+                    started_at=started_at,
+                    log_every=index == 1 or index == total or index % 10 == 0,
+                )
+            metrics = {
+                "samples": len(samples),
+                "labels": labels,
+                "text_classification": classification_metrics(y_true, y_pred, labels),
+            }
+        elif task_type == "summarization":
+            rows = []
+            for index, sample in enumerate(samples, start=1):
+                result = predictor.predict_text(sample["text"], InferenceParameters())
+                prediction = str(result.get("summary", ""))
+                scores = rouge_scores(prediction, sample["summary"])
+                rows.append(scores)
+                per_image.append(
+                    {
+                        "image": sample["id"],
+                        "ground_truth": 0,
+                        "prediction": 0,
+                        "detections": 0,
+                        "objects": 1,
+                        "pixel": {},
+                        "object": {},
+                        "text_preview": sample["text"][:180],
+                        "reference_text": sample["summary"],
+                        "prediction_text": prediction,
+                        "scores": scores,
+                    }
+                )
+                self._update_progress(
+                    db,
+                    job,
+                    percent=5 + (90 * index / total),
+                    processed=index,
+                    total=total,
+                    step="Running summarization",
+                    current_item=sample["id"],
+                    started_at=started_at,
+                    log_every=index == 1 or index == total or index % 10 == 0,
+                )
+            metrics = {"samples": len(samples), "summarization": average_dicts(rows)}
+        else:
+            rows = []
+            for index, sample in enumerate(samples, start=1):
+                params = InferenceParameters(question=sample["question"])
+                result = predictor.predict_text(sample["text"], params)
+                prediction = str(result.get("answer", ""))
+                scores = qa_scores(prediction, sample["answer"])
+                rows.append(scores)
+                per_image.append(
+                    {
+                        "image": sample["id"],
+                        "ground_truth": 0,
+                        "prediction": 0,
+                        "detections": 0,
+                        "objects": 1,
+                        "pixel": {},
+                        "object": {},
+                        "text_preview": sample["text"][:180],
+                        "reference_text": sample["answer"],
+                        "prediction_text": prediction,
+                        "scores": scores,
+                    }
+                )
+                self._update_progress(
+                    db,
+                    job,
+                    percent=5 + (90 * index / total),
+                    processed=index,
+                    total=total,
+                    step="Running question answering",
+                    current_item=sample["id"],
+                    started_at=started_at,
+                    log_every=index == 1 or index == total or index % 10 == 0,
+                )
+            metrics = {"samples": len(samples), "question_answering": average_dicts(rows)}
+
         output_dir = self.storage.evaluations / job.id
         output_dir.mkdir(parents=True, exist_ok=True)
         metrics_path = output_dir / "metrics.json"
@@ -509,6 +665,60 @@ class EvaluationService:
             except (TypeError, ValueError):
                 continue
             samples.append(ClassificationSample(image_path=image_path, class_id=class_id))
+        return samples
+
+    def _load_nlp_samples(self, dataset_key: str, task_type: str) -> list[dict]:
+        if not dataset_key.startswith("dataset:") or self.dataset_service is None:
+            raise KeyError(dataset_key)
+        _, dataset_id, split = dataset_key.split(":", 2)
+        split_root = self.dataset_service.split_root(dataset_id, split)
+        text_dir = split_root / "texts"
+        annotation_dir = split_root / "annotations"
+        samples = []
+        if not text_dir.exists():
+            return samples
+        for text_path in sorted(text_dir.glob("*.txt")):
+            annotation_path = annotation_dir / f"{text_path.stem}.json"
+            if not annotation_path.exists():
+                continue
+            try:
+                payload = json.loads(annotation_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                continue
+            rows = payload.get("annotations", [])
+            text = text_path.read_text(encoding="utf-8", errors="replace")
+            if task_type == "text_classification":
+                annotation = next((row for row in rows if row.get("kind") == "classification"), None)
+                if annotation is None:
+                    continue
+                samples.append(
+                    {
+                        "id": text_path.name,
+                        "text": text,
+                        "class_id": int(annotation.get("class_id", 0)),
+                    }
+                )
+            elif task_type == "summarization":
+                annotation = next((row for row in rows if row.get("kind") == "summary"), None)
+                summary = (annotation or {}).get("text") or (annotation or {}).get("answer")
+                if not summary:
+                    continue
+                samples.append({"id": text_path.name, "text": text, "summary": str(summary)})
+            else:
+                for annotation in rows:
+                    if annotation.get("kind") != "qa":
+                        continue
+                    question = annotation.get("question")
+                    answer = annotation.get("answer") or annotation.get("text")
+                    if question and answer:
+                        samples.append(
+                            {
+                                "id": text_path.name,
+                                "text": text,
+                                "question": str(question),
+                                "answer": str(answer),
+                            }
+                        )
         return samples
 
     def _dataset_info(
@@ -679,3 +889,13 @@ class EvaluationService:
         job.artifacts = artifacts
         job.updated_at = datetime.utcnow()
         db.commit()
+
+
+def average_dicts(rows: list[dict[str, float]]) -> dict[str, float]:
+    if not rows:
+        return {}
+    keys = sorted({key for row in rows for key in row})
+    return {
+        key: round(sum(float(row.get(key, 0.0)) for row in rows) / len(rows), 6)
+        for key in keys
+    }

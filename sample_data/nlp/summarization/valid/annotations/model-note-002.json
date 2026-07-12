@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Offline NLP predictors use TF-IDF or lightweight extractive baselines without downloads.",
+      "answer": "Offline NLP predictors use TF-IDF or lightweight extractive baselines without downloads.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

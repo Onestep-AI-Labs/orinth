@@ -15,14 +15,19 @@ async def create_inference(
     project_id: str = Form(DEFAULT_PROJECT_ID),
     confidence_threshold: float = Form(0.65),
     iou_threshold: float = Form(0.7),
-    file: UploadFile = File(...),
+    question: str | None = Form(default=None),
+    max_length: int = Form(120),
+    text_content: str | None = Form(default=None),
+    file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
 ) -> InferenceResult:
     parameters = InferenceParameters(
         confidence_threshold=confidence_threshold,
         iou_threshold=iou_threshold,
+        question=question,
+        max_length=max_length,
     )
-    return await inference_service.run(db, file, model_id, parameters, project_id)
+    return await inference_service.run(db, file, model_id, parameters, project_id, text_content)
 
 
 @router.post("/jobs", response_model=InferenceJobRead)
@@ -32,14 +37,19 @@ async def create_inference_job(
     project_id: str = Form(DEFAULT_PROJECT_ID),
     confidence_threshold: float = Form(0.65),
     iou_threshold: float = Form(0.7),
-    file: UploadFile = File(...),
+    question: str | None = Form(default=None),
+    max_length: int = Form(120),
+    text_content: str | None = Form(default=None),
+    file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
 ) -> InferenceJobRead:
     parameters = InferenceParameters(
         confidence_threshold=confidence_threshold,
         iou_threshold=iou_threshold,
+        question=question,
+        max_length=max_length,
     )
-    job = await inference_service.create_job(db, file, model_id, parameters, project_id)
+    job = await inference_service.create_job(db, file, model_id, parameters, project_id, text_content)
     background_tasks.add_task(inference_service.run_job, job.id)
     return inference_service.get_job(db, job.id)
 

@@ -159,6 +159,11 @@ def get_dataset_image(dataset_id: str, split: str, item_id: str) -> FileResponse
     return FileResponse(dataset_service.image_path(dataset_id, split, item_id))
 
 
+@router.get("/{dataset_id}/items/{split}/{item_id}/text")
+def get_dataset_text(dataset_id: str, split: str, item_id: str) -> FileResponse:
+    return FileResponse(dataset_service.text_path(dataset_id, split, item_id), media_type="text/plain")
+
+
 @router.put(
     "/{dataset_id}/items/{split}/{item_id}/annotations",
     response_model=DatasetItemDetail,

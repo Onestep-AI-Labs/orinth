@@ -1,0 +1,1 @@
+Text inference accepts text content and optional question text. The result stores the input type, original text URL, label or answer, scores, and the full NLP result payload.

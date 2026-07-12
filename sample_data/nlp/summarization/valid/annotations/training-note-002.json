@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The NLP runner saves metrics, predictions, results, and registerable model artifacts.",
+      "answer": "The NLP runner saves metrics, predictions, results, and registerable model artifacts.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

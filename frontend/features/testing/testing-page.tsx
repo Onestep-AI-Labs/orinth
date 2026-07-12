@@ -6,12 +6,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TestingComparison, TestingJobTable } from "@/features/testing/testing-components";
-import { areTasksCompatible, listPollInterval } from "@/features/platform/utils";
+import { NLP_TASK_TYPES, VISION_TASK_TYPES, areTasksCompatible, formatDatasetTask, listPollInterval } from "@/features/platform/utils";
 import { CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, TableSkeleton, toggleId, useConfirmationDialog } from "@/features/platform/ui";
 import type { EvaluationJob, TaskType } from "@/types/api";
 
 export function TestingPage() {
-  const { projectId } = useProject();
+  const { projectId, project } = useProject();
   const [taskType, setTaskType] = useState<TaskType>("classification");
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [datasetKey, setDatasetKey] = useState("");
@@ -44,6 +44,10 @@ export function TestingPage() {
   });
   const rawModels = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
   const rawDatasets = useMemo(() => datasetsQuery.data ?? [], [datasetsQuery.data]);
+  const taskOptions = useMemo(() => {
+    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
+    return tasks.length ? tasks : VISION_TASK_TYPES;
+  }, [project?.task_types]);
   const datasets = useMemo(
     () => rawDatasets.filter((dataset) => areTasksCompatible(taskType, dataset.task_type)),
     [rawDatasets, taskType]
@@ -68,6 +72,11 @@ export function TestingPage() {
     [datasetKey, jobsQuery.data]
   );
 
+  useEffect(() => {
+    if (!taskOptions.includes(taskType)) {
+      setTaskType(taskOptions[0] ?? "classification");
+    }
+  }, [taskOptions, taskType]);
   useEffect(() => {
     setModelIds((current) => {
       const availableIds = new Set(models.map((model) => model.id));
@@ -125,9 +134,9 @@ export function TestingPage() {
           {(modelsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
           <Field label="Task">
             <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
-              <option value="classification">Classification</option>
-              <option value="object_detection">Object detection</option>
-              <option value="segmentation">Segmentation</option>
+              {taskOptions.map((task) => (
+                <option value={task} key={task}>{formatDatasetTask(task)}</option>
+              ))}
             </select>
           </Field>
           <Field label="Models">
@@ -189,4 +198,3 @@ export function TestingPage() {
     </div>
   );
 }
-

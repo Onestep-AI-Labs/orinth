@@ -18,36 +18,36 @@ import { PageHeader, PanelTitle } from "@/features/platform/ui";
 const sections = [
   {
     title: "Dataset Studio",
-    status: "Vision now",
-    description: "Build project-scoped image datasets, upload files, manage labels, inspect EDA, and prepare annotation-ready splits.",
+    status: "Vision + NLP",
+    description: "Build project-scoped image or text datasets, upload files, manage labels, inspect EDA, and prepare annotation-ready splits.",
     href: "/datasets",
     icon: <Database size={17} />
   },
   {
     title: "Training",
-    status: "Vision now",
+    status: "Vision + NLP",
     description: "Configure local model runs, prepare assets, track progress, and register completed artifacts back to the project.",
     href: "/training",
     icon: <Activity size={17} />
   },
   {
     title: "Testing",
-    status: "Vision now",
+    status: "Vision + NLP",
     description: "Evaluate project models against compatible test splits, compare results, and inspect task-aware metrics.",
     href: "/testing",
     icon: <FlaskConical size={17} />
   },
   {
     title: "Inference",
-    status: "Vision now",
-    description: "Run project-scoped models on new samples and review prediction history without crossing workspace boundaries.",
+    status: "Vision + NLP",
+    description: "Run project-scoped models on images or text and review prediction history without crossing workspace boundaries.",
     href: "/inference",
     icon: <ScanEye size={17} />
   },
   {
     title: "NLP Workspace",
-    status: "Next",
-    description: "Text datasets, prompt/evaluation flows, and language model experiments will follow the same project structure.",
+    status: "Active",
+    description: "Text classification, summarization, and question answering use offline local baselines across dataset, training, testing, and inference.",
     href: "/documentation",
     icon: <FileText size={17} />
   }
@@ -57,13 +57,13 @@ const tracks = [
   {
     title: "Vision task track",
     status: "Current",
-    description: "Classification, object detection, and segmentation workflows are available today across dataset, training, testing, and inference modules.",
+    description: "Classification, object detection, and segmentation workflows are available across dataset, training, testing, and inference modules.",
     icon: <ImageIcon size={18} />
   },
   {
     title: "NLP task track",
-    status: "Next",
-    description: "Text classification, extraction, evaluation, and lightweight language-model pipelines are planned as the next platform expansion.",
+    status: "Current",
+    description: "Text classification, summarization, question answering, evaluation, and lightweight local NLP baselines are available in the same workspace model.",
     icon: <FileText size={18} />
   }
 ];
@@ -81,7 +81,7 @@ const notes = [
   },
   {
     title: "Current domain",
-    description: "Vision workflows are active now; NLP workflows are planned next using the same project-first model.",
+    description: "Vision and NLP workflows are active using the same project-first model.",
     icon: <CheckCircle2 size={17} />
   }
 ];

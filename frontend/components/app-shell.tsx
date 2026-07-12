@@ -138,7 +138,7 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
         </span>
         <div className="brand-copy">
           <h1>Onestep AI Platform</h1>
-          <span>Image intelligence workspace</span>
+          <span>AI research workspace</span>
         </div>
       </Link>
       <nav className="side-nav">

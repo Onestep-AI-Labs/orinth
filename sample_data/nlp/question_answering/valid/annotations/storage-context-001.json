@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Where are generated artifacts kept?",
+      "answer": "Generated artifacts are kept under ignored local storage.",
+      "text": "Generated artifacts are kept under ignored local storage.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

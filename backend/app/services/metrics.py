@@ -1,4 +1,5 @@
 from collections import Counter
+import re
 from typing import Iterable
 
 import numpy as np
@@ -125,3 +126,61 @@ def classification_metrics(y_true: list[int], y_pred: list[int], class_names: li
             zero_division=0,
         ),
     }
+
+
+def rouge_scores(prediction: str, reference: str) -> dict[str, float]:
+    pred_tokens = tokenize_text(prediction)
+    ref_tokens = tokenize_text(reference)
+    return {
+        "rouge1": round(_rouge_n(pred_tokens, ref_tokens, 1), 6),
+        "rouge2": round(_rouge_n(pred_tokens, ref_tokens, 2), 6),
+        "rougeL": round(_rouge_l(pred_tokens, ref_tokens), 6),
+    }
+
+
+def qa_scores(prediction: str, reference: str) -> dict[str, float]:
+    pred_tokens = tokenize_text(prediction)
+    ref_tokens = tokenize_text(reference)
+    exact_match = int(" ".join(pred_tokens) == " ".join(ref_tokens))
+    common = Counter(pred_tokens) & Counter(ref_tokens)
+    overlap = sum(common.values())
+    if not pred_tokens or not ref_tokens or overlap == 0:
+        f1 = 0.0
+    else:
+        precision = overlap / len(pred_tokens)
+        recall = overlap / len(ref_tokens)
+        f1 = (2 * precision * recall) / (precision + recall + 1e-7)
+    return {"exact_match": float(exact_match), "f1": round(float(f1), 6)}
+
+
+def tokenize_text(text: str) -> list[str]:
+    return re.findall(r"\w+", text.lower())
+
+
+def _rouge_n(pred_tokens: list[str], ref_tokens: list[str], n: int) -> float:
+    if len(pred_tokens) < n or len(ref_tokens) < n:
+        return 0.0
+    pred_counts = Counter(tuple(pred_tokens[index : index + n]) for index in range(len(pred_tokens) - n + 1))
+    ref_counts = Counter(tuple(ref_tokens[index : index + n]) for index in range(len(ref_tokens) - n + 1))
+    overlap = sum((pred_counts & ref_counts).values())
+    precision = overlap / max(sum(pred_counts.values()), 1)
+    recall = overlap / max(sum(ref_counts.values()), 1)
+    return (2 * precision * recall) / (precision + recall + 1e-7) if overlap else 0.0
+
+
+def _rouge_l(pred_tokens: list[str], ref_tokens: list[str]) -> float:
+    if not pred_tokens or not ref_tokens:
+        return 0.0
+    previous = [0] * (len(ref_tokens) + 1)
+    for pred in pred_tokens:
+        current = [0]
+        for index, ref in enumerate(ref_tokens, start=1):
+            if pred == ref:
+                current.append(previous[index - 1] + 1)
+            else:
+                current.append(max(previous[index], current[-1]))
+        previous = current
+    lcs = previous[-1]
+    precision = lcs / len(pred_tokens)
+    recall = lcs / len(ref_tokens)
+    return (2 * precision * recall) / (precision + recall + 1e-7) if lcs else 0.0

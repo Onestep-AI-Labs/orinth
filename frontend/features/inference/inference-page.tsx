@@ -7,7 +7,7 @@ import { ImageIcon, Play, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
-import { activePollInterval, formatDatasetTask, formatMetric, labelColor } from "@/features/platform/utils";
+import { NLP_TASK_TYPES, VISION_TASK_TYPES, activePollInterval, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
 import { CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, ProgressPanel, SliderField, TableSkeleton, toggleId, useConfirmationDialog } from "@/features/platform/ui";
 import type { InferenceJob, InferenceResult, ModelInfo, TaskType } from "@/types/api";
 
@@ -16,10 +16,12 @@ function displayModelName(modelId: string, modelNameById: Record<string, string>
 }
 
 function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; modelsLoading?: boolean }) {
-  const { projectId } = useProject();
+  const { projectId, project } = useProject();
   const [taskType, setTaskType] = useState<TaskType>("classification");
   const [selectedModel, setSelectedModel] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [textContent, setTextContent] = useState("");
+  const [question, setQuestion] = useState("");
   const [confidence, setConfidence] = useState(0.65);
   const [iou, setIou] = useState(0.7);
   const [result, setResult] = useState<InferenceResult | null>(null);
@@ -38,6 +40,12 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
     () => Object.fromEntries(models.map((model) => [model.id, model.name])) as Record<string, string>,
     [models]
   );
+  const taskOptions = useMemo(() => {
+    const projectTasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
+    const modelTasks = [...new Set(models.map((model) => model.task_type))] as TaskType[];
+    return projectTasks.length ? projectTasks : modelTasks.length ? modelTasks : VISION_TASK_TYPES;
+  }, [models, project?.task_types]);
+  const nlp = isNlpTask(taskType);
   const showDetectionParams = selectedModelInfo ? selectedModelInfo.task_type !== "classification" : false;
   const historyQuery = useQuery({
     queryKey: ["inference-history", projectId],
@@ -66,7 +74,8 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
     if (models.length > 0 && !models.some((model) => model.task_type === taskType)) {
       setTaskType(models[0].task_type);
     }
-  }, [models, taskType]);
+    if (!taskOptions.includes(taskType) && taskOptions.length > 0) setTaskType(taskOptions[0]);
+  }, [models, taskOptions, taskType]);
 
   useEffect(() => {
     if (taskModels.length === 0) {
@@ -84,12 +93,16 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   }, [jobQuery.data?.result, historyQuery]);
 
   async function runInference() {
-    if (!file || !selectedModel) return;
+    if ((!file && !nlp) || (!textContent.trim() && nlp) || !selectedModel) return;
     const form = new FormData();
-    form.append("file", file);
+    if (file && !nlp) form.append("file", file);
+    if (nlp) {
+      form.append("text_content", textContent);
+      if (question.trim()) form.append("question", question.trim());
+    }
     form.append("project_id", projectId);
     form.append("model_id", selectedModel);
-    if (showDetectionParams) {
+    if (showDetectionParams && !nlp) {
       form.append("confidence_threshold", String(confidence));
       form.append("iou_threshold", String(iou));
     }
@@ -117,16 +130,16 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Inference" subtitle="Run models on image data" icon={<ImageIcon size={20} />} />
+      <PageHeader title="Inference" subtitle="Run models on project samples" icon={<ImageIcon size={20} />} />
       <div className="workspace-grid workspace-grid-inference">
         <section className="panel">
           <PanelTitle icon={<Upload size={18} />} title="Run" />
           {modelsLoading && <CardGridSkeleton count={1} />}
           <Field label="Task">
             <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
-              <option value="classification">Classification</option>
-              <option value="object_detection">Object detection</option>
-              <option value="segmentation">Segmentation</option>
+              {taskOptions.map((task) => (
+                <option value={task} key={task}>{formatDatasetTask(task)}</option>
+              ))}
             </select>
           </Field>
           <Field label="Model">
@@ -146,16 +159,29 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
               <span><strong>Labels</strong>{selectedModelInfo.labels.length}</span>
             </div>
           )}
-          <Field label="Image">
-            <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-          </Field>
-          {showDetectionParams && (
+          {nlp ? (
+            <>
+              <Field label={taskType === "question_answering" ? "Context" : "Text"}>
+                <textarea value={textContent} onChange={(event) => setTextContent(event.target.value)} rows={7} />
+              </Field>
+              {taskType === "question_answering" && (
+                <Field label="Question">
+                  <input value={question} onChange={(event) => setQuestion(event.target.value)} />
+                </Field>
+              )}
+            </>
+          ) : (
+            <Field label="Image">
+              <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            </Field>
+          )}
+          {showDetectionParams && !nlp && (
             <>
               <SliderField label="Confidence" value={confidence} min={0} max={1} step={0.01} onChange={setConfidence} />
               <SliderField label="IoU" value={iou} min={0} max={1} step={0.01} onChange={setIou} />
             </>
           )}
-          <button className="primary-button mt-2 w-full" disabled={!file || !selectedModel || inferenceMutation.isPending} onClick={runInference}>
+          <button className="primary-button mt-2 w-full" disabled={(!file && !nlp) || (nlp && !textContent.trim()) || !selectedModel || inferenceMutation.isPending} onClick={runInference}>
             <Play size={17} /> Run inference
           </button>
           {inferenceMutation.error && <p className="error-text">{inferenceMutation.error.message}</p>}
@@ -201,6 +227,21 @@ export function InferencePage() {
 function InferenceResultView({ result, modelNameById = {} }: { result: InferenceResult; modelNameById?: Record<string, string> }) {
   const overlay = mediaUrl(result.overlay_url);
   const modelName = displayModelName(result.model_id, modelNameById);
+  if (result.input_type === "text") {
+    return (
+      <div className="result-grid result-grid-text">
+        <div className="text-item-preview result-text-input">{result.text_content}</div>
+        <div className="inference-result-side">
+          <div className="inference-result-summary">
+            <span><strong>Model</strong>{modelName}</span>
+            <span><strong>Result</strong>{result.image_level_label}</span>
+            <span><strong>Time</strong>{result.duration_ms ? `${result.duration_ms} ms` : "-"}</span>
+          </div>
+          <NlpResultView result={result} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="result-grid">
       <div className="image-frame">{overlay ? <img src={overlay} alt="Prediction overlay" /> : null}</div>
@@ -219,6 +260,29 @@ function InferenceResultView({ result, modelNameById = {} }: { result: Inference
       </div>
     </div>
   );
+}
+
+function NlpResultView({ result }: { result: InferenceResult }) {
+  const payload = result.nlp_result ?? {};
+  if (payload.scores) return <ClassScoreTable scores={payload.scores} />;
+  if (payload.summary) {
+    return (
+      <div className="nlp-result-card">
+        <strong>Summary</strong>
+        <p>{payload.summary}</p>
+      </div>
+    );
+  }
+  if (payload.answer) {
+    return (
+      <div className="nlp-result-card">
+        <strong>Answer</strong>
+        <p>{payload.answer}</p>
+        {typeof payload.score === "number" && <span>Score {formatMetric(payload.score)}</span>}
+      </div>
+    );
+  }
+  return <pre className="log-box">{JSON.stringify(payload, null, 2)}</pre>;
 }
 
 function ClassScoreTable({ scores }: { scores: Record<string, number> }) {
@@ -306,8 +370,8 @@ function InferenceHistory({
             <th />
             <th>Time</th>
             <th>Model</th>
-            <th>Label</th>
-            <th>Detections</th>
+              <th>Label</th>
+              <th>Detections</th>
             <th>ms</th>
           </tr>
         </thead>
@@ -324,7 +388,7 @@ function InferenceHistory({
               <td onClick={() => onSelect(row)}>{new Date(row.created_at).toLocaleString()}</td>
               <td onClick={() => onSelect(row)}>{displayModelName(row.model_id, modelNameById)}</td>
               <td onClick={() => onSelect(row)}>{row.image_level_label}</td>
-              <td onClick={() => onSelect(row)}>{row.detections.length}</td>
+              <td onClick={() => onSelect(row)}>{row.input_type === "text" ? "text" : row.detections.length}</td>
               <td onClick={() => onSelect(row)}>{row.duration_ms ?? "-"}</td>
             </tr>
           ))}
@@ -338,4 +402,3 @@ function InferenceHistory({
     </div>
   );
 }
-

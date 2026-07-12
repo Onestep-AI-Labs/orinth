@@ -1,0 +1,1 @@
+Onestep AI Platform organizes work by project. Each project can own datasets, training jobs, testing jobs, models, and inference history.

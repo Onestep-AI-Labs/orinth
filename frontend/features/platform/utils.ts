@@ -34,11 +34,15 @@ export function labelColor(index: number): string {
 
 export function formatDatasetTask(task: TaskType): string {
   if (task === "object_detection") return "Object detection";
+  if (task === "text_classification" || task === "text") return "Text classification";
+  if (task === "question_answering") return "Question answering";
   return task.charAt(0).toUpperCase() + task.slice(1).replaceAll("_", " ");
 }
 
 export function formatDatasetFormat(format: string): string {
   if (format === "image_folder") return "Image folder";
+  if (format === "text_folder") return "Text folder";
+  if (format === "jsonl") return "JSONL";
   return format.toUpperCase();
 }
 
@@ -46,7 +50,10 @@ export function taskDescription(task: TaskType): string {
   if (task === "classification") return "One class label per image";
   if (task === "object_detection") return "Boxes around objects";
   if (task === "segmentation") return "Pixel or polygon masks";
-  return "Future metadata";
+  if (task === "text_classification" || task === "text") return "One class label per text";
+  if (task === "summarization") return "Source text with reference summary";
+  if (task === "question_answering") return "Context with question-answer pairs";
+  return "Task metadata";
 }
 
 export function areTasksCompatible(modelTask: TaskType, datasetTask: TaskType): boolean {
@@ -54,6 +61,17 @@ export function areTasksCompatible(modelTask: TaskType, datasetTask: TaskType): 
   const shapeTasks = new Set<TaskType>(["object_detection", "segmentation"]);
   return shapeTasks.has(modelTask) && shapeTasks.has(datasetTask);
 }
+
+export function isNlpTask(task: TaskType | string | undefined): boolean {
+  return task === "text" || task === "text_classification" || task === "summarization" || task === "question_answering";
+}
+
+export function isVisionTask(task: TaskType | string | undefined): boolean {
+  return !isNlpTask(task);
+}
+
+export const VISION_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
+export const NLP_TASK_TYPES: TaskType[] = ["text_classification", "summarization", "question_answering"];
 
 export function defaultPreprocessConfig(): DatasetPreprocessConfig {
   return {

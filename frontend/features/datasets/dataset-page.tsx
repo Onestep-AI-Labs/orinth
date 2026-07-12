@@ -4,7 +4,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, CheckCircle2, Copy, Database, FilePlus2, FolderOpen, ImageIcon, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { BarChart3, CheckCircle2, Copy, Database, FilePlus2, FileText, FolderOpen, ImageIcon, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
@@ -28,13 +28,14 @@ import {
   defaultSplitConfig,
   formatDatasetFormat,
   formatDatasetTask,
+  isNlpTask,
+  NLP_TASK_TYPES,
   preprocessFromDataset,
-  splitConfigFromDataset
+  splitConfigFromDataset,
+  VISION_TASK_TYPES
 } from "@/features/platform/utils";
 import { CardGridSkeleton, EmptyState, Field, InlineSpinner, MutationError, PageHeader, PageSkeleton, PanelTitle, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetItemDetail, DatasetItemPage, DatasetItemSummary, DatasetPreprocessConfig, DatasetSplitConfig, DatasetSplitFilter, DatasetSummary, SplitKey, TaskType } from "@/types/api";
-
-const IMAGE_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
 
 export function DatasetPage() {
   const router = useRouter();
@@ -69,12 +70,13 @@ export function DatasetPage() {
   const [splitConfig, setSplitConfig] = useState<DatasetSplitConfig>(defaultSplitConfig());
   const [moveTarget, setMoveTarget] = useState<SplitKey>("train");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
   const [versionName, setVersionName] = useState("");
   const [uploadErrors, setUploadErrors] = useState<Array<Record<string, string>>>([]);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const allowedDatasetTasks = useMemo(() => {
-    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => IMAGE_TASK_TYPES.includes(task));
-    return tasks.length ? tasks : IMAGE_TASK_TYPES;
+    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
+    return tasks.length ? tasks : VISION_TASK_TYPES;
   }, [project?.task_types]);
   const openDataset = useCallback(
     (datasetId: string) => {
@@ -99,6 +101,8 @@ export function DatasetPage() {
     () => datasets.find((dataset) => dataset.id === selectedDatasetId),
     [datasets, selectedDatasetId]
   );
+  const selectedDatasetIsNlp = Boolean(selectedDataset && isNlpTask(selectedDataset.task_type));
+  const ItemIcon = selectedDatasetIsNlp ? FileText : ImageIcon;
   const itemsQuery = useQuery({
     queryKey: ["dataset-items", selectedDataset?.id, split, classFilter, imagePage, imagesPerPage],
     queryFn: () =>
@@ -219,7 +223,10 @@ export function DatasetPage() {
   const previewMutation = useMutation({
     mutationFn: ({ datasetId, item }: { datasetId: string; item: DatasetItemDetail }) =>
       api.previewDatasetPreprocess(datasetId, item.split, item.id, preprocessConfig),
-    onSuccess: (preview) => setPreviewUrl(apiAssetUrl(preview.image_url))
+    onSuccess: (preview) => {
+      setPreviewUrl(preview.media_type === "text" ? null : apiAssetUrl(preview.image_url));
+      setPreviewText(preview.media_type === "text" ? preview.text_preview ?? "" : null);
+    }
   });
   const createVersionMutation = useMutation({
     mutationFn: ({ datasetId, name, config }: { datasetId: string; name?: string; config: DatasetPreprocessConfig }) =>
@@ -310,6 +317,7 @@ export function DatasetPage() {
     setSelectedItemId("");
     setSelectedItemSplit("");
     setPreviewUrl(null);
+    setPreviewText(null);
     setShowDatasetOptions(false);
     setShowRename(false);
     setShowDuplicate(false);
@@ -359,8 +367,8 @@ export function DatasetPage() {
       project_id: projectId,
       name: newDatasetName.trim(),
       task_type: taskType,
-      format: taskType === "classification" ? "image_folder" : "yolo",
-      labels: labels.length ? labels : ["object"]
+      format: isNlpTask(taskType) ? "text_folder" : taskType === "classification" ? "image_folder" : "yolo",
+      labels: labels.length ? labels : taskType === "summarization" ? ["summary"] : taskType === "question_answering" ? ["answer"] : ["object"]
     });
   }
 
@@ -369,7 +377,7 @@ export function DatasetPage() {
     const form = new FormData();
     form.append("split", split === "all" ? "unassigned" : split);
     uploadFiles.forEach((file) => form.append("files", file));
-    if (selectedDataset.task_type === "classification") {
+    if (selectedDataset.task_type === "classification" || selectedDataset.task_type === "text_classification") {
       form.append("class_id", String(uploadClassId));
     }
     uploadMutation.mutate({ datasetId: selectedDataset.id, form });
@@ -426,9 +434,9 @@ export function DatasetPage() {
   function confirmDeleteSelectedImages() {
     if (!selectedDataset || selectedItemIds.length === 0) return;
     confirm({
-      title: "Remove selected images?",
-      message: `This will delete ${selectedItemIds.length} selected image${selectedItemIds.length === 1 ? "" : "s"} from "${selectedDataset.name}". This action cannot be undone.`,
-      confirmLabel: "Remove images",
+      title: `Remove selected ${selectedDataset && isNlpTask(selectedDataset.task_type) ? "texts" : "images"}?`,
+      message: `This will delete ${selectedItemIds.length} selected item${selectedItemIds.length === 1 ? "" : "s"} from "${selectedDataset.name}". This action cannot be undone.`,
+      confirmLabel: "Remove items",
       onConfirm: () => deleteItemsMutation.mutate({ datasetId: selectedDataset.id, ids: selectedItemIds })
     });
   }
@@ -436,9 +444,9 @@ export function DatasetPage() {
   function confirmMoveSelectedImages() {
     if (!selectedDataset || selectedItemIds.length === 0) return;
     confirm({
-      title: "Move selected images?",
-      message: `This will move ${selectedItemIds.length} selected image${selectedItemIds.length === 1 ? "" : "s"} from ${split} to ${moveTarget}.`,
-      confirmLabel: "Move images",
+      title: `Move selected ${selectedDataset && isNlpTask(selectedDataset.task_type) ? "texts" : "images"}?`,
+      message: `This will move ${selectedItemIds.length} selected item${selectedItemIds.length === 1 ? "" : "s"} from ${split} to ${moveTarget}.`,
+      confirmLabel: "Move items",
       tone: "warning",
       onConfirm: () => moveItemsMutation.mutate({ datasetId: selectedDataset.id, target: moveTarget })
     });
@@ -449,7 +457,7 @@ export function DatasetPage() {
     const label = selectedDataset.labels[bulkClassId] ?? "selected label";
     confirm({
       title: "Edit selected labels?",
-      message: `This will set ${selectedItemIds.length} selected image${selectedItemIds.length === 1 ? "" : "s"} to "${label}".`,
+      message: `This will set ${selectedItemIds.length} selected item${selectedItemIds.length === 1 ? "" : "s"} to "${label}".`,
       confirmLabel: "Edit labels",
       tone: "warning",
       onConfirm: () => bulkLabelMutation.mutate({ datasetId: selectedDataset.id, ids: selectedItemIds, classId: bulkClassId })
@@ -460,7 +468,7 @@ export function DatasetPage() {
     if (!selectedDataset) return;
     confirm({
       title: "Proceed with dataset processing?",
-      message: `This saves preprocessing settings and distributes inbox images in "${selectedDataset.name}" into train, valid, and test.`,
+      message: `This saves preprocessing settings and distributes inbox items in "${selectedDataset.name}" into train, valid, and test.`,
       confirmLabel: "Proceed",
       tone: "warning",
       onConfirm: () => processMutation.mutate({ datasetId: selectedDataset.id, preprocess: preprocessConfig, split: splitConfig })
@@ -503,7 +511,7 @@ export function DatasetPage() {
           )}
           <div className="dataset-catalog-grid">
             {datasets.map((dataset) => {
-              const totalImages = SPLITS.reduce((total, splitName) => total + (dataset.splits[splitName]?.image_count ?? 0), 0);
+              const totalImages = SPLITS.reduce((total, splitName) => total + (dataset.splits[splitName]?.item_count ?? dataset.splits[splitName]?.image_count ?? 0), 0);
               return (
                 <article
                   className={`dataset-card dataset-card-${dataset.task_type.replaceAll("_", "-")} ${
@@ -522,12 +530,12 @@ export function DatasetPage() {
                       </div>
                     </div>
                     <div className="dataset-card-summary">
-                      <span><strong>{totalImages}</strong> images</span>
+                      <span><strong>{totalImages}</strong> {isNlpTask(dataset.task_type) ? "texts" : "images"}</span>
                       <span><strong>{dataset.labels.length}</strong> labels</span>
                     </div>
                     <div className="dataset-card-stats">
                       {TRAINING_SPLITS.map((splitName) => (
-                        <span key={splitName}>{splitName}: {dataset.splits[splitName]?.image_count ?? 0}</span>
+                        <span key={splitName}>{splitName}: {dataset.splits[splitName]?.item_count ?? dataset.splits[splitName]?.image_count ?? 0}</span>
                       ))}
                     </div>
                   </button>
@@ -701,7 +709,7 @@ export function DatasetPage() {
           onClick={() => setDetailTab("images")}
           type="button"
         >
-          <ImageIcon size={16} /> Images
+          <ItemIcon size={16} /> {selectedDatasetIsNlp ? "Texts" : "Images"}
         </button>
         <button
           className={`detail-tab ${detailTab === "annotate" ? "detail-tab-active" : ""}`}
@@ -728,7 +736,7 @@ export function DatasetPage() {
       {detailTab === "images" ? (
         <section className="panel dataset-work-panel">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <PanelTitle icon={<ImageIcon size={18} />} title="Images" />
+            <PanelTitle icon={<ItemIcon size={18} />} title={selectedDatasetIsNlp ? "Texts" : "Images"} />
             <button className="icon-button" onClick={() => itemsQuery.refetch()} title="Refresh">
               <RefreshCw size={16} />
             </button>
@@ -754,7 +762,7 @@ export function DatasetPage() {
                 checked={items.length > 0 && selectedItemIds.length === items.length}
                 onChange={(event) => setSelectedItemIds(event.target.checked ? items.map((item) => item.id) : [])}
               />
-              <span>{selectedItemIds.length ? `${selectedItemIds.length} selected` : "Select images"}</span>
+              <span>{selectedItemIds.length ? `${selectedItemIds.length} selected` : `Select ${selectedDatasetIsNlp ? "texts" : "images"}`}</span>
             </label>
             {selectedDataset?.editable && split !== "all" && (
               <>
@@ -781,7 +789,7 @@ export function DatasetPage() {
             )}
           </div>
           {itemsQuery.isLoading && <CardGridSkeleton count={6} />}
-          <div className="image-grid">
+          <div className={selectedDatasetIsNlp ? "text-item-list" : "image-grid"}>
             {items.map((item) => (
               <DatasetThumb
                 item={item}
@@ -794,7 +802,7 @@ export function DatasetPage() {
                 }
               />
             ))}
-            {items.length === 0 && <EmptyState label="No images" />}
+            {items.length === 0 && <EmptyState label={selectedDatasetIsNlp ? "No texts" : "No images"} />}
           </div>
           <DatasetPagination
             total={itemPage.total}
@@ -809,7 +817,7 @@ export function DatasetPage() {
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
           <section className="panel dataset-work-panel">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <PanelTitle icon={<ImageIcon size={18} />} title="Annotate Images" />
+              <PanelTitle icon={<ItemIcon size={18} />} title={selectedDatasetIsNlp ? "Annotate Texts" : "Annotate Images"} />
               <button className="icon-button" onClick={() => itemsQuery.refetch()} title="Refresh">
                 <RefreshCw size={16} />
               </button>
@@ -823,9 +831,9 @@ export function DatasetPage() {
                   checked={items.length > 0 && selectedItemIds.length === items.length}
                   onChange={(event) => setSelectedItemIds(event.target.checked ? items.map((item) => item.id) : [])}
                 />
-                <span>{selectedItemIds.length ? `${selectedItemIds.length} selected` : "Select images"}</span>
+                <span>{selectedItemIds.length ? `${selectedItemIds.length} selected` : `Select ${selectedDatasetIsNlp ? "texts" : "images"}`}</span>
               </label>
-              {selectedDataset.editable && selectedDataset.task_type === "classification" && split !== "all" && (
+              {selectedDataset.editable && (selectedDataset.task_type === "classification" || selectedDataset.task_type === "text_classification") && split !== "all" && (
                 <>
                   <select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItemIds.length === 0}>
                     {selectedDataset.labels.map((label, index) => (
@@ -843,7 +851,7 @@ export function DatasetPage() {
               )}
             </div>
             {itemsQuery.isLoading && <CardGridSkeleton count={6} />}
-            <div className="image-grid">
+            <div className={selectedDatasetIsNlp ? "text-item-list" : "image-grid"}>
               {items.map((item) => (
                 <DatasetThumb
                   item={item}
@@ -856,7 +864,7 @@ export function DatasetPage() {
                   }
                 />
               ))}
-              {items.length === 0 && <EmptyState label="No images" />}
+              {items.length === 0 && <EmptyState label={selectedDatasetIsNlp ? "No texts" : "No images"} />}
             </div>
             <DatasetPagination
               total={itemPage.total}
@@ -896,7 +904,7 @@ export function DatasetPage() {
                 }}
               />
             ) : (
-              <EmptyState label="No image selected" />
+              <EmptyState label={selectedDatasetIsNlp ? "No text selected" : "No image selected"} />
             )}
           </section>
         </div>
@@ -923,7 +931,9 @@ export function DatasetPage() {
               editable={selectedDataset.editable}
               onPreview={() => detailQuery.data && previewMutation.mutate({ datasetId: selectedDataset.id, item: detailQuery.data })}
               previewUrl={previewUrl}
+              previewText={previewText}
               previewPending={previewMutation.isPending}
+              nlp={selectedDatasetIsNlp}
             />
             <SplitConfigPanel
               config={splitConfig}

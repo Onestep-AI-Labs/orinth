@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, BarChart3, Database, FileImage, FilePlus2 } from "lucide-react";
+import { ArrowLeft, BarChart3, Database, FileImage, FilePlus2, FileText, MessageSquareText } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
-import { formatDatasetTask, taskDescription } from "@/features/platform/utils";
+import { NLP_TASK_TYPES, VISION_TASK_TYPES, formatDatasetTask, taskDescription } from "@/features/platform/utils";
 import { Field, MutationError } from "@/features/platform/ui";
 import type { TaskType } from "@/types/api";
 
-const IMAGE_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
+type ProjectDomain = "vision" | "nlp";
 const PROJECT_DESCRIPTION_LIMIT = 160;
 
 export function ProjectCreatePage() {
@@ -19,7 +19,8 @@ export function ProjectCreatePage() {
   const { setProjectId, refreshProjects } = useProject();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedTasks, setSelectedTasks] = useState<TaskType[]>(IMAGE_TASK_TYPES);
+  const [domain, setDomain] = useState<ProjectDomain>("vision");
+  const [selectedTasks, setSelectedTasks] = useState<TaskType[]>(VISION_TASK_TYPES);
   const trimmedName = name.trim();
   const trimmedDescription = description.trim();
   const canCreateProject = Boolean(trimmedName && trimmedDescription && selectedTasks.length > 0);
@@ -48,15 +49,25 @@ export function ProjectCreatePage() {
       name: trimmedName,
       description: trimmedDescription,
       task_types: selectedTasks,
-      metadata: { domain: "image" }
+      metadata: { domain }
     });
   }
 
   function taskIcon(task: TaskType) {
     if (task === "classification") return <FileImage size={20} />;
     if (task === "object_detection") return <Database size={20} />;
+    if (task === "text_classification") return <FileText size={20} />;
+    if (task === "summarization") return <BarChart3 size={20} />;
+    if (task === "question_answering") return <MessageSquareText size={20} />;
     return <BarChart3 size={20} />;
   }
+
+  function setProjectDomain(nextDomain: ProjectDomain) {
+    setDomain(nextDomain);
+    setSelectedTasks(nextDomain === "vision" ? VISION_TASK_TYPES : NLP_TASK_TYPES);
+  }
+
+  const domainTasks = domain === "vision" ? VISION_TASK_TYPES : NLP_TASK_TYPES;
 
   return (
     <div className="create-project-page">
@@ -67,7 +78,7 @@ export function ProjectCreatePage() {
         </Link>
         <div className="create-project-hero-copy">
           <span className="brand-kicker">Onestep AI Platform</span>
-          <h2>Create an image intelligence workspace</h2>
+          <h2>Create an AI workspace</h2>
           <p>Shape a focused project for datasets, annotations, training runs, model tests, and inspection workflows.</p>
         </div>
       </section>
@@ -89,8 +100,16 @@ export function ProjectCreatePage() {
         </div>
         <div className="field">
           <label>Project type</label>
+          <div className="segmented-control mb-3">
+            <button className={domain === "vision" ? "segmented-active" : ""} type="button" onClick={() => setProjectDomain("vision")}>
+              Vision
+            </button>
+            <button className={domain === "nlp" ? "segmented-active" : ""} type="button" onClick={() => setProjectDomain("nlp")}>
+              NLP
+            </button>
+          </div>
           <div className="task-choice-grid task-choice-grid-premium">
-            {IMAGE_TASK_TYPES.map((task) => {
+            {domainTasks.map((task) => {
               const active = selectedTasks.includes(task);
               return (
                 <button
@@ -123,4 +142,3 @@ export function ProjectCreatePage() {
     </div>
   );
 }
-

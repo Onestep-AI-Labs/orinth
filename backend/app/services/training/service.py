@@ -404,6 +404,48 @@ class TrainingService:
                 defaults={"epochs": 5, "image_size": 224, "optimizer": "adamw"},
             )
         )
+        options.extend(
+            [
+                TrainingModelOption(
+                    id="nlp_tfidf_classifier",
+                    name="TF-IDF Logistic Regression",
+                    family="nlp_text_classification",
+                    task_types=["text_classification"],
+                    source="local",
+                    runnable=True,
+                    needs_download=False,
+                    description="Offline TF-IDF + Logistic Regression baseline for text classification.",
+                    defaults={
+                        "epochs": 5,
+                        "optimizer": "liblinear",
+                        "learning_rate": 1.0,
+                        "batch_size": 0,
+                    },
+                ),
+                TrainingModelOption(
+                    id="nlp_extractive_summarizer",
+                    name="Extractive Summarizer",
+                    family="nlp_summarization",
+                    task_types=["summarization"],
+                    source="local",
+                    runnable=True,
+                    needs_download=False,
+                    description="Offline extractive summarization baseline using reference-summary keywords.",
+                    defaults={"epochs": 1, "optimizer": "keyword", "learning_rate": 1.0, "batch_size": 0},
+                ),
+                TrainingModelOption(
+                    id="nlp_keyword_qa",
+                    name="Keyword QA",
+                    family="nlp_qa",
+                    task_types=["question_answering"],
+                    source="local",
+                    runnable=True,
+                    needs_download=False,
+                    description="Offline question-answering baseline using question/context keyword overlap.",
+                    defaults={"epochs": 1, "optimizer": "keyword", "learning_rate": 1.0, "batch_size": 0},
+                ),
+            ]
+        )
         if task_type:
             options = [option for option in options if task_type in option.task_types]
         return options
@@ -429,6 +471,12 @@ class TrainingService:
                 status="ready" if path.exists() else "missing",
                 path=str(path),
                 message=None if path.exists() else "Local YOLO weights are missing.",
+            )
+        if option.source == "local":
+            return ModelAssetStatus(
+                option_id=payload.option_id,
+                status="ready",
+                message="This offline baseline does not require downloaded assets.",
             )
         if option.source == "ultralytics":
             if not option.runnable:
@@ -658,8 +706,14 @@ class TrainingService:
         job = db.get(TrainingJob, job_id)
         if job is None:
             raise KeyError(job_id)
-        if job.model_family not in {"yolo", "keras_classification"}:
-            raise ValueError("Only YOLO and Keras classification artifacts can be promoted")
+        if job.model_family not in {
+            "yolo",
+            "keras_classification",
+            "nlp_text_classification",
+            "nlp_summarization",
+            "nlp_qa",
+        }:
+            raise ValueError("Only runnable training artifacts can be promoted")
         if job.promoted_model_id:
             return job.promoted_model_id
         best_model = job.artifacts.get("best_model") if job.artifacts else None
@@ -725,6 +779,28 @@ class TrainingService:
 
     def _command_for_job(self, job: TrainingJob, run_dir: Path) -> list[str]:
         params = job.parameters
+        if job.model_family in {"nlp_text_classification", "nlp_summarization", "nlp_qa"}:
+            dataset_id = params.get("dataset_id")
+            if not dataset_id or self.dataset_service is None:
+                raise ValueError("NLP training requires a project text dataset")
+            dataset_root = self.dataset_service.prepared_training_root(
+                dataset_id, run_dir / "prepared_dataset"
+            )
+            return [
+                sys.executable,
+                "-m",
+                "app.training.runners.nlp_train",
+                "--run-dir",
+                str(run_dir),
+                "--dataset-root",
+                str(dataset_root),
+                "--task-type",
+                str(params.get("task_type")),
+                "--epochs",
+                str(params.get("epochs", 1)),
+                "--learning-rate",
+                str(params.get("learning_rate", 1.0)),
+            ]
         if job.model_family == "yolo":
             dataset_id = params.get("dataset_id", "reference_yolo")
             if self.dataset_service is not None:
@@ -933,6 +1009,11 @@ class TrainingService:
             shutil.copy2(best_model, stable_model)
             paths = {"model": stable_model}
             family = "keras_classification"
+        elif job.model_family in {"nlp_text_classification", "nlp_summarization", "nlp_qa"}:
+            stable_model = model_dir / best_model.name
+            shutil.copy2(best_model, stable_model)
+            paths = {"model": stable_model}
+            family = job.model_family
         else:
             raise ValueError(f"Unsupported trained model family: {job.model_family}")
 

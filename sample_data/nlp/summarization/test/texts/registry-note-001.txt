@@ -1,0 +1,1 @@
+Promoted models keep their registered paths, task type, labels, metrics, and source information. Deleting a trained model removes the owned artifact directory from storage.

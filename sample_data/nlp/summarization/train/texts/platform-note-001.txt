@@ -1,0 +1,1 @@
+The dataset studio stores editable project files under local storage. Users can upload samples, add annotations, split data into train valid and test groups, and generate prepared versions without changing the original source files.

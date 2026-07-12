@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which models can be selected for testing or inference?",
+      "answer": "Available models can be selected for testing or inference.",
+      "text": "Available models can be selected for testing or inference.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

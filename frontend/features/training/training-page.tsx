@@ -6,12 +6,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TrainingJobTable } from "@/features/training/training-components";
-import { listPollInterval } from "@/features/platform/utils";
+import { NLP_TASK_TYPES, VISION_TASK_TYPES, isNlpTask, listPollInterval } from "@/features/platform/utils";
 import { CardGridSkeleton, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, TableSkeleton, useConfirmationDialog } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
 
 export function TrainingPage() {
-  const { projectId } = useProject();
+  const { projectId, project } = useProject();
   const [taskType, setTaskType] = useState<TaskType>("classification");
   const [modelOptionId, setModelOptionId] = useState("");
   const [modelName, setModelName] = useState("");
@@ -52,10 +52,21 @@ export function TrainingPage() {
   });
   const options = useMemo(() => optionsQuery.data ?? [], [optionsQuery.data]);
   const option = options.find((item) => item.id === modelOptionId);
+  const taskOptions = useMemo(() => {
+    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
+    return tasks.length ? tasks : VISION_TASK_TYPES;
+  }, [project?.task_types]);
+  const nlp = isNlpTask(taskType);
   const datasets = useMemo(
     () => (datasetsQuery.data ?? []).filter((dataset) => dataset.task_type === taskType),
     [datasetsQuery.data, taskType]
   );
+
+  useEffect(() => {
+    if (!taskOptions.includes(taskType)) {
+      setTaskType(taskOptions[0] ?? "classification");
+    }
+  }, [taskOptions, taskType]);
 
   useEffect(() => {
     if (!options.some((item) => item.id === modelOptionId)) {
@@ -132,9 +143,9 @@ export function TrainingPage() {
           </Field>
           <Field label="Task">
             <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
-              <option value="classification">Classification</option>
-              <option value="object_detection">Object detection</option>
-              <option value="segmentation">Segmentation</option>
+              {taskOptions.map((task) => (
+                <option value={task} key={task}>{task.replaceAll("_", " ")}</option>
+              ))}
             </select>
           </Field>
           <Field label="Base model">
@@ -157,13 +168,15 @@ export function TrainingPage() {
               ))}
             </select>
           </Field>
-          <div className="form-grid form-grid-three">
+          <div className={`form-grid ${nlp ? "form-grid-two" : "form-grid-three"}`}>
             <Field label="Epochs">
               <input type="number" min={1} max={1000} value={epochs} onChange={(event) => setEpochs(Number(event.target.value))} />
             </Field>
-            <Field label="Size">
-              <input type="number" min={128} max={2048} value={imageSize} onChange={(event) => setImageSize(Number(event.target.value))} />
-            </Field>
+            {!nlp && (
+              <Field label="Size">
+                <input type="number" min={128} max={2048} value={imageSize} onChange={(event) => setImageSize(Number(event.target.value))} />
+              </Field>
+            )}
             <Field label="Batch">
               <input type="number" min={-1} max={256} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value))} />
             </Field>
@@ -180,9 +193,11 @@ export function TrainingPage() {
               <input type="number" step={0.0001} value={learningRate} onChange={(event) => setLearningRate(Number(event.target.value))} />
             </Field>
           </div>
-          <Field label="Device">
-            <input value={device} onChange={(event) => setDevice(event.target.value)} />
-          </Field>
+          {!nlp && (
+            <Field label="Device">
+              <input value={device} onChange={(event) => setDevice(event.target.value)} />
+            </Field>
+          )}
           <div className="action-row action-row-split">
             <button className="secondary-button" onClick={() => prepareMutation.mutate()} disabled={!option?.needs_download || prepareMutation.isPending}>
               <Upload size={16} /> Prepare
@@ -211,4 +226,3 @@ export function TrainingPage() {
     </div>
   );
 }
-

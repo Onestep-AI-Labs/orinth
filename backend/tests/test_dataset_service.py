@@ -47,6 +47,10 @@ def upload_file(name: str = "sample.jpg", size: tuple[int, int] = (100, 80)) -> 
     return UploadFile(file=buffer, filename=name)
 
 
+def text_upload_file(name: str, content: str) -> UploadFile:
+    return UploadFile(file=BytesIO(content.encode("utf-8")), filename=name)
+
+
 def write_yolo_dataset(root: Path) -> None:
     for split in ("train", "valid", "test"):
         write_image(root / split / "images" / f"{split}.jpg")
@@ -106,6 +110,25 @@ def test_reference_dataset_annotations_are_read_only(tmp_path: Path):
         )
 
     assert exc.value.status_code == 409
+
+
+def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    service = DatasetService(settings, Storage(settings))
+    expected_tasks = {
+        "sample_text_classification": "text_classification",
+        "sample_summarization": "summarization",
+        "sample_question_answering": "question_answering",
+    }
+
+    for dataset_id, task_type in expected_tasks.items():
+        summary = service.summary(dataset_id)
+        item_count = sum(split.item_count for split in summary.splits.values())
+        annotation_count = sum(split.annotation_count for split in summary.splits.values())
+
+        assert summary.task_type == task_type
+        assert item_count >= 20
+        assert annotation_count >= 20
 
 
 def test_dataset_import_copies_yolo_layout_to_storage(tmp_path: Path):
@@ -601,3 +624,75 @@ def test_label_delete_blocks_used_annotations(tmp_path: Path):
         service.delete_label(dataset.id, 1)
 
     assert exc.value.status_code == 409
+
+
+def test_nlp_dataset_upload_process_version_and_eda(tmp_path: Path):
+    settings = make_settings(tmp_path)
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(
+        DatasetCreate(
+            name="Text Classifier",
+            task_type="text_classification",
+            format="text_folder",
+            labels=["positive", "negative"],
+        )
+    )
+
+    uploaded = anyio.run(
+        service.upload_images,
+        dataset.id,
+        "unassigned",
+        [
+            text_upload_file("positive.txt", "The workflow is good and stable."),
+            text_upload_file("rows.jsonl", '{"text":"The import failed badly.","label":"negative"}\n'),
+        ],
+        0,
+        None,
+    )
+
+    assert len(uploaded.uploaded) == 2
+    assert uploaded.uploaded[0].media_type == "text"
+    assert uploaded.uploaded[0].text_content
+
+    service.set_item_label(
+        dataset.id,
+        "unassigned",
+        uploaded.uploaded[1].id,
+        DatasetItemLabelUpdate(class_name="negative"),
+    )
+    processed = service.process_dataset(
+        dataset.id,
+        DatasetProcessRequest(split=DatasetSplitConfig(train=1, valid=0, test=0, seed=42)),
+    )
+
+    assert processed.dataset.splits["train"].text_count == 2
+    config = DatasetPreprocessConfig(
+        enabled=True,
+        preset="nlp_clean",
+        transforms=["lowercase", "remove_punctuation", "normalize_whitespace"],
+        augmentation_mode="materialize",
+        copies_per_image=1,
+    )
+    service.update_dataset(dataset.id, DatasetUpdate(preprocess=config))
+    train_item = service.list_items(dataset.id, "train", limit=1)[0]
+    preview = service.preprocess_preview(dataset.id, "train", train_item.id, config)
+    assert preview.media_type == "text"
+    assert preview.text_preview == preview.text_preview.lower()
+
+    version = service.create_version(
+        dataset.id,
+        DatasetVersionCreate(
+            name="cleaned",
+            splits=["train"],
+            augmentation_splits=["train"],
+            config=config,
+        ),
+    )
+
+    assert version.text_count == 4
+    assert version.generated_count == 2
+    eda = service.eda_summary(dataset.id, "train")
+    assert eda.text_count == 2
+    assert eda.text_length["mean_tokens"]

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does each text row include?",
+      "answer": "Each row includes a checkbox, filename, preview text, label, and annotation count.",
+      "text": "Each row includes a checkbox, filename, preview text, label, and annotation count.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

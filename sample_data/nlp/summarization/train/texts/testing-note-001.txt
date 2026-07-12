@@ -1,0 +1,1 @@
+Testing jobs evaluate a selected model on a dataset split. Classification uses accuracy and F1, summarization uses ROUGE scores, and question answering uses exact match and token F1.
