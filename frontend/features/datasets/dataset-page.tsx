@@ -41,7 +41,7 @@ export function DatasetPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { projectId, project } = useProject();
-  const datasetParam = searchParams.get("dataset") ?? "";
+  const datasetParam = searchParams?.get("dataset") ?? "";
   const [selectedDatasetId, setSelectedDatasetId] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
@@ -80,7 +80,7 @@ export function DatasetPage() {
   }, [project?.task_types]);
   const openDataset = useCallback(
     (datasetId: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
       params.set("dataset", datasetId);
       setSelectedDatasetId(datasetId);
       router.push(`/datasets?${params.toString()}`);

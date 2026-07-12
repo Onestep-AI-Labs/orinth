@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [projects, projectId]
   );
   const isProjectArea = ["/datasets", "/models", "/inference", "/testing", "/training"].some((prefix) =>
-    pathname.startsWith(prefix)
+    pathname?.startsWith(prefix)
   );
 
   useEffect(() => {
@@ -96,9 +96,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {isProjectArea ? (
           <>
-            <GlobalSidebar pathname={pathname} compact />
+            <GlobalSidebar pathname={pathname || ""} compact />
             <ProjectSidebar
-              pathname={pathname}
+              pathname={pathname || ""}
               projectId={projectId}
               project={project}
               projects={projects}
@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
           </>
         ) : (
-          <GlobalSidebar pathname={pathname} />
+          <GlobalSidebar pathname={pathname || ""} />
         )}
         <section className="content-shell">{children}</section>
       </main>

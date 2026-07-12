@@ -1,0 +1,10 @@
+{
+  "index": "Overview",
+  "installation": "Installation & Start",
+  "projects": "1. Workspace & Projects",
+  "dataset-studio": "2. Dataset Studio",
+  "training": "3. Models & Training",
+  "testing": "4. Testing & Evaluation",
+  "inference": "5. Inference",
+  "nlp": "6. NLP Capabilities"
+}

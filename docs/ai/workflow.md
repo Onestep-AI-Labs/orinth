@@ -28,7 +28,7 @@ Use this workflow for Codex, Claude Code, or any future coding agent.
 - Keep app-wide base styles in `frontend/app/globals.css` and platform UI selectors in `frontend/app/styles/platform.css`.
 - Generated runtime output goes under `storage`.
 - Use lazy imports for heavy ML libraries.
-- Keep inference responses normalized across YOLO and U-Net + Inception.
+- Keep inference responses normalized across YOLO, U-Net + Inception, and NLP Hugging Face Transformers.
 - Do not add secrets or notebook API keys to source.
 
 ## 4. Validate
