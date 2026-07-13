@@ -1,12 +1,12 @@
 <div align="center">
-  <img src="frontend/public/brand/logo_dark.png" alt="Onestep AI Platform Logo" width="300" />
+  <img src="frontend/public/brand/logo_transparent.png" alt="Onestep AI Platform Logo" width="300" />
 </div>
 
 # Onestep AI Platform
 
 ![license](https://img.shields.io/badge/license-Apache%202.0-blue)
 
-**One workspace for image and NLP intelligence.**
+**One workspace for Computer Vision and NLP intelligence.**
 
 Onestep AI Platform is a local studio where teams can turn image and text datasets into usable model experiments through labeling, preparation, training, testing, and inspection. Built for research and engineering workflows, it helps teams move from raw images and text to measurable model behavior without implying autonomous clinical diagnosis or final decision-making.
 
@@ -141,7 +141,8 @@ Project AI guidance is shared across Codex and Claude Code:
 
 - refine NLP transformer fine-tuning
 - planning simple LLM task pipeline
+- planning for auto data prep
 
 ## License
 
-This software is released as Open Source Software (OSS) under the [MIT License](LICENSE).
+This software is released as Open Source Software (OSS) under the [Apache 2.0 License](LICENSE).
