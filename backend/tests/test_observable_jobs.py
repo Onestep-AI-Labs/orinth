@@ -2,11 +2,9 @@ from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.database import Base
 from app.core.storage import Storage
 from app.db.models import EvaluationJob, TrainingJob
 from app.ml.model_registry import ModelRegistry
@@ -37,15 +35,6 @@ from app.training.runners.nlp_train import (
     train_keras_text_classifier,
     train_text_classifier,
 )
-
-
-def make_settings(tmp_path: Path) -> Settings:
-    return Settings(
-        MODELS_DIR=str(tmp_path / "models"),
-        DATASETS_DIR=str(tmp_path / "datasets"),
-        STORAGE_DIR=str(tmp_path / "storage"),
-        DATABASE_URL=f"sqlite:///{tmp_path / 'app.db'}",
-    )
 
 
 def test_job_progress_round_trips_from_artifacts():
@@ -98,8 +87,7 @@ def test_parse_training_history_returns_all_epochs(tmp_path: Path):
     assert history[-1]["val_accuracy"] == 0.7
 
 
-def test_training_command_includes_observability_parameters(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_training_command_includes_observability_parameters(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     dataset_root = settings.datasets_path / "dental dataset_yolov11_format"
@@ -140,8 +128,7 @@ def test_training_command_includes_observability_parameters(tmp_path: Path):
     assert "cpu" in command
 
 
-def test_yolo26_option_uses_ultralytics_weights(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_yolo26_option_uses_ultralytics_weights(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     dataset_root = settings.datasets_path / "dental dataset_yolov11_format"
@@ -176,8 +163,7 @@ def test_yolo26_option_uses_ultralytics_weights(tmp_path: Path):
     assert "yolo26n-seg.pt" in command
 
 
-def test_training_options_gate_transformer_and_generate_keras_command(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_training_options_gate_transformer_and_generate_keras_command(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = TrainingService(
@@ -217,8 +203,7 @@ def test_training_options_gate_transformer_and_generate_keras_command(tmp_path: 
     assert "--application-kwargs" in command
 
 
-def test_training_registration_copies_stable_yolo_artifact(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_training_registration_copies_stable_yolo_artifact(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = TrainingService(
@@ -251,8 +236,7 @@ def test_training_registration_copies_stable_yolo_artifact(tmp_path: Path):
     assert model.paths["weights"].is_relative_to(storage.trained_models)
 
 
-def test_ultralytics_catalog_is_task_filtered_and_gates_unvalidated_families(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_ultralytics_catalog_is_task_filtered_and_gates_unvalidated_families(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = TrainingService(
@@ -275,8 +259,7 @@ def test_ultralytics_catalog_is_task_filtered_and_gates_unvalidated_families(tmp
     assert "ultralytics_yolo26_detect" not in classification_options
 
 
-def test_keras_application_catalog_includes_official_examples(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_keras_application_catalog_includes_official_examples(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     service = TrainingService(
@@ -333,14 +316,9 @@ def test_training_process_env_exports_hf_token_aliases(tmp_path: Path):
     assert env["HUGGINGFACE_HUB_TOKEN"] == "hf_alias_token"
 
 
-def test_evaluation_batch_creates_one_job_per_model(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_evaluation_batch_creates_one_job_per_model(settings: Settings, db_session: Session):
     storage = Storage(settings)
     storage.ensure()
-    engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
     service = EvaluationService(
         settings,
         storage,
@@ -349,7 +327,7 @@ def test_evaluation_batch_creates_one_job_per_model(tmp_path: Path):
     )
 
     jobs = service.create_jobs(
-        db,
+        db_session,
         EvaluationJobBatchCreate(
             model_ids=["yolo_11_best", "unet_inception"],
             dataset_key="yolo_test",
@@ -360,18 +338,12 @@ def test_evaluation_batch_creates_one_job_per_model(tmp_path: Path):
     assert [job.model_id for job in jobs] == ["yolo_11_best", "unet_inception"]
     assert {job.limit for job in jobs} == {2}
     assert len({job.comparison_id for job in jobs}) == 1
-    assert db.query(EvaluationJob).count() == 2
-    db.close()
+    assert db_session.query(EvaluationJob).count() == 2
 
 
-def test_evaluation_single_job_has_stable_comparison_id(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_evaluation_single_job_has_stable_comparison_id(settings: Settings, db_session: Session):
     storage = Storage(settings)
     storage.ensure()
-    engine = create_engine(f"sqlite:///{tmp_path / 'single.db'}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
     service = EvaluationService(
         settings,
         storage,
@@ -379,22 +351,16 @@ def test_evaluation_single_job_has_stable_comparison_id(tmp_path: Path):
         DatasetService(settings, storage),
     )
 
-    job = service.create_job(db, EvaluationJobCreate(model_id="yolo_11_best", dataset_key="yolo_test"))
-    comparison = service.comparison_jobs(db, job.id)
+    job = service.create_job(db_session, EvaluationJobCreate(model_id="yolo_11_best", dataset_key="yolo_test"))
+    comparison = service.comparison_jobs(db_session, job.id)
 
     assert job.comparison_id == job.id
     assert [item.id for item in comparison] == [job.id]
-    db.close()
 
 
-def test_evaluation_comparison_returns_sibling_jobs(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_evaluation_comparison_returns_sibling_jobs(settings: Settings, db_session: Session):
     storage = Storage(settings)
     storage.ensure()
-    engine = create_engine(f"sqlite:///{tmp_path / 'comparison.db'}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
     service = EvaluationService(
         settings,
         storage,
@@ -402,21 +368,19 @@ def test_evaluation_comparison_returns_sibling_jobs(tmp_path: Path):
         DatasetService(settings, storage),
     )
     jobs = service.create_jobs(
-        db,
+        db_session,
         EvaluationJobBatchCreate(
             model_ids=["yolo_11_best", "unet_inception"],
             dataset_key="yolo_test",
         ),
     )
 
-    comparison = service.comparison_jobs(db, jobs[0].id)
+    comparison = service.comparison_jobs(db_session, jobs[0].id)
 
     assert {job.id for job in comparison} == {job.id for job in jobs}
-    db.close()
 
 
-def test_evaluation_dataset_discovery_only_lists_editable_test_split(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_evaluation_dataset_discovery_only_lists_editable_test_split(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     dataset_service = DatasetService(settings, storage)
@@ -446,7 +410,7 @@ def test_evaluation_dataset_discovery_only_lists_editable_test_split(tmp_path: P
     assert rows[0].key == f"dataset:{dataset.id}:test"
 
 
-def test_classification_evaluation_uses_predictor_scores(tmp_path: Path):
+def test_classification_evaluation_uses_predictor_scores(settings: Settings, db_session: Session):
     class FakeSpec:
         task_type = "classification"
 
@@ -466,7 +430,6 @@ def test_classification_evaluation_uses_predictor_scores(tmp_path: Path):
         def get_predictor(self, model_id):
             return FakePredictor()
 
-    settings = make_settings(tmp_path)
     storage = Storage(settings)
     storage.ensure()
     dataset_service = DatasetService(settings, storage)
@@ -497,26 +460,20 @@ def test_classification_evaluation_uses_predictor_scores(tmp_path: Path):
             ),
         )
 
-    engine = create_engine(f"sqlite:///{tmp_path / 'classification.db'}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
     service = EvaluationService(settings, storage, FakeRegistry(), dataset_service)
     job = service.create_job(
-        db,
+        db_session,
         EvaluationJobCreate(model_id="fake_classifier", dataset_key=f"dataset:{dataset.id}:test"),
     )
 
-    metrics, _artifacts = service._evaluate_classification(db, job, datetime.utcnow())
+    metrics, _artifacts = service._evaluate_classification(db_session, job, datetime.utcnow())
 
     assert metrics["samples"] == 2
     assert metrics["image"]["overall"]["accuracy"] == 1.0
     assert metrics["classification"]["macro_auc"] == 1.0
-    db.close()
 
 
-def test_nlp_training_option_command_and_runner(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_nlp_training_option_command_and_runner(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     dataset_service = DatasetService(settings, storage)
@@ -608,8 +565,7 @@ def test_nlp_training_option_command_and_runner(tmp_path: Path):
     assert "--max-length" in keras_command
 
 
-def test_keras_nlp_runner_artifacts_and_predictor(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_keras_nlp_runner_artifacts_and_predictor(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     dataset_service = DatasetService(settings, storage)
@@ -689,8 +645,7 @@ def test_keras_nlp_runner_artifacts_and_predictor(tmp_path: Path):
     assert set(prediction["scores"]) == {"positive", "negative"}
 
 
-def test_keras_seq2seq_and_hf_catalog(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_keras_seq2seq_and_hf_catalog(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()
     dataset_service = DatasetService(settings, storage)
@@ -752,8 +707,7 @@ def test_keras_seq2seq_and_hf_catalog(tmp_path: Path):
     assert predictions
 
 
-def test_nlp_reference_models_and_evaluation(tmp_path: Path):
-    settings = make_settings(tmp_path)
+def test_nlp_reference_models_and_evaluation(settings: Settings, db_session: Session):
     storage = Storage(settings)
     storage.ensure()
     dataset_service = DatasetService(settings, storage)
@@ -767,10 +721,6 @@ def test_nlp_reference_models_and_evaluation(tmp_path: Path):
     )
     assert prediction["label"] in {"positive", "negative", "neutral"}
 
-    engine = create_engine(f"sqlite:///{tmp_path / 'nlp-eval.db'}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
     service = EvaluationService(settings, storage, registry, dataset_service)
     summary_datasets = service.list_datasets(task_type="summarization")
     assert summary_datasets
@@ -783,15 +733,14 @@ def test_nlp_reference_models_and_evaluation(tmp_path: Path):
     assert any(dataset.key == "dataset:sample_summarization:test" for dataset in custom_project_datasets)
 
     job = service.create_job(
-        db,
+        db_session,
         EvaluationJobCreate(
             model_id="keyword_text_classifier",
             dataset_key="dataset:sample_text_classification:test",
         ),
     )
-    metrics, artifacts = service._evaluate_nlp(db, job, datetime.utcnow(), "text_classification")
+    metrics, artifacts = service._evaluate_nlp(db_session, job, datetime.utcnow(), "text_classification")
 
     assert metrics["samples"] == 3
     assert "text_classification" in metrics
     assert Path(artifacts["metrics"]).exists()
-    db.close()

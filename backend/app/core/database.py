@@ -1,11 +1,17 @@
 from collections.abc import Generator
 from datetime import datetime
+from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from alembic import command
+from alembic.autogenerate import compare_metadata
+from alembic.config import Config as AlembicConfig
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import Engine, create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME, DEFAULT_TASK_TYPE
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 
 class Base(DeclarativeBase):
@@ -23,6 +29,20 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# backend/ directory: parents[0]=core, [1]=app, [2]=backend
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+def _alembic_config(target_settings: Settings) -> AlembicConfig:
+    alembic_cfg = AlembicConfig(str(BACKEND_DIR / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
+    alembic_cfg.set_main_option("sqlalchemy.url", target_settings.sqlalchemy_database_url)
+    # migrations/env.py reads this attribute (falling back to get_settings()
+    # when absent) so a caller-provided settings object actually takes
+    # effect instead of being silently overridden by the global singleton.
+    alembic_cfg.attributes["configure_url"] = target_settings.sqlalchemy_database_url
+    return alembic_cfg
+
 
 def init_db() -> None:
     from app.db.models import (  # noqa: F401
@@ -33,43 +53,58 @@ def init_db() -> None:
         TrainingJob,
     )
 
-    Base.metadata.create_all(bind=engine)
-    _ensure_sqlite_schema()
+    _stamp_or_upgrade()
     _ensure_default_project()
 
 
-def _ensure_sqlite_schema() -> None:
-    if not settings.sqlalchemy_database_url.startswith("sqlite"):
-        return
+def _stamp_or_upgrade(
+    target_engine: Engine = engine, target_settings: Settings = settings
+) -> None:
+    """Bring the database schema up to date via Alembic migrations.
 
-    inspector = inspect(engine)
-    table_columns = {
-        table_name: {column["name"] for column in inspector.get_columns(table_name)}
-        for table_name in inspector.get_table_names()
-    }
-    project_columns = {
-        "inference_runs": "project_id VARCHAR(64)",
-        "inference_jobs": "project_id VARCHAR(64)",
-        "evaluation_jobs": "project_id VARCHAR(64)",
-        "training_jobs": "project_id VARCHAR(64)",
-    }
-    extra_columns = {
-        "evaluation_jobs": {"comparison_id": "comparison_id VARCHAR(64)"},
-    }
-    with engine.begin() as connection:
-        for table_name, column_sql in project_columns.items():
-            if table_name in table_columns and "project_id" not in table_columns[table_name]:
-                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
-        for table_name, columns in extra_columns.items():
-            for column_name, column_sql in columns.items():
-                if table_name in table_columns and column_name not in table_columns[table_name]:
-                    connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
-        connection.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_evaluation_jobs_comparison_id "
-                "ON evaluation_jobs (comparison_id)"
+    A database created by the pre-Alembic `create_all` + hand-patch path has
+    tables but no `alembic_version` table. If its schema actually matches the
+    baseline migration, it is stamped at the baseline revision (not literally
+    re-run) before upgrading to head, in case newer migrations have been
+    added since. A brand-new (empty) database, or one that already has an
+    `alembic_version` table, just upgrades straight to head.
+
+    Stamping is only safe when the live schema truly matches the baseline —
+    an older pre-Alembic database may predate columns or tables the baseline
+    expects (e.g. a `project_id` column, or the `projects` table). Stamping
+    such a database would mark it "up to date" while `command.upgrade` then
+    no-ops, silently leaving it missing objects the app assumes exist. Guard
+    against that by diffing the live schema against the ORM metadata first
+    and refusing to stamp on a mismatch, so the failure is a loud, actionable
+    error at startup instead of a `sqlite3.OperationalError` on first use.
+    """
+
+    alembic_cfg = _alembic_config(target_settings)
+    inspector = inspect(target_engine)
+    table_names = set(inspector.get_table_names())
+    has_alembic_version = "alembic_version" in table_names
+    has_app_tables = bool(table_names - {"alembic_version"})
+
+    if has_app_tables and not has_alembic_version:
+        with target_engine.connect() as connection:
+            diff = compare_metadata(MigrationContext.configure(connection), Base.metadata)
+        if diff:
+            raise RuntimeError(
+                "Found an existing database with application tables but no "
+                "Alembic version tracking, and its schema does not match the "
+                "expected baseline (differences: "
+                f"{diff!r}). This looks like a database created by an older "
+                "schema version. Back it up, then either migrate it by hand "
+                "to match the baseline in backend/migrations/versions/, or "
+                "delete it so init_db() can recreate it from scratch."
             )
-        )
+
+        script_dir = ScriptDirectory.from_config(alembic_cfg)
+        baseline_revisions = script_dir.get_bases()
+        baseline_revision = baseline_revisions[0] if baseline_revisions else "head"
+        command.stamp(alembic_cfg, baseline_revision)
+
+    command.upgrade(alembic_cfg, "head")
 
 
 def _ensure_default_project() -> None:

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Image Data Platform"
+    app_name: str = "Onestep AI Platform"
     api_prefix: str = "/api"
     models_dir: str = Field(default="./models", alias="MODELS_DIR")
     datasets_dir: str = Field(default="./datasets", alias="DATASETS_DIR")
