@@ -20,9 +20,15 @@ if config.config_file_name is not None:
 
 # Wire the migration URL to the application's own settings (DATABASE_URL /
 # .env) instead of the placeholder in alembic.ini, so migrations always run
-# against the same database the app itself would connect to.
-settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.sqlalchemy_database_url)
+# against the same database the app itself would connect to. A caller that
+# built the Config programmatically (see app.core.database._alembic_config)
+# can pin a specific URL via `config.attributes["configure_url"]` — used by
+# tests to run migrations against an isolated database instead of the
+# process-wide settings singleton.
+configure_url = config.attributes.get("configure_url")
+if configure_url is None:
+    configure_url = get_settings().sqlalchemy_database_url
+config.set_main_option("sqlalchemy.url", configure_url)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

@@ -20,6 +20,11 @@ endef
 # Ctrl-C (or any exit) tears down both process trees so nothing is left
 # orphaned: `set -m` puts each job in its own process group, and the trap
 # kills those groups (not just the top-level pid) on the way out.
+#
+# Waiting for "whichever server exits first" is done by polling both pids
+# rather than `wait -n`: that builtin needs bash >=4.3, but macOS ships
+# bash 3.2 as /bin/bash, where `wait -n` is a hard error. A 1s poll adds
+# negligible latency to noticing a crashed server and is portable everywhere.
 dev:
 	$(call check_port,8000)
 	$(call check_port,3000)
@@ -27,7 +32,9 @@ dev:
 	trap 'echo "Stopping dev servers..."; kill -TERM -$$backend_pid -$$frontend_pid 2>/dev/null; wait 2>/dev/null' INT TERM EXIT; \
 	(cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000) & backend_pid=$$!; \
 	(cd frontend && pnpm dev) & frontend_pid=$$!; \
-	wait -n $$backend_pid $$frontend_pid
+	while kill -0 $$backend_pid 2>/dev/null && kill -0 $$frontend_pid 2>/dev/null; do \
+		sleep 1; \
+	done
 
 # --- Validation --------------------------------------------------------
 
