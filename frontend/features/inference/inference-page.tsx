@@ -7,13 +7,9 @@ import { Play, ScanEye, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
-import { NLP_TASK_TYPES, VISION_TASK_TYPES, activePollInterval, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
+import { NLP_TASK_TYPES, VISION_TASK_TYPES, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
 import { CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, ProgressPanel, SliderField, TableSkeleton, toggleId, useConfirmationDialog } from "@/features/platform/ui";
 import type { InferenceJob, InferenceResult, ModelInfo, TaskType } from "@/types/api";
-
-function displayModelName(modelId: string, modelNameById: Record<string, string>): string {
-  return modelNameById[modelId] ?? modelId;
-}
 
 function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; modelsLoading?: boolean }) {
   const { projectId, project } = useProject();
@@ -263,7 +259,7 @@ function InferenceResultView({ result, modelNameById = {} }: { result: Inference
 }
 
 function NlpResultView({ result }: { result: InferenceResult }) {
-  const payload = result.nlp_result ?? {};
+  const payload = (result.nlp_result ?? {}) as Record<string, any>;
   if (payload.scores) return <ClassScoreTable scores={payload.scores} />;
   if (payload.summary) {
     return (

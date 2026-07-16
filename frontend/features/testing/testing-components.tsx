@@ -2,16 +2,12 @@
 
 import Link from "next/link";
 import { FlaskConical } from "lucide-react";
-import { areTasksCompatible, formatMetric } from "@/features/platform/utils";
+import { areTasksCompatible, displayModelName, formatMetric } from "@/features/platform/utils";
 import { EmptyState, Metric, StatusBadge, toggleId } from "@/features/platform/ui";
 import type { EvaluationJob, EvaluationPerImageRow, TaskType } from "@/types/api";
 
 type EvaluationDisplayKind = "classification" | "vision" | "text_classification" | "summarization" | "question_answering";
 type MetricEntry = { key: string; label: string; value: number };
-
-function displayModelName(modelId: string, modelNameById: Record<string, string>): string {
-  return modelNameById[modelId] ?? modelId;
-}
 
 export function TestingJobTable({
   jobs,
@@ -58,7 +54,7 @@ export function TestingJobTable({
               <td data-label="Status"><StatusBadge status={job.status} /></td>
               <td data-label="Model">{displayModelName(job.model_id, modelNameById)}</td>
               <td data-label="Dataset">{job.dataset_key}</td>
-              <td data-label="Samples">{job.metrics?.samples ?? "-"}</td>
+              <td data-label="Samples">{metricsOf(job).samples ?? "-"}</td>
               {metricColumns.map((column) => (
                 <td data-label={column.label} key={column.key}>{formatMetric(column.get(job))}</td>
               ))}
@@ -108,7 +104,7 @@ export function TestingComparison({
             <tr key={job.id}>
               <td data-label="Model">{displayModelName(job.model_id, modelNameById)}</td>
               <td data-label="Type">{evaluationKindLabel(inferEvaluationKind(job, modelTaskById[job.model_id]))}</td>
-              <td data-label="Samples">{job.metrics?.samples ?? "-"}</td>
+              <td data-label="Samples">{metricsOf(job).samples ?? "-"}</td>
               {metricColumns.map((column) => (
                 <td data-label={column.label} key={column.key}>{formatMetric(column.get(job))}</td>
               ))}
@@ -165,42 +161,42 @@ function comparisonMetricColumns(jobs: EvaluationJob[], modelTaskById: Record<st
 
 function classificationMetricColumns() {
   return [
-    { key: "accuracy", label: "Accuracy", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.accuracy) },
-    { key: "macro_f1", label: "Macro F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.macro_f1) },
-    { key: "weighted_f1", label: "Weighted F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.weighted_f1) },
-    { key: "mcc", label: "MCC", get: (job: EvaluationJob) => numberMetric(job.metrics?.image?.overall?.mcc) }
+    { key: "accuracy", label: "Accuracy", get: (job: EvaluationJob) => numberMetric(metricsOf(job).image?.overall?.accuracy) },
+    { key: "macro_f1", label: "Macro F1", get: (job: EvaluationJob) => numberMetric(metricsOf(job).image?.overall?.macro_f1) },
+    { key: "weighted_f1", label: "Weighted F1", get: (job: EvaluationJob) => numberMetric(metricsOf(job).image?.overall?.weighted_f1) },
+    { key: "mcc", label: "MCC", get: (job: EvaluationJob) => numberMetric(metricsOf(job).image?.overall?.mcc) }
   ];
 }
 
 function visionMetricColumns() {
   return [
-    { key: "pixel_dice", label: "Pixel Dice", get: (job: EvaluationJob) => numberMetric(job.metrics?.pixel?.dice) },
-    { key: "pixel_iou", label: "Pixel IoU", get: (job: EvaluationJob) => numberMetric(job.metrics?.pixel?.iou) },
-    { key: "object_precision", label: "Object Precision", get: (job: EvaluationJob) => numberMetric(job.metrics?.object?.precision) },
-    { key: "object_recall", label: "Object Recall", get: (job: EvaluationJob) => numberMetric(job.metrics?.object?.recall) }
+    { key: "pixel_dice", label: "Pixel Dice", get: (job: EvaluationJob) => numberMetric(metricsOf(job).pixel?.dice) },
+    { key: "pixel_iou", label: "Pixel IoU", get: (job: EvaluationJob) => numberMetric(metricsOf(job).pixel?.iou) },
+    { key: "object_precision", label: "Object Precision", get: (job: EvaluationJob) => numberMetric(metricsOf(job).object?.precision) },
+    { key: "object_recall", label: "Object Recall", get: (job: EvaluationJob) => numberMetric(metricsOf(job).object?.recall) }
   ];
 }
 
 function textClassificationMetricColumns() {
   return [
-    { key: "text_accuracy", label: "Accuracy", get: (job: EvaluationJob) => numberMetric(job.metrics?.text_classification?.overall?.accuracy) },
-    { key: "text_macro_f1", label: "Macro F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.text_classification?.overall?.macro_f1) },
-    { key: "text_weighted_f1", label: "Weighted F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.text_classification?.overall?.weighted_f1) }
+    { key: "text_accuracy", label: "Accuracy", get: (job: EvaluationJob) => numberMetric(metricsOf(job).text_classification?.overall?.accuracy) },
+    { key: "text_macro_f1", label: "Macro F1", get: (job: EvaluationJob) => numberMetric(metricsOf(job).text_classification?.overall?.macro_f1) },
+    { key: "text_weighted_f1", label: "Weighted F1", get: (job: EvaluationJob) => numberMetric(metricsOf(job).text_classification?.overall?.weighted_f1) }
   ];
 }
 
 function summarizationMetricColumns() {
   return [
-    { key: "rouge1", label: "ROUGE-1", get: (job: EvaluationJob) => numberMetric(job.metrics?.summarization?.rouge1) },
-    { key: "rouge2", label: "ROUGE-2", get: (job: EvaluationJob) => numberMetric(job.metrics?.summarization?.rouge2) },
-    { key: "rougeL", label: "ROUGE-L", get: (job: EvaluationJob) => numberMetric(job.metrics?.summarization?.rougeL) }
+    { key: "rouge1", label: "ROUGE-1", get: (job: EvaluationJob) => numberMetric(metricsOf(job).summarization?.rouge1) },
+    { key: "rouge2", label: "ROUGE-2", get: (job: EvaluationJob) => numberMetric(metricsOf(job).summarization?.rouge2) },
+    { key: "rougeL", label: "ROUGE-L", get: (job: EvaluationJob) => numberMetric(metricsOf(job).summarization?.rougeL) }
   ];
 }
 
 function qaMetricColumns() {
   return [
-    { key: "exact_match", label: "Exact match", get: (job: EvaluationJob) => numberMetric(job.metrics?.question_answering?.exact_match) },
-    { key: "qa_f1", label: "F1", get: (job: EvaluationJob) => numberMetric(job.metrics?.question_answering?.f1) }
+    { key: "exact_match", label: "Exact match", get: (job: EvaluationJob) => numberMetric(metricsOf(job).question_answering?.exact_match) },
+    { key: "qa_f1", label: "F1", get: (job: EvaluationJob) => numberMetric(metricsOf(job).question_answering?.f1) }
   ];
 }
 
@@ -218,8 +214,8 @@ function detailMetricEntries(job: EvaluationJob, kind: EvaluationDisplayKind): M
     .map((column) => ({ key: column.key, label: column.label, value: column.get(job) }))
     .filter((entry): entry is MetricEntry => typeof entry.value === "number");
   if (kind === "classification") {
-    const macroAuc = numberMetric(job.metrics?.classification?.macro_auc);
-    const balancedAccuracy = numberMetric(job.metrics?.image?.overall?.balanced_accuracy);
+    const macroAuc = numberMetric(metricsOf(job).classification?.macro_auc);
+    const balancedAccuracy = numberMetric(metricsOf(job).image?.overall?.balanced_accuracy);
     return [
       ...(typeof balancedAccuracy === "number" ? [{ key: "balanced_accuracy", label: "Balanced Acc.", value: balancedAccuracy }] : []),
       ...entries,
@@ -233,16 +229,16 @@ function inferEvaluationKind(job: EvaluationJob, modelTask?: TaskType): Evaluati
   if (modelTask === "classification") return "classification";
   if (modelTask === "object_detection" || modelTask === "segmentation") return "vision";
   if (modelTask === "text_classification" || modelTask === "summarization" || modelTask === "question_answering") return modelTask;
-  if (job.metrics?.pixel || job.metrics?.object) return "vision";
-  if (job.metrics?.text_classification) return "text_classification";
-  if (job.metrics?.summarization) return "summarization";
-  if (job.metrics?.question_answering) return "question_answering";
+  if (metricsOf(job).pixel || metricsOf(job).object) return "vision";
+  if (metricsOf(job).text_classification) return "text_classification";
+  if (metricsOf(job).summarization) return "summarization";
+  if (metricsOf(job).question_answering) return "question_answering";
   return "classification";
 }
 
 function evaluationKindFromTask(taskType: TaskType): EvaluationDisplayKind {
   if (taskType === "classification") return "classification";
-  if (taskType === "text_classification" || taskType === "text") return "text_classification";
+  if (taskType === "text_classification") return "text_classification";
   if (taskType === "summarization") return "summarization";
   if (taskType === "question_answering") return "question_answering";
   return "vision";
@@ -260,8 +256,14 @@ function numberMetric(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+// `job.metrics` is a genuinely dynamic dict (shape varies per task type), so callers
+// read nested/arbitrary properties off it via a local cast rather than a schema change.
+function metricsOf(job: EvaluationJob): Record<string, any> {
+  return (job.metrics ?? {}) as Record<string, any>;
+}
+
 export function MetricsDetails({ job, rows, modelTask }: { job: EvaluationJob; rows: EvaluationPerImageRow[]; modelTask?: TaskType }) {
-  const metrics = job.metrics ?? {};
+  const metrics = metricsOf(job);
   if (!metrics.samples) return <EmptyState label="No metrics yet" icon={<FlaskConical size={28} />} />;
   const kind = inferEvaluationKind(job, modelTask);
   const labels = metrics.labels ?? metrics.image?.labels ?? metrics.text_classification?.labels ?? [];

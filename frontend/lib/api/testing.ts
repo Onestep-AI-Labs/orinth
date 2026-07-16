@@ -1,12 +1,12 @@
-import type {
-  DeleteResponse,
-  EvaluationComparison,
-  EvaluationDataset,
-  EvaluationJob,
-  EvaluationPerImageRow,
-  TaskType
-} from "@/types/api";
+import type { TaskType } from "@/types/api";
+import type { components } from "@/types/generated/api";
 import { jsonFetch, query } from "@/lib/api/client";
+
+type EvaluationDataset = components["schemas"]["EvaluationDatasetInfo"];
+type EvaluationJob = components["schemas"]["EvaluationJobRead"];
+type EvaluationComparison = components["schemas"]["EvaluationComparisonRead"];
+type EvaluationPerImageRow = components["schemas"]["EvaluationPerImageRow"];
+type DeleteResponse = components["schemas"]["DeleteResponse"];
 
 export const testingApi = {
   datasets: (projectId?: string, taskType?: TaskType) =>

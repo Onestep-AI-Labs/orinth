@@ -1,5 +1,9 @@
-import type { DeleteResponse, InferenceJob, InferenceResult } from "@/types/api";
+import type { components } from "@/types/generated/api";
 import { jsonFetch, query } from "@/lib/api/client";
+
+type InferenceResult = components["schemas"]["InferenceResult"];
+type InferenceJob = components["schemas"]["InferenceJobRead"];
+type DeleteResponse = components["schemas"]["DeleteResponse"];
 
 export const inferenceApi = {
   inferenceHistory: (projectId?: string) =>

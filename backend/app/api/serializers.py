@@ -1,5 +1,10 @@
 from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
-from app.schemas import EvaluationJobRead, TrainingJobRead
+from app.schemas import (
+    ComparisonMetricSummary,
+    EvaluationJobRead,
+    TrainingJobCreate,
+    TrainingJobRead,
+)
 from app.services.job_progress import progress_from_artifacts
 
 
@@ -21,23 +26,23 @@ def evaluation_job_read(job) -> EvaluationJobRead:
     )
 
 
-def comparison_metric_summary(job) -> dict:
+def comparison_metric_summary(job) -> ComparisonMetricSummary:
     metrics = job.metrics or {}
-    return {
-        "job_id": job.id,
-        "model_id": job.model_id,
-        "status": job.status,
-        "samples": metrics.get("samples"),
-        "accuracy": ((metrics.get("image") or {}).get("overall") or {}).get("accuracy"),
-        "macro_f1": ((metrics.get("image") or {}).get("overall") or {}).get("macro_f1"),
-        "text_accuracy": ((metrics.get("text_classification") or {}).get("overall") or {}).get("accuracy"),
-        "text_macro_f1": ((metrics.get("text_classification") or {}).get("overall") or {}).get("macro_f1"),
-        "rougeL": (metrics.get("summarization") or {}).get("rougeL"),
-        "exact_match": (metrics.get("question_answering") or {}).get("exact_match"),
-        "qa_f1": (metrics.get("question_answering") or {}).get("f1"),
-        "pixel_dice": (metrics.get("pixel") or {}).get("dice"),
-        "object_recall": (metrics.get("object") or {}).get("recall"),
-    }
+    return ComparisonMetricSummary(
+        job_id=job.id,
+        model_id=job.model_id,
+        status=job.status,
+        samples=metrics.get("samples"),
+        accuracy=((metrics.get("image") or {}).get("overall") or {}).get("accuracy"),
+        macro_f1=((metrics.get("image") or {}).get("overall") or {}).get("macro_f1"),
+        text_accuracy=((metrics.get("text_classification") or {}).get("overall") or {}).get("accuracy"),
+        text_macro_f1=((metrics.get("text_classification") or {}).get("overall") or {}).get("macro_f1"),
+        rougeL=(metrics.get("summarization") or {}).get("rougeL"),
+        exact_match=(metrics.get("question_answering") or {}).get("exact_match"),
+        qa_f1=(metrics.get("question_answering") or {}).get("f1"),
+        pixel_dice=(metrics.get("pixel") or {}).get("dice"),
+        object_recall=(metrics.get("object") or {}).get("recall"),
+    )
 
 
 def training_job_read(job) -> TrainingJobRead:
@@ -47,7 +52,7 @@ def training_job_read(job) -> TrainingJobRead:
         task_type=(job.parameters or {}).get("task_type", DEFAULT_TASK_TYPE),
         model_family=job.model_family,
         status=job.status,
-        parameters=job.parameters or {},
+        parameters=TrainingJobCreate.model_validate(job.parameters or {}),
         artifacts=job.artifacts or {},
         artifact_urls=(job.artifacts or {}).get("artifact_urls", {}),
         progress=progress_from_artifacts(job.artifacts),

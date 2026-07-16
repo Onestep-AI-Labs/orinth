@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import builtins
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
+from typing import cast
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,10 +19,12 @@ from app.core.storage import Storage
 from app.db.models import InferenceJob, InferenceRun
 from app.ml.model_registry import ModelRegistry
 from app.ml.predictors.base import image_level_from_detections
-from app.schemas import InferenceJobRead, InferenceParameters, InferenceResult
+from app.schemas import InferenceJobRead, InferenceParameters, InferenceResult, NlpResult
 from app.services import job_runner
 from app.services.image_utils import create_overlay
 from app.services.job_progress import append_log, make_progress, progress_from_artifacts
+
+logger = logging.getLogger(__name__)
 
 
 class InferenceService:
@@ -349,7 +354,10 @@ class InferenceService:
             overlay_url=None,
             original_url=self.storage.media_url(text_path),
             text_content=text_content,
-            nlp_result=nlp_result,
+            # Predictors return a plain dict (see app/ml/nlp/*/predictors.py);
+            # Pydantic validates/coerces it into the `NlpResult` union at
+            # construction time, so this cast only informs mypy.
+            nlp_result=cast(NlpResult, nlp_result),
             parameters=parameters,
             created_at=datetime.now(UTC).replace(tzinfo=None),
             duration_ms=timings["total_ms"],
@@ -406,7 +414,17 @@ class InferenceService:
         for record in records:
             result = dict(record.result or {})
             result.setdefault("project_id", record.project_id or DEFAULT_PROJECT_ID)
-            results.append(InferenceResult.model_validate(result))
+            try:
+                results.append(InferenceResult.model_validate(result))
+            except ValidationError:
+                # One malformed/legacy row (e.g. a stored nlp_result shape that
+                # predates the current strict schema) must not 500 the whole
+                # history list for every other row. Skip it and log loudly so
+                # it's still discoverable, instead of blanking the panel.
+                logger.exception(
+                    "Skipping inference run %s: stored result no longer matches the InferenceResult schema",
+                    record.id,
+                )
         return results
 
     def delete_runs(

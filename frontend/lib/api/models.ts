@@ -1,5 +1,9 @@
-import type { DeleteResponse, ModelInfo, TaskType } from "@/types/api";
+import type { TaskType } from "@/types/api";
+import type { components } from "@/types/generated/api";
 import { API_BASE, jsonFetch, query } from "@/lib/api/client";
+
+type ModelInfo = components["schemas"]["ModelInfo"];
+type DeleteResponse = components["schemas"]["DeleteResponse"];
 
 export const modelsApi = {
   models: (availableOnly = false, projectId?: string, taskType?: TaskType) =>

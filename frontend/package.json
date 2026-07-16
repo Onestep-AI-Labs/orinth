@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate:api": "uv run --project ../backend python ../backend/scripts/export_openapi.py ../backend/openapi.json && openapi-typescript ../backend/openapi.json -o ./types/generated/api.ts"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
@@ -38,6 +39,7 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.5",
     "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.9",
     "typescript": "^5.5.4",

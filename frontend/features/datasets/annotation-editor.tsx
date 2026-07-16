@@ -7,6 +7,7 @@ import { CheckCircle2, MousePointer2, Pentagon, Save, Square, Trash2, Undo2 } fr
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
 import { isNlpTask, labelColor, pointsAttr } from "@/features/platform/utils";
+import { MutationError } from "@/features/platform/ui";
 import type { DatasetAnnotation, DatasetItemDetail, DatasetSummary } from "@/types/api";
 
 type AnnotationTool = "select" | "box" | "polygon";
@@ -565,9 +566,4 @@ function AnnotationTable({
       </table>
     </div>
   );
-}
-
-function MutationError({ mutations }: { mutations: Array<{ error: Error | null }> }) {
-  const error = mutations.find((mutation) => mutation.error)?.error;
-  return error ? <p className="error-text">{error.message}</p> : null;
 }
