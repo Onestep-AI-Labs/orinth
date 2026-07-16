@@ -1,6 +1,8 @@
+from typing import Any
+
 from app.ml.common.catalog import TrainingModelDefinition
 
-KERAS_APPLICATION_OPTIONS = [
+KERAS_APPLICATION_OPTIONS: list[dict[str, Any]] = [
     {
         "id": "keras_mobilenet_v2",
         "name": "Keras MobileNetV2",

@@ -1,10 +1,17 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from app.container import inference_service
+from app.container import inference_executor, inference_service
 from app.core.database import get_db
 from app.core.defaults import DEFAULT_PROJECT_ID
-from app.schemas import DeleteRequest, DeleteResponse, InferenceJobRead, InferenceParameters, InferenceResult
+from app.schemas import (
+    DeleteRequest,
+    DeleteResponse,
+    InferenceJobRead,
+    InferenceParameters,
+    InferenceResult,
+)
+from app.services.job_runner import submit_job
 
 router = APIRouter(prefix="/inference")
 
@@ -32,7 +39,6 @@ async def create_inference(
 
 @router.post("/jobs", response_model=InferenceJobRead)
 async def create_inference_job(
-    background_tasks: BackgroundTasks,
     model_id: str = Form(...),
     project_id: str = Form(DEFAULT_PROJECT_ID),
     confidence_threshold: float = Form(0.65),
@@ -50,17 +56,18 @@ async def create_inference_job(
         max_length=max_length,
     )
     job = await inference_service.create_job(db, file, model_id, parameters, project_id, text_content)
-    background_tasks.add_task(inference_service.run_job, job.id)
+    submit_job(inference_executor, inference_service.run_job, job.id)
     return inference_service.get_job(db, job.id)
 
 
 @router.get("", response_model=list[InferenceResult])
 def list_inference(
-    limit: int = 25,
+    limit: int = Query(default=25, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     project_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[InferenceResult]:
-    return inference_service.list(db, limit=limit, project_id=project_id)
+    return inference_service.list(db, limit=limit, offset=offset, project_id=project_id)
 
 
 @router.delete("", response_model=DeleteResponse)

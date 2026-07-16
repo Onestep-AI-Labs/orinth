@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.ml.common.catalog import TrainingModelDefinition
 
 YOLO_LOCAL_OPTION = TrainingModelDefinition(
@@ -18,7 +20,7 @@ YOLO_LOCAL_OPTION = TrainingModelDefinition(
     },
 )
 
-ULTRALYTICS_MODEL_OPTIONS = [
+ULTRALYTICS_MODEL_OPTIONS: list[dict[str, Any]] = [
     {
         "id": "ultralytics_yolo11_detect",
         "name": "Ultralytics YOLO11 Detection",

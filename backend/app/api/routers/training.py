@@ -1,8 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.serializers import training_job_read
-from app.container import training_service
+from app.container import training_executor, training_service
 from app.core.database import get_db
 from app.db.models import TrainingJob
 from app.schemas import (
@@ -14,6 +14,7 @@ from app.schemas import (
     TrainingJobRead,
     TrainingModelOption,
 )
+from app.services.job_runner import submit_job
 
 router = APIRouter(prefix="/training")
 
@@ -31,26 +32,26 @@ def prepare_training_model_asset(payload: ModelAssetPrepareRequest) -> ModelAsse
 @router.post("/jobs", response_model=TrainingJobRead)
 def create_training_job(
     payload: TrainingJobCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> TrainingJobRead:
     try:
         job = training_service.create_job(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    background_tasks.add_task(training_service.run_job, job.id)
+    submit_job(training_executor, training_service.run_job, job.id)
     return training_job_read(job)
 
 
 @router.get("/jobs", response_model=list[TrainingJobRead])
 def list_training_jobs(
-    limit: int = 25,
+    limit: int = Query(default=25, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     project_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[TrainingJobRead]:
     return [
         training_job_read(job)
-        for job in training_service.list_jobs(db, limit=limit, project_id=project_id)
+        for job in training_service.list_jobs(db, limit=limit, offset=offset, project_id=project_id)
     ]
 
 

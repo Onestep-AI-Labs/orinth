@@ -1,8 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.serializers import comparison_metric_summary, evaluation_job_read
-from app.container import evaluation_service
+from app.container import evaluation_executor, evaluation_service
 from app.core.database import get_db
 from app.core.defaults import DEFAULT_PROJECT_ID
 from app.db.models import EvaluationJob
@@ -16,6 +16,7 @@ from app.schemas import (
     EvaluationJobRead,
     EvaluationPerImageRow,
 )
+from app.services.job_runner import submit_job
 
 router = APIRouter(prefix="/testing")
 
@@ -31,7 +32,6 @@ def list_testing_datasets(
 @router.post("/jobs", response_model=EvaluationJobRead)
 def create_testing_job(
     payload: EvaluationJobCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> EvaluationJobRead:
     try:
@@ -40,14 +40,13 @@ def create_testing_job(
         raise HTTPException(status_code=404, detail=f"Unknown model or dataset: {exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    background_tasks.add_task(evaluation_service.run_job, job.id)
+    submit_job(evaluation_executor, evaluation_service.run_job, job.id)
     return evaluation_job_read(job)
 
 
 @router.post("/jobs/batch", response_model=list[EvaluationJobRead])
 def create_testing_jobs_batch(
     payload: EvaluationJobBatchCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> list[EvaluationJobRead]:
     try:
@@ -57,19 +56,20 @@ def create_testing_jobs_batch(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     for job in jobs:
-        background_tasks.add_task(evaluation_service.run_job, job.id)
+        submit_job(evaluation_executor, evaluation_service.run_job, job.id)
     return [evaluation_job_read(job) for job in jobs]
 
 
 @router.get("/jobs", response_model=list[EvaluationJobRead])
 def list_testing_jobs(
-    limit: int = 25,
+    limit: int = Query(default=25, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     project_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[EvaluationJobRead]:
     return [
         evaluation_job_read(job)
-        for job in evaluation_service.list_jobs(db, limit=limit, project_id=project_id)
+        for job in evaluation_service.list_jobs(db, limit=limit, offset=offset, project_id=project_id)
     ]
 
 

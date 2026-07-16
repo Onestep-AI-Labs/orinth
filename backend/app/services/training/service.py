@@ -3,23 +3,35 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
+from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.database import SessionLocal
+from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.storage import Storage
 from app.db.models import TrainingJob
-from app.ml.nlp.huggingface.catalog import huggingface_model_id
 from app.ml.model_registry import ModelRegistry, model_storage_dir_name
+from app.ml.nlp.huggingface.catalog import huggingface_model_id
 from app.ml.training_catalog import training_model_options
-from app.schemas import ModelAssetPrepareRequest, ModelAssetStatus, TrainingJobCreate, TrainingModelOption
+from app.ml.vision.keras_classification.catalog import (
+    KERAS_APPLICATION_OPTIONS,
+    KERAS_APPLICATIONS_BY_ID,
+)
+from app.ml.vision.yolo.catalog import ULTRALYTICS_OPTIONS_BY_ID
+from app.schemas import (
+    ModelAssetPrepareRequest,
+    ModelAssetStatus,
+    TrainingJobCreate,
+    TrainingModelOption,
+)
+from app.services import job_runner
 from app.services.datasets import DatasetService
 from app.services.job_progress import append_log, make_progress
 from app.services.training.artifacts import (
@@ -31,252 +43,6 @@ from app.services.training.artifacts import (
 )
 
 ACTIVE_TRAINING_PROCESSES: dict[str, subprocess.Popen] = {}
-
-KERAS_APPLICATION_OPTIONS = [
-    {
-        "id": "keras_mobilenet_v2",
-        "name": "Keras MobileNetV2",
-        "app_name": "MobileNetV2",
-        "image_size": 224,
-        "kwargs": {"alpha": 1.0},
-        "description": "Lightweight ImageNet CNN suitable for fast transfer learning.",
-    },
-    {
-        "id": "keras_efficientnet_b0",
-        "name": "Keras EfficientNetB0",
-        "app_name": "EfficientNetB0",
-        "image_size": 224,
-        "kwargs": {},
-        "description": "Balanced EfficientNet baseline for image classification transfer learning.",
-    },
-    {
-        "id": "keras_efficientnet_b1",
-        "name": "Keras EfficientNetB1",
-        "app_name": "EfficientNetB1",
-        "image_size": 240,
-        "kwargs": {},
-        "description": "EfficientNet B1 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_b2",
-        "name": "Keras EfficientNetB2",
-        "app_name": "EfficientNetB2",
-        "image_size": 260,
-        "kwargs": {},
-        "description": "EfficientNet B2 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_b3",
-        "name": "Keras EfficientNetB3",
-        "app_name": "EfficientNetB3",
-        "image_size": 300,
-        "kwargs": {},
-        "description": "EfficientNet B3 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_b4",
-        "name": "Keras EfficientNetB4",
-        "app_name": "EfficientNetB4",
-        "image_size": 380,
-        "kwargs": {},
-        "description": "EfficientNet B4 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_b5",
-        "name": "Keras EfficientNetB5",
-        "app_name": "EfficientNetB5",
-        "image_size": 456,
-        "kwargs": {},
-        "description": "EfficientNet B5 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_b6",
-        "name": "Keras EfficientNetB6",
-        "app_name": "EfficientNetB6",
-        "image_size": 528,
-        "kwargs": {},
-        "description": "EfficientNet B6 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_b7",
-        "name": "Keras EfficientNetB7",
-        "app_name": "EfficientNetB7",
-        "image_size": 600,
-        "kwargs": {"name": "efficientnetb7"},
-        "description": "Large EfficientNet B7 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_v2_b0",
-        "name": "Keras EfficientNetV2B0",
-        "app_name": "EfficientNetV2B0",
-        "image_size": 224,
-        "kwargs": {},
-        "description": "EfficientNetV2 B0 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_v2_b3",
-        "name": "Keras EfficientNetV2B3",
-        "app_name": "EfficientNetV2B3",
-        "image_size": 300,
-        "kwargs": {},
-        "description": "EfficientNetV2 B3 ImageNet backbone.",
-    },
-    {
-        "id": "keras_efficientnet_v2_s",
-        "name": "Keras EfficientNetV2S",
-        "app_name": "EfficientNetV2S",
-        "image_size": 384,
-        "kwargs": {},
-        "description": "EfficientNetV2 S ImageNet backbone.",
-    },
-    {
-        "id": "keras_resnet50",
-        "name": "Keras ResNet50",
-        "app_name": "ResNet50",
-        "image_size": 224,
-        "kwargs": {},
-        "description": "Classic ResNet50 ImageNet backbone.",
-    },
-    {
-        "id": "keras_xception",
-        "name": "Keras Xception",
-        "app_name": "Xception",
-        "image_size": 299,
-        "kwargs": {},
-        "description": "Xception ImageNet backbone.",
-    },
-    {
-        "id": "keras_inception_v3",
-        "name": "Keras InceptionV3",
-        "app_name": "InceptionV3",
-        "image_size": 299,
-        "kwargs": {},
-        "description": "InceptionV3 ImageNet backbone.",
-    },
-    {
-        "id": "keras_densenet121",
-        "name": "Keras DenseNet121",
-        "app_name": "DenseNet121",
-        "image_size": 224,
-        "kwargs": {},
-        "description": "DenseNet121 ImageNet backbone.",
-    },
-    {
-        "id": "keras_convnext_tiny",
-        "name": "Keras ConvNeXtTiny",
-        "app_name": "ConvNeXtTiny",
-        "image_size": 224,
-        "kwargs": {},
-        "description": "ConvNeXt Tiny ImageNet backbone.",
-    },
-]
-
-KERAS_APPLICATIONS_BY_ID = {item["id"]: item for item in KERAS_APPLICATION_OPTIONS}
-
-ULTRALYTICS_MODEL_OPTIONS = [
-    {
-        "id": "ultralytics_yolo11_detect",
-        "name": "Ultralytics YOLO11 Detection",
-        "family": "yolo",
-        "task_types": ["object_detection"],
-        "weights": "yolo11n.pt",
-        "runnable": True,
-        "needs_download": True,
-        "description": "YOLO11 nano detection fine-tuning through the Ultralytics YOLO runner.",
-    },
-    {
-        "id": "ultralytics_yolo11_segment",
-        "name": "Ultralytics YOLO11 Segmentation",
-        "family": "yolo",
-        "task_types": ["segmentation"],
-        "weights": "yolo11n-seg.pt",
-        "runnable": True,
-        "needs_download": True,
-        "description": "YOLO11 nano instance segmentation fine-tuning through the Ultralytics YOLO runner.",
-    },
-    {
-        "id": "ultralytics_yolo26_detect",
-        "name": "Ultralytics YOLO26 Detection",
-        "family": "yolo",
-        "task_types": ["object_detection"],
-        "weights": "yolo26n.pt",
-        "runnable": True,
-        "needs_download": True,
-        "description": "YOLO26 nano detection fine-tuning through the Ultralytics YOLO runner.",
-    },
-    {
-        "id": "ultralytics_yolo26_segment",
-        "name": "Ultralytics YOLO26 Segmentation",
-        "family": "yolo",
-        "task_types": ["segmentation"],
-        "weights": "yolo26n-seg.pt",
-        "runnable": True,
-        "needs_download": True,
-        "description": "YOLO26 nano instance segmentation fine-tuning through the Ultralytics YOLO runner.",
-    },
-    {
-        "id": "ultralytics_sam3",
-        "name": "Ultralytics SAM3",
-        "family": "sam",
-        "task_types": ["segmentation"],
-        "weights": None,
-        "runnable": False,
-        "needs_download": True,
-        "description": "Promptable segmentation catalog option. Training is gated until the dataset workflow is validated.",
-    },
-    {
-        "id": "ultralytics_mobilesam",
-        "name": "Ultralytics MobileSAM",
-        "family": "sam",
-        "task_types": ["segmentation"],
-        "weights": None,
-        "runnable": False,
-        "needs_download": True,
-        "description": "Mobile promptable segmentation catalog option, gated pending validation.",
-    },
-    {
-        "id": "ultralytics_fastsam",
-        "name": "Ultralytics FastSAM",
-        "family": "sam",
-        "task_types": ["segmentation"],
-        "weights": None,
-        "runnable": False,
-        "needs_download": True,
-        "description": "Fast promptable segmentation catalog option, gated pending validation.",
-    },
-    {
-        "id": "ultralytics_yolo_nas",
-        "name": "Ultralytics YOLO-NAS",
-        "family": "yolo_nas",
-        "task_types": ["object_detection"],
-        "weights": None,
-        "runnable": False,
-        "needs_download": True,
-        "description": "YOLO-NAS detection catalog option, gated until runner support is validated.",
-    },
-    {
-        "id": "ultralytics_rt_detr",
-        "name": "Ultralytics RT-DETR",
-        "family": "rt_detr",
-        "task_types": ["object_detection"],
-        "weights": None,
-        "runnable": False,
-        "needs_download": True,
-        "description": "RT-DETR detection catalog option, gated until runner support is validated.",
-    },
-    {
-        "id": "ultralytics_yolo_world",
-        "name": "Ultralytics YOLO-World",
-        "family": "yolo_world",
-        "task_types": ["object_detection"],
-        "weights": None,
-        "runnable": False,
-        "needs_download": True,
-        "description": "Open-vocabulary detection catalog option, gated pending validation.",
-    },
-]
-
-ULTRALYTICS_OPTIONS_BY_ID = {item["id"]: item for item in ULTRALYTICS_MODEL_OPTIONS}
 
 
 class TrainingService:
@@ -317,17 +83,9 @@ class TrainingService:
         return job
 
     def list_jobs(
-        self, db: Session, limit: int = 25, project_id: str | None = None
+        self, db: Session, limit: int = 25, offset: int = 0, project_id: str | None = None
     ) -> list[TrainingJob]:
-        query = select(TrainingJob).order_by(TrainingJob.created_at.desc()).limit(limit)
-        if project_id:
-            query = (
-                select(TrainingJob)
-                .where(or_(TrainingJob.project_id == project_id, TrainingJob.project_id.is_(None)))
-                .order_by(TrainingJob.created_at.desc())
-                .limit(limit)
-            )
-        return db.scalars(query).all()
+        return job_runner.list_jobs(db, TrainingJob, limit=limit, offset=offset, project_id=project_id)
 
     def model_options(self, task_type: str | None = None) -> list[TrainingModelOption]:
         return training_model_options(task_type)
@@ -381,7 +139,7 @@ class TrainingService:
                             "option_id": payload.option_id,
                             "model_id": model_id,
                             "token_configured": bool(token),
-                            "prepared_at": datetime.utcnow().isoformat(),
+                            "prepared_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
                         },
                         indent=2,
                     ),
@@ -438,7 +196,7 @@ class TrainingService:
                 marker = asset_dir / "prepared.json"
                 marker.write_text(
                     f'{{"option_id": "{payload.option_id}", "weights": "{weights}", '
-                    f'"prepared_at": "{datetime.utcnow().isoformat()}"}}\n',
+                    f'"prepared_at": "{datetime.now(UTC).replace(tzinfo=None).isoformat()}"}}\n',
                     encoding="utf-8",
                 )
                 return ModelAssetStatus(
@@ -480,7 +238,7 @@ class TrainingService:
                 )
                 marker = asset_dir / "prepared.json"
                 marker.write_text(
-                    f'{{"option_id": "{payload.option_id}", "prepared_at": "{datetime.utcnow().isoformat()}"}}\n',
+                    f'{{"option_id": "{payload.option_id}", "prepared_at": "{datetime.now(UTC).replace(tzinfo=None).isoformat()}"}}\n',
                     encoding="utf-8",
                 )
                 return ModelAssetStatus(
@@ -503,140 +261,122 @@ class TrainingService:
         )
 
     def delete_jobs(self, db: Session, ids: list[str] | None = None, project_id: str | None = None) -> dict:
-        query = select(TrainingJob)
-        if ids:
-            query = query.where(TrainingJob.id.in_(ids))
-        if project_id:
-            query = query.where(or_(TrainingJob.project_id == project_id, TrainingJob.project_id.is_(None)))
-        jobs = db.scalars(query).all()
-        found = {job.id for job in jobs}
-        deleted = 0
-        blocked = []
-        for job in jobs:
-            if job.status not in {"completed", "failed", "canceled"}:
-                blocked.append(job.id)
-                continue
+        def is_deletable(job: TrainingJob) -> bool:
+            return job.status in {"completed", "failed", "canceled"}
+
+        def on_delete(job: TrainingJob) -> None:
             run_dir = (job.artifacts or {}).get("run_dir")
             self.storage.delete_owned_path(run_dir or (self.storage.training_runs / job.id))
-            db.delete(job)
-            deleted += 1
-        db.commit()
-        return {
-            "deleted": deleted,
-            "blocked": blocked,
-            "missing": [item_id for item_id in (ids or []) if item_id not in found],
-        }
+
+        return job_runner.delete_jobs(
+            db,
+            TrainingJob,
+            ids=ids,
+            project_id=project_id,
+            is_deletable=is_deletable,
+            on_delete=on_delete,
+        )
 
     def run_job(self, job_id: str) -> None:
-        db = SessionLocal()
-        started_at = datetime.utcnow()
-        try:
-            job = db.get(TrainingJob, job_id)
-            if job is None:
-                return
-            job.status = "running"
-            artifacts = append_log(job.artifacts, "Training subprocess starting")
-            artifacts["progress"] = make_progress(
-                percent=1,
-                current_step="Starting subprocess",
-                started_at=started_at,
-                logs=artifacts["logs"],
-            )
-            job.artifacts = artifacts
-            job.updated_at = datetime.utcnow()
-            db.commit()
+        job_runner.run_job_lifecycle(
+            SessionLocal,
+            TrainingJob,
+            job_id,
+            on_start=self._on_training_start,
+            execute=self._execute_training,
+            on_cleanup=self._cleanup_active_process,
+        )
 
-            run_dir = self.storage.training_runs / job.id
-            run_dir.mkdir(parents=True, exist_ok=True)
-            log_path = run_dir / "train.log"
-            command = self._command_for_job(job, run_dir)
+    def _cleanup_active_process(self, job_id: str) -> None:
+        ACTIVE_TRAINING_PROCESSES.pop(job_id, None)
 
-            artifacts = dict(job.artifacts or {})
-            artifacts.update({"run_dir": str(run_dir), "log": str(log_path), "command": command})
-            job.artifacts = artifacts
-            db.commit()
+    def _on_training_start(self, db: Session, job: TrainingJob, started_at: datetime) -> None:
+        artifacts = append_log(job.artifacts, "Training subprocess starting")
+        artifacts["progress"] = make_progress(
+            percent=1,
+            current_step="Starting subprocess",
+            started_at=started_at,
+            logs=artifacts["logs"],
+        )
+        job.artifacts = artifacts
 
-            return_code = self._run_process(db, job.id, command, run_dir, log_path, started_at)
-            job = db.get(TrainingJob, job_id)
-            if job is None:
-                return
+    def _execute_training(self, db: Session, job: TrainingJob, started_at: datetime) -> None:
+        run_dir = self.storage.training_runs / job.id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        log_path = run_dir / "train.log"
+        command = self._command_for_job(job, run_dir)
 
-            artifacts = dict(job.artifacts or {})
-            artifacts.update({"run_dir": str(run_dir), "log": str(log_path)})
-            best_model = find_best_model(run_dir)
-            if best_model:
-                artifacts["best_model"] = str(best_model)
-            history = parse_training_history(run_dir / "results.csv")
-            if history:
-                artifacts["history"] = history
-            metrics = collect_training_metrics(run_dir)
-            if metrics:
-                artifacts["metrics"] = metrics
-            curves = collect_training_curves(run_dir)
-            if curves:
-                artifacts["curves"] = curves
-            artifact_urls = self._artifact_urls(run_dir)
-            if artifact_urls:
-                artifacts["artifact_urls"] = artifact_urls
-            finished_at = datetime.utcnow()
+        artifacts = dict(job.artifacts or {})
+        artifacts.update({"run_dir": str(run_dir), "log": str(log_path), "command": command})
+        job.artifacts = artifacts
+        db.commit()
 
-            if job.status == "canceled":
-                artifacts = append_log(artifacts, "Training canceled")
-                artifacts["progress"] = make_progress(
-                    percent=100,
-                    current_step="Canceled",
-                    started_at=started_at,
-                    finished_at=finished_at,
-                    logs=artifacts["logs"],
-                )
-                job.error = "Training canceled"
-                job.artifacts = artifacts
-                job.updated_at = finished_at
-                db.commit()
-                return
+        return_code = self._run_process(db, job.id, command, run_dir, log_path, started_at)
+        refreshed_job = db.get(TrainingJob, job.id)
+        if refreshed_job is None:
+            return
+        job = refreshed_job
 
-            job.status = "completed" if return_code == 0 else "failed"
-            if return_code != 0:
-                job.error = f"Training process exited with code {return_code}"
-            elif best_model:
-                try:
-                    promoted_model_id = self._register_training_model(job, run_dir, Path(best_model), metrics)
-                    job.promoted_model_id = promoted_model_id
-                    artifacts["promoted_model_id"] = promoted_model_id
-                except Exception as exc:  # noqa: BLE001 - registration failure should be visible but not lose run
-                    artifacts = append_log(artifacts, f"Model registration failed: {exc}")
-            artifacts = append_log(artifacts, "Training completed" if return_code == 0 else job.error)
+        artifacts = dict(job.artifacts or {})
+        artifacts.update({"run_dir": str(run_dir), "log": str(log_path)})
+        best_model = find_best_model(run_dir)
+        if best_model:
+            artifacts["best_model"] = str(best_model)
+        history = parse_training_history(run_dir / "results.csv")
+        if history:
+            artifacts["history"] = history
+        metrics = collect_training_metrics(run_dir)
+        if metrics:
+            artifacts["metrics"] = metrics
+        curves = collect_training_curves(run_dir)
+        if curves:
+            artifacts["curves"] = curves
+        artifact_urls = self._artifact_urls(run_dir)
+        if artifact_urls:
+            artifacts["artifact_urls"] = artifact_urls
+        finished_at = datetime.now(UTC).replace(tzinfo=None)
+
+        if job.status == "canceled":
+            artifacts = append_log(artifacts, "Training canceled")
             artifacts["progress"] = make_progress(
                 percent=100,
-                processed=int(job.parameters.get("epochs", 0)),
-                total=int(job.parameters.get("epochs", 0)),
-                current_step="Completed" if return_code == 0 else "Failed",
+                current_step="Canceled",
                 started_at=started_at,
                 finished_at=finished_at,
                 logs=artifacts["logs"],
             )
+            job.error = "Training canceled"
             job.artifacts = artifacts
             job.updated_at = finished_at
             db.commit()
-        except Exception as exc:  # noqa: BLE001 - background jobs must persist errors
-            job = db.get(TrainingJob, job_id)
-            if job is not None:
-                artifacts = append_log(job.artifacts, f"Failed: {exc}")
-                artifacts["progress"] = make_progress(
-                    percent=100,
-                    current_step="Failed",
-                    started_at=started_at,
-                    finished_at=datetime.utcnow(),
-                    logs=artifacts["logs"],
-                )
-                job.status = "failed"
-                job.error = str(exc)
-                job.artifacts = artifacts
-                job.updated_at = datetime.utcnow()
-                db.commit()
-        finally:
-            ACTIVE_TRAINING_PROCESSES.pop(job_id, None)
-            db.close()
+            return
+
+        job.status = "completed" if return_code == 0 else "failed"
+        if return_code != 0:
+            job.error = f"Training process exited with code {return_code}"
+        elif best_model:
+            try:
+                promoted_model_id = self._register_training_model(job, run_dir, Path(best_model), metrics)
+                job.promoted_model_id = promoted_model_id
+                artifacts["promoted_model_id"] = promoted_model_id
+            except Exception as exc:  # noqa: BLE001 - registration failure should be visible but not lose run
+                artifacts = append_log(artifacts, f"Model registration failed: {exc}")
+        artifacts = append_log(
+            artifacts,
+            "Training completed" if return_code == 0 else (job.error or "Training failed"),
+        )
+        artifacts["progress"] = make_progress(
+            percent=100,
+            processed=int(job.parameters.get("epochs", 0)),
+            total=int(job.parameters.get("epochs", 0)),
+            current_step="Completed" if return_code == 0 else "Failed",
+            started_at=started_at,
+            finished_at=finished_at,
+            logs=artifacts["logs"],
+        )
+        job.artifacts = artifacts
+        job.updated_at = finished_at
+        db.commit()
 
     def promote(self, db: Session, job_id: str) -> str:
         job = db.get(TrainingJob, job_id)
@@ -670,7 +410,7 @@ class TrainingService:
             (job.artifacts or {}).get("metrics") or {},
         )
         job.promoted_model_id = model_id
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
         return model_id
 
@@ -687,13 +427,13 @@ class TrainingService:
         artifacts["progress"] = make_progress(
             percent=100,
             current_step="Canceled",
-            finished_at=datetime.utcnow(),
+            finished_at=datetime.now(UTC).replace(tzinfo=None),
             logs=artifacts["logs"],
         )
         job.status = "canceled"
         job.error = "Training canceled"
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
         db.refresh(job)
         return job
@@ -709,13 +449,13 @@ class TrainingService:
                 artifacts["progress"] = make_progress(
                     percent=100,
                     current_step="Failed",
-                    finished_at=datetime.utcnow(),
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
                     logs=artifacts["logs"],
                 )
                 job.status = "failed"
                 job.error = "Backend restarted before training completed"
                 job.artifacts = artifacts
-                job.updated_at = datetime.utcnow()
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
         finally:
             db.close()
@@ -940,7 +680,7 @@ class TrainingService:
         artifacts = dict(job.artifacts or {})
         artifacts["pid"] = pid
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
 
     def _update_training_progress(
@@ -975,7 +715,7 @@ class TrainingService:
             logs=artifacts["logs"],
         )
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
 
     def _register_training_model(
@@ -1037,15 +777,15 @@ class TrainingService:
                     source_sidecar = run_dir / sidecar
                     if source_sidecar.exists() and source_sidecar != best_model:
                         shutil.copy2(source_sidecar, model_dir / sidecar)
-                runner_metadata = run_dir / "metadata.json"
-                if runner_metadata.exists():
-                    shutil.copy2(runner_metadata, model_dir / "runner_metadata.json")
+                runner_metadata_source = run_dir / "metadata.json"
+                if runner_metadata_source.exists():
+                    shutil.copy2(runner_metadata_source, model_dir / "runner_metadata.json")
             paths = {"model": stable_model}
             family = job.model_family
         else:
             raise ValueError(f"Unsupported trained model family: {job.model_family}")
 
-        runner_metadata = {}
+        runner_metadata: dict[str, Any] = {}
         runner_metadata_path = run_dir / "metadata.json"
         if runner_metadata_path.exists():
             try:
@@ -1055,7 +795,7 @@ class TrainingService:
             if isinstance(loaded_metadata, dict):
                 runner_metadata = loaded_metadata
 
-        metadata = {
+        metadata: dict[str, Any] = {
             **runner_metadata,
             "labels": labels,
             "task_type": params.get("task_type", DEFAULT_TASK_TYPE),

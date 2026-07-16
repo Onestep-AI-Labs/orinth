@@ -1,9 +1,7 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.core.database import Base
@@ -14,9 +12,12 @@ from app.db import models  # noqa: F401 - ensures all ORM models are registered 
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# This line sets up loggers basically. `disable_existing_loggers=False`
+# because fileConfig()'s default (True) silently disables every logger not
+# explicitly listed in alembic.ini - including the app's own module loggers
+# - for the rest of the process once any migration command has run once.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Wire the migration URL to the application's own settings (DATABASE_URL /
 # .env) instead of the placeholder in alembic.ini, so migrations always run

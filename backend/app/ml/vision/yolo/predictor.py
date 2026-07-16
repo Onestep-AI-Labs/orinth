@@ -36,7 +36,9 @@ class YoloPredictor(Predictor):
         classes = result.boxes.cls.cpu().numpy()
         confidences = result.boxes.conf.cpu().numpy()
 
-        for index, (box, cls_id_raw, conf_raw) in enumerate(zip(boxes, classes, confidences)):
+        for index, (box, cls_id_raw, conf_raw) in enumerate(
+            zip(boxes, classes, confidences, strict=True)
+        ):
             cls_id = int(cls_id_raw)
             conf = float(conf_raw)
             x1, y1, x2, y2 = [float(value) for value in box]

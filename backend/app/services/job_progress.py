@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from app.schemas import JobProgress
@@ -26,7 +26,7 @@ def make_progress(
 ) -> dict[str, Any]:
     elapsed = 0.0
     eta = None
-    now = finished_at or datetime.utcnow()
+    now = finished_at or datetime.now(UTC).replace(tzinfo=None)
     if started_at is not None:
         elapsed = max(0.0, (now - started_at).total_seconds())
         if total and processed > 0 and processed < total:

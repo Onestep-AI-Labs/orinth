@@ -1,16 +1,16 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 import numpy as np
 from PIL import Image
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.database import SessionLocal
+from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.storage import Storage
 from app.db.models import EvaluationJob
 from app.ml.model_registry import ModelRegistry
@@ -22,6 +22,7 @@ from app.schemas import (
     EvaluationPerImageRow,
     InferenceParameters,
 )
+from app.services import job_runner
 from app.services.datasets import DatasetService
 from app.services.evaluation.helpers import (
     average_metric_rows,
@@ -195,102 +196,92 @@ class EvaluationService:
             .where(EvaluationJob.comparison_id == comparison_id)
             .order_by(EvaluationJob.created_at.asc())
         )
-        jobs = db.scalars(query).all()
+        jobs = list(db.scalars(query).all())
         if not jobs:
             jobs = [job]
         return jobs
 
     def list_jobs(
-        self, db: Session, limit: int = 25, project_id: str | None = None
+        self, db: Session, limit: int = 25, offset: int = 0, project_id: str | None = None
     ) -> list[EvaluationJob]:
-        query = select(EvaluationJob).order_by(EvaluationJob.created_at.desc()).limit(limit)
-        if project_id:
-            query = (
-                select(EvaluationJob)
-                .where(or_(EvaluationJob.project_id == project_id, EvaluationJob.project_id.is_(None)))
-                .order_by(EvaluationJob.created_at.desc())
-                .limit(limit)
-            )
-        return db.scalars(query).all()
+        return job_runner.list_jobs(db, EvaluationJob, limit=limit, offset=offset, project_id=project_id)
 
     def delete_jobs(self, db: Session, ids: list[str] | None = None, project_id: str | None = None) -> dict:
-        query = select(EvaluationJob)
-        if ids:
-            query = query.where(EvaluationJob.id.in_(ids))
-        if project_id:
-            query = query.where(or_(EvaluationJob.project_id == project_id, EvaluationJob.project_id.is_(None)))
-        jobs = db.scalars(query).all()
-        deleted = 0
-        blocked = []
-        found = {job.id for job in jobs}
-        for job in jobs:
-            if job.status not in {"completed", "failed", "canceled"}:
-                blocked.append(job.id)
-                continue
+        def is_deletable(job: EvaluationJob) -> bool:
+            return job.status in {"completed", "failed", "canceled"}
+
+        def on_delete(job: EvaluationJob) -> None:
             artifacts = job.artifacts or {}
             for key in ("metrics", "per_image"):
                 self.storage.delete_owned_path(artifacts.get(key))
             self.storage.delete_owned_path(self.storage.evaluations / job.id)
-            db.delete(job)
-            deleted += 1
-        db.commit()
-        return {
-            "deleted": deleted,
-            "blocked": blocked,
-            "missing": [item_id for item_id in (ids or []) if item_id not in found],
-        }
+
+        return job_runner.delete_jobs(
+            db,
+            EvaluationJob,
+            ids=ids,
+            project_id=project_id,
+            is_deletable=is_deletable,
+            on_delete=on_delete,
+        )
 
     def run_job(self, job_id: str) -> None:
+        job_runner.run_job_lifecycle(
+            SessionLocal,
+            EvaluationJob,
+            job_id,
+            on_start=self._on_evaluation_start,
+            execute=self._execute_evaluation,
+        )
+
+    def _on_evaluation_start(self, db: Session, job: EvaluationJob, started_at: datetime) -> None:
+        artifacts = append_log(job.artifacts, "Evaluation started")
+        artifacts["progress"] = make_progress(
+            percent=1,
+            current_step="Loading dataset",
+            started_at=started_at,
+            logs=artifacts["logs"],
+        )
+        job.artifacts = artifacts
+
+    def _execute_evaluation(self, db: Session, job: EvaluationJob, started_at: datetime) -> None:
+        metrics, artifacts = self._evaluate(db, job, started_at)
+        job.status = "completed"
+        job.metrics = metrics
+        merged_artifacts = {**(job.artifacts or {}), **artifacts}
+        merged_artifacts = append_log(merged_artifacts, "Evaluation completed")
+        merged_artifacts["progress"] = make_progress(
+            percent=100,
+            processed=metrics["samples"],
+            total=metrics["samples"],
+            current_step="Completed",
+            started_at=started_at,
+            finished_at=datetime.now(UTC).replace(tzinfo=None),
+            logs=merged_artifacts["logs"],
+        )
+        job.artifacts = merged_artifacts
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
+
+    def reconcile_stale_jobs(self) -> None:
         db = SessionLocal()
         try:
-            job = db.get(EvaluationJob, job_id)
-            if job is None:
-                return
-            started_at = datetime.utcnow()
-            job.status = "running"
-            artifacts = append_log(job.artifacts, "Evaluation started")
-            artifacts["progress"] = make_progress(
-                percent=1,
-                current_step="Loading dataset",
-                started_at=started_at,
-                logs=artifacts["logs"],
-            )
-            job.artifacts = artifacts
-            job.updated_at = datetime.utcnow()
-            db.commit()
-
-            metrics, artifacts = self._evaluate(db, job, started_at)
-            job.status = "completed"
-            job.metrics = metrics
-            merged_artifacts = {**(job.artifacts or {}), **artifacts}
-            merged_artifacts = append_log(merged_artifacts, "Evaluation completed")
-            merged_artifacts["progress"] = make_progress(
-                percent=100,
-                processed=metrics["samples"],
-                total=metrics["samples"],
-                current_step="Completed",
-                started_at=started_at,
-                finished_at=datetime.utcnow(),
-                logs=merged_artifacts["logs"],
-            )
-            job.artifacts = merged_artifacts
-            job.updated_at = datetime.utcnow()
-            db.commit()
-        except Exception as exc:  # noqa: BLE001 - background jobs must persist errors
-            job = db.get(EvaluationJob, job_id)
-            if job is not None:
-                artifacts = append_log(job.artifacts, f"Failed: {exc}")
+            jobs = db.scalars(
+                select(EvaluationJob).where(EvaluationJob.status.in_(["queued", "running"]))
+            ).all()
+            for job in jobs:
+                artifacts = append_log(job.artifacts, "Backend restarted before evaluation completed")
                 artifacts["progress"] = make_progress(
                     percent=100,
                     current_step="Failed",
-                    finished_at=datetime.utcnow(),
+                    finished_at=datetime.now(UTC).replace(tzinfo=None),
                     logs=artifacts["logs"],
                 )
                 job.status = "failed"
-                job.error = str(exc)
+                job.error = "Backend restarted before evaluation completed"
                 job.artifacts = artifacts
-                job.updated_at = datetime.utcnow()
-                db.commit()
+                job.updated_at = datetime.now(UTC).replace(tzinfo=None)
+            db.commit()
         finally:
             db.close()
 
@@ -480,8 +471,8 @@ class EvaluationService:
             rows = []
             for index, sample in enumerate(samples, start=1):
                 result = predictor.predict_text(sample["text"], InferenceParameters())
-                prediction = str(result.get("summary", ""))
-                scores = rouge_scores(prediction, sample["summary"])
+                prediction_text = str(result.get("summary", ""))
+                scores = rouge_scores(prediction_text, sample["summary"])
                 rows.append(scores)
                 per_image.append(
                     {
@@ -494,7 +485,7 @@ class EvaluationService:
                         "object": {},
                         "text_preview": sample["text"][:180],
                         "reference_text": sample["summary"],
-                        "prediction_text": prediction,
+                        "prediction_text": prediction_text,
                         "scores": scores,
                     }
                 )
@@ -515,8 +506,8 @@ class EvaluationService:
             for index, sample in enumerate(samples, start=1):
                 params = InferenceParameters(question=sample["question"])
                 result = predictor.predict_text(sample["text"], params)
-                prediction = str(result.get("answer", ""))
-                scores = qa_scores(prediction, sample["answer"])
+                prediction_text = str(result.get("answer", ""))
+                scores = qa_scores(prediction_text, sample["answer"])
                 rows.append(scores)
                 per_image.append(
                     {
@@ -529,7 +520,7 @@ class EvaluationService:
                         "object": {},
                         "text_preview": sample["text"][:180],
                         "reference_text": sample["answer"],
-                        "prediction_text": prediction,
+                        "prediction_text": prediction_text,
                         "scores": scores,
                     }
                 )
@@ -651,7 +642,7 @@ class EvaluationService:
         split_root = self.dataset_service.split_root(dataset_id, split)
         image_dir = split_root / "images"
         annotation_dir = split_root / "annotations"
-        samples = []
+        samples: list[ClassificationSample] = []
         if not image_dir.exists():
             return samples
         for image_path in sorted(image_dir.iterdir()):
@@ -681,7 +672,7 @@ class EvaluationService:
         split_root = self.dataset_service.split_root(dataset_id, split)
         text_dir = split_root / "texts"
         annotation_dir = split_root / "annotations"
-        samples = []
+        samples: list[dict] = []
         if not text_dir.exists():
             return samples
         for text_path in sorted(text_dir.glob("*.txt")):
@@ -894,7 +885,7 @@ class EvaluationService:
             logs=artifacts.get("logs", []),
         )
         job.artifacts = artifacts
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(UTC).replace(tzinfo=None)
         db.commit()
 
 

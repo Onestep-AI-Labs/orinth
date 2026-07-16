@@ -98,7 +98,7 @@ class HuggingFaceQAPredictor(Predictor):
         if end < start:
             end = start
         answer_ids = inputs["input_ids"][0][start : end + 1]
-        answer = self.tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
+        answer = str(self.tokenizer.decode(answer_ids, skip_special_tokens=True)).strip()
         start_score = torch.softmax(outputs.start_logits, dim=-1)[0][start]
         end_score = torch.softmax(outputs.end_logits, dim=-1)[0][end]
         score = round(float((start_score * end_score).sqrt()), 6)
