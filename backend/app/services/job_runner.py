@@ -13,7 +13,9 @@ delete) its per-row deletability check and storage cleanup.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,11 +24,36 @@ from sqlalchemy.orm import Session
 
 from app.services.job_progress import append_log, make_progress
 
+logger = logging.getLogger(__name__)
+
 
 def utcnow() -> datetime:
     """Return a naive UTC timestamp, matching the job models' existing convention."""
 
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def submit_job(executor: ThreadPoolExecutor, fn: Callable[..., None], *args: Any) -> Future:
+    """Submit a background job, logging any exception that escapes ``fn``.
+
+    ``run_job_lifecycle`` persists exceptions raised by ``on_start``/
+    ``execute`` as a failed job status, but it opens its own DB session
+    before that error handling begins — if ``session_factory()`` itself
+    raises, or any other bug escapes ``run_job_lifecycle``, that exception
+    propagates into the submitted callable with nothing awaiting the
+    resulting ``Future``. Without this callback such a failure is silently
+    dropped: no status update, no log line, a job stuck "queued" forever.
+    """
+
+    future = executor.submit(fn, *args)
+
+    def _log_if_failed(completed: Future) -> None:
+        exc = completed.exception()
+        if exc is not None:
+            logger.error("Background job %r failed outside its own error handling", fn, exc_info=exc)
+
+    future.add_done_callback(_log_if_failed)
+    return future
 
 
 def run_job_lifecycle(

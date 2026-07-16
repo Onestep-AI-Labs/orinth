@@ -7,6 +7,9 @@ the list/delete query behavior that training, evaluation, and inference
 all rely on.
 """
 
+import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -219,3 +222,35 @@ def test_delete_jobs_default_is_deletable_allows_all(db_session: Session):
 
     assert report["deleted"] == 1
     assert report["blocked"] == []
+
+
+def test_submit_job_runs_the_callable_on_the_executor():
+    calls: list[int] = []
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = job_runner.submit_job(executor, lambda value: calls.append(value), 42)
+        future.result(timeout=5)
+
+    assert calls == [42]
+
+
+def test_submit_job_logs_instead_of_silently_dropping_an_escaped_exception(caplog):
+    def blows_up() -> None:
+        raise RuntimeError("session_factory boom")
+
+    # `Future` invokes its done-callbacks (including submit_job's own
+    # logging callback) *after* releasing anything blocked on
+    # `future.result()`/`.exception()`, so waiting on those directly would
+    # race the log write. Chain a second callback instead: callbacks run in
+    # the order they were added, so by the time this one fires, submit_job's
+    # logging callback has already run.
+    logged = threading.Event()
+
+    with caplog.at_level(logging.ERROR, logger="app.services.job_runner"):
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = job_runner.submit_job(executor, blows_up)
+            future.add_done_callback(lambda _future: logged.set())
+            assert logged.wait(timeout=5), "done callbacks never fired"
+
+    assert "failed outside its own error handling" in caplog.text
+    assert "session_factory boom" in caplog.text

@@ -7,10 +7,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.container import (
+    evaluation_executor,
     evaluation_service,
+    inference_executor,
     inference_service,
-    job_executor,
     storage,
+    training_executor,
     training_service,
 )
 from app.core.config import get_settings
@@ -25,7 +27,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     evaluation_service.reconcile_stale_jobs()
     inference_service.reconcile_stale_jobs()
     yield
-    job_executor.shutdown(wait=True)
+    training_executor.shutdown(wait=True)
+    evaluation_executor.shutdown(wait=True)
+    inference_executor.shutdown(wait=True)
 
 
 settings = get_settings()

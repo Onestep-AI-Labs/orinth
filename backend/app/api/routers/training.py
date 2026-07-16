@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.serializers import training_job_read
-from app.container import job_executor, training_service
+from app.container import training_executor, training_service
 from app.core.database import get_db
 from app.db.models import TrainingJob
 from app.schemas import (
@@ -14,6 +14,7 @@ from app.schemas import (
     TrainingJobRead,
     TrainingModelOption,
 )
+from app.services.job_runner import submit_job
 
 router = APIRouter(prefix="/training")
 
@@ -37,7 +38,7 @@ def create_training_job(
         job = training_service.create_job(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    job_executor.submit(training_service.run_job, job.id)
+    submit_job(training_executor, training_service.run_job, job.id)
     return training_job_read(job)
 
 

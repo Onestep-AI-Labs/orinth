@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     )
     huggingface_hub_token: str | None = Field(default=None, alias="HUGGINGFACE_HUB_TOKEN")
     hf_token: str | None = Field(default=None, alias="HF_TOKEN")
-    job_executor_workers: int = Field(default=2, alias="JOB_EXECUTOR_WORKERS")
+    # Separate pools per job domain so long-running training/evaluation jobs
+    # can't starve inference (or each other) out of worker threads.
+    training_executor_workers: int = Field(default=1, alias="TRAINING_EXECUTOR_WORKERS")
+    evaluation_executor_workers: int = Field(default=1, alias="EVALUATION_EXECUTOR_WORKERS")
+    inference_executor_workers: int = Field(default=2, alias="INFERENCE_EXECUTOR_WORKERS")
 
     @property
     def repo_root(self) -> Path:

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.serializers import comparison_metric_summary, evaluation_job_read
-from app.container import evaluation_service, job_executor
+from app.container import evaluation_executor, evaluation_service
 from app.core.database import get_db
 from app.core.defaults import DEFAULT_PROJECT_ID
 from app.db.models import EvaluationJob
@@ -16,6 +16,7 @@ from app.schemas import (
     EvaluationJobRead,
     EvaluationPerImageRow,
 )
+from app.services.job_runner import submit_job
 
 router = APIRouter(prefix="/testing")
 
@@ -39,7 +40,7 @@ def create_testing_job(
         raise HTTPException(status_code=404, detail=f"Unknown model or dataset: {exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    job_executor.submit(evaluation_service.run_job, job.id)
+    submit_job(evaluation_executor, evaluation_service.run_job, job.id)
     return evaluation_job_read(job)
 
 
@@ -55,7 +56,7 @@ def create_testing_jobs_batch(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     for job in jobs:
-        job_executor.submit(evaluation_service.run_job, job.id)
+        submit_job(evaluation_executor, evaluation_service.run_job, job.id)
     return [evaluation_job_read(job) for job in jobs]
 
 

@@ -21,12 +21,22 @@ inference_service = InferenceService(storage, registry)
 evaluation_service = EvaluationService(settings, storage, registry, dataset_service)
 training_service = TrainingService(settings, storage, registry, dataset_service)
 
-# Shared executor for dispatching training/evaluation/inference jobs off the
-# request-serving path. Kept small by default so long-running jobs cannot
-# starve API responsiveness; sized from settings for deployments that need more.
-job_executor = ThreadPoolExecutor(
-    max_workers=settings.job_executor_workers,
-    thread_name_prefix="job-executor",
+# One executor per job domain, dispatching training/evaluation/inference
+# jobs off the request-serving path. Kept small by default so long-running
+# jobs cannot starve API responsiveness; sized from settings for deployments
+# that need more. Separate pools (rather than one shared pool) mean a couple
+# of long training jobs can't also starve inference/evaluation of workers.
+training_executor = ThreadPoolExecutor(
+    max_workers=settings.training_executor_workers,
+    thread_name_prefix="training-executor",
+)
+evaluation_executor = ThreadPoolExecutor(
+    max_workers=settings.evaluation_executor_workers,
+    thread_name_prefix="evaluation-executor",
+)
+inference_executor = ThreadPoolExecutor(
+    max_workers=settings.inference_executor_workers,
+    thread_name_prefix="inference-executor",
 )
 
 
