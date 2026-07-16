@@ -1,15 +1,18 @@
 from datetime import datetime
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 
+# Canonical task-type values. `"text"` was a legacy alias for
+# `"text_classification"`; it is no longer a valid stored/output value, but
+# `TASK_TYPE_ALIASES` below keeps it accepted on input during a deprecation
+# window (see `_normalize_task_type_field`/`_normalize_task_type_list_field`).
 TaskType = Literal[
     "classification",
     "object_detection",
     "segmentation",
-    "text",
     "text_classification",
     "summarization",
     "question_answering",
@@ -34,6 +37,26 @@ _DEFAULT_TASK_TYPES: list[TaskType] = [_DEFAULT_TASK_TYPE]
 _DEFAULT_SPLITS: list[SplitName] = ["train", "valid", "test"]
 _DEFAULT_AUGMENTATION_SPLITS: list[SplitName] = ["train"]
 
+# Deprecated input aliases for `TaskType` values. Accepted on input (see the
+# `_normalize_task_type_*` validators below) and normalized to the canonical
+# value before Literal validation runs, so every stored/serialized task_type
+# is always canonical.
+TASK_TYPE_ALIASES: dict[str, str] = {"text": "text_classification"}
+
+
+def _normalize_task_type_field(value: object) -> object:
+    """`field_validator(mode="before")` for single `task_type: TaskType` fields."""
+    if isinstance(value, str):
+        return TASK_TYPE_ALIASES.get(value, value)
+    return value
+
+
+def _normalize_task_type_list_field(value: object) -> object:
+    """`field_validator(mode="before")` for `task_types: list[TaskType]` fields."""
+    if isinstance(value, list):
+        return [TASK_TYPE_ALIASES.get(item, item) if isinstance(item, str) else item for item in value]
+    return value
+
 
 class ProjectSummary(BaseModel):
     id: str
@@ -51,12 +74,20 @@ class ProjectCreate(BaseModel):
     task_types: list[TaskType] = Field(default_factory=lambda: list(_DEFAULT_TASK_TYPES))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    _normalize_task_types = field_validator("task_types", mode="before")(
+        _normalize_task_type_list_field
+    )
+
 
 class ProjectUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
     task_types: list[TaskType] | None = None
     metadata: dict[str, Any] | None = None
+
+    _normalize_task_types = field_validator("task_types", mode="before")(
+        _normalize_task_type_list_field
+    )
 
 
 class Box(BaseModel):
@@ -82,6 +113,30 @@ class InferenceParameters(BaseModel):
     max_length: int = Field(default=120, ge=1, le=2000)
 
 
+class NlpTextClassificationResult(BaseModel):
+    task: Literal["text_classification"] = "text_classification"
+    label: str
+    scores: dict[str, float] = Field(default_factory=dict)
+
+
+class NlpSummarizationResult(BaseModel):
+    task: Literal["summarization"] = "summarization"
+    summary: str
+
+
+class NlpQuestionAnsweringResult(BaseModel):
+    task: Literal["question_answering"] = "question_answering"
+    answer: str
+    score: float
+
+
+# Every NLP predictor's `predict_text` returns exactly one of these three
+# shapes (see app/ml/nlp/*/predictors.py and app/ml/nlp/keras_classifier.py).
+# Pydantic's "smart" union mode picks the right member from the fields
+# present, so the `task` tag is optional on input for backward compatibility.
+NlpResult = NlpTextClassificationResult | NlpSummarizationResult | NlpQuestionAnsweringResult
+
+
 class InferenceResult(BaseModel):
     id: str
     project_id: str = DEFAULT_PROJECT_ID
@@ -93,7 +148,7 @@ class InferenceResult(BaseModel):
     overlay_url: str | None = None
     original_url: str | None = None
     text_content: str | None = None
-    nlp_result: dict[str, Any] | None = None
+    nlp_result: NlpResult | None = None
     parameters: InferenceParameters
     created_at: datetime
     duration_ms: int | None = None
@@ -198,12 +253,35 @@ class EvaluationJobRead(BaseModel):
     updated_at: datetime
 
 
+class ComparisonMetricSummary(BaseModel):
+    """One row of `api.serializers.comparison_metric_summary`'s fixed output shape.
+
+    Every evaluation task type populates a different subset of the optional
+    fields below (e.g. `accuracy`/`macro_f1` for classification,
+    `rougeL` for summarization), but the row's key set never changes.
+    """
+
+    job_id: str
+    model_id: str
+    status: str
+    samples: int | None = None
+    accuracy: float | None = None
+    macro_f1: float | None = None
+    text_accuracy: float | None = None
+    text_macro_f1: float | None = None
+    rougeL: float | None = None
+    exact_match: float | None = None
+    qa_f1: float | None = None
+    pixel_dice: float | None = None
+    object_recall: float | None = None
+
+
 class EvaluationComparisonRead(BaseModel):
     comparison_id: str
     project_id: str = DEFAULT_PROJECT_ID
     dataset_key: str
     jobs: list[EvaluationJobRead]
-    metrics: list[dict[str, Any]] = Field(default_factory=list)
+    metrics: list[ComparisonMetricSummary] = Field(default_factory=list)
 
 
 class EvaluationPerImageRow(BaseModel):
@@ -240,6 +318,10 @@ class TrainingJobCreate(BaseModel):
     workers: int = Field(default=0, ge=0, le=16)
     patience: int = Field(default=50, ge=0, le=500)
 
+    _normalize_task_type = field_validator("task_type", mode="before")(
+        _normalize_task_type_field
+    )
+
 
 class TrainingJobRead(BaseModel):
     id: str
@@ -247,12 +329,21 @@ class TrainingJobRead(BaseModel):
     task_type: str = DEFAULT_TASK_TYPE
     model_family: str
     status: str
-    parameters: dict[str, Any]
+    # Always the stored `TrainingJobCreate.model_dump()` payload for the job
+    # (with `model_family` re-resolved to the training option's family), so
+    # the request schema doubles as the stable shape of the persisted record.
+    parameters: TrainingJobCreate
     artifacts: dict[str, Any]
     artifact_urls: dict[str, str] = Field(default_factory=dict)
     progress: JobProgress
+    # Per-task/family metrics payloads (e.g. YOLO detection metrics vs. NLP
+    # classification metrics) are genuinely shaped differently, so this stays
+    # a deliberate open dict rather than a single fixed model.
     metrics: dict[str, Any] = Field(default_factory=dict)
-    history: list[dict[str, Any]] = Field(default_factory=list)
+    # Per-epoch rows read from `results.csv`/`metrics.json`; column names vary
+    # by model family, but every value collected by
+    # `training.artifacts.parse_training_history` is numeric.
+    history: list[dict[str, float | int]] = Field(default_factory=list)
     curves: dict[str, Any] = Field(default_factory=dict)
     promoted_model_id: str | None
     error: str | None
@@ -290,6 +381,10 @@ class DatasetCreate(BaseModel):
     format: DatasetFormat = "yolo"
     labels: list[str] = Field(default_factory=lambda: DEFAULT_LABELS.copy())
 
+    _normalize_task_type = field_validator("task_type", mode="before")(
+        _normalize_task_type_field
+    )
+
 
 class DatasetPreprocessConfig(BaseModel):
     enabled: bool = False
@@ -324,6 +419,10 @@ class DatasetImportRequest(BaseModel):
     task_type: TaskType = _DEFAULT_TASK_TYPE
     format: DatasetFormat = "yolo"
     labels: list[str] | None = None
+
+    _normalize_task_type = field_validator("task_type", mode="before")(
+        _normalize_task_type_field
+    )
 
 
 class DatasetCloneRequest(BaseModel):

@@ -50,7 +50,7 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
                 <StopCircle size={16} /> Cancel
               </button>
             )}
-            {job.status === "completed" && job.artifacts?.best_model && !job.promoted_model_id && (
+            {job.status === "completed" && Boolean(job.artifacts?.best_model) && !job.promoted_model_id && (
               <button className="secondary-button" onClick={() => promoteMutation.mutate(job.id)}>
                 Promote
               </button>

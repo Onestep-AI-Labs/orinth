@@ -1,5 +1,9 @@
-import type { DeleteResponse, ProjectSummary, TaskType } from "@/types/api";
+import type { TaskType } from "@/types/api";
+import type { components } from "@/types/generated/api";
 import { jsonFetch } from "@/lib/api/client";
+
+type ProjectSummary = components["schemas"]["ProjectSummary"];
+type DeleteResponse = components["schemas"]["DeleteResponse"];
 
 export const projectsApi = {
   projects: () => jsonFetch<ProjectSummary[]>("/projects"),

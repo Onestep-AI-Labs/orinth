@@ -38,6 +38,9 @@ dist/
 coverage/
 frontend/.env*.local
 
+# Generated OpenAPI export (scratch input to codegen; not committed)
+/backend/openapi.json
+
 # Local environment files
 .env
 .env.local

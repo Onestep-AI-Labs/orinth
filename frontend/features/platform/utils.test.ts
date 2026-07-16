@@ -58,7 +58,6 @@ describe("listPollInterval", () => {
 
 describe("isNlpTask / isVisionTask", () => {
   it("classifies NLP task types", () => {
-    expect(isNlpTask("text")).toBe(true);
     expect(isNlpTask("text_classification")).toBe(true);
     expect(isNlpTask("summarization")).toBe(true);
     expect(isNlpTask("question_answering")).toBe(true);
@@ -76,7 +75,7 @@ describe("isNlpTask / isVisionTask", () => {
 
   it("is the inverse of isNlpTask", () => {
     expect(isVisionTask("classification")).toBe(true);
-    expect(isVisionTask("text")).toBe(false);
+    expect(isVisionTask("text_classification")).toBe(false);
   });
 });
 

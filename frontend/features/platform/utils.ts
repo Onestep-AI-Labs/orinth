@@ -17,6 +17,10 @@ export function formatMetric(value: unknown): string {
   return typeof value === "number" ? value.toFixed(3) : value === undefined || value === null ? "-" : String(value);
 }
 
+export function displayModelName(modelId: string, modelNameById: Record<string, string>): string {
+  return modelNameById[modelId] ?? modelId;
+}
+
 export function formatSeconds(value: number): string {
   if (!value) return "0s";
   if (value < 60) return `${value.toFixed(1)}s`;
@@ -34,7 +38,7 @@ export function labelColor(index: number): string {
 
 export function formatDatasetTask(task: TaskType): string {
   if (task === "object_detection") return "Object detection";
-  if (task === "text_classification" || task === "text") return "Text classification";
+  if (task === "text_classification") return "Text classification";
   if (task === "question_answering") return "Question answering";
   return task.charAt(0).toUpperCase() + task.slice(1).replaceAll("_", " ");
 }
@@ -50,7 +54,7 @@ export function taskDescription(task: TaskType): string {
   if (task === "classification") return "One class label per image";
   if (task === "object_detection") return "Boxes around objects";
   if (task === "segmentation") return "Pixel or polygon masks";
-  if (task === "text_classification" || task === "text") return "One class label per text";
+  if (task === "text_classification") return "One class label per text";
   if (task === "summarization") return "Source text with reference summary";
   if (task === "question_answering") return "Context with question-answer pairs";
   return "Task metadata";
@@ -63,7 +67,7 @@ export function areTasksCompatible(modelTask: TaskType, datasetTask: TaskType): 
 }
 
 export function isNlpTask(task: TaskType | string | undefined): boolean {
-  return task === "text" || task === "text_classification" || task === "summarization" || task === "question_answering";
+  return task === "text_classification" || task === "summarization" || task === "question_answering";
 }
 
 export function isVisionTask(task: TaskType | string | undefined): boolean {

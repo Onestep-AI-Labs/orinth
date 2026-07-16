@@ -12,7 +12,7 @@ from app.core.config import Settings
 from app.core.database import Base
 from app.core.storage import Storage
 from app.db.models import InferenceJob, InferenceRun
-from app.schemas import Box, Detection, InferenceParameters
+from app.schemas import Box, Detection, InferenceParameters, NlpTextClassificationResult
 from app.services.inference import InferenceService
 
 
@@ -67,7 +67,11 @@ class FakeClassificationPredictor:
 
 class FakeTextPredictor:
     def predict_text(self, text, parameters):
-        return {"label": "positive", "scores": {"positive": 0.9, "negative": 0.1}}
+        return {
+            "task": "text_classification",
+            "label": "positive",
+            "scores": {"positive": 0.9, "negative": 0.1},
+        }
 
 
 class FakeFailingPredictor:
@@ -176,7 +180,9 @@ def test_run_text_input_stores_input_without_overlay(storage: Storage, db) -> No
     assert result.input_type == "text"
     assert result.overlay_url is None
     assert result.image_level_label == "positive"
-    assert result.nlp_result == {"label": "positive", "scores": {"positive": 0.9, "negative": 0.1}}
+    assert result.nlp_result == NlpTextClassificationResult(
+        label="positive", scores={"positive": 0.9, "negative": 0.1}
+    )
     original_path = storage.root / result.original_url.removeprefix("/media/")
     assert original_path.exists()
     assert original_path.parent == storage.uploads
@@ -276,3 +282,45 @@ def test_list_get_and_delete_runs_removes_owned_storage_files(storage: Storage, 
     assert deletion["missing"] == []
     assert not overlay_path.exists()
     assert db.query(InferenceRun).count() == 1
+
+
+def test_list_skips_a_row_with_a_malformed_stored_result_instead_of_raising(
+    storage: Storage, db, caplog
+) -> None:
+    """A legacy/corrupt `result` blob for one row must not 500 the whole history list.
+
+    `nlp_result` is a strict discriminated union (see app.schemas.NlpResult); a
+    stored value that doesn't match any of its three known shapes used to make
+    `InferenceResult.model_validate` raise uncaught, taking down `list()` (and
+    therefore `GET /api/inference`) for every other row along with it.
+    """
+
+    registry = FakeRegistry(FakeSpec("segmentation"), FakeDetectionPredictor([make_detection()]))
+    service = InferenceService(storage, registry)
+
+    good = anyio.run(service.run, db, upload_file("good.jpg"), "fake_detector", InferenceParameters())
+
+    db.add(
+        InferenceRun(
+            id="corrupt-row",
+            project_id=None,
+            model_id="fake_detector",
+            input_path="unused.jpg",
+            result={
+                "id": "corrupt-row",
+                "model_id": "fake_detector",
+                "image_level_label": "Normal",
+                "parameters": {},
+                "created_at": "2020-01-01T00:00:00",
+                # Doesn't match any of the three known NlpResult shapes.
+                "nlp_result": {"task": "legacy_unknown_task", "value": 1},
+            },
+        )
+    )
+    db.commit()
+
+    with caplog.at_level("ERROR"):
+        results = service.list(db)
+
+    assert {result.id for result in results} == {good.id}
+    assert "corrupt-row" in caplog.text

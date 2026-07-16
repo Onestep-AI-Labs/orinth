@@ -1,11 +1,11 @@
-import type {
-  DeleteResponse,
-  ModelAssetStatus,
-  TaskType,
-  TrainingJob,
-  TrainingModelOption
-} from "@/types/api";
+import type { TaskType } from "@/types/api";
+import type { components } from "@/types/generated/api";
 import { jsonFetch, query } from "@/lib/api/client";
+
+type TrainingJob = components["schemas"]["TrainingJobRead"];
+type TrainingModelOption = components["schemas"]["TrainingModelOption"];
+type ModelAssetStatus = components["schemas"]["ModelAssetStatus"];
+type DeleteResponse = components["schemas"]["DeleteResponse"];
 
 export const trainingApi = {
   trainingOptions: (taskType?: TaskType) =>
