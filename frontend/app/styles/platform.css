@@ -1,12 +1,13 @@
 .app-shell,
 :root {
-  --ov-ink: #111b2b;
-  --ov-navy: #182536;
-  --ov-teal: #14b8a6;
-  --ov-green: #8bcf5a;
-  --ov-coral: #f9735b;
-  --ov-mist: #f6f8fb;
-  --ov-line: #d7dde5;
+  /* Legacy aliases — canonical tokens live in app/globals.css. */
+  --ov-ink: var(--color-ink);
+  --ov-navy: var(--color-navy);
+  --ov-teal: var(--color-teal);
+  --ov-green: var(--color-green);
+  --ov-coral: var(--color-coral);
+  --ov-mist: var(--color-canvas);
+  --ov-line: var(--color-line);
 }
 
 .app-shell {
@@ -106,8 +107,9 @@
 
 .confirmation-dialog h2 {
   margin: 0;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -321,8 +323,9 @@
 .brand-block h1 {
   margin: 0;
   color: #f8fafc;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
   font-size: 19px;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -388,8 +391,9 @@
 .page-header h2 {
   margin: 0;
   color: #1f2933;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .page-header p {
@@ -2611,7 +2615,9 @@ button.task-choice {
 .metric strong {
   overflow-wrap: anywhere;
   color: #1f2933;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
   font-size: 18px;
+  font-variant-numeric: tabular-nums;
 }
 
 .section-title {
