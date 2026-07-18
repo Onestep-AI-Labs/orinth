@@ -22,6 +22,8 @@ Tokens are OKLCH channel triples (`L% C H`) consumed as `oklch(var(--token))` an
 | `--ink-subtle` | `56.46% 0.0352 248.4` | `#66788a` | Tertiary text, micro-labels |
 | `--line` | `89.53% 0.0127 255.5` | `#d7dde5` | Borders, dividers |
 | `--line-soft` | `92.68% 0.0063 255.5` | `#e4e7eb` | Soft borders, table rules |
+| `--line-strong` | `86.04% 0.0124 248.0` | `#cbd2d9` | Strong borders, input outlines |
+| `--wash` | `95.63% 0.0069 247.9` | `#edf1f5` | Hover/pressed wash on light surfaces |
 | `--surface` | `100% 0 0` | `#ffffff` | Panels, cards |
 | `--surface-2` | `98.42% 0.0034 247.9` | `#f8fafc` | Nested/alt surfaces |
 | `--canvas` | `97.52% 0.0034 247.9` | `#f5f7f9` | App background |

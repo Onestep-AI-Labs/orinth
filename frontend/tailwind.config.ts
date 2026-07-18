@@ -19,8 +19,10 @@ const config: Config = {
         },
         line: {
           DEFAULT: token("line"),
-          soft: token("line-soft")
+          soft: token("line-soft"),
+          strong: token("line-strong")
         },
+        wash: token("wash"),
         surface: {
           DEFAULT: token("surface"),
           2: token("surface-2")
