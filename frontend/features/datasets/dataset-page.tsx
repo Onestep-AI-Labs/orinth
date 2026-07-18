@@ -64,6 +64,7 @@ export function DatasetPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedItemSplit, setSelectedItemSplit] = useState<SplitKey | "">("");
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [selectedItemSplits, setSelectedItemSplits] = useState<Record<string, SplitKey>>({});
   const [newDatasetName, setNewDatasetName] = useState("");
   const [taskType, setTaskType] = useState<TaskType>("classification");
   const [labelDraft, setLabelDraft] = useState("object");
@@ -157,15 +158,15 @@ export function DatasetPage() {
     edaQuery
   });
   const deleteItemsMutation = useDeleteDatasetItemsMutation({
-    split,
     setSelectedItemIds,
+    setSelectedItemSplits,
     setSelectedItemId,
     setSelectedItemSplit,
     itemsQuery,
     catalogQuery,
     edaQuery
   });
-  const bulkLabelMutation = useBulkLabelDatasetItemsMutation({ split, itemsQuery, detailQuery, catalogQuery, edaQuery });
+  const bulkLabelMutation = useBulkLabelDatasetItemsMutation({ itemsQuery, detailQuery, catalogQuery, edaQuery });
   const previewMutation = usePreviewDatasetPreprocessMutation({ preprocessConfig, setPreviewUrl, setPreviewText });
   const createVersionMutation = useCreateDatasetVersionMutation({ setVersionName, versionsQuery });
   const deleteDatasetMutation = useDeleteDatasetMutation({
@@ -182,14 +183,14 @@ export function DatasetPage() {
     setSplitConfig,
     setSplit,
     setSelectedItemIds,
+    setSelectedItemSplits,
     catalogQuery,
     itemsQuery,
     edaQuery
   });
   const moveItemsMutation = useMoveDatasetItemsMutation({
-    split,
-    selectedItemIds,
     setSelectedItemIds,
+    setSelectedItemSplits,
     itemsQuery,
     catalogQuery,
     edaQuery
@@ -224,6 +225,7 @@ export function DatasetPage() {
     setUploadClassId(0);
     setBulkClassId(0);
     setSelectedItemIds([]);
+    setSelectedItemSplits({});
     setSelectedItemId("");
     setSelectedItemSplit("");
     setPreviewUrl(null);
@@ -239,6 +241,7 @@ export function DatasetPage() {
 
   useEffect(() => {
     setSelectedItemIds([]);
+    setSelectedItemSplits({});
     setImagePage(0);
   }, [split, classFilter, selectedDatasetId]);
 
@@ -338,6 +341,8 @@ export function DatasetPage() {
     selectedItemSplit,
     selectedItemIds,
     setSelectedItemIds,
+    selectedItemSplits,
+    setSelectedItemSplits,
     onSelectItem: selectDatasetItem,
     confirm
   };
@@ -383,6 +388,9 @@ export function DatasetPage() {
           setMoveTarget={setMoveTarget}
           moveItemsMutation={moveItemsMutation}
           deleteItemsMutation={deleteItemsMutation}
+          bulkClassId={bulkClassId}
+          setBulkClassId={setBulkClassId}
+          bulkLabelMutation={bulkLabelMutation}
         />
       ) : detailTab === "annotate" ? (
         <DatasetAnnotateTab
