@@ -90,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ProjectContext.Provider value={value}>
       <main
-        className={`app-shell bg-[#f5f7f9] text-ink ${isProjectArea ? "app-shell-project" : ""} ${
+        className={`app-shell bg-canvas text-ink ${isProjectArea ? "app-shell-project" : ""} ${
           isProjectArea && !projectSidebarOpen ? "app-shell-project-collapsed" : ""
         }`}
       >
