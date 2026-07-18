@@ -20,6 +20,7 @@ import {
 import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { IconButton } from "@/features/platform/ui";
+import { Toaster } from "@/features/platform/toast";
 import type { ProjectSummary } from "@/types/api";
 
 const DEFAULT_PROJECT_ID = "default-research-project";
@@ -114,6 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <section className="content-shell">{children}</section>
       </main>
       {activeMutations > 0 && <GlobalLoadingOverlay />}
+      <Toaster />
     </ProjectContext.Provider>
   );
 }
