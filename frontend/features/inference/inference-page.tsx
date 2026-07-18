@@ -82,11 +82,10 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   });
 
   useEffect(() => {
-    if (models.length > 0 && !models.some((model) => model.task_type === taskType)) {
-      setTaskType(models[0].task_type);
+    if (taskOptions.length > 0 && !taskOptions.includes(taskType)) {
+      setTaskType(taskOptions[0]);
     }
-    if (!taskOptions.includes(taskType) && taskOptions.length > 0) setTaskType(taskOptions[0]);
-  }, [models, taskOptions, taskType]);
+  }, [taskOptions, taskType]);
 
   useEffect(() => {
     if (taskModels.length === 0) {
@@ -101,7 +100,12 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
       setResult(jobQuery.data.result);
       historyQuery.refetch();
     }
-  }, [jobQuery.data?.result, historyQuery]);
+    // historyQuery is a new object reference on every render (React Query
+    // does not guarantee referential stability of the result object), so
+    // depending on it here would refetch history on every unrelated
+    // re-render instead of only when a job result actually arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobQuery.data?.result]);
 
   async function runInference() {
     if ((!file && !nlp) || (!textContent.trim() && nlp) || !selectedModel) return;
