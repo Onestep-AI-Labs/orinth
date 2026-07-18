@@ -10,7 +10,8 @@ If local skills are available, invoke `$onestep-ai-platform` for repository work
 2. Read `docs/ai/workflow.md`.
 3. Read `docs/ai/rules.md`.
 4. Read the relevant spec in `specs/`.
-5. Inspect source before changing it.
+5. For UI work, read `frontend/DESIGN.md`.
+6. Inspect source before changing it.
 
 ## Project Shape
 

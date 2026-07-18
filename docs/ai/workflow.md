@@ -23,6 +23,7 @@ Use this workflow for Codex, Claude Code, or any future coding agent.
 - Shared backend service singletons live in `backend/app/container.py`.
 - Large domain services may be packages under `backend/app/services/`; preserve compatibility exports from each package `__init__.py`.
 - Frontend changes go under `frontend`.
+- For UI work, read `frontend/DESIGN.md` first and follow the `/frontend-design` skill; tokens and shared primitives are mandatory for new surfaces.
 - Frontend route entrypoints stay under `frontend/app`; reusable page and workflow code should live under `frontend/features`.
 - Frontend API calls belong in the domain-based `frontend/lib/api/` package while preserving the public `api` export.
 - Keep app-wide base styles in `frontend/app/globals.css` and platform UI selectors in `frontend/app/styles/platform.css`.
@@ -39,6 +40,7 @@ Run the checks that match the touched area:
 cd backend && uv run pytest
 cd frontend && pnpm typecheck
 cd frontend && pnpm lint
+cd frontend && pnpm test
 cd frontend && pnpm build
 ```
 

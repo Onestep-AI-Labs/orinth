@@ -28,8 +28,9 @@
 - Keep generated TypeScript build info out of git tracking.
 - Keep the first screen as the working app, not a landing page.
 - Prefer dense, operational UI over marketing-style presentation.
-- Use existing colors: ink, line, teal, coral, and neutral surfaces.
-- Avoid hiding errors. Surface backend failures in the relevant panel.
+- Use the design tokens defined in `frontend/app/globals.css` and documented in `frontend/DESIGN.md`; never hardcode hex, rgb, or hsl values.
+- Use the shared primitives from `@/features/platform/ui` (Button, Badge, EmptyState, toast, skeletons) instead of raw class names in new code.
+- Avoid hiding errors. Surface backend failures in the relevant panel and the toast layer.
 
 ## ML and Data
 
