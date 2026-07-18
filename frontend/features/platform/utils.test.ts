@@ -5,6 +5,8 @@ import {
   isActiveStatus,
   isNlpTask,
   isVisionTask,
+  labelColor,
+  labelFill,
   listPollInterval
 } from "@/features/platform/utils";
 
@@ -93,5 +95,24 @@ describe("areTasksCompatible", () => {
   it("rejects mismatched, non-shape task pairs", () => {
     expect(areTasksCompatible("classification", "object_detection")).toBe(false);
     expect(areTasksCompatible("text_classification", "summarization")).toBe(false);
+  });
+});
+
+describe("labelColor / labelFill", () => {
+  it("maps a class index onto the data-viz ramp token", () => {
+    expect(labelColor(0)).toBe("var(--color-label-0)");
+    expect(labelColor(3)).toBe("var(--color-label-3)");
+  });
+
+  it("wraps around the eight-step ramp", () => {
+    expect(labelColor(8)).toBe(labelColor(0));
+    expect(labelColor(11)).toBe(labelColor(3));
+  });
+
+  it("builds a translucent fill without hex concatenation", () => {
+    // Appending a hex alpha suffix to a var() reference yields an invalid
+    // colour, which paints annotation overlays opaque black over the image.
+    expect(labelFill(0)).toBe("color-mix(in oklab, var(--color-label-0) 20%, transparent)");
+    expect(labelFill(1, 50)).toBe("color-mix(in oklab, var(--color-label-1) 50%, transparent)");
   });
 });

@@ -181,7 +181,7 @@ function MiniLineChart({ rows, valueKey, color }: { rows: Array<Record<string, a
         <span>{formatMetric(values[values.length - 1])}</span>
       </div>
       <svg viewBox="0 0 100 48" preserveAspectRatio="none">
-        <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+        <polyline points={points} fill="none" style={{ stroke: color }} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
       </svg>
     </div>
   );
@@ -197,12 +197,12 @@ function TrainingRocPanel({ curves }: { curves: Record<string, any> }) {
         <span>macro {formatMetric(curves.macro_auc)} / micro {formatMetric(curves.micro_auc)}</span>
       </div>
       <svg className="roc-chart" viewBox="0 0 100 64" preserveAspectRatio="none">
-        <line x1="0" y1="64" x2="100" y2="0" stroke="#d7dde5" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1="64" x2="100" y2="0" style={{ stroke: "var(--color-line)" }} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         {Object.entries(roc).map(([label, curve], index) => {
           const points = (curve.fpr ?? [])
             .map((fpr, pointIndex) => `${(fpr * 100).toFixed(2)},${(64 - ((curve.tpr?.[pointIndex] ?? 0) * 64)).toFixed(2)}`)
             .join(" ");
-          return <polyline key={label} points={points} fill="none" stroke={labelColor(index)} strokeWidth="2" vectorEffect="non-scaling-stroke" />;
+          return <polyline key={label} points={points} fill="none" style={{ stroke: labelColor(index) }} strokeWidth="2" vectorEffect="non-scaling-stroke" />;
         })}
       </svg>
       <div className="label-chip-row mt-3">

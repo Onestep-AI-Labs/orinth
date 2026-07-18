@@ -17,7 +17,7 @@ export default function DocumentationLayout({
       {/* Sidebar Navigation */}
       <aside className="w-64 border-r border-line shrink-0 hidden md:flex flex-col h-[calc(100vh-theme(spacing.14))] sticky top-14 overflow-y-auto bg-panel/50">
         <div className="p-4 border-b border-line flex items-center gap-2">
-          <BookOpen className="text-teal" size={18} />
+          <BookOpen className="text-accent" size={18} />
           <h2 className="font-semibold text-sm text-ink uppercase tracking-wider">Guide</h2>
         </div>
         <nav className="p-4 space-y-1">
@@ -35,7 +35,7 @@ export default function DocumentationLayout({
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl px-8 py-10 min-w-0 mx-auto">
-        <div className="prose prose-slate max-w-none prose-a:text-teal hover:prose-a:text-teal/80 prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-img:rounded-xl">
+        <div className="prose prose-slate max-w-none prose-a:text-accent hover:prose-a:text-accent/80 prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-img:rounded-xl">
           {children}
         </div>
       </main>

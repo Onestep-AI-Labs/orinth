@@ -20,7 +20,8 @@ const config: Config = {
         line: {
           DEFAULT: token("line"),
           soft: token("line-soft"),
-          strong: token("line-strong")
+          strong: token("line-strong"),
+          input: token("line-input")
         },
         wash: token("wash"),
         surface: {
@@ -29,35 +30,32 @@ const config: Config = {
         },
         panel: token("surface"),
         canvas: token("canvas"),
-        teal: {
-          DEFAULT: token("teal"),
-          strong: token("teal-strong"),
-          tint: token("teal-tint"),
-          "tint-strong": token("teal-tint-strong")
+        accent: {
+          DEFAULT: token("accent"),
+          strong: token("accent-strong"),
+          tint: token("accent-tint"),
+          "tint-strong": token("accent-tint-strong")
         },
-        coral: {
-          DEFAULT: token("coral"),
-          strong: token("coral-strong"),
-          tint: token("coral-tint")
+        danger: {
+          DEFAULT: token("danger"),
+          strong: token("danger-strong"),
+          tint: token("danger-tint")
         },
-        amber: {
-          DEFAULT: token("amber"),
-          strong: token("amber-strong"),
-          tint: token("amber-tint")
+        warn: {
+          DEFAULT: token("warn"),
+          strong: token("warn-strong"),
+          tint: token("warn-tint")
         },
-        green: {
-          DEFAULT: token("green"),
-          strong: token("green-strong"),
-          tint: token("green-tint")
+        success: {
+          DEFAULT: token("success"),
+          strong: token("success-strong"),
+          tint: token("success-tint")
         },
-        navy: {
-          DEFAULT: token("navy"),
-          deep: token("navy-deep")
+        info: {
+          strong: token("info-strong"),
+          tint: token("info-tint")
         },
-        indigo: {
-          strong: token("indigo-strong"),
-          tint: token("indigo-tint")
-        }
+        "shadow-ink": token("shadow-ink")
       },
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
@@ -67,11 +65,15 @@ const config: Config = {
         sm: "var(--radius-sm)",
         DEFAULT: "var(--radius)",
         lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
         pill: "var(--radius-pill)"
       },
       boxShadow: {
-        card: "var(--shadow-card)",
+        subtle: "var(--shadow-subtle)",
         overlay: "var(--shadow-overlay)"
+      },
+      letterSpacing: {
+        display: "var(--display-tracking)"
       }
     }
   },

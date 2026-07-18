@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, MousePointer2, Pentagon, Save, Square, Trash2, Undo2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
-import { isNlpTask, labelColor, pointsAttr } from "@/features/platform/utils";
+import { isNlpTask, labelColor, labelFill, pointsAttr } from "@/features/platform/utils";
 import { MutationError } from "@/features/platform/ui";
 import type { DatasetAnnotation, DatasetItemDetail, DatasetSummary } from "@/types/api";
 
@@ -257,7 +257,7 @@ export function AnnotationEditor({
                 width={annotation.bbox.width}
                 height={annotation.bbox.height}
                 className={`annotation-poly ${selected ? "annotation-selected" : ""}`}
-                style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}33` }}
+                style={{ stroke: labelColor(annotation.class_id), fill: labelFill(annotation.class_id) }}
                 onPointerDown={(event) => beginMove(event, annotation, index)}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -269,7 +269,7 @@ export function AnnotationEditor({
                 key={`${annotation.class_name}-${index}`}
                 points={pointsAttr(annotation.polygon)}
                 className={`annotation-poly ${selected ? "annotation-selected" : ""}`}
-                style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}33` }}
+                style={{ stroke: labelColor(annotation.class_id), fill: labelFill(annotation.class_id) }}
                 onPointerDown={(event) => beginMove(event, annotation, index)}
                 onClick={(event) => {
                   event.stopPropagation();

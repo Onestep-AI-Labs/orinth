@@ -1,0 +1,12 @@
+[
+  {
+    "date": "2026-07-18",
+    "verb": "redesign",
+    "scope": "whole-app design system (system layer only)",
+    "macrostructure": "n/a — app shell, not a page composition",
+    "theme": "studied-DNA (source: Dub, archived at docs/design/dub-dna/)",
+    "theme_axes": "light paper / grotesk-sans display / cool accent",
+    "enrichment": "none — operational UI",
+    "brief": "Onestep AI Platform · apply Dub system layer to dense medical-imaging dashboard; reject its marketing composition layer per docs/ai/rules.md"
+  }
+]

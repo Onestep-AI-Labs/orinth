@@ -31,9 +31,26 @@ export function pointsAttr(points: number[][]): string {
   return points.map((point) => `${point[0]},${point[1]}`).join(" ");
 }
 
+const LABEL_RAMP_SIZE = 8;
+
+/**
+ * Categorical colour for a class index, from the `--label-*` data-visualization
+ * ramp in globals.css. See DESIGN.md §8 — this ramp is the one sanctioned
+ * exception to the single-accent budget.
+ */
 export function labelColor(index: number): string {
-  const colors = ["#46b4a2", "#f47f73", "#6f7bd9", "#d59f31", "#8b5cf6", "#0ea5e9", "#84cc16", "#ec4899"];
-  return colors[index % colors.length];
+  return `var(--color-label-${index % LABEL_RAMP_SIZE})`;
+}
+
+/**
+ * Translucent fill of the same colour, for annotation overlays drawn on top of
+ * imagery. Must be used instead of appending a hex alpha suffix to
+ * {@link labelColor} — that returns a `var()` reference, not a hex literal, so
+ * string concatenation would yield an invalid colour and paint the overlay
+ * opaque black over the image beneath it.
+ */
+export function labelFill(index: number, percent = 20): string {
+  return `color-mix(in oklab, ${labelColor(index)} ${percent}%, transparent)`;
 }
 
 export function formatDatasetTask(task: TaskType): string {

@@ -2,7 +2,9 @@
 
 ## Status
 
-Implemented
+Implemented. **The design-system portion is superseded by `phase-8-design-system-dub.md`** — the teal/navy
+palette, Space Grotesk pairing, and shadow-based elevation described below were replaced in phase 8. The
+security, validation, toast, loading/error-boundary, and journey-continuity work remains current.
 
 ## Goal
 
