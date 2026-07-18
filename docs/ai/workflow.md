@@ -16,14 +16,29 @@ Use this workflow for Codex, Claude Code, or any future coding agent.
 - Prefer existing app patterns over new abstractions.
 - Keep current datasets, model weights, and notebooks as read-only references.
 
-## 3. Implement
+## 3. Design
+
+Applies to any change that adds or alters a UI surface. Skip only for pure backend, data, or docs work.
+
+- Read `frontend/DESIGN.md` first. It is the authoritative contract; everything below is how to apply it.
+- Invoke the `/frontend-design` skill for all UI and styling work.
+- Invoke `hallmark` only with an explicit verb — `hallmark audit <target>` to score an existing surface, or
+  `hallmark redesign <target>` to rework one. Component-scope briefs ("just the button") are also fine.
+- **Do not run hallmark's default greenfield flow.** It composes marketing pages — heroes, marquees,
+  feature pills, testimonials, footers — which `docs/ai/rules.md` forbids ("keep the first screen as the
+  working app, not a landing page"). Its `audit` and `redesign` verbs are the parts that fit this app.
+- Design decisions that change tokens, elevation, typography, or shell anatomy belong in a spec before
+  implementation, and in `frontend/DESIGN.md` after.
+- Reuse tokens and shared primitives. Add a token rather than a literal; add a variant rather than a
+  one-off class.
+
+## 4. Implement
 
 - Backend changes go under `backend/app`.
 - Route changes go in the matching domain router under `backend/app/api/routers/`; keep `backend/app/api/routes.py` as the router aggregator.
 - Shared backend service singletons live in `backend/app/container.py`.
 - Large domain services may be packages under `backend/app/services/`; preserve compatibility exports from each package `__init__.py`.
 - Frontend changes go under `frontend`.
-- For UI work, read `frontend/DESIGN.md` first and follow the `/frontend-design` skill; tokens and shared primitives are mandatory for new surfaces.
 - Frontend route entrypoints stay under `frontend/app`; reusable page and workflow code should live under `frontend/features`.
 - Frontend API calls belong in the domain-based `frontend/lib/api/` package while preserving the public `api` export.
 - Keep app-wide base styles in `frontend/app/globals.css` and platform UI selectors in `frontend/app/styles/platform.css`.
@@ -32,7 +47,7 @@ Use this workflow for Codex, Claude Code, or any future coding agent.
 - Keep inference responses normalized across YOLO, U-Net + Inception, and NLP Hugging Face Transformers.
 - Do not add secrets or notebook API keys to source.
 
-## 4. Validate
+## 5. Validate
 
 Run the checks that match the touched area:
 
@@ -46,7 +61,7 @@ cd frontend && pnpm build
 
 For inference changes, also run at least one model smoke test when local model files are present.
 
-## 5. Report
+## 6. Report
 
 Summarize:
 

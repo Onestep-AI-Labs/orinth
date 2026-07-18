@@ -1,1 +1,1 @@
-Review the current change set against `AGENTS.md`, `docs/ai/rules.md`, and relevant `specs/`. Lead with bugs, regressions, missing tests, and spec drift. Include exact file references.
+Review the current change set against `AGENTS.md`, `docs/ai/rules.md`, and relevant `specs/`. Lead with bugs, regressions, missing tests, and spec drift. For UI changes, also check `frontend/DESIGN.md` compliance: no hardcoded colors, no elevation on resting surfaces, status colors paired as `-tint`/`-strong`, type at or below 24px and weight 600. Include exact file references.

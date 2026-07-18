@@ -10,7 +10,8 @@ If local skills are available, invoke `$onestep-ai-platform` for repository work
 2. Read `docs/ai/workflow.md`.
 3. Read `docs/ai/rules.md`.
 4. Read the relevant spec in `specs/`.
-5. For UI work, read `frontend/DESIGN.md`.
+5. For UI work, read `frontend/DESIGN.md`, then use the `/frontend-design` skill. For auditing or
+   reworking an existing surface, `hallmark audit` / `hallmark redesign` are also available.
 6. Inspect source before changing it.
 
 ## Project Shape
@@ -35,6 +36,11 @@ If local skills are available, invoke `$onestep-ai-platform` for repository work
 - Keep generated uploads, overlays, DB files, logs, and training artifacts under ignored `storage/`.
 - Use `uv` for backend dependency work and `pnpm` for frontend dependency work.
 - Update the relevant `specs/` file when behavior, APIs, data flow, or acceptance criteria change.
+- `frontend/DESIGN.md` is the authoritative design contract. Never hardcode a color; never add elevation
+  to a resting surface. Update the contract when the system changes.
+- Use `hallmark` only via its `audit` / `redesign` verbs or on component-scope briefs. Its default
+  greenfield flow builds marketing pages (heroes, marquees, testimonials, footers) and conflicts with
+  "keep the first screen as the working app".
 
 ## Medical Context
 
