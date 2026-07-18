@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
+import { toast } from "@/features/platform/toast";
 import { TRAINING_SPLITS } from "@/features/platform/constants";
 import { preprocessFromDataset, splitConfigFromDataset } from "@/features/platform/utils";
 import type {
@@ -174,6 +175,9 @@ export function useUploadDatasetMutation(options: {
         options.setSelectedItemId(lastItem.id);
         options.setSelectedItemSplit(lastItem.split);
       }
+      if (result.uploaded.length > 0) {
+        toast.success(`${result.uploaded.length} ${result.uploaded.length === 1 ? "file" : "files"} added — annotate them next`);
+      }
       await Promise.all([
         options.itemsQuery.refetch(),
         options.catalogQuery.refetch(),
@@ -303,6 +307,7 @@ export function useProcessDatasetMutation(options: {
       options.setSplitConfig(splitConfigFromDataset(result.dataset));
       options.setSplit("train");
       options.setSelectedItemIds([]);
+      toast.success("Dataset version generated", { action: { label: "Start training", href: "/training" } });
       await Promise.all([
         options.catalogQuery.refetch(),
         options.itemsQuery.refetch(),

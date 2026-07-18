@@ -8,7 +8,8 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { NLP_TASK_TYPES, VISION_TASK_TYPES, formatDatasetTask, taskDescription } from "@/features/platform/utils";
-import { Field, MutationError } from "@/features/platform/ui";
+import { Button, Field, MutationError } from "@/features/platform/ui";
+import { toast } from "@/features/platform/toast";
 import type { TaskType } from "@/types/api";
 
 type ProjectDomain = "vision" | "nlp";
@@ -29,6 +30,7 @@ export function ProjectCreatePage() {
     onSuccess: async (project) => {
       setProjectId(project.id);
       await refreshProjects();
+      toast.success(`Project "${project.name}" created`);
       router.push("/datasets");
     }
   });
@@ -133,9 +135,9 @@ export function ProjectCreatePage() {
           </div>
         </div>
         <div className="create-project-actions">
-          <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>
+          <Button onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>
             <FilePlus2 size={16} /> Create Project
-          </button>
+          </Button>
         </div>
         <MutationError mutations={[createProject]} />
       </section>

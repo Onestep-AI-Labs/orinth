@@ -8,7 +8,22 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { NLP_TASK_TYPES, VISION_TASK_TYPES, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
-import { CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, ProgressPanel, SliderField, TableSkeleton, toggleId, useConfirmationDialog } from "@/features/platform/ui";
+import {
+  Button,
+  ButtonLink,
+  CardGridSkeleton,
+  EmptyState,
+  Field,
+  HistoryHeader,
+  MutationError,
+  PageHeader,
+  PanelTitle,
+  ProgressPanel,
+  SliderField,
+  TableSkeleton,
+  toggleId,
+  useConfirmationDialog
+} from "@/features/platform/ui";
 import type { InferenceJob, InferenceResult, ModelInfo, TaskType } from "@/types/api";
 
 function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; modelsLoading?: boolean }) {
@@ -146,7 +161,11 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
                 </option>
               ))}
             </select>
-            {taskModels.length === 0 && <span className="field-hint">No available models for this task.</span>}
+            {taskModels.length === 0 && (
+              <span className="field-hint">
+                No available models yet — <ButtonLink variant="ghost" size="sm" href="/training">train one</ButtonLink>
+              </span>
+            )}
           </Field>
           {selectedModelInfo && (
             <div className="inference-model-meta">
@@ -177,15 +196,23 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
               <SliderField label="IoU" value={iou} min={0} max={1} step={0.01} onChange={setIou} />
             </>
           )}
-          <button className="primary-button mt-2 w-full" disabled={(!file && !nlp) || (nlp && !textContent.trim()) || !selectedModel || inferenceMutation.isPending} onClick={runInference}>
+          <Button className="mt-2 w-full" disabled={(!file && !nlp) || (nlp && !textContent.trim()) || !selectedModel || inferenceMutation.isPending} onClick={runInference}>
             <Play size={17} /> Run inference
-          </button>
+          </Button>
           {inferenceMutation.error && <p className="error-text">{inferenceMutation.error.message}</p>}
           {jobQuery.data && <ProgressPanel progress={jobQuery.data.progress} status={jobQuery.data.status} error={jobQuery.data.error} />}
         </section>
         <section className="panel min-h-[520px]">
           <PanelTitle icon={<ScanEye size={18} />} title="Result" />
-          {result ? <InferenceResultView result={result} modelNameById={modelNameById} /> : <EmptyState label="No result selected" icon={<ScanEye size={28} />} />}
+          {result ? (
+            <InferenceResultView result={result} modelNameById={modelNameById} />
+          ) : (
+            <EmptyState
+              label="No result selected"
+              icon={<ScanEye size={28} />}
+              description="Run an inference or pick a row from the history below."
+            />
+          )}
         </section>
         <section className="panel workspace-grid-full">
           <HistoryHeader

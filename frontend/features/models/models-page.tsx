@@ -7,7 +7,18 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { formatDatasetTask, labelColor } from "@/features/platform/utils";
-import { CardGridSkeleton, EmptyState, Field, Metric, MutationError, PageHeader, PanelTitle, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
+import {
+  ButtonLink,
+  CardGridSkeleton,
+  EmptyState,
+  Field,
+  Metric,
+  MutationError,
+  PageHeader,
+  PanelTitle,
+  StatusBadge,
+  useConfirmationDialog
+} from "@/features/platform/ui";
 import type { ModelInfo } from "@/types/api";
 
 export function ModelsPage() {
@@ -163,7 +174,19 @@ export function ModelsPage() {
                 </article>
               );
             })}
-            {models.length === 0 && <EmptyState label="No trained models yet." icon={<Boxes size={30} />} centered description="Create a project and train a model to see it here. You can also upload custom model weights." />}
+            {models.length === 0 && (
+              <EmptyState
+                label="No trained models yet"
+                icon={<Boxes size={30} />}
+                centered
+                description="Train a model on one of your dataset versions to see it here. You can also upload custom model weights."
+                action={
+                  <ButtonLink href="/training">
+                    <Activity size={16} /> Run a training job
+                  </ButtonLink>
+                }
+              />
+            )}
           </div>
         )}
         <MutationError mutations={[renameModel, deleteModel]} />

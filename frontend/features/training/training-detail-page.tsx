@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { TrainingDetails } from "@/features/training/training-components";
 import { activePollInterval, isActiveStatus } from "@/features/platform/utils";
-import { MutationError, PageHeader, PageSkeleton, ProgressPanel, useConfirmationDialog } from "@/features/platform/ui";
+import { Button, ButtonLink, MutationError, PageHeader, PageSkeleton, ProgressPanel, useConfirmationDialog } from "@/features/platform/ui";
 import type { TrainingJob } from "@/types/api";
 
 export function TrainingDetailPage({ jobId }: { jobId: string }) {
@@ -46,14 +46,19 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
         <section className="panel space-y-5">
           <div className="flex flex-wrap gap-2">
             {isActiveStatus(job.status) && (
-              <button className="secondary-button" onClick={() => confirmCancelTrainingJob(job)}>
+              <Button variant="secondary" onClick={() => confirmCancelTrainingJob(job)}>
                 <StopCircle size={16} /> Cancel
-              </button>
+              </Button>
             )}
             {job.status === "completed" && Boolean(job.artifacts?.best_model) && !job.promoted_model_id && (
-              <button className="secondary-button" onClick={() => promoteMutation.mutate(job.id)}>
+              <Button variant="secondary" onClick={() => promoteMutation.mutate(job.id)}>
                 Promote
-              </button>
+              </Button>
+            )}
+            {job.status === "completed" && (
+              <ButtonLink variant="secondary" href="/testing">
+                Test this model
+              </ButtonLink>
             )}
           </div>
           <ProgressPanel progress={job.progress} status={job.status} error={job.error} />

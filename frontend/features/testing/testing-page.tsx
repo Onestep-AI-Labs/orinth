@@ -7,7 +7,19 @@ import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TestingComparison, TestingJobTable } from "@/features/testing/testing-components";
 import { NLP_TASK_TYPES, VISION_TASK_TYPES, areTasksCompatible, formatDatasetTask, listPollInterval } from "@/features/platform/utils";
-import { CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, TableSkeleton, toggleId, useConfirmationDialog } from "@/features/platform/ui";
+import {
+  ButtonLink,
+  CardGridSkeleton,
+  EmptyState,
+  Field,
+  HistoryHeader,
+  MutationError,
+  PageHeader,
+  PanelTitle,
+  TableSkeleton,
+  toggleId,
+  useConfirmationDialog
+} from "@/features/platform/ui";
 import type { EvaluationJob, TaskType } from "@/types/api";
 
 export function TestingPage() {
@@ -162,7 +174,18 @@ export function TestingPage() {
                   <span>{model.name}</span>
                 </label>
               ))}
-              {models.length === 0 && <EmptyState label="No trained models available" icon={<FlaskConical size={28} />} />}
+              {models.length === 0 && (
+                <EmptyState
+                  label="No trained models available"
+                  icon={<FlaskConical size={28} />}
+                  description="Finish a training run to evaluate it here."
+                  action={
+                    <ButtonLink variant="secondary" size="sm" href="/training">
+                      Go to training
+                    </ButtonLink>
+                  }
+                />
+              )}
             </div>
           </Field>
           <Field label="Dataset">

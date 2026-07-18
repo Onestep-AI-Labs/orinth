@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Database, FilePlus2, FolderOpen, MoreVertical, Save, Trash2, X } from "lucide-react";
@@ -8,7 +7,18 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { formatDatasetTask } from "@/features/platform/utils";
-import { CardGridSkeleton, EmptyState, Field, MutationError, PageHeader, PanelTitle, useConfirmationDialog } from "@/features/platform/ui";
+import {
+  Button,
+  ButtonLink,
+  CardGridSkeleton,
+  EmptyState,
+  Field,
+  IconButton,
+  MutationError,
+  PageHeader,
+  PanelTitle,
+  useConfirmationDialog
+} from "@/features/platform/ui";
 import type { ProjectSummary } from "@/types/api";
 
 const DEFAULT_PROJECT_ID = "default-research-project";
@@ -71,9 +81,9 @@ export function ProjectLandingPage() {
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <PanelTitle icon={<Database size={18} />} title="Project List" />
-          <Link className="primary-button" href="/projects/new">
+          <ButtonLink href="/projects/new">
             <FilePlus2 size={16} /> New Project
-          </Link>
+          </ButtonLink>
         </div>
         {projectsLoading ? (
           <CardGridSkeleton count={3} />
@@ -96,15 +106,13 @@ export function ProjectLandingPage() {
                   </div>
                 </button>
                 <div className="card-menu">
-                  <button
-                    className="icon-button"
+                  <IconButton
+                    aria-label="Project options"
                     onClick={() => setOpenMenuId((value) => (value === project.id ? "" : project.id))}
-                    title="Project options"
-                    type="button"
                     aria-expanded={openMenuId === project.id}
                   >
                     <MoreVertical size={16} />
-                  </button>
+                  </IconButton>
                   {openMenuId === project.id && (
                     <div className="option-menu" role="menu">
                       <button type="button" onClick={() => openProject(project.id)}>
@@ -138,18 +146,29 @@ export function ProjectLandingPage() {
                       />
                     </Field>
                     <div className="card-rename-actions">
-                      <button className="primary-button" onClick={saveProjectRename} disabled={!renameProjectDraft.trim() || updateProject.isPending}>
+                      <Button onClick={saveProjectRename} disabled={!renameProjectDraft.trim() || updateProject.isPending}>
                         <Save size={16} /> Save
-                      </button>
-                      <button className="secondary-button" onClick={() => setRenameProjectId("")}>
+                      </Button>
+                      <Button variant="secondary" onClick={() => setRenameProjectId("")}>
                         <X size={16} /> Cancel
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
               </article>
             ))}
-            {projects.length === 0 && <EmptyState label="No projects" />}
+            {projects.length === 0 && (
+              <EmptyState
+                centered
+                label="No projects yet"
+                description="A project holds your datasets, training runs, and results."
+                action={
+                  <ButtonLink href="/projects/new">
+                    <FilePlus2 size={16} /> Create your first project
+                  </ButtonLink>
+                }
+              />
+            )}
           </div>
         )}
         <MutationError mutations={[updateProject, deleteProject]} />
