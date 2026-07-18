@@ -27,5 +27,5 @@ def update_project(
 
 @router.delete("/{project_id}", response_model=DeleteResponse)
 def delete_project(project_id: str, db: Session = Depends(get_db)) -> DeleteResponse:
-    has_datasets = bool(dataset_service.list_datasets(project_id))
-    return project_service.delete_project(db, project_id, has_datasets)
+    dataset_count = len(dataset_service.list_datasets(project_id))
+    return project_service.delete_project(db, project_id, dataset_count)

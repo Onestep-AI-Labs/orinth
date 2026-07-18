@@ -5,7 +5,7 @@ from fastapi import HTTPException
 
 from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_TASK_TYPES
 from app.core.database import Base
-from app.db.models import Project
+from app.db.models import Project, TrainingJob
 from app.schemas import ProjectCreate
 from app.services.projects import ProjectService
 
@@ -41,6 +41,28 @@ def test_project_service_creates_default_and_user_project(tmp_path):
         with pytest.raises(HTTPException) as exc:
             service.delete_project(db, DEFAULT_PROJECT_ID)
         assert exc.value.status_code == 409
+    finally:
+        db.close()
+
+
+def test_delete_project_reports_specific_blockers(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'projects-blockers.db'}")
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine)
+    db = session_local()
+    service = ProjectService()
+
+    try:
+        created = service.create_project(db, ProjectCreate(name="Blocked Project"))
+        db.add(TrainingJob(id="job-1", project_id=created.id, model_family="yolo"))
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc:
+            service.delete_project(db, created.id, dataset_count=2)
+        assert exc.value.status_code == 409
+        assert exc.value.detail == (
+            "This project still has 2 datasets and 1 training job. Delete those first."
+        )
     finally:
         db.close()
 
