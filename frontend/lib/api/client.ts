@@ -32,6 +32,32 @@ export async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T>
   return response.json() as Promise<T>;
 }
 
+export class ApiValidationError extends Error {
+  constructor(path: string, issues: Array<{ path: PropertyKey[]; message: string }>) {
+    const summary = issues
+      .slice(0, 3)
+      .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+      .join("; ");
+    super(`Unexpected response from ${path} — ${summary}`);
+    this.name = "ApiValidationError";
+  }
+}
+
+type SchemaLike = {
+  safeParse: (data: unknown) =>
+    | { success: true }
+    | { success: false; error: { issues: Array<{ path: PropertyKey[]; message: string }> } };
+};
+
+export async function jsonFetchChecked<T>(path: string, schema: SchemaLike, init?: RequestInit): Promise<T> {
+  const data = await jsonFetch<T>(path, init);
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    throw new ApiValidationError(path, result.error.issues);
+  }
+  return data;
+}
+
 export function query(params: Record<string, string | number | null | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {

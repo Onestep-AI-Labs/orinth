@@ -1,6 +1,7 @@
 import type { TaskType } from "@/types/api";
 import type { components } from "@/types/generated/api";
-import { jsonFetch, query } from "@/lib/api/client";
+import { jsonFetch, jsonFetchChecked, query } from "@/lib/api/client";
+import { jobListSchema, jobWithProgressSchema } from "@/lib/api/schemas";
 
 type EvaluationDataset = components["schemas"]["EvaluationDatasetInfo"];
 type EvaluationJob = components["schemas"]["EvaluationJobRead"];
@@ -12,8 +13,8 @@ export const testingApi = {
   datasets: (projectId?: string, taskType?: TaskType) =>
     jsonFetch<EvaluationDataset[]>(`/testing/datasets${query({ project_id: projectId, task_type: taskType })}`),
   testingJobs: (projectId?: string) =>
-    jsonFetch<EvaluationJob[]>(`/testing/jobs${query({ project_id: projectId })}`),
-  testingJob: (jobId: string) => jsonFetch<EvaluationJob>(`/testing/jobs/${jobId}`),
+    jsonFetchChecked<EvaluationJob[]>(`/testing/jobs${query({ project_id: projectId })}`, jobListSchema),
+  testingJob: (jobId: string) => jsonFetchChecked<EvaluationJob>(`/testing/jobs/${jobId}`, jobWithProgressSchema),
   testingComparison: (jobId: string) =>
     jsonFetch<EvaluationComparison>(`/testing/jobs/${jobId}/comparison`),
   testingPerImage: (jobId: string) =>

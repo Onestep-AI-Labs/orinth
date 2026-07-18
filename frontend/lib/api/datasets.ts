@@ -1,6 +1,7 @@
 import type { DatasetFormat, TaskType } from "@/types/api";
 import type { components } from "@/types/generated/api";
-import { jsonFetch, query } from "@/lib/api/client";
+import { jsonFetch, jsonFetchChecked, query } from "@/lib/api/client";
+import { datasetItemPageSchema } from "@/lib/api/schemas";
 
 type DatasetSummary = components["schemas"]["DatasetSummary"];
 type DatasetPreprocessConfig = components["schemas"]["DatasetPreprocessConfig"];
@@ -94,14 +95,15 @@ export const datasetsApi = {
     datasetId: string,
     params: { split: string; class_name?: string; unlabeled?: boolean; limit?: number; offset?: number }
   ) =>
-    jsonFetch<DatasetItemPage>(
+    jsonFetchChecked<DatasetItemPage>(
       `/datasets/${datasetId}/items${query({
         split: params.split,
         class_name: params.class_name,
         unlabeled: params.unlabeled ? "true" : undefined,
         limit: params.limit ?? 240,
         offset: params.offset
-      })}`
+      })}`,
+      datasetItemPageSchema
     ),
   datasetItem: (datasetId: string, split: string, itemId: string) =>
     jsonFetch<DatasetItemDetail>(
