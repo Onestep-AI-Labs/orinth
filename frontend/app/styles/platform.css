@@ -1,15 +1,3 @@
-.app-shell,
-:root {
-  /* Legacy aliases — canonical tokens live in app/globals.css. */
-  --ov-ink: var(--color-ink);
-  --ov-navy: var(--color-navy);
-  --ov-teal: var(--color-teal);
-  --ov-green: var(--color-green);
-  --ov-coral: var(--color-coral);
-  --ov-mist: var(--color-canvas);
-  --ov-line: var(--color-line);
-}
-
 .app-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
