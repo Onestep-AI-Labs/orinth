@@ -84,10 +84,9 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 
 | Component | Variants | Notes |
 |---|---|---|
-| `Button` | `primary` (teal) · `secondary` (outline) · `ghost` · `danger` (coral) × `sm` `md` | One primary per view region; renders `<button>` or `Link` |
-| `IconButton` | `sm` `md` | Always has `aria-label` |
+| `Button` | `primary` (teal) · `secondary` (outline) · `ghost` · `danger` (coral) × `sm` `md` | One primary per view region; `ButtonLink` is the same style over `next/link` |
+| `IconButton` | `danger?` | Always has `aria-label` |
 | `Badge` | tone: `neutral` `ok` `warn` `fail` `info` | tint background + strong text pair from one hue family |
-| `Chip` | `neutral` `accent` | Metadata, filters |
 | `Panel` / cards | — | `--surface`, hairline `--line`, `--radius-lg`, `--shadow-card`, micro-label metadata row |
 | `EmptyState` | with `action` | Every empty state names the next step and links to it |
 | `StatusBadge` | job states | Maps run states to Badge tones |

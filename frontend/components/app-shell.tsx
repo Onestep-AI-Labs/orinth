@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { IconButton } from "@/features/platform/ui";
 import type { ProjectSummary } from "@/types/api";
 
 const DEFAULT_PROJECT_ID = "default-research-project";
@@ -177,9 +178,9 @@ function ProjectSidebar({
   if (!open) {
     return (
       <aside className="sidebar sidebar-project sidebar-project-collapsed">
-        <button className="icon-button" onClick={() => setOpen(true)} title="Open project sidebar" type="button">
+        <IconButton aria-label="Open project sidebar" onClick={() => setOpen(true)}>
           <ChevronsRight size={17} />
-        </button>
+        </IconButton>
         <nav className="side-nav side-nav-icons">
           <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} iconOnly>
             Datasets
@@ -208,9 +209,9 @@ function ProjectSidebar({
           <ArrowLeft size={16} />
           <span>Projects</span>
         </Link>
-        <button className="icon-button" onClick={() => setOpen(false)} title="Close project sidebar" type="button">
+        <IconButton aria-label="Close project sidebar" onClick={() => setOpen(false)}>
           <ChevronsLeft size={17} />
-        </button>
+        </IconButton>
       </div>
       <div className="project-sidebar-title">
         <strong title={project?.name ?? "Project"}>{project?.name ?? "Project"}</strong>

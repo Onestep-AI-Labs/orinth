@@ -1826,6 +1826,7 @@ button.task-choice {
 
 .primary-button,
 .secondary-button,
+.ghost-button,
 .icon-button,
 .danger-button {
   display: inline-flex;
@@ -1837,7 +1838,24 @@ button.task-choice {
   min-height: 40px;
   padding: 0 14px;
   font-weight: 600;
+  text-decoration: none;
   transition: background-color 150ms ease-out, border-color 150ms ease-out, filter 150ms ease-out;
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--color-ink-muted);
+}
+
+.ghost-button:hover:not(:disabled) {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+.button-sm {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 13px;
 }
 
 .primary-button {
@@ -1861,6 +1879,7 @@ button.task-choice {
 
 .primary-button:focus-visible,
 .secondary-button:focus-visible,
+.ghost-button:focus-visible,
 .danger-button:focus-visible,
 .icon-button:focus-visible,
 .nav-link:focus-visible,
@@ -2747,6 +2766,10 @@ tr:last-child td {
   color: var(--color-ink-subtle);
   text-align: center;
   font-weight: 700;
+}
+
+.empty-state-action {
+  margin-top: 6px;
 }
 
 .empty-state-centered {

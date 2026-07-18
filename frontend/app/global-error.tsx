@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+// Intentionally token-free: this boundary must render even when the CSS
+// bundle fails. Values mirror the hex fallbacks in frontend/DESIGN.md.
 export default function GlobalError({
   error,
   reset
@@ -19,8 +21,8 @@ export default function GlobalError({
         style={{
           margin: 0,
           fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-          background: "#f6f8fb",
-          color: "#111b2b"
+          background: "#f5f7f9",
+          color: "#1f2933"
         }}
       >
         <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
@@ -29,7 +31,7 @@ export default function GlobalError({
               maxWidth: 420,
               width: "100%",
               border: "1px solid #d7dde5",
-              borderRadius: 8,
+              borderRadius: 12,
               background: "#ffffff",
               padding: 24
             }}
@@ -51,7 +53,7 @@ export default function GlobalError({
               >
                 !
               </span>
-              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Application error</h1>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Application error</h1>
             </div>
             <p style={{ margin: "0 0 4px", fontSize: 13, color: "#66788a" }}>
               A critical error stopped the app from rendering.
@@ -69,8 +71,8 @@ export default function GlobalError({
                 borderRadius: 6,
                 minHeight: 40,
                 padding: "0 14px",
-                fontWeight: 700,
-                background: "#1f2933",
+                fontWeight: 600,
+                background: "#0f766e",
                 color: "#ffffff",
                 cursor: "pointer"
               }}
