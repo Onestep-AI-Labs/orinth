@@ -1,9 +1,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ButtonLink } from "@/features/platform/ui";
+import { CodeBlock } from "./code-block";
 import { SIGN_IN_HREF } from "./routes";
 
 const REPO_HREF = "https://github.com/L007/onestep-ai-platform";
+
+/** One string, so what renders and what gets copied cannot drift. */
+const QUICKSTART = `cp .env.example .env
+cp frontend/.env.example frontend/.env.local
+
+# verify uv, pnpm, Python 3.11, Node
+make doctor
+
+# backend :8000 + frontend :3000
+make dev`;
 
 /**
  * Every claim on this page is traceable to README.md or docs/ai/rules.md. No
@@ -236,26 +247,7 @@ export function LandingPage() {
                 .
               </p>
             </div>
-            <pre className="landing-code">
-              <code>
-                {`cp .env.example .env
-cp frontend/.env.example frontend/.env.local
-
-`}
-                <span className="landing-code-comment">
-                  {`# verify uv, pnpm, Python 3.11, Node
-`}
-                </span>
-                {`make doctor
-
-`}
-                <span className="landing-code-comment">
-                  {`# backend :8000 + frontend :3000
-`}
-                </span>
-                {`make dev`}
-              </code>
-            </pre>
+            <CodeBlock code={QUICKSTART} label="quickstart commands" />
           </div>
         </section>
 

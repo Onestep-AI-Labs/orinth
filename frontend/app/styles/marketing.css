@@ -389,10 +389,15 @@ html:has(.signin) body {
   gap: clamp(2rem, 5vw, 4rem);
 }
 
+.landing-code-wrap {
+  position: relative;
+}
+
 .landing-code {
   margin: 0;
   overflow-x: auto;
-  padding: 20px;
+  /* Right padding clears the copy control so a long line never runs under it. */
+  padding: 20px 96px 20px 20px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background: var(--color-surface-2);
@@ -402,8 +407,49 @@ html:has(.signin) body {
   line-height: 1.8;
 }
 
-.landing-code .landing-code-comment {
-  color: var(--color-ink-subtle);
+/*
+ * Three token roles, no more. A conventional highlighter theme would put five
+ * or six hues on the page and blow the single-accent budget (DESIGN.md §2);
+ * command / argument / comment is the whole grammar these snippets have.
+ *
+ * Comments are --ink-muted rather than --ink-subtle: §9 bars --ink-subtle below
+ * 18px on any surface darker than --surface, and this block sits on --surface-2.
+ */
+.landing-code-line {
+  display: block;
+}
+
+.landing-code-command {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.landing-code-plain {
+  color: var(--color-ink);
+}
+
+.landing-code-comment {
+  color: var(--color-ink-muted);
+}
+
+.landing-code-copy {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+}
+
+@media (max-width: 40rem) {
+  .landing-code {
+    padding: 56px 16px 16px;
+  }
+
+  /* Stacked above the code on a phone, where a corner control would crowd it. */
+  .landing-code-copy {
+    top: 10px;
+    left: 12px;
+    right: auto;
+  }
 }
 
 /* ---------------------------------------------------------------------------
