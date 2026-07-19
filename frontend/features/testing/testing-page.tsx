@@ -13,11 +13,11 @@ import {
   EmptyState,
   Field,
   HistoryHeader,
+  MultiSelect,
   MutationError,
   PageHeader,
   PanelTitle,
   TableSkeleton,
-  toggleId,
   useConfirmationDialog
 } from "@/features/platform/ui";
 import type { EvaluationJob, TaskType } from "@/types/api";
@@ -160,30 +160,28 @@ export function TestingPage() {
             </select>
           </Field>
           <Field label="Models">
-            <div className="choice-list">
-              {models.map((model) => (
-                <label key={model.id}>
-                  <input
-                    type="checkbox"
-                    checked={modelIds.includes(model.id)}
-                    onChange={(event) => toggleId(model.id, event.target.checked, modelIds, setModelIds)}
-                  />
-                  <span>{model.name}</span>
-                </label>
-              ))}
-              {models.length === 0 && (
-                <EmptyState
-                  label="No trained models available"
-                  icon={<FlaskConical size={28} />}
-                  description="Finish a training run to evaluate it here."
-                  action={
-                    <ButtonLink variant="secondary" size="sm" href="/training">
-                      Go to training
-                    </ButtonLink>
-                  }
-                />
-              )}
-            </div>
+            {models.length === 0 ? (
+              <EmptyState
+                label="No trained models available"
+                icon={<FlaskConical size={28} />}
+                description="Finish a training run to evaluate it here."
+                action={
+                  <ButtonLink variant="secondary" size="sm" href="/training">
+                    Go to training
+                  </ButtonLink>
+                }
+              />
+            ) : (
+              // Several models can be tested against one dataset to produce a
+              // comparison run, so this stays multi-select — just closed by
+              // default instead of an always-open list.
+              <MultiSelect
+                options={models.map((model) => ({ value: model.id, label: model.name }))}
+                values={modelIds}
+                onChange={setModelIds}
+                placeholder="Choose one or more models…"
+              />
+            )}
           </Field>
           <Field label="Dataset">
             <select value={datasetKey} onChange={(event) => setDatasetKey(event.target.value)}>

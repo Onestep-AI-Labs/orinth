@@ -1536,6 +1536,68 @@ button.task-choice {
   accent-color: var(--color-accent);
 }
 
+/* Multi-select dropdown: reads as a select when closed, checkboxes when open. */
+.multiselect {
+  position: relative;
+}
+
+.multiselect-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  color: var(--color-ink);
+  text-align: left;
+  transition: border-color 150ms ease-out;
+}
+
+.multiselect-trigger:disabled {
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+.multiselect-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multiselect-placeholder {
+  color: var(--color-ink-subtle);
+}
+
+.multiselect-panel {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+.multiselect-panel .choice-list {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 0;
+}
+
+.multiselect-hint {
+  display: block;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .choice-list {
   display: grid;
   max-height: 220px;
