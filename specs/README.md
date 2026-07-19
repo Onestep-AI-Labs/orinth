@@ -25,4 +25,6 @@ Use a spec when:
 - `phase-3-training.md`
 - `phase-4-dataset-studio.md`
 - `phase-5-image-platform-mvp.md`
+- `phase-6-nlp-tasks.md`
+- `phase-7-frontend-ui-revamp.md`
 - `SPEC_TEMPLATE.md`

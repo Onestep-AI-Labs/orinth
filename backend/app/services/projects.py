@@ -61,17 +61,18 @@ class ProjectService:
         return project_read(project)
 
     def delete_project(
-        self, db: Session, project_id: str, has_datasets: bool = False
+        self, db: Session, project_id: str, dataset_count: int = 0
     ) -> DeleteResponse:
         if project_id == DEFAULT_PROJECT_ID:
             raise HTTPException(status_code=409, detail="Default project cannot be deleted")
         project = db.get(Project, project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
-        if has_datasets or self._has_project_history(db, project_id):
+        blockers = self._describe_project_blockers(db, project_id, dataset_count)
+        if blockers:
             raise HTTPException(
                 status_code=409,
-                detail="Project still has datasets or history. Delete those first.",
+                detail=f"This project still has {_join_with_and(blockers)}. Delete those first.",
             )
         db.delete(project)
         db.commit()
@@ -107,14 +108,35 @@ class ProjectService:
         slug = "-".join(part for part in slug.split("-") if part)[:44] or "project"
         return f"{slug}-{uuid4().hex[:8]}"
 
-    def _has_project_history(self, db: Session, project_id: str) -> bool:
-        for model in (InferenceRun, InferenceJob, EvaluationJob, TrainingJob):
+    def _describe_project_blockers(
+        self, db: Session, project_id: str, dataset_count: int
+    ) -> list[str]:
+        blockers = []
+        if dataset_count:
+            blockers.append(_pluralize(dataset_count, "dataset"))
+        job_labels = (
+            (InferenceRun, "inference result"),
+            (InferenceJob, "inference job"),
+            (EvaluationJob, "testing job"),
+            (TrainingJob, "training job"),
+        )
+        for model, label in job_labels:
             count = db.scalar(
                 select(func.count()).select_from(model).where(model.project_id == project_id)
             )
             if count:
-                return True
-        return False
+                blockers.append(_pluralize(count, label))
+        return blockers
+
+
+def _pluralize(count: int, noun: str) -> str:
+    return f"{count} {noun}{'' if count == 1 else 's'}"
+
+
+def _join_with_and(parts: list[str]) -> str:
+    if len(parts) <= 1:
+        return "".join(parts)
+    return f"{', '.join(parts[:-1])} and {parts[-1]}"
 
 
 def project_read(project: Project) -> ProjectSummary:

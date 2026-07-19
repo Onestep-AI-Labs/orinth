@@ -19,4 +19,8 @@ Claude slash commands are available in `.claude/commands/`:
 - `/implement-spec`
 - `/review-change`
 
+Project skills are available in `.claude/skills/`:
+
+- `/frontend-design` — required for any UI or styling work; enforces `frontend/DESIGN.md`.
+
 Follow the repository rules in `AGENTS.md`. Keep specs current when implementation details change.

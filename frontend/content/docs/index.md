@@ -1,6 +1,6 @@
 # Overview
 
-![license](https://img.shields.io/badge/license-Apache%202.0-blue)
+License: Apache 2.0
 
 **One workspace for image and NLP intelligence.**
 

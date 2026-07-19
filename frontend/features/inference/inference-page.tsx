@@ -8,7 +8,22 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { NLP_TASK_TYPES, VISION_TASK_TYPES, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
-import { CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, ProgressPanel, SliderField, TableSkeleton, toggleId, useConfirmationDialog } from "@/features/platform/ui";
+import {
+  Button,
+  ButtonLink,
+  CardGridSkeleton,
+  EmptyState,
+  Field,
+  HistoryHeader,
+  MutationError,
+  PageHeader,
+  PanelTitle,
+  ProgressPanel,
+  SliderField,
+  TableSkeleton,
+  toggleId,
+  useConfirmationDialog
+} from "@/features/platform/ui";
 import type { InferenceJob, InferenceResult, ModelInfo, TaskType } from "@/types/api";
 
 function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; modelsLoading?: boolean }) {
@@ -67,11 +82,10 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   });
 
   useEffect(() => {
-    if (models.length > 0 && !models.some((model) => model.task_type === taskType)) {
-      setTaskType(models[0].task_type);
+    if (taskOptions.length > 0 && !taskOptions.includes(taskType)) {
+      setTaskType(taskOptions[0]);
     }
-    if (!taskOptions.includes(taskType) && taskOptions.length > 0) setTaskType(taskOptions[0]);
-  }, [models, taskOptions, taskType]);
+  }, [taskOptions, taskType]);
 
   useEffect(() => {
     if (taskModels.length === 0) {
@@ -86,7 +100,12 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
       setResult(jobQuery.data.result);
       historyQuery.refetch();
     }
-  }, [jobQuery.data?.result, historyQuery]);
+    // historyQuery is a new object reference on every render (React Query
+    // does not guarantee referential stability of the result object), so
+    // depending on it here would refetch history on every unrelated
+    // re-render instead of only when a job result actually arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobQuery.data?.result]);
 
   async function runInference() {
     if ((!file && !nlp) || (!textContent.trim() && nlp) || !selectedModel) return;
@@ -146,7 +165,11 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
                 </option>
               ))}
             </select>
-            {taskModels.length === 0 && <span className="field-hint">No available models for this task.</span>}
+            {taskModels.length === 0 && (
+              <span className="field-hint">
+                No available models yet — <ButtonLink variant="ghost" size="sm" href="/training">train one</ButtonLink>
+              </span>
+            )}
           </Field>
           {selectedModelInfo && (
             <div className="inference-model-meta">
@@ -177,15 +200,23 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
               <SliderField label="IoU" value={iou} min={0} max={1} step={0.01} onChange={setIou} />
             </>
           )}
-          <button className="primary-button mt-2 w-full" disabled={(!file && !nlp) || (nlp && !textContent.trim()) || !selectedModel || inferenceMutation.isPending} onClick={runInference}>
+          <Button className="mt-2 w-full" disabled={(!file && !nlp) || (nlp && !textContent.trim()) || !selectedModel || inferenceMutation.isPending} onClick={runInference}>
             <Play size={17} /> Run inference
-          </button>
+          </Button>
           {inferenceMutation.error && <p className="error-text">{inferenceMutation.error.message}</p>}
           {jobQuery.data && <ProgressPanel progress={jobQuery.data.progress} status={jobQuery.data.status} error={jobQuery.data.error} />}
         </section>
         <section className="panel min-h-[520px]">
           <PanelTitle icon={<ScanEye size={18} />} title="Result" />
-          {result ? <InferenceResultView result={result} modelNameById={modelNameById} /> : <EmptyState label="No result selected" icon={<ScanEye size={28} />} />}
+          {result ? (
+            <InferenceResultView result={result} modelNameById={modelNameById} />
+          ) : (
+            <EmptyState
+              label="No result selected"
+              icon={<ScanEye size={28} />}
+              description="Run an inference or pick a row from the history below."
+            />
+          )}
         </section>
         <section className="panel workspace-grid-full">
           <HistoryHeader

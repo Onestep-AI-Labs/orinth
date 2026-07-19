@@ -41,6 +41,11 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
         self.storage = storage
 
     def list_datasets(self, project_id: str | None = None) -> list[DatasetSummary]:
+        """Datasets *visible* to a project: its own, plus the shared read-only samples.
+
+        Use :meth:`count_owned_datasets` for ownership questions — the shared samples
+        are visible everywhere and must never count against a project.
+        """
         summaries = [self.summary(location.id) for location in self._locations()]
         if project_id:
             summaries = [
@@ -49,6 +54,18 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
                 if dataset.project_id == project_id or dataset.id.startswith("sample_")
             ]
         return summaries
+
+    def count_owned_datasets(self, project_id: str) -> int:
+        """Datasets a project actually owns and could delete.
+
+        Excludes the shared ``sample_*`` datasets and the read-only reference
+        datasets, which are surfaced in every project but belong to none.
+        """
+        return sum(
+            1
+            for location in self._locations()
+            if location.project_id == project_id and location.editable
+        )
 
     def summary(self, dataset_id: str) -> DatasetSummary:
         location = self._location(dataset_id)

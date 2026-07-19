@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
+import { toast } from "@/features/platform/toast";
 import { TRAINING_SPLITS } from "@/features/platform/constants";
 import { preprocessFromDataset, splitConfigFromDataset } from "@/features/platform/utils";
 import type {
@@ -51,7 +52,8 @@ export function useDatasetItemsQuery(
         limit: imagesPerPage,
         offset: imagePage * imagesPerPage
       }),
-    enabled: Boolean(datasetId)
+    enabled: Boolean(datasetId),
+    placeholderData: keepPreviousData
   });
 }
 
@@ -87,6 +89,24 @@ export function useDatasetEdaQuery(datasetId: string | undefined, split: Dataset
 // ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
+
+export type SelectedDatasetItem = { id: string; split: SplitKey };
+
+/**
+ * Multi-select actions operate under the "all" filter, where selected items
+ * can span several real splits even though the batch endpoints take one
+ * split per call. Group by each item's actual split (captured at selection
+ * time) and issue one request per group.
+ */
+function groupBySplit(items: SelectedDatasetItem[]): Map<SplitKey, string[]> {
+  const groups = new Map<SplitKey, string[]>();
+  for (const item of items) {
+    const ids = groups.get(item.split);
+    if (ids) ids.push(item.id);
+    else groups.set(item.split, [item.id]);
+  }
+  return groups;
+}
 
 export function useCreateDatasetMutation(options: {
   openDataset: (datasetId: string) => void;
@@ -174,6 +194,9 @@ export function useUploadDatasetMutation(options: {
         options.setSelectedItemId(lastItem.id);
         options.setSelectedItemSplit(lastItem.split);
       }
+      if (result.uploaded.length > 0) {
+        toast.success(`${result.uploaded.length} ${result.uploaded.length === 1 ? "file" : "files"} added — annotate them next`);
+      }
       await Promise.all([
         options.itemsQuery.refetch(),
         options.catalogQuery.refetch(),
@@ -184,8 +207,8 @@ export function useUploadDatasetMutation(options: {
 }
 
 export function useDeleteDatasetItemsMutation(options: {
-  split: DatasetSplitFilter;
   setSelectedItemIds: (ids: string[]) => void;
+  setSelectedItemSplits: (splits: Record<string, SplitKey>) => void;
   setSelectedItemId: (id: string) => void;
   setSelectedItemSplit: (split: SplitKey | "") => void;
   itemsQuery: UseQueryResult<DatasetItemPage>;
@@ -193,10 +216,22 @@ export function useDeleteDatasetItemsMutation(options: {
   edaQuery: UseQueryResult<DatasetEdaSummary>;
 }) {
   return useMutation({
-    mutationFn: ({ datasetId, ids }: { datasetId: string; ids: string[] }) =>
-      api.deleteDatasetItems(datasetId, { split: options.split === "all" ? "unassigned" : options.split, ids }),
+    mutationFn: async ({ datasetId, items }: { datasetId: string; items: SelectedDatasetItem[] }) => {
+      const groups = groupBySplit(items);
+      const responses = await Promise.all(
+        Array.from(groups.entries()).map(([split, ids]) => api.deleteDatasetItems(datasetId, { split, ids }))
+      );
+      return responses.reduce(
+        (total, response) => ({
+          deleted: total.deleted + response.deleted,
+          missing: [...total.missing, ...(response.missing ?? [])]
+        }),
+        { deleted: 0, missing: [] as string[] }
+      );
+    },
     onSuccess: async () => {
       options.setSelectedItemIds([]);
+      options.setSelectedItemSplits({});
       options.setSelectedItemId("");
       options.setSelectedItemSplit("");
       await Promise.all([
@@ -209,15 +244,35 @@ export function useDeleteDatasetItemsMutation(options: {
 }
 
 export function useBulkLabelDatasetItemsMutation(options: {
-  split: DatasetSplitFilter;
   itemsQuery: UseQueryResult<DatasetItemPage>;
   detailQuery: UseQueryResult<DatasetItemDetail>;
   catalogQuery: UseQueryResult<DatasetSummary[]>;
   edaQuery: UseQueryResult<DatasetEdaSummary>;
 }) {
   return useMutation({
-    mutationFn: ({ datasetId, ids, classId }: { datasetId: string; ids: string[]; classId: number }) =>
-      api.updateDatasetItemLabels(datasetId, options.split === "all" ? "unassigned" : options.split, { ids, class_id: classId }),
+    mutationFn: async ({
+      datasetId,
+      items,
+      classId
+    }: {
+      datasetId: string;
+      items: SelectedDatasetItem[];
+      classId: number;
+    }) => {
+      const groups = groupBySplit(items);
+      const responses = await Promise.all(
+        Array.from(groups.entries()).map(([split, ids]) =>
+          api.updateDatasetItemLabels(datasetId, split, { ids, class_id: classId })
+        )
+      );
+      return responses.reduce(
+        (total, response) => ({
+          updated: total.updated + response.updated,
+          missing: [...total.missing, ...(response.missing ?? [])]
+        }),
+        { updated: 0, missing: [] as string[] }
+      );
+    },
     onSuccess: async () => {
       await Promise.all([
         options.itemsQuery.refetch(),
@@ -291,6 +346,7 @@ export function useProcessDatasetMutation(options: {
   setSplitConfig: (value: DatasetSplitConfig) => void;
   setSplit: (value: DatasetSplitFilter) => void;
   setSelectedItemIds: (ids: string[]) => void;
+  setSelectedItemSplits: (splits: Record<string, SplitKey>) => void;
   catalogQuery: UseQueryResult<DatasetSummary[]>;
   itemsQuery: UseQueryResult<DatasetItemPage>;
   edaQuery: UseQueryResult<DatasetEdaSummary>;
@@ -303,6 +359,8 @@ export function useProcessDatasetMutation(options: {
       options.setSplitConfig(splitConfigFromDataset(result.dataset));
       options.setSplit("train");
       options.setSelectedItemIds([]);
+      options.setSelectedItemSplits({});
+      toast.success("Dataset version generated", { action: { label: "Start training", href: "/training" } });
       await Promise.all([
         options.catalogQuery.refetch(),
         options.itemsQuery.refetch(),
@@ -313,22 +371,39 @@ export function useProcessDatasetMutation(options: {
 }
 
 export function useMoveDatasetItemsMutation(options: {
-  split: DatasetSplitFilter;
-  selectedItemIds: string[];
   setSelectedItemIds: (ids: string[]) => void;
+  setSelectedItemSplits: (splits: Record<string, SplitKey>) => void;
   itemsQuery: UseQueryResult<DatasetItemPage>;
   catalogQuery: UseQueryResult<DatasetSummary[]>;
   edaQuery: UseQueryResult<DatasetEdaSummary>;
 }) {
   return useMutation({
-    mutationFn: ({ datasetId, target }: { datasetId: string; target: SplitKey }) =>
-      api.moveDatasetItems(datasetId, {
-        source_split: options.split === "all" ? "unassigned" : options.split,
-        target_split: target,
-        ids: options.selectedItemIds
-      }),
+    mutationFn: async ({
+      datasetId,
+      items,
+      target
+    }: {
+      datasetId: string;
+      items: SelectedDatasetItem[];
+      target: SplitKey;
+    }) => {
+      const groups = groupBySplit(items.filter((item) => item.split !== target));
+      const responses = await Promise.all(
+        Array.from(groups.entries()).map(([split, ids]) =>
+          api.moveDatasetItems(datasetId, { source_split: split, target_split: target, ids })
+        )
+      );
+      return responses.reduce(
+        (total, response) => ({
+          moved: total.moved + response.moved,
+          missing: [...total.missing, ...(response.missing ?? [])]
+        }),
+        { moved: 0, missing: [] as string[] }
+      );
+    },
     onSuccess: async () => {
       options.setSelectedItemIds([]);
+      options.setSelectedItemSplits({});
       await Promise.all([
         options.itemsQuery.refetch(),
         options.catalogQuery.refetch(),

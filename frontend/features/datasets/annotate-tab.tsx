@@ -46,6 +46,8 @@ export function DatasetAnnotateTab({
   selectedItemSplit,
   selectedItemIds,
   setSelectedItemIds,
+  selectedItemSplits,
+  setSelectedItemSplits,
   onSelectItem,
   bulkClassId,
   setBulkClassId,
@@ -73,6 +75,8 @@ export function DatasetAnnotateTab({
   selectedItemSplit: SplitKey | "";
   selectedItemIds: string[];
   setSelectedItemIds: Dispatch<SetStateAction<string[]>>;
+  selectedItemSplits: Record<string, SplitKey>;
+  setSelectedItemSplits: Dispatch<SetStateAction<Record<string, SplitKey>>>;
   onSelectItem: (item: DatasetItemSummary, openAnnotate?: boolean) => void;
   bulkClassId: number;
   setBulkClassId: (value: number) => void;
@@ -82,15 +86,33 @@ export function DatasetAnnotateTab({
   edaQuery: ReturnType<typeof useDatasetEdaQuery>;
   confirm: ReturnType<typeof useConfirmationDialog>["confirm"];
 }) {
+  const selectedItems = selectedItemIds
+    .map((id) => ({ id, split: selectedItemSplits[id] }))
+    .filter((item): item is { id: string; split: SplitKey } => Boolean(item.split));
+
+  function toggleItemSelected(item: DatasetItemSummary, checked: boolean) {
+    setSelectedItemIds((ids) => (checked ? [...new Set([...ids, item.id])] : ids.filter((id) => id !== item.id)));
+    setSelectedItemSplits((splits) => {
+      if (checked) return { ...splits, [item.id]: item.split };
+      const { [item.id]: _removed, ...rest } = splits;
+      return rest;
+    });
+  }
+
+  function toggleAllSelected(checked: boolean) {
+    setSelectedItemIds(checked ? items.map((item) => item.id) : []);
+    setSelectedItemSplits(checked ? Object.fromEntries(items.map((item) => [item.id, item.split])) : {});
+  }
+
   function confirmBulkLabelImages() {
-    if (selectedItemIds.length === 0) return;
+    if (selectedItems.length === 0) return;
     const label = dataset.labels[bulkClassId] ?? "selected label";
     confirm({
       title: "Edit selected labels?",
-      message: `This will set ${selectedItemIds.length} selected item${selectedItemIds.length === 1 ? "" : "s"} to "${label}".`,
+      message: `This will set ${selectedItems.length} selected item${selectedItems.length === 1 ? "" : "s"} to "${label}".`,
       confirmLabel: "Edit labels",
       tone: "warning",
-      onConfirm: () => bulkLabelMutation.mutate({ datasetId: dataset.id, ids: selectedItemIds, classId: bulkClassId })
+      onConfirm: () => bulkLabelMutation.mutate({ datasetId: dataset.id, items: selectedItems, classId: bulkClassId })
     });
   }
 
@@ -110,13 +132,13 @@ export function DatasetAnnotateTab({
             <input
               type="checkbox"
               checked={items.length > 0 && selectedItemIds.length === items.length}
-              onChange={(event) => setSelectedItemIds(event.target.checked ? items.map((item) => item.id) : [])}
+              onChange={(event) => toggleAllSelected(event.target.checked)}
             />
             <span>{selectedItemIds.length ? `${selectedItemIds.length} selected` : `Select ${isNlp ? "texts" : "images"}`}</span>
           </label>
-          {dataset.editable && (dataset.task_type === "classification" || dataset.task_type === "text_classification") && split !== "all" && (
+          {dataset.editable && (dataset.task_type === "classification" || dataset.task_type === "text_classification") && (
             <>
-              <select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItemIds.length === 0}>
+              <select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItems.length === 0}>
                 {dataset.labels.map((label, index) => (
                   <option value={index} key={label}>{label}</option>
                 ))}
@@ -124,7 +146,7 @@ export function DatasetAnnotateTab({
               <button
                 className="secondary-button"
                 onClick={confirmBulkLabelImages}
-                disabled={selectedItemIds.length === 0 || bulkLabelMutation.isPending}
+                disabled={selectedItems.length === 0 || bulkLabelMutation.isPending}
               >
                 <CheckCircle2 size={16} /> Edit label
               </button>
@@ -140,9 +162,7 @@ export function DatasetAnnotateTab({
               active={item.id === selectedItemId && item.split === selectedItemSplit}
               onClick={() => onSelectItem(item)}
               selected={selectedItemIds.includes(item.id)}
-              onSelected={(checked) =>
-                setSelectedItemIds((ids) => checked ? [...new Set([...ids, item.id])] : ids.filter((id) => id !== item.id))
-              }
+              onSelected={(checked) => toggleItemSelected(item, checked)}
             />
           ))}
           {items.length === 0 && <EmptyState label={isNlp ? "No texts" : "No images"} />}

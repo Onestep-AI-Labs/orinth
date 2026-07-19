@@ -1,12 +1,13 @@
 import type { TaskType } from "@/types/api";
 import type { components } from "@/types/generated/api";
-import { jsonFetch } from "@/lib/api/client";
+import { jsonFetch, jsonFetchChecked } from "@/lib/api/client";
+import { projectListSchema } from "@/lib/api/schemas";
 
 type ProjectSummary = components["schemas"]["ProjectSummary"];
 type DeleteResponse = components["schemas"]["DeleteResponse"];
 
 export const projectsApi = {
-  projects: () => jsonFetch<ProjectSummary[]>("/projects"),
+  projects: () => jsonFetchChecked<ProjectSummary[]>("/projects", projectListSchema),
   createProject: (payload: {
     name: string;
     description?: string | null;

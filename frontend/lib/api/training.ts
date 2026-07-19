@@ -1,6 +1,7 @@
 import type { TaskType } from "@/types/api";
 import type { components } from "@/types/generated/api";
-import { jsonFetch, query } from "@/lib/api/client";
+import { jsonFetch, jsonFetchChecked, query } from "@/lib/api/client";
+import { jobListSchema, jobWithProgressSchema } from "@/lib/api/schemas";
 
 type TrainingJob = components["schemas"]["TrainingJobRead"];
 type TrainingModelOption = components["schemas"]["TrainingModelOption"];
@@ -16,7 +17,7 @@ export const trainingApi = {
       body: JSON.stringify({ option_id: optionId, download })
     }),
   trainingJobs: (projectId?: string) =>
-    jsonFetch<TrainingJob[]>(`/training/jobs${query({ project_id: projectId })}`),
+    jsonFetchChecked<TrainingJob[]>(`/training/jobs${query({ project_id: projectId })}`, jobListSchema),
   createTrainingJob: (payload: {
     project_id: string;
     task_type: TaskType;
@@ -41,7 +42,7 @@ export const trainingApi = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
-  trainingJob: (jobId: string) => jsonFetch<TrainingJob>(`/training/jobs/${jobId}`),
+  trainingJob: (jobId: string) => jsonFetchChecked<TrainingJob>(`/training/jobs/${jobId}`, jobWithProgressSchema),
   cancelTrainingJob: (jobId: string) =>
     jsonFetch<TrainingJob>(`/training/jobs/${jobId}/cancel`, {
       method: "POST"

@@ -28,8 +28,13 @@
 - Keep generated TypeScript build info out of git tracking.
 - Keep the first screen as the working app, not a landing page.
 - Prefer dense, operational UI over marketing-style presentation.
-- Use existing colors: ink, line, teal, coral, and neutral surfaces.
-- Avoid hiding errors. Surface backend failures in the relevant panel.
+- Use the design tokens defined in `frontend/app/globals.css` and documented in `frontend/DESIGN.md`; never hardcode hex, rgb, or hsl values.
+- Use the shared primitives from `@/features/platform/ui` (Button, Badge, EmptyState, toast, skeletons) instead of raw class names in new code.
+- Follow the `/frontend-design` skill for UI work. Use `hallmark` only via `audit` / `redesign` or on component-scope briefs; its greenfield flow composes marketing pages and is out of scope here.
+- Structure comes from 1px `--line` borders, not shadow. Never add `box-shadow` to a resting panel, card, or row; the only elevations are `--shadow-subtle`, `--shadow-overlay`, and `--ring-accent`.
+- Pair status colors as `-tint` background with `-strong` text. The base status hues fail WCAG AA at badge sizes.
+- The `--label-0..7` ramp is for data visualization only (annotation classes, EDA bars, ROC curves) and is the sole exception to the single-accent rule. Consume it through `labelColor` / `labelFill`, never by string-concatenating a hex alpha suffix.
+- Avoid hiding errors. Surface backend failures in the relevant panel and the toast layer.
 
 ## ML and Data
 

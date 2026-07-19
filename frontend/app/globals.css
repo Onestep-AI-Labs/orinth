@@ -2,13 +2,140 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — single palette source. See frontend/DESIGN.md.
+ * Channel triples (L C H) feed Tailwind's oklch(var(--x) / <alpha-value>);
+ * resolved --color-* values are for plain CSS in styles/platform.css.
+ *
+ * Neutrals are deliberately achromatic (chroma 0). Structure comes from 1px
+ * --line borders, never from shadow; see DESIGN.md §5.
+ */
+:root {
+  /* Text */
+  --ink: 20.46% 0 0; /* #171717 */
+  --ink-muted: 43.86% 0 0; /* #525252 */
+  --ink-subtle: 52.78% 0 0; /* #6b6b6b — darkened from the source #737373 so it clears AA on --canvas */
+
+  /* Structure */
+  --line: 92.19% 0 0; /* #e5e5e5 — the hairline that does all structural work */
+  --line-soft: 94.01% 0 0; /* #ebebeb — table rules */
+  --line-strong: 86.99% 0 0; /* #d4d4d4 — emphasis borders, hover edges */
+  --line-input: 55.55% 0 0; /* #737373 — inputs read darker than containers (WCAG 1.4.11) */
+
+  /* Surfaces */
+  --wash: 97.02% 0 0; /* #f5f5f5 — hover/pressed wash on light surfaces */
+  --surface: 100% 0 0; /* #ffffff — panels, cards */
+  --surface-2: 98.51% 0 0; /* #fafafa — nested/alt surfaces */
+  --canvas: 97.02% 0 0; /* #f5f5f5 — app background */
+
+  /* Accent — the single anchor hue */
+  --accent: 54.61% 0.2152 262.9; /* #2563eb */
+  --accent-strong: 42.44% 0.1809 265.6; /* #1e40af — accent text on tint */
+  --accent-tint: 97.05% 0.0142 254.6; /* #eff6ff */
+  --accent-tint-strong: 93.22% 0.0328 256.8; /* #dbeaff — active nav fill */
+
+  /* Status */
+  --danger: 57.71% 0.2152 27.3; /* #dc2626 */
+  --danger-strong: 50.54% 0.1905 27.5; /* #b91c1c */
+  --danger-tint: 93.56% 0.0309 17.7; /* #fee2e2 */
+  --warn: 64.61% 0.1943 41.1; /* #ea580c */
+  --warn-strong: 55.34% 0.1739 38.4; /* #c2410c */
+  --warn-tint: 95.42% 0.0372 75.2; /* #ffedd5 */
+  --success: 62.71% 0.1699 149.2; /* #16a34a */
+  --success-strong: 52.73% 0.1371 150.1; /* #15803d */
+  --success-tint: 96.24% 0.0434 156.7; /* #dcfce7 */
+  --info-strong: 49.07% 0.2412 292.6; /* #6d28d9 */
+  --info-tint: 94.33% 0.0284 294.6; /* #ede9fe */
+
+  /* Shadow ink */
+  --shadow-ink: 14.48% 0 0; /* #0a0a0a */
+
+  /*
+   * Categorical data-visualization ramp — annotation classes, EDA bars, ROC curves.
+   * Deliberately exempt from the single-accent budget law (DESIGN.md §2): charts and
+   * multi-class overlays need mutually distinguishable hues by function. Never use
+   * these for UI chrome. All clear 3:1 on --surface for graphical-object legibility.
+   */
+  --label-0: 54.61% 0.2152 262.9; /* #2563eb */
+  --label-1: 64.61% 0.1943 41.1; /* #ea580c */
+  --label-2: 54.13% 0.2466 293; /* #7c3aed */
+  --label-3: 62.71% 0.1699 149.2; /* #16a34a */
+  --label-4: 57.71% 0.2152 27.3; /* #dc2626 */
+  --label-5: 60.89% 0.1109 221.7; /* #0891b2 */
+  --label-6: 55.38% 0.1207 66.4; /* #a16207 */
+  --label-7: 59.16% 0.218 0.6; /* #db2777 */
+
+  --color-ink: oklch(var(--ink));
+  --color-ink-muted: oklch(var(--ink-muted));
+  --color-ink-subtle: oklch(var(--ink-subtle));
+  --color-line: oklch(var(--line));
+  --color-line-soft: oklch(var(--line-soft));
+  --color-line-strong: oklch(var(--line-strong));
+  --color-line-input: oklch(var(--line-input));
+  --color-wash: oklch(var(--wash));
+  --color-surface: oklch(var(--surface));
+  --color-surface-2: oklch(var(--surface-2));
+  --color-canvas: oklch(var(--canvas));
+  --color-accent: oklch(var(--accent));
+  --color-accent-strong: oklch(var(--accent-strong));
+  --color-accent-tint: oklch(var(--accent-tint));
+  --color-accent-tint-strong: oklch(var(--accent-tint-strong));
+  --color-danger: oklch(var(--danger));
+  --color-danger-strong: oklch(var(--danger-strong));
+  --color-danger-tint: oklch(var(--danger-tint));
+  --color-warn: oklch(var(--warn));
+  --color-warn-strong: oklch(var(--warn-strong));
+  --color-warn-tint: oklch(var(--warn-tint));
+  --color-success: oklch(var(--success));
+  --color-success-strong: oklch(var(--success-strong));
+  --color-success-tint: oklch(var(--success-tint));
+  --color-info-strong: oklch(var(--info-strong));
+  --color-info-tint: oklch(var(--info-tint));
+  --color-shadow-ink: oklch(var(--shadow-ink));
+
+  --color-label-0: oklch(var(--label-0));
+  --color-label-1: oklch(var(--label-1));
+  --color-label-2: oklch(var(--label-2));
+  --color-label-3: oklch(var(--label-3));
+  --color-label-4: oklch(var(--label-4));
+  --color-label-5: oklch(var(--label-5));
+  --color-label-6: oklch(var(--label-6));
+  --color-label-7: oklch(var(--label-7));
+
+  /* Radius vocabulary: inputs 6 · buttons 8 · cards 12 · large cards 16 · pills 9999 */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /*
+   * Display type is the body face at weight 500 with tightened tracking, capped
+   * at 24px — there is no second typeface. --font-display is kept as a name so
+   * "this text is a title" stays expressible at its call sites.
+   */
+  --font-display: var(--font-sans);
+  --display-tracking: -0.02em;
+
+  /*
+   * Three elevations only. Resting surfaces get none — they are border-defined.
+   * --shadow-subtle: primary button, active segment, controls floating over imagery
+   * --shadow-overlay: dialogs, menus, popovers, toasts
+   * --ring-accent:    selection state, always paired with a full-opacity border
+   */
+  --shadow-subtle: 0 1px 2px oklch(var(--shadow-ink) / 0.05);
+  --shadow-overlay: 0 10px 15px -3px oklch(var(--shadow-ink) / 0.1),
+    0 4px 6px -4px oklch(var(--shadow-ink) / 0.1);
+  --ring-accent: 0 0 0 2px oklch(var(--accent) / 0.2);
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 button,

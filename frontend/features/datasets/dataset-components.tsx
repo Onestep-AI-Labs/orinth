@@ -7,7 +7,7 @@ import { BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, 
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
 import { SPLIT_FILTERS, SPLITS, TRAINING_SPLITS } from "@/features/platform/constants";
-import { formatDatasetFormat, formatDatasetTask, isNlpTask, labelColor, pointsAttr, taskDescription } from "@/features/platform/utils";
+import { formatDatasetFormat, formatDatasetTask, isNlpTask, labelColor, labelFill, pointsAttr, taskDescription } from "@/features/platform/utils";
 import { CardGridSkeleton, EmptyState, Field, InlineSpinner, Metric, MutationError, PanelTitle, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetEdaSummary, DatasetItemSummary, DatasetPreprocessConfig, DatasetSplitConfig, DatasetSplitFilter, DatasetSummary, DatasetVersionSummary, SplitKey, TaskType } from "@/types/api";
 
@@ -754,13 +754,13 @@ export function DatasetThumb({
                     y={annotation.bbox.y}
                     width={annotation.bbox.width}
                     height={annotation.bbox.height}
-                    style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}2b` }}
+                    style={{ stroke: labelColor(annotation.class_id), fill: labelFill(annotation.class_id) }}
                   />
                 ) : annotation.kind === "polygon" ? (
                   <polygon
                     key={`${annotation.class_name}-${index}`}
                     points={pointsAttr(annotation.polygon)}
-                    style={{ stroke: labelColor(annotation.class_id), fill: `${labelColor(annotation.class_id)}2b` }}
+                    style={{ stroke: labelColor(annotation.class_id), fill: labelFill(annotation.class_id) }}
                   />
                 ) : null
               )}

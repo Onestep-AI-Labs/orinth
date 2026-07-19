@@ -126,6 +126,18 @@ def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path, 
     assert set(expected_tasks).issubset(listed_ids)
 
 
+def test_shared_samples_are_visible_but_never_owned(tmp_path: Path, settings: Settings):
+    """Visibility and ownership are separate questions.
+
+    ``list_datasets`` deliberately surfaces the shared samples in every project;
+    ``count_owned_datasets`` must not, or the project becomes undeletable.
+    """
+    service = DatasetService(settings, Storage(settings))
+
+    assert service.list_datasets("custom-nlp-project"), "samples should be visible"
+    assert service.count_owned_datasets("custom-nlp-project") == 0
+
+
 def test_dataset_import_copies_yolo_layout_to_storage(tmp_path: Path, settings: Settings):
     storage = Storage(settings)
     storage.ensure()

@@ -8,7 +8,7 @@ import { useProject } from "@/components/app-shell";
 import { MetricsDetails, TestingComparison } from "@/features/testing/testing-components";
 import { TERMINAL_STATUSES } from "@/features/platform/constants";
 import { activePollInterval } from "@/features/platform/utils";
-import { PageHeader, PageSkeleton, PanelTitle, ProgressPanel, TableSkeleton } from "@/features/platform/ui";
+import { ButtonLink, PageHeader, PageSkeleton, PanelTitle, ProgressPanel, TableSkeleton } from "@/features/platform/ui";
 import type { EvaluationJob, TaskType } from "@/types/api";
 
 export function TestingDetailPage({ jobId }: { jobId: string }) {
@@ -66,6 +66,13 @@ export function TestingDetailPage({ jobId }: { jobId: string }) {
               <TableSkeleton rows={6} />
             ) : (
               <MetricsDetails job={job} rows={perImageQuery.data ?? []} modelTask={modelTaskById[job.model_id]} />
+            )}
+            {job.status === "completed" && (
+              <div className="flex flex-wrap gap-2">
+                <ButtonLink variant="secondary" href="/inference">
+                  Use in inference
+                </ButtonLink>
+              </div>
             )}
           </section>
         </>

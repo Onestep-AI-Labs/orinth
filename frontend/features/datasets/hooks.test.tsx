@@ -160,10 +160,11 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("useDeleteDatasetItemsMutation maps the 'all' split to 'unassigned' and resets selection on success", async () => {
-    vi.spyOn(api, "deleteDatasetItems").mockResolvedValue(undefined as never);
+  it("useDeleteDatasetItemsMutation groups selected items by their real split and resets selection on success", async () => {
+    vi.spyOn(api, "deleteDatasetItems").mockResolvedValue({ deleted: 1, missing: [] } as never);
     const { Wrapper } = createWrapper();
     const setSelectedItemIds = vi.fn();
+    const setSelectedItemSplits = vi.fn();
     const setSelectedItemId = vi.fn();
     const setSelectedItemSplit = vi.fn();
     const refetch = vi.fn().mockResolvedValue(undefined);
@@ -172,8 +173,8 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
     const { result } = renderHook(
       () =>
         useDeleteDatasetItemsMutation({
-          split: "all",
           setSelectedItemIds,
+          setSelectedItemSplits,
           setSelectedItemId,
           setSelectedItemSplit,
           itemsQuery: noopQuery,
@@ -183,30 +184,38 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
       { wrapper: Wrapper }
     );
 
-    result.current.mutate({ datasetId: "ds-1", ids: ["a", "b"] });
+    result.current.mutate({
+      datasetId: "ds-1",
+      items: [
+        { id: "a", split: "train" },
+        { id: "b", split: "valid" }
+      ]
+    });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(api.deleteDatasetItems).toHaveBeenCalledWith("ds-1", { split: "unassigned", ids: ["a", "b"] });
+    expect(api.deleteDatasetItems).toHaveBeenCalledWith("ds-1", { split: "train", ids: ["a"] });
+    expect(api.deleteDatasetItems).toHaveBeenCalledWith("ds-1", { split: "valid", ids: ["b"] });
     expect(setSelectedItemIds).toHaveBeenCalledWith([]);
+    expect(setSelectedItemSplits).toHaveBeenCalledWith({});
     expect(setSelectedItemId).toHaveBeenCalledWith("");
     expect(setSelectedItemSplit).toHaveBeenCalledWith("");
     expect(refetch).toHaveBeenCalledTimes(3);
   });
 
-  it("useMoveDatasetItemsMutation maps the 'all' source split to 'unassigned' and clears selection on success", async () => {
-    vi.spyOn(api, "moveDatasetItems").mockResolvedValue(undefined as never);
+  it("useMoveDatasetItemsMutation groups by source split, skips items already at the target, and clears selection on success", async () => {
+    vi.spyOn(api, "moveDatasetItems").mockResolvedValue({ moved: 1, missing: [], items: [] } as never);
     const { Wrapper } = createWrapper();
     const setSelectedItemIds = vi.fn();
+    const setSelectedItemSplits = vi.fn();
     const refetch = vi.fn().mockResolvedValue(undefined);
     const noopQuery = { refetch } as never;
 
     const { result } = renderHook(
       () =>
         useMoveDatasetItemsMutation({
-          split: "all",
-          selectedItemIds: ["x", "y"],
           setSelectedItemIds,
+          setSelectedItemSplits,
           itemsQuery: noopQuery,
           catalogQuery: noopQuery,
           edaQuery: noopQuery
@@ -214,20 +223,29 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
       { wrapper: Wrapper }
     );
 
-    result.current.mutate({ datasetId: "ds-1", target: "train" });
+    result.current.mutate({
+      datasetId: "ds-1",
+      items: [
+        { id: "x", split: "unassigned" },
+        { id: "y", split: "train" }
+      ],
+      target: "train"
+    });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
+    expect(api.moveDatasetItems).toHaveBeenCalledTimes(1);
     expect(api.moveDatasetItems).toHaveBeenCalledWith("ds-1", {
       source_split: "unassigned",
       target_split: "train",
-      ids: ["x", "y"]
+      ids: ["x"]
     });
     expect(setSelectedItemIds).toHaveBeenCalledWith([]);
+    expect(setSelectedItemSplits).toHaveBeenCalledWith({});
   });
 
-  it("useBulkLabelDatasetItemsMutation refetches items, detail, catalog, and eda queries on success", async () => {
-    vi.spyOn(api, "updateDatasetItemLabels").mockResolvedValue(undefined as never);
+  it("useBulkLabelDatasetItemsMutation groups by split and refetches items, detail, catalog, and eda queries on success", async () => {
+    vi.spyOn(api, "updateDatasetItemLabels").mockResolvedValue({ updated: 1, missing: [], items: [] } as never);
     const { Wrapper } = createWrapper();
     const itemsRefetch = vi.fn().mockResolvedValue(undefined);
     const detailRefetch = vi.fn().mockResolvedValue(undefined);
@@ -237,7 +255,6 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
     const { result } = renderHook(
       () =>
         useBulkLabelDatasetItemsMutation({
-          split: "train",
           itemsQuery: { refetch: itemsRefetch } as never,
           detailQuery: { refetch: detailRefetch } as never,
           catalogQuery: { refetch: catalogRefetch } as never,
@@ -246,7 +263,7 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
       { wrapper: Wrapper }
     );
 
-    result.current.mutate({ datasetId: "ds-1", ids: ["a"], classId: 1 });
+    result.current.mutate({ datasetId: "ds-1", items: [{ id: "a", split: "train" }], classId: 1 });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -265,6 +282,7 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
     const setSplitConfig = vi.fn();
     const setSplit = vi.fn();
     const setSelectedItemIds = vi.fn();
+    const setSelectedItemSplits = vi.fn();
     const refetch = vi.fn().mockResolvedValue(undefined);
     const noopQuery = { refetch } as never;
 
@@ -275,6 +293,7 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
           setSplitConfig,
           setSplit,
           setSelectedItemIds,
+          setSelectedItemSplits,
           catalogQuery: noopQuery,
           itemsQuery: noopQuery,
           edaQuery: noopQuery
@@ -292,6 +311,7 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
 
     expect(setSplit).toHaveBeenCalledWith("train");
     expect(setSelectedItemIds).toHaveBeenCalledWith([]);
+    expect(setSelectedItemSplits).toHaveBeenCalledWith({});
     expect(setPreprocessConfig).toHaveBeenCalled();
     expect(setSplitConfig).toHaveBeenCalled();
     expect(refetch).toHaveBeenCalledTimes(3);

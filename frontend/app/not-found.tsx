@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { Compass } from "lucide-react";
+import { ButtonLink, EmptyState } from "@/features/platform/ui";
 
 export default function NotFound() {
   return (
@@ -16,18 +16,13 @@ export default function NotFound() {
         </div>
       </header>
       <section className="panel">
-        <div className="empty-state empty-state-centered">
-          <span className="empty-state-icon">
-            <Compass size={32} />
-          </span>
-          <strong>Nothing here</strong>
-          <span>Check the URL or head back to the dashboard.</span>
-        </div>
-        <div className="flex items-center justify-center" style={{ marginTop: 16 }}>
-          <Link className="primary-button" href="/">
-            Back to dashboard
-          </Link>
-        </div>
+        <EmptyState
+          centered
+          icon={<Compass size={32} />}
+          label="Nothing here"
+          description="Check the URL or head back to your projects."
+          action={<ButtonLink href="/">Back to projects</ButtonLink>}
+        />
       </section>
     </div>
   );

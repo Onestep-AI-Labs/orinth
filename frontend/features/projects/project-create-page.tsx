@@ -8,7 +8,8 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { NLP_TASK_TYPES, VISION_TASK_TYPES, formatDatasetTask, taskDescription } from "@/features/platform/utils";
-import { Field, MutationError } from "@/features/platform/ui";
+import { Button, Field, MutationError, PageHeader } from "@/features/platform/ui";
+import { toast } from "@/features/platform/toast";
 import type { TaskType } from "@/types/api";
 
 type ProjectDomain = "vision" | "nlp";
@@ -29,6 +30,7 @@ export function ProjectCreatePage() {
     onSuccess: async (project) => {
       setProjectId(project.id);
       await refreshProjects();
+      toast.success(`Project "${project.name}" created`);
       router.push("/datasets");
     }
   });
@@ -71,17 +73,17 @@ export function ProjectCreatePage() {
 
   return (
     <div className="create-project-page">
-      <section className="create-project-hero">
+      <div className="create-project-heading">
         <Link className="project-back-link" href="/">
           <ArrowLeft size={16} />
           <span>Projects</span>
         </Link>
-        <div className="create-project-hero-copy">
-          <span className="brand-kicker">Onestep AI Platform</span>
-          <h2>Create an AI workspace</h2>
-          <p>Shape a focused project for datasets, annotations, training runs, model tests, and inspection workflows.</p>
-        </div>
-      </section>
+        <PageHeader
+          title="Create an AI workspace"
+          subtitle="Datasets, annotations, training runs, model tests, and inspection workflows."
+          icon={<FilePlus2 size={20} />}
+        />
+      </div>
       <section className="panel create-project-panel">
         <div className="create-project-form">
           <Field label="Project name">
@@ -133,9 +135,9 @@ export function ProjectCreatePage() {
           </div>
         </div>
         <div className="create-project-actions">
-          <button className="primary-button" onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>
+          <Button onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>
             <FilePlus2 size={16} /> Create Project
-          </button>
+          </Button>
         </div>
         <MutationError mutations={[createProject]} />
       </section>

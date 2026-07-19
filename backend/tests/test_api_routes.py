@@ -65,6 +65,34 @@ def test_core_api_routes_are_wired(client: TestClient) -> None:
     assert any(option["family"] == "keras_classification" for option in training_options_response.json())
 
 
+def test_delete_project_ignores_shared_sample_datasets(client: TestClient) -> None:
+    """A project owning nothing is deletable even though samples are visible to it.
+
+    The shared ``sample_*`` NLP datasets are injected into every project's listing
+    but belong to none of them, and they are read-only — so counting them as
+    blockers made every non-default project permanently undeletable.
+    """
+    created = client.post("/api/projects", json={"name": "Disposable Project"})
+    assert created.status_code == 200
+    project_id = created.json()["id"]
+
+    visible = client.get(f"/api/datasets?project_id={project_id}").json()
+    assert any(dataset["id"].startswith("sample_") for dataset in visible), (
+        "precondition: shared samples should be visible to the new project"
+    )
+
+    deleted = client.delete(f"/api/projects/{project_id}")
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] == 1
+
+    remaining = {dataset["id"] for dataset in client.get("/api/datasets").json()}
+    assert {
+        "sample_text_classification",
+        "sample_summarization",
+        "sample_question_answering",
+    }.issubset(remaining), "sample data must survive project deletion"
+
+
 def test_settings_routes_save_hf_token_to_temp_env(
     client: TestClient,
     tmp_path: Path,

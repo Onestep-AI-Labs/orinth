@@ -4,6 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, ImageIcon, RefreshCw, Trash2 } from "lucide-react";
 import { formatSeconds } from "@/features/platform/utils";
 import type { JobProgress } from "@/types/api";
+import { Badge, Button, IconButton } from "./primitives";
+
+export { Badge, Button, ButtonLink, IconButton, badgeVariants, buttonVariants } from "./primitives";
+export type { BadgeProps, ButtonLinkProps, ButtonProps, IconButtonProps } from "./primitives";
+export { cn } from "./cn";
 
 export type ConfirmationTone = "danger" | "warning";
 export type ConfirmationDialogOptions = {
@@ -69,12 +74,12 @@ export function ConfirmationDialog({
           </div>
         </div>
         <div className="confirmation-dialog-actions">
-          <button className="secondary-button" type="button" onClick={onCancel}>
+          <Button variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
-          <button className={tone === "danger" ? "danger-button" : "primary-button"} type="button" onClick={onConfirm} autoFocus>
+          </Button>
+          <Button variant={tone === "danger" ? "danger" : "primary"} onClick={onConfirm} autoFocus>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </section>
     </div>
@@ -88,14 +93,14 @@ export function ProgressPanel({ progress, status, error }: { progress: JobProgre
     <div className="progress-panel">
       <div className="flex items-center justify-between gap-3">
         <StatusBadge status={status} />
-        <span className="text-sm text-slate-500">{progressLabel}</span>
+        <span className="text-sm text-ink-subtle">{progressLabel}</span>
       </div>
       <div className="progress-track"><span style={{ width: `${percent}%` }} /></div>
       <div className="progress-meta">
         <span>{progress.current_step}</span>
         <span>{formatSeconds(progress.elapsed_seconds)}</span>
       </div>
-      {progress.current_item && <p className="text-sm text-slate-500">{progress.current_item}</p>}
+      {progress.current_item && <p className="text-sm text-ink-subtle">{progress.current_item}</p>}
       {error && <p className="error-text">{error}</p>}
       {progress.logs.length > 0 && (
         <div className="mini-log">
@@ -123,9 +128,9 @@ export function HistoryHeader({
     <div className="history-header">
       <PanelTitle icon={<RefreshCw size={18} />} title={title} />
       <div className="history-actions">
-        <button className="icon-button" onClick={onRefresh} title="Refresh"><RefreshCw size={16} /></button>
-        <button className="secondary-button" onClick={onDelete} disabled={selectedCount === 0}><Trash2 size={16} /> Delete</button>
-        <button className="danger-button" onClick={onClear}><Trash2 size={16} /> Clear all</button>
+        <IconButton aria-label="Refresh" onClick={onRefresh}><RefreshCw size={16} /></IconButton>
+        <Button variant="secondary" onClick={onDelete} disabled={selectedCount === 0}><Trash2 size={16} /> Delete</Button>
+        <Button variant="danger" onClick={onClear}><Trash2 size={16} /> Clear all</Button>
       </div>
     </div>
   );
@@ -163,12 +168,13 @@ export function SliderField({
   );
 }
 
-export function PageHeader({ title, subtitle, icon }: { title: string; subtitle: string; icon: React.ReactNode }) {
+export function PageHeader({ title, subtitle, icon, eyebrow }: { title: string; subtitle: string; icon: React.ReactNode; eyebrow?: string }) {
   return (
     <header className="page-header">
       <div>
         <span>{icon}</span>
         <div>
+          {eyebrow && <span className="page-eyebrow">{eyebrow}</span>}
           <h2>{title}</h2>
           <p>{subtitle}</p>
         </div>
@@ -180,7 +186,7 @@ export function PageHeader({ title, subtitle, icon }: { title: string; subtitle:
 export function PanelTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <div className="mb-4 flex items-center gap-2">
-      <span className="text-slate-500">{icon}</span>
+      <span className="text-ink-subtle">{icon}</span>
       <h2 className="text-base font-semibold">{title}</h2>
     </div>
   );
@@ -260,15 +266,29 @@ export function InlineSpinner({ label }: { label: string }) {
 export function StatusBadge({ status }: { status: string }) {
   const ok = status === "completed" || status === "editable" || status === "available";
   const failed = status === "failed" || status === "canceled" || status === "missing";
-  return <span className={`badge ${ok ? "badge-ok" : failed ? "badge-fail" : ""}`}>{status}</span>;
+  const active = status === "running" || status === "queued" || status === "preparing";
+  return <Badge tone={ok ? "ok" : failed ? "fail" : active ? "info" : "neutral"}>{status}</Badge>;
 }
 
-export function EmptyState({ label, icon, centered, description }: { label: string; icon?: React.ReactNode; centered?: boolean; description?: string }) {
+export function EmptyState({
+  label,
+  icon,
+  centered,
+  description,
+  action
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  centered?: boolean;
+  description?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className={`empty-state${centered ? " empty-state-centered" : ""}`}>
       <span className="empty-state-icon">{icon ?? <ImageIcon size={centered ? 32 : 28} />}</span>
       {centered ? <strong>{label}</strong> : <span>{label}</span>}
       {description && <span>{description}</span>}
+      {action && <div className="empty-state-action">{action}</div>}
     </div>
   );
 }
