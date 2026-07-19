@@ -27,4 +27,6 @@ Use a spec when:
 - `phase-5-image-platform-mvp.md`
 - `phase-6-nlp-tasks.md`
 - `phase-7-frontend-ui-revamp.md`
+- `phase-8-design-system-dub.md`
+- `phase-9-entry-flow-and-project-settings.md`
 - `SPEC_TEMPLATE.md`

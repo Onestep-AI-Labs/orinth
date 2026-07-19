@@ -28,7 +28,8 @@ Applies to any change that adds or alters a UI surface. Skip only for pure backe
   pages — heroes, marquees, feature pills, testimonials, footers — which `docs/ai/rules.md` forbids for
   the working app. Its `audit` and `redesign` verbs are the parts that fit those surfaces.
 - The greenfield flow *is* appropriate for `frontend/app/(marketing)` (`/` and `/signin`), which is the
-  project's public entry surface. See `frontend/DESIGN.md` §10 and `specs/phase-9-landing-and-signin.md`
+  project's public entry surface. See `frontend/DESIGN.md` §10 and
+  `specs/phase-9-entry-flow-and-project-settings.md`
   for what that scope allows and what still binds.
 - Design decisions that change tokens, elevation, typography, or shell anatomy belong in a spec before
   implementation, and in `frontend/DESIGN.md` after.

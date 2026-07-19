@@ -4,10 +4,12 @@ import { jsonFetch, jsonFetchChecked } from "@/lib/api/client";
 import { projectListSchema } from "@/lib/api/schemas";
 
 type ProjectSummary = components["schemas"]["ProjectSummary"];
+type ProjectStats = components["schemas"]["ProjectStats"];
 type DeleteResponse = components["schemas"]["DeleteResponse"];
 
 export const projectsApi = {
   projects: () => jsonFetchChecked<ProjectSummary[]>("/projects", projectListSchema),
+  projectStats: (projectId: string) => jsonFetch<ProjectStats>(`/projects/${projectId}/stats`),
   createProject: (payload: {
     name: string;
     description?: string | null;
