@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Otters protect kelp by eating urchins; without them urchins boom and kelp collapses.",
+      "answer": "Otters protect kelp by eating urchins; without them urchins boom and kelp collapses.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

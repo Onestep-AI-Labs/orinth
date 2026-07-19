@@ -1,1 +1,0 @@
-Batch upload accepts multiple text files for NLP datasets. CSV and JSONL files can create several text items from one upload when structured rows contain text and annotation fields.

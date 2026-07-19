@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Rosetta Stone's parallel Greek text was the key to deciphering Egyptian hieroglyphs.",
+      "answer": "The Rosetta Stone's parallel Greek text was the key to deciphering Egyptian hieroglyphs.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

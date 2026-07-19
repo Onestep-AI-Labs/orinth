@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Why do owls fly silently?",
+      "answer": "a comb-like fringe on their wing feathers breaks up turbulence",
+      "text": "a comb-like fringe on their wing feathers breaks up turbulence",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

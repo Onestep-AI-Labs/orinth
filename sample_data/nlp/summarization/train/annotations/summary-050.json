@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Amazon outflows the next several rivers combined, freshening the Atlantic for hundreds of kilometres.",
+      "answer": "The Amazon outflows the next several rivers combined, freshening the Atlantic for hundreds of kilometres.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

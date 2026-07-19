@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which bird makes the longest annual migration?",
+      "answer": "Arctic terns",
+      "text": "Arctic terns",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

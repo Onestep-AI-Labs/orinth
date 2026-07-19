@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How is espresso made?",
+      "answer": "by forcing hot water through finely ground coffee under pressure",
+      "text": "by forcing hot water through finely ground coffee under pressure",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Sharks predate trees by hundreds of millions of years and have cartilage, not bone.",
+      "answer": "Sharks predate trees by hundreds of millions of years and have cartilage, not bone.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

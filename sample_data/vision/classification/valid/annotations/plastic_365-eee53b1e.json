@@ -1,0 +1,11 @@
+{
+  "annotations": [
+    {
+      "class_id": 4,
+      "class_name": "plastic",
+      "kind": "classification",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -101,14 +101,9 @@ class EvaluationService:
         ]
         if self.dataset_service is not None:
             for dataset in self.dataset_service.list_datasets():
-                sample_nlp = dataset.id.startswith("sample_") and dataset.task_type in {
-                    "text_classification",
-                    "summarization",
-                    "question_answering",
-                }
-                if (not dataset.editable and not sample_nlp) or dataset.format not in {"yolo", "image_folder", "text_folder", "jsonl", "csv"}:
+                if (not dataset.editable and not dataset.shared) or dataset.format not in {"yolo", "image_folder", "text_folder", "jsonl", "csv"}:
                     continue
-                if project_id and dataset.project_id != project_id and not sample_nlp:
+                if project_id and dataset.project_id != project_id and not dataset.shared:
                     continue
                 for split, summary in dataset.splits.items():
                     if split != "test":
@@ -124,6 +119,7 @@ class EvaluationService:
                             format=dataset.format,
                             split=split,
                             available=True,
+                            shared=dataset.shared,
                             path=str(self.dataset_service.split_root(dataset.id, split)),
                             labels=dataset.labels,
                         )
@@ -132,7 +128,7 @@ class EvaluationService:
             datasets = [
                 dataset
                 for dataset in datasets
-                if dataset.project_id == project_id or dataset.key.startswith("dataset:sample_")
+                if dataset.project_id == project_id or dataset.shared
             ]
         if task_type:
             normalized_task = "text_classification" if task_type == "text" else task_type

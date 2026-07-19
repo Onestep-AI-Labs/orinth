@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What determines steel's hardness?",
+      "answer": "the carbon content",
+      "text": "the carbon content",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

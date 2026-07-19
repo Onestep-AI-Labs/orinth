@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Yeast fermentation turns sugar into alcohol and gas, raising bread and carbonating drinks.",
+      "answer": "Yeast fermentation turns sugar into alcohol and gas, raising bread and carbonating drinks.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

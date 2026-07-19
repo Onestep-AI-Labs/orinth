@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Grand Canyon exposes two billion years of rock, cut by the Colorado over six million.",
+      "answer": "The Grand Canyon exposes two billion years of rock, cut by the Colorado over six million.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

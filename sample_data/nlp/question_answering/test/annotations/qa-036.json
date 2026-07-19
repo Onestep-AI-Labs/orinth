@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "When did the whaling moratorium take effect?",
+      "answer": "1986",
+      "text": "1986",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

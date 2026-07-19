@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "A 1986 whaling moratorium has allowed several hunted whale populations to recover.",
+      "answer": "A 1986 whaling moratorium has allowed several hunted whale populations to recover.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

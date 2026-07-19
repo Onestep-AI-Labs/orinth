@@ -3,14 +3,17 @@
   "name": "Sample Question Answering",
   "task_type": "question_answering",
   "format": "text_folder",
-  "labels": ["answer"],
+  "labels": [
+    "answer"
+  ],
   "metadata": {
     "created_from": "tracked_sample",
-    "sample_count": 20,
+    "sample_count": 102,
     "split_counts": {
-      "train": 12,
-      "valid": 4,
-      "test": 4
-    }
+      "train": 71,
+      "valid": 20,
+      "test": 11
+    },
+    "content": "real-world subject matter (reviews, encyclopedic facts)"
   }
 }

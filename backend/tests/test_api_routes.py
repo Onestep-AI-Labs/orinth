@@ -72,12 +72,17 @@ def test_delete_project_ignores_shared_sample_datasets(client: TestClient) -> No
     but belong to none of them, and they are read-only — so counting them as
     blockers made every non-default project permanently undeletable.
     """
-    created = client.post("/api/projects", json={"name": "Disposable Project"})
+    created = client.post(
+        "/api/projects",
+        # Shared samples are filtered to the project's own task types, so the
+        # project has to declare one a sample covers for the precondition to hold.
+        json={"name": "Disposable Project", "task_types": ["text_classification"]},
+    )
     assert created.status_code == 200
     project_id = created.json()["id"]
 
     visible = client.get(f"/api/datasets?project_id={project_id}").json()
-    assert any(dataset["id"].startswith("sample_") for dataset in visible), (
+    assert any(dataset["shared"] for dataset in visible), (
         "precondition: shared samples should be visible to the new project"
     )
 
@@ -87,10 +92,39 @@ def test_delete_project_ignores_shared_sample_datasets(client: TestClient) -> No
 
     remaining = {dataset["id"] for dataset in client.get("/api/datasets").json()}
     assert {
+        "sample_image_classification",
         "sample_text_classification",
         "sample_summarization",
         "sample_question_answering",
     }.issubset(remaining), "sample data must survive project deletion"
+
+
+def test_shared_samples_are_filtered_to_the_project_task_types(client: TestClient) -> None:
+    """A project is only offered the starter samples it can actually use.
+
+    Listing every sample in every project put image datasets in front of an
+    NLP-only workspace, where none of the training options accept them.
+    """
+    nlp_project = client.post(
+        "/api/projects",
+        json={"name": "NLP Only", "task_types": ["text_classification", "summarization"]},
+    ).json()["id"]
+    vision_project = client.post(
+        "/api/projects", json={"name": "Vision Only", "task_types": ["classification"]}
+    ).json()["id"]
+
+    nlp_visible = {d["id"] for d in client.get(f"/api/datasets?project_id={nlp_project}").json()}
+    assert {"sample_text_classification", "sample_summarization"}.issubset(nlp_visible)
+    assert "sample_image_classification" not in nlp_visible
+    # question_answering is a sample task but not one this project declared.
+    assert "sample_question_answering" not in nlp_visible
+
+    vision_visible = {
+        d["id"] for d in client.get(f"/api/datasets?project_id={vision_project}").json()
+    }
+    assert "sample_image_classification" in vision_visible
+    assert not any(dataset.startswith("sample_") and "classification" not in dataset for dataset in vision_visible)
+    assert "sample_summarization" not in vision_visible
 
 
 def test_settings_routes_save_hf_token_to_temp_env(

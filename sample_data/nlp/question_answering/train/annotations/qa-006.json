@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What kind of type did Gutenberg's press use?",
+      "answer": "movable metal type",
+      "text": "movable metal type",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

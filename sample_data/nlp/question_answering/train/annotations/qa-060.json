@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How many stigmas does each saffron flower yield?",
+      "answer": "three stigmas",
+      "text": "three stigmas",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

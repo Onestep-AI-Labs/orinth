@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How high does the ISS orbit?",
+      "answer": "about four hundred kilometres up",
+      "text": "about four hundred kilometres up",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

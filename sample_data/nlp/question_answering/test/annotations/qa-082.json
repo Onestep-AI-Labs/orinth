@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What did the Silk Road link?",
+      "answer": "China with the Mediterranean",
+      "text": "China with the Mediterranean",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

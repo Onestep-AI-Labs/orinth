@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Steel's carbon content decides whether the iron alloy is soft and workable or hard and brittle.",
+      "answer": "Steel's carbon content decides whether the iron alloy is soft and workable or hard and brittle.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which English word comes from the Roman salt allowance?",
+      "answer": "salary",
+      "text": "salary",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Pressurised, brief extraction through fine grounds yields concentrated espresso topped with crema.",
+      "answer": "Pressurised, brief extraction through fine grounds yields concentrated espresso topped with crema.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

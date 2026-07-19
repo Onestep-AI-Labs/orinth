@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Louvre, once a fortress and palace, opened to the public in 1793 and leads world attendance.",
+      "answer": "The Louvre, once a fortress and palace, opened to the public in 1793 and leads world attendance.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

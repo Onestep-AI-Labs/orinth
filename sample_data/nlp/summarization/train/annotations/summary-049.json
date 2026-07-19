@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Sourdough uses wild yeast and bacteria, with long fermentation adding flavour and digestibility.",
+      "answer": "Sourdough uses wild yeast and bacteria, with long fermentation adding flavour and digestibility.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

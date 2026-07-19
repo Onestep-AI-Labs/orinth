@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Soil teems with life; one handful can hold more organisms than Earth has people.",
+      "answer": "Soil teems with life; one handful can hold more organisms than Earth has people.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

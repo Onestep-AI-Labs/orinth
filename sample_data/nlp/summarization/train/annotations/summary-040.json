@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Inca ran a vast mountain road network using runners and knotted cords, without wheels or writing.",
+      "answer": "The Inca ran a vast mountain road network using runners and knotted cords, without wheels or writing.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,1 +1,0 @@
-The reference NLP models are keyword_text_classifier, extractive_summarizer, and keyword_qa. They run offline and do not require transformer downloads.

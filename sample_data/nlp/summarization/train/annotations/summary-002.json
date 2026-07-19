@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Fleming's 1928 discovery of penicillin, mass produced in wartime, transformed infection treatment.",
+      "answer": "Fleming's 1928 discovery of penicillin, mass produced in wartime, transformed infection treatment.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

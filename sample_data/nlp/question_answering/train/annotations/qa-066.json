@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does photosynthesis release?",
+      "answer": "oxygen",
+      "text": "oxygen",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

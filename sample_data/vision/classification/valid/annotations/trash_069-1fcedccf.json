@@ -1,0 +1,11 @@
+{
+  "annotations": [
+    {
+      "class_id": 5,
+      "class_name": "trash",
+      "kind": "classification",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

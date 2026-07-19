@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Heat and pressure turn limestone into marble, soft to carve yet able to hold detail.",
+      "answer": "Heat and pressure turn limestone into marble, soft to carve yet able to hold detail.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

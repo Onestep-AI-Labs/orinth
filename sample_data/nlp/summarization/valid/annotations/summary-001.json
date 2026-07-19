@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Amazon spans nine countries, holds a tenth of known species, and stores vast amounts of carbon.",
+      "answer": "The Amazon spans nine countries, holds a tenth of known species, and stores vast amounts of carbon.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

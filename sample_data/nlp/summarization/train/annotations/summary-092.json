@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Glaciers grind downhill under their weight, leaving U-shaped valleys behind.",
+      "answer": "Glaciers grind downhill under their weight, leaving U-shaped valleys behind.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

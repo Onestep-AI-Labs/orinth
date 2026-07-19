@@ -1676,6 +1676,11 @@ export interface components {
              */
             project_id: string;
             /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
+            /**
              * Source
              * @enum {string}
              */
@@ -1869,6 +1874,11 @@ export interface components {
              * @default default-research-project
              */
             project_id: string;
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
             /** Split */
             split: string;
             /**

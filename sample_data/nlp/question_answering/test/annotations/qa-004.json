@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Where is the Great Barrier Reef?",
+      "answer": "along the north-east coast of Australia",
+      "text": "along the north-east coast of Australia",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,1 +1,0 @@
-The dataset catalog includes editable project datasets and tracked sample NLP datasets. Sample NLP datasets can appear in any project as reference examples.

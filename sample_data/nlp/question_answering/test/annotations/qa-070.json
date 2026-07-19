@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does vaccination expose the immune system to?",
+      "answer": "a harmless fragment of a pathogen",
+      "text": "a harmless fragment of a pathogen",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

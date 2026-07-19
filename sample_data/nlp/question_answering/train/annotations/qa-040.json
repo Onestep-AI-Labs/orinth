@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does a lack of vitamin C cause?",
+      "answer": "scurvy",
+      "text": "scurvy",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

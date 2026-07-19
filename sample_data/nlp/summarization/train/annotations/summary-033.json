@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Salt was once currency; the Roman allowance for it gave English the word salary.",
+      "answer": "Salt was once currency; the Roman allowance for it gave English the word salary.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

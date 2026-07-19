@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What causes bread to stale?",
+      "answer": "starch recrystallising",
+      "text": "starch recrystallising",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

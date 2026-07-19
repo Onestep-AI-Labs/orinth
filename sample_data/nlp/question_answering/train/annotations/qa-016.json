@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "When did the Louvre open as a public museum?",
+      "answer": "1793",
+      "text": "1793",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Both canals cut long detours, but Suez runs at sea level while Panama lifts ships by lock.",
+      "answer": "Both canals cut long detours, but Suez runs at sea level while Panama lifts ships by lock.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

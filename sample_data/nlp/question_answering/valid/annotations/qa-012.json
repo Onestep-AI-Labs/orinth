@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Who took manual control during the descent?",
+      "answer": "Neil Armstrong",
+      "text": "Neil Armstrong",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

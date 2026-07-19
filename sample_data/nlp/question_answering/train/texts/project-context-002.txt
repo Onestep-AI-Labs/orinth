@@ -1,1 +1,0 @@
-Projects separate workspaces by project id. Dataset lists, model lists, training jobs, testing jobs, and inference history can be filtered so one project does not mix with another.

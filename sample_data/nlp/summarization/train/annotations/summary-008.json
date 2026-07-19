@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Silk Road linked China to the Mediterranean, carrying goods, ideas, religions, and disease.",
+      "answer": "The Silk Road linked China to the Mediterranean, carrying goods, ideas, religions, and disease.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

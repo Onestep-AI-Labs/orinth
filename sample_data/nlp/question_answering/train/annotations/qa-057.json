@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How much of the Channel Tunnel is under water?",
+      "answer": "thirty-eight",
+      "text": "thirty-eight",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

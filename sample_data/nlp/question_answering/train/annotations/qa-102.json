@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What carries out the fermentation in bread, beer, and wine?",
+      "answer": "yeast",
+      "text": "yeast",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

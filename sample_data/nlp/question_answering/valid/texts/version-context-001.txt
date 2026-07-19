@@ -1,1 +1,0 @@
-Dataset versions are generated under storage and reference the selected preprocessing configuration. Original dataset items stay untouched when a version is created.

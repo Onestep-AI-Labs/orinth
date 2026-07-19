@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Gutenberg's movable-type press cut book costs and spread literacy and ideas across Europe.",
+      "answer": "Gutenberg's movable-type press cut book costs and spread literacy and ideas across Europe.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

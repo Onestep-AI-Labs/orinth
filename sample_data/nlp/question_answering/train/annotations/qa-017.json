@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How fast can some bamboo grow?",
+      "answer": "nearly a metre in a single day",
+      "text": "nearly a metre in a single day",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

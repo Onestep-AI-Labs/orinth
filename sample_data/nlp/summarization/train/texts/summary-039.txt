@@ -1,0 +1,1 @@
+Wind turbines convert kinetic energy in moving air into electricity. Output rises with the cube of wind speed, so modest increases in wind produce large gains in power.

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Rome's Colosseum seated some 50,000 and hid animals and lifts in tunnels beneath the arena.",
+      "answer": "Rome's Colosseum seated some 50,000 and hid animals and lifts in tunnels beneath the arena.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

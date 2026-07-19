@@ -1,1 +1,0 @@
-Generated uploads, model outputs, overlays, database files, and training artifacts stay in ignored local storage. Source code must not include secrets, tokens, or private data.

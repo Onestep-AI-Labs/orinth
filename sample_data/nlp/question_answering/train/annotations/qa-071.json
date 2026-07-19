@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What causes earthquakes?",
+      "answer": "stress built up along a fault is released suddenly",
+      "text": "stress built up along a fault is released suddenly",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

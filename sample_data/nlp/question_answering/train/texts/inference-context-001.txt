@@ -1,1 +1,0 @@
-Text inference accepts text content in form fields. Question answering can also include a question field so the predictor can select an answer from the context.

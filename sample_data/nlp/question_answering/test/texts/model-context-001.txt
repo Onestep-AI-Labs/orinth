@@ -1,1 +1,0 @@
-The model catalog lists reference models and trained models. Available models can be selected for testing or inference.

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How long does sunlight take to reach Earth?",
+      "answer": "just over eight minutes",
+      "text": "just over eight minutes",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

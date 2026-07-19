@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which animal was domesticated first?",
+      "answer": "Dogs",
+      "text": "Dogs",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

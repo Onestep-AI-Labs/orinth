@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Honeybees' waggle dance encodes a food source's direction by angle and distance by duration.",
+      "answer": "Honeybees' waggle dance encodes a food source's direction by angle and distance by duration.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

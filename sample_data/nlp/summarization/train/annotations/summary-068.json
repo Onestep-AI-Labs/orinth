@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Built as a temporary 1889 exhibit, the Eiffel Tower survived by serving as a radio mast.",
+      "answer": "Built as a temporary 1889 exhibit, the Eiffel Tower survived by serving as a radio mast.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

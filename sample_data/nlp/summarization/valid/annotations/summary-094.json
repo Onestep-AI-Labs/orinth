@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "France's gift arrived in crates, and its copper weathered brown to green in thirty years.",
+      "answer": "France's gift arrived in crates, and its copper weathered brown to green in thirty years.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,1 +1,0 @@
-The training summary looked helpful and the metrics were easy to compare.

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How salty is the Dead Sea?",
+      "answer": "nearly ten times saltier than the ocean",
+      "text": "nearly ten times saltier than the ocean",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

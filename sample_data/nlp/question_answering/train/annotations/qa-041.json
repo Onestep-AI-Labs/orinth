@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "When did Mount Fuji last erupt?",
+      "answer": "1707",
+      "text": "1707",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What do the Congo and Amazon basins act as?",
+      "answer": "major carbon sinks",
+      "text": "major carbon sinks",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

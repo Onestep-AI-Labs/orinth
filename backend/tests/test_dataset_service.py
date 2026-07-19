@@ -102,7 +102,14 @@ def test_reference_dataset_annotations_are_read_only(tmp_path: Path, settings: S
     assert exc.value.status_code == 409
 
 
-def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path, settings: Settings):
+def test_tracked_nlp_sample_datasets_have_at_least_one_hundred_items(
+    tmp_path: Path, settings: Settings
+):
+    """The NLP samples are the default fine-tuning corpus, so size is a contract.
+
+    At 20 items BERT fine-tuning collapsed to a near-constant prediction and the
+    valid split was too small for its metrics to mean anything.
+    """
     service = DatasetService(settings, Storage(settings))
     expected_tasks = {
         "sample_text_classification": "text_classification",
@@ -116,14 +123,39 @@ def test_tracked_nlp_sample_datasets_have_at_least_twenty_items(tmp_path: Path, 
         annotation_count = sum(split.annotation_count for split in summary.splits.values())
 
         assert summary.task_type == task_type
-        assert item_count >= 20
-        assert annotation_count >= 20
+        assert item_count >= 100
+        assert annotation_count >= 100
         assert sum(split.text_count for split in summary.splits.values()) == item_count
         assert sum(split.image_count for split in summary.splits.values()) == 0
+        # A valid split large enough for the reported metric to be meaningful.
+        assert summary.splits["valid"].item_count >= 15
 
     listed = service.list_datasets("custom-nlp-project")
     listed_ids = {dataset.id for dataset in listed}
     assert set(expected_tasks).issubset(listed_ids)
+
+
+def test_tracked_vision_sample_dataset_is_balanced_and_annotated(
+    tmp_path: Path, settings: Settings
+):
+    """Vision projects get a starter dataset too, not just NLP ones."""
+    service = DatasetService(settings, Storage(settings))
+    summary = service.summary("sample_image_classification")
+
+    assert summary.task_type == "classification"
+    assert summary.format == "image_folder"
+    assert summary.shared is True
+    assert summary.editable is False
+    assert summary.labels == ["cardboard", "glass", "metal", "paper", "plastic", "trash"]
+
+    item_count = sum(split.item_count for split in summary.splits.values())
+    assert item_count == 300
+    # Every image carries exactly one classification annotation.
+    assert sum(split.annotation_count for split in summary.splits.values()) == item_count
+    assert sum(split.image_count for split in summary.splits.values()) == item_count
+    assert summary.splits["train"].item_count == 210
+    assert summary.splits["valid"].item_count == 60
+    assert summary.splits["test"].item_count == 30
 
 
 def test_shared_samples_are_visible_but_never_owned(tmp_path: Path, settings: Settings):
@@ -134,7 +166,9 @@ def test_shared_samples_are_visible_but_never_owned(tmp_path: Path, settings: Se
     """
     service = DatasetService(settings, Storage(settings))
 
-    assert service.list_datasets("custom-nlp-project"), "samples should be visible"
+    visible = service.list_datasets("custom-nlp-project")
+    assert visible, "samples should be visible"
+    assert all(dataset.shared for dataset in visible), "only shared samples reach a new project"
     assert service.count_owned_datasets("custom-nlp-project") == 0
 
 

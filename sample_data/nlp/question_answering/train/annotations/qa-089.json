@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What is slowing the Earth's rotation?",
+      "answer": "Tidal forces from the Moon",
+      "text": "Tidal forces from the Moon",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

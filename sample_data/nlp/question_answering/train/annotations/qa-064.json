@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Why does wool stay warm when wet?",
+      "answer": "its crimped fibres trap air",
+      "text": "its crimped fibres trap air",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

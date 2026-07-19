@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Everest, on the Nepal-Tibet border, draws hundreds of climbers despite lethally thin summit air.",
+      "answer": "Everest, on the Nepal-Tibet border, draws hundreds of climbers despite lethally thin summit air.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

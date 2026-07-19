@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Many birds learn migration routes, with young cranes following experienced adults.",
+      "answer": "Many birds learn migration routes, with young cranes following experienced adults.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

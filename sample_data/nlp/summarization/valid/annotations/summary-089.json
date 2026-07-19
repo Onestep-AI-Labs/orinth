@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Lunar tidal drag slows Earth's spin, lengthening the day slightly each century.",
+      "answer": "Lunar tidal drag slows Earth's spin, lengthening the day slightly each century.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

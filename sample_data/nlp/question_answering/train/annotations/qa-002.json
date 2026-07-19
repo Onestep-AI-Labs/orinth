@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "When was penicillin discovered?",
+      "answer": "1928",
+      "text": "1928",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Hurricanes feed on warm seas and fade over land; warmer oceans extend and intensify them.",
+      "answer": "Hurricanes feed on warm seas and fade over land; warmer oceans extend and intensify them.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

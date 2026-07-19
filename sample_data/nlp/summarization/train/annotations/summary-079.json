@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Beaver dams create wetlands and slow floods, making reintroduction a flood-management tool.",
+      "answer": "Beaver dams create wetlands and slow floods, making reintroduction a flood-management tool.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

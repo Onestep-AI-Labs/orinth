@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The ISS orbits 400 km up every ninety minutes and has been crewed since 2000.",
+      "answer": "The ISS orbits 400 km up every ninety minutes and has been crewed since 2000.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

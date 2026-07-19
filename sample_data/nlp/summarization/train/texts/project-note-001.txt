@@ -1,1 +1,0 @@
-Projects keep workspace activity separated. A project can select NLP tasks, own datasets, start training jobs, run testing jobs, and keep inference history scoped to that workspace.

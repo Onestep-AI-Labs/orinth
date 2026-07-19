@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How many Gutenberg Bibles survive?",
+      "answer": "fewer than fifty copies",
+      "text": "fewer than fifty copies",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

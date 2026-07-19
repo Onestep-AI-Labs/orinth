@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which river carved the Grand Canyon?",
+      "answer": "the Colorado River",
+      "text": "the Colorado River",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What made aluminium cheap?",
+      "answer": "cheap electrolysis",
+      "text": "cheap electrolysis",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

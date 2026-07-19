@@ -40,8 +40,16 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
         self.settings = settings
         self.storage = storage
 
-    def list_datasets(self, project_id: str | None = None) -> list[DatasetSummary]:
+    def list_datasets(
+        self,
+        project_id: str | None = None,
+        task_types: list[str] | None = None,
+    ) -> list[DatasetSummary]:
         """Datasets *visible* to a project: its own, plus the shared read-only samples.
+
+        ``task_types`` narrows the shared samples to the ones the project can
+        actually use, so an NLP-only workspace is not offered an image dataset.
+        A project's own datasets are always listed, whatever their task.
 
         Use :meth:`count_owned_datasets` for ownership questions — the shared samples
         are visible everywhere and must never count against a project.
@@ -51,7 +59,14 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
             summaries = [
                 dataset
                 for dataset in summaries
-                if dataset.project_id == project_id or dataset.id.startswith("sample_")
+                if dataset.project_id == project_id or dataset.shared
+            ]
+        if task_types is not None:
+            allowed = set(task_types)
+            summaries = [
+                dataset
+                for dataset in summaries
+                if not dataset.shared or dataset.task_type in allowed
             ]
         return summaries
 
@@ -77,6 +92,7 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
             format=location.format,  # type: ignore[arg-type]
             source=location.source,  # type: ignore[arg-type]
             editable=location.editable,
+            shared=location.shared,
             path=str(location.root),
             labels=location.labels,
             classes=location.labels,
@@ -264,7 +280,7 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
                 metadata=self._reference_metadata("dental dataset_coco_format"),
             ),
         ]
-        locations.extend(self._sample_nlp_locations())
+        locations.extend(self._sample_locations())
         if self.storage.datasets.exists():
             for manifest_path in sorted(self.storage.datasets.glob("*/manifest.json")):
                 try:
@@ -292,15 +308,21 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
                 )
         return locations
 
-    def _sample_nlp_locations(self) -> list[DatasetLocation]:
-        root = self.settings.repo_root / "sample_data" / "nlp"
+    def _sample_locations(self) -> list[DatasetLocation]:
+        """Tracked starter datasets, shared read-only with every project.
+
+        Each entry lives under ``sample_data/`` and is committed, so a fresh
+        clone has a usable dataset for its task without any seeding step.
+        """
+        root = self.settings.repo_root / "sample_data"
         specs = [
-            ("sample_text_classification", "Sample Text Classification", "text_classification", "text_classification", ["positive", "negative", "neutral"]),
-            ("sample_summarization", "Sample Summarization", "summarization", "summarization", ["summary"]),
-            ("sample_question_answering", "Sample Question Answering", "question_answering", "question_answering", ["answer"]),
+            ("sample_image_classification", "Sample Trash Classification", "vision/classification", "classification", "image_folder", ["cardboard", "glass", "metal", "paper", "plastic", "trash"]),
+            ("sample_text_classification", "Sample Text Classification", "nlp/text_classification", "text_classification", "text_folder", ["positive", "negative", "neutral"]),
+            ("sample_summarization", "Sample Summarization", "nlp/summarization", "summarization", "text_folder", ["summary"]),
+            ("sample_question_answering", "Sample Question Answering", "nlp/question_answering", "question_answering", "text_folder", ["answer"]),
         ]
         locations = []
-        for dataset_id, name, dirname, task_type, labels in specs:
+        for dataset_id, name, dirname, task_type, format_name, labels in specs:
             dataset_root = root / dirname
             if not dataset_root.exists():
                 continue
@@ -310,12 +332,13 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
                     project_id=DEFAULT_PROJECT_ID,
                     name=name,
                     task_type=task_type,
-                    format="text_folder",
+                    format=format_name,
                     source="reference",
                     root=dataset_root,
                     editable=False,
                     labels=labels,
                     metadata={"created_from": "tracked_sample"},
+                    shared=True,
                 )
             )
         return locations

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "When do fingerprints form?",
+      "answer": "before birth",
+      "text": "before birth",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

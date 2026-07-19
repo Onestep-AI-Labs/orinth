@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Octopuses run copper-based blue blood through three hearts, two for the gills.",
+      "answer": "Octopuses run copper-based blue blood through three hearts, two for the gills.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

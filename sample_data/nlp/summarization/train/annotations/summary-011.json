@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Photosynthesis turns light into stored sugar, consuming carbon dioxide and producing atmospheric oxygen.",
+      "answer": "Photosynthesis turns light into stored sugar, consuming carbon dioxide and producing atmospheric oxygen.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

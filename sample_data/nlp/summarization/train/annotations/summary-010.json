@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Chernobyl's 1986 release left an exclusion zone that is now largely empty of people but rich in wildlife.",
+      "answer": "Chernobyl's 1986 release left an exclusion zone that is now largely empty of people but rich in wildlife.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

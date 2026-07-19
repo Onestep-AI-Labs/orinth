@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does Venice have instead of roads?",
+      "answer": "canals",
+      "text": "canals",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

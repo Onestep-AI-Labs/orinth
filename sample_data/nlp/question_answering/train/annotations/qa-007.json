@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "When did the Panama Canal open?",
+      "answer": "1914",
+      "text": "1914",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

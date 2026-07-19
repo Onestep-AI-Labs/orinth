@@ -1,1 +1,0 @@
-The NLP EDA view reports item counts, annotation coverage, token lengths, character lengths, label balance, missing references, and warnings for empty or imbalanced splits.

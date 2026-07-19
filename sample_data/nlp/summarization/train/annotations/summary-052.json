@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Hubble launched in 1990 with a flawed mirror, corrected by a 1993 servicing mission.",
+      "answer": "Hubble launched in 1990 with a flawed mirror, corrected by a 1993 servicing mission.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

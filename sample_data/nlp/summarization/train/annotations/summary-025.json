@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Tea, second only to water, comes from one plant species differentiated by processing.",
+      "answer": "Tea, second only to water, comes from one plant species differentiated by processing.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

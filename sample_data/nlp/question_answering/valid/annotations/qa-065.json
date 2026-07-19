@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What do sea otters eat to protect kelp?",
+      "answer": "the urchins",
+      "text": "the urchins",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

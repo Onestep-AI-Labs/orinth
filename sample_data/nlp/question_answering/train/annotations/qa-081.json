@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How does antibiotic resistance develop?",
+      "answer": "when bacteria survive exposure to a drug and pass on their resistance",
+      "text": "when bacteria survive exposure to a drug and pass on their resistance",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

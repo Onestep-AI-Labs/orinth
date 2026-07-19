@@ -665,6 +665,11 @@ class TrainingService:
 
     def _process_env(self) -> dict[str, str]:
         env = os.environ.copy()
+        # Popen's bufsize only line-buffers *our* reading of the pipe; the child
+        # still block-buffers its own stdout into 8KB chunks when it is not a
+        # tty, so per-epoch prints arrived in one burst at exit and the live log
+        # appeared to jump from "loading checkpoint" straight to "completed".
+        env["PYTHONUNBUFFERED"] = "1"
         env.setdefault("HF_HOME", str(self.storage.model_assets / "huggingface_home"))
         env.setdefault("TRANSFORMERS_CACHE", str(self.storage.model_assets / "huggingface_cache"))
         token = self.settings.huggingface_token

@@ -82,12 +82,19 @@ export function DatasetCatalogView({
       .map((label) => label.trim())
       .filter(Boolean);
     if (!newDatasetName.trim()) return;
+    // Summarization and QA have a fixed label; the draft belongs to whatever
+    // task was selected before and must not leak into them — that is how
+    // summarization datasets ended up saved with labels: ["object"].
+    const isFixedLabelTask = taskType === "summarization" || taskType === "question_answering";
+    if (!isFixedLabelTask && labels.length === 0) return;
+    const taskLabels =
+      taskType === "summarization" ? ["summary"] : taskType === "question_answering" ? ["answer"] : labels;
     createMutation.mutate({
       project_id: projectId,
       name: newDatasetName.trim(),
       task_type: taskType,
       format: isNlpTask(taskType) ? "text_folder" : taskType === "classification" ? "image_folder" : "yolo",
-      labels: labels.length ? labels : taskType === "summarization" ? ["summary"] : taskType === "question_answering" ? ["answer"] : ["object"]
+      labels: taskLabels
     });
   }
 

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which insects are named as pollinators?",
+      "answer": "bees and butterflies",
+      "text": "bees and butterflies",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

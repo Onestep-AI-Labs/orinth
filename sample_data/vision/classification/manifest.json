@@ -1,0 +1,29 @@
+{
+  "id": "sample_image_classification",
+  "name": "Sample Trash Classification",
+  "task_type": "classification",
+  "format": "image_folder",
+  "labels": [
+    "cardboard",
+    "glass",
+    "metal",
+    "paper",
+    "plastic",
+    "trash"
+  ],
+  "metadata": {
+    "created_from": "tracked_sample",
+    "sample_count": 300,
+    "split_counts": {
+      "train": 210,
+      "valid": 60,
+      "test": 30
+    },
+    "source": "TrashNet 6-class waste images",
+    "sampling": {
+      "per_class": 50,
+      "seed": 42,
+      "stratify": true
+    }
+  }
+}

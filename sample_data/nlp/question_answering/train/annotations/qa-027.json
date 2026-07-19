@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "In which direction does the Nile flow?",
+      "answer": "northwards",
+      "text": "northwards",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

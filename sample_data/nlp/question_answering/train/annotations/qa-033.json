@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Where is the kiwi native to?",
+      "answer": "New Zealand",
+      "text": "New Zealand",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+Honeybees communicate the location of food through a waggle dance performed inside the hive. The angle of the dance indicates direction relative to the sun and its duration indicates distance.

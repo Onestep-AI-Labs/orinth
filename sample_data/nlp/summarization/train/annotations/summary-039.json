@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Turbines turn wind into power, with output scaling as the cube of wind speed.",
+      "answer": "Turbines turn wind into power, with output scaling as the cube of wind speed.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

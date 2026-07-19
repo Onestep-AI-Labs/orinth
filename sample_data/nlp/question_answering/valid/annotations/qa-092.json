@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How many organisms can a handful of soil hold?",
+      "answer": "more organisms than there are people on Earth",
+      "text": "more organisms than there are people on Earth",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, Database, FilePlus2, ImageIcon, Trash2, X } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
@@ -36,18 +36,51 @@ export function DatasetCreatePanel({
     .split(",")
     .map((label) => label.trim())
     .filter(Boolean);
-  const visibleLabels = labels.length ? labels : ["object"];
+  const visibleLabels = labels;
   const [labelInput, setLabelInput] = useState("");
+  // Domain is picked before the task list, so a mixed project shows three
+  // relevant choices instead of six spanning two unrelated kinds of data.
+  const [domain, setDomain] = useState<"vision" | "nlp" | null>(null);
+  const visionChoices = allowedTaskTypes.filter((task) => !isNlpTask(task));
+  const nlpChoices = allowedTaskTypes.filter((task) => isNlpTask(task));
+  const domainChoices = domain === "vision" ? visionChoices : domain === "nlp" ? nlpChoices : [];
   const nlp = isNlpTask(taskType);
   const format = nlp ? "text_folder" : taskType === "classification" ? "image_folder" : "yolo";
+  const chosen = domain !== null && domainChoices.includes(taskType);
+  // Summarization and question answering carry their content in the annotation
+  // itself; their label list is fixed. Asking for one here produced datasets
+  // saved with a meaningless "object" label.
+  const needsLabels = taskType !== "summarization" && taskType !== "question_answering";
+  const bothDomains = visionChoices.length > 0 && nlpChoices.length > 0;
+
+  const pickDomain = useCallback(
+    (next: "vision" | "nlp") => {
+      setDomain(next);
+      // Park the task on the new domain's first option so the derived format
+      // and label fields below never describe the domain the user just left.
+      const choices = next === "vision" ? visionChoices : nlpChoices;
+      if (choices.length && !choices.includes(taskType)) setTaskType(choices[0]);
+    },
+    [nlpChoices, setTaskType, taskType, visionChoices]
+  );
+
+  useEffect(() => {
+    // A single-domain project has no choice to make, so skip straight to its
+    // tasks rather than making the user click a lone tab.
+    if (domain !== null || bothDomains) return;
+    if (visionChoices.length > 0) pickDomain("vision");
+    else if (nlpChoices.length > 0) pickDomain("nlp");
+  }, [bothDomains, domain, nlpChoices.length, pickDomain, visionChoices.length]);
 
   function syncLabels(nextLabels: string[]) {
-    setLabelDraft((nextLabels.length ? nextLabels : ["object"]).join(", "));
+    setLabelDraft(nextLabels.join(", "));
   }
 
   function addLabels() {
+    // Accept either separator so pasting a list from elsewhere works without
+    // the user having to know which one this field wants.
     const next = labelInput
-      .split(",")
+      .split(/[;,]/)
       .map((label) => label.trim())
       .filter(Boolean);
     if (next.length === 0) return;
@@ -68,64 +101,102 @@ export function DatasetCreatePanel({
   return (
     <div className="create-panel">
       <Field label="Dataset name">
-        <input value={newDatasetName} onChange={(event) => setNewDatasetName(event.target.value)} placeholder="Example: trash classification" />
+        <input value={newDatasetName} onChange={(event) => setNewDatasetName(event.target.value)} placeholder="Name this dataset" />
       </Field>
       <div className="field">
-        <label>Task</label>
-        <div className="task-choice-grid">
-          {allowedTaskTypes.map((task) => (
-            <button
-              type="button"
-              className={`task-choice ${taskType === task ? "task-choice-active" : ""}`}
-              key={task}
-              onClick={() => setTaskType(task)}
-            >
-              <strong>{formatDatasetTask(task)}</strong>
-              <span>{taskDescription(task)}</span>
-            </button>
-          ))}
-        </div>
+        <label>Dataset type</label>
+        {allowedTaskTypes.length === 0 ? (
+          <CardGridSkeleton count={3} />
+        ) : (
+          <>
+            {/* Only the domains this project declared — a vision-only project
+                has no use for an NLP tab it can never choose. */}
+            {bothDomains ? (
+              <div className="segmented-control mb-3">
+                <button
+                  type="button"
+                  className={domain === "vision" ? "segmented-active" : ""}
+                  onClick={() => pickDomain("vision")}
+                >
+                  Vision
+                </button>
+                <button
+                  type="button"
+                  className={domain === "nlp" ? "segmented-active" : ""}
+                  onClick={() => pickDomain("nlp")}
+                >
+                  NLP
+                </button>
+              </div>
+            ) : null}
+            {domain === null ? (
+              <p className="hint-text">Choose Vision or NLP to see the tasks this project allows.</p>
+            ) : (
+              <div className="task-choice-grid">
+                {domainChoices.map((task) => (
+                  <button
+                    type="button"
+                    className={`task-choice ${taskType === task ? "task-choice-active" : ""}`}
+                    key={task}
+                    onClick={() => setTaskType(task)}
+                  >
+                    <strong>{formatDatasetTask(task)}</strong>
+                    <span>{taskDescription(task)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {chosen ? (
+              <span className="field-hint field-hint-start">
+                Stored as {formatDatasetFormat(format)}
+              </span>
+            ) : null}
+          </>
+        )}
       </div>
-      <div className="format-preview">
-        <span>Format</span>
-        <strong>{formatDatasetFormat(format)}</strong>
-      </div>
-      <div className="field">
-        <label>{taskType === "text_classification" || taskType === "classification" ? "Class labels" : "Annotation target"}</label>
-        <div className="label-add-row">
-          <input
-            value={labelInput}
-            onChange={(event) => setLabelInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addLabels();
-              }
-            }}
-            placeholder={nlp ? "Add label, e.g. urgent" : "Add label, e.g. plastic"}
-          />
-          <button className="secondary-button" type="button" onClick={addLabels} disabled={!labelInput.trim()}>
-            Add label
-          </button>
-        </div>
-      </div>
-      <div className="label-chip-row">
-        {visibleLabels.map((label, index) => (
-          <span className="label-chip" key={`${label}-${index}`}>
-            <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
-            {label}
-            <button
-              type="button"
-              onClick={() => removeLabel(index)}
-              disabled={visibleLabels.length <= 1}
-              title="Remove label"
-            >
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-      </div>
-      <button className="primary-button" onClick={onCreate} disabled={pending || !newDatasetName.trim()}>
+      {chosen && needsLabels ? (
+        <>
+          <div className="field">
+            <label>Class labels</label>
+            <div className="label-add-row">
+              <input
+                value={labelInput}
+                onChange={(event) => setLabelInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addLabels();
+                  }
+                }}
+                placeholder="Type a label and press Enter — or paste several separated by ;"
+              />
+              <button className="secondary-button" type="button" onClick={addLabels} disabled={!labelInput.trim()}>
+                Add label
+              </button>
+            </div>
+          </div>
+          {visibleLabels.length === 0 ? (
+            <p className="hint-text">Add at least one class label before creating the dataset.</p>
+          ) : (
+            <div className="label-chip-row">
+              {visibleLabels.map((label, index) => (
+                <span className="label-chip" key={`${label}-${index}`}>
+                  <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
+                  {label}
+                  <button type="button" onClick={() => removeLabel(index)} title="Remove label">
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      ) : null}
+      <button
+        className="primary-button"
+        onClick={onCreate}
+        disabled={pending || !newDatasetName.trim() || !chosen || (needsLabels && visibleLabels.length === 0)}
+      >
         <FilePlus2 size={16} /> Create dataset
       </button>
     </div>

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Roman aqueducts carried water up to 100 kilometres on gravity and precise gradients alone.",
+      "answer": "Roman aqueducts carried water up to 100 kilometres on gravity and precise gradients alone.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

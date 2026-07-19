@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Vaccines train the immune system with harmless pathogen fragments to build lasting defences.",
+      "answer": "Vaccines train the immune system with harmless pathogen fragments to build lasting defences.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

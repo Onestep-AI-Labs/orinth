@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Antarctica stores 70% of fresh water as ice and is governed by treaty, not owned.",
+      "answer": "Antarctica stores 70% of fresh water as ice and is governed by treaty, not owned.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

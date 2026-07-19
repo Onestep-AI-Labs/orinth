@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What does plastic break down into?",
+      "answer": "microplastics",
+      "text": "microplastics",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

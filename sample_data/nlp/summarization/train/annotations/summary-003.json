@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Great Barrier Reef is the world's largest reef system and suffers repeated heat bleaching.",
+      "answer": "The Great Barrier Reef is the world's largest reef system and suffers repeated heat bleaching.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

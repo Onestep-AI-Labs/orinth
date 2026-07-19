@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Wool's crimped fibres trap air, keeping warmth when wet and hiding moisture.",
+      "answer": "Wool's crimped fibres trap air, keeping warmth when wet and hiding moisture.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

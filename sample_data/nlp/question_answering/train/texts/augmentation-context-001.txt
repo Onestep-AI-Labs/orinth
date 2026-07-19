@@ -1,1 +1,0 @@
-Text augmentation can make generated training copies through synonym replacement, word swap, or word deletion. The generated copies are written into dataset version storage.

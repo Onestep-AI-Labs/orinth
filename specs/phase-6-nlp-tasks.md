@@ -19,7 +19,7 @@ This extension enables users to create projects with NLP task types, upload/impo
 - **Project & Task Types**: Add `text_classification`, `summarization`, and `question_answering` to allowlisted project task types.
 - **Dataset Studio**:
   - Support NLP dataset formats: `text_folder`, `jsonl`, and `csv`.
-  - Ship tracked sample NLP datasets with at least 20 annotated text items per NLP task.
+  - Ship tracked sample NLP datasets with at least 100 annotated text items per NLP task.
   - Allow uploading/importing `.txt` files or importing structured `.jsonl` / `.csv` data.
   - Provide an Annotation Studio for NLP:
     - `text_classification`: Select category label.
@@ -77,7 +77,13 @@ This extension enables users to create projects with NLP task types, upload/impo
 - Neural NLP training is task-first and catalog-driven.
 - Hugging Face transformer options are runnable when dependencies and model assets are prepared locally. Private/gated assets use `HUGGINGFACE_HUB_TOKEN`.
 - The backend also accepts `HF_TOKEN` as an alias for Hugging Face access, and the Settings page persists `HUGGINGFACE_HUB_TOKEN` to the ignored workspace `.env` without returning the secret value.
-- BERT options use `bert-base-uncased` as a neutral base checkpoint and treat task-head initialization as expected fine-tuning behavior.
+- The BERT family is offered as several checkpoints sharing one runner and predictor per task, since both build through `AutoTokenizer` / `AutoModelFor*`. Classification offers DistilBERT, RoBERTa, BERT (uncased and cased), ALBERT, and multilingual BERT; question answering offers SQuAD-pretrained DistilBERT and RoBERTa alongside plain BERT and multilingual BERT.
+- Each task lists its best small-data default first, because the training page auto-selects the first runnable option.
+- Classification treats task-head initialization as expected fine-tuning behavior. Extractive QA does not: a checkpoint already fine-tuned on SQuAD arrives with a trained span head and is the recommended default, because a freshly initialized span head needs far more than 100 examples to become useful.
+- Transformer fine-tuning follows the standard recipe — shuffled batches, linear warmup and decay, weight decay excluding bias and LayerNorm, gradient clipping, per-epoch validation, and best-checkpoint selection. On a corpus this small, omitting these collapses the model to a constant prediction.
+- Validation is never the training split. When a `valid` split is missing or smaller than five items, a stratified holdout is carved from train and the metrics record `validation_source`.
+- QA training examples whose answer is not a literal span of their context are skipped and counted, never supervised at position 0 — which for `[CLS] question [SEP] context` teaches the model to echo the question.
+- Training runs on CUDA or MPS when available, falling back to CPU; `ONESTEP_TRAIN_DEVICE` overrides the choice.
 
 ### Storage & DB
 - Existing database tables `projects`, `inference_runs`, `inference_jobs`, `evaluation_jobs`, and `training_jobs` utilize flexible `JSON` columns (`metadata`, `result`, `parameters`, `metrics`, `artifacts`) and thus do not require database migration.
@@ -110,8 +116,10 @@ This extension enables users to create projects with NLP task types, upload/impo
 - User can create a project with NLP task types (`text_classification`, `summarization`, `question_answering`).
 - The default research workspace exposes NLP task types and bundled sample NLP datasets.
 - User can create a dataset with NLP format, upload text files, edit annotations, and run cleaning/augmentations.
-- Each bundled NLP task sample dataset has at least 20 annotated text items across train, valid, and test splits.
+- Each bundled NLP task sample dataset has at least 100 annotated text items across train, valid, and test splits, with a `valid` split of at least 15.
 - User can train NLP models, monitor training logs, view evaluation comparison results, and run text-based inference.
-- Text classification model options include TF-IDF, Keras CNN, Keras LSTM, Keras BiLSTM, and Hugging Face BERT.
+- Text classification model options include TF-IDF, Keras CNN, Keras LSTM, Keras BiLSTM, and the Hugging Face BERT family (DistilBERT, RoBERTa, BERT, BERT cased, ALBERT, multilingual BERT).
 - Summarization model options include extractive baseline, Keras seq2seq, and Hugging Face BART.
-- Question answering model options include keyword QA and Hugging Face BERT QA.
+- Question answering model options include keyword QA, SQuAD-pretrained DistilBERT and RoBERTa, plain BERT QA, and multilingual BERT QA.
+- `results.csv` for a Hugging Face run carries a per-epoch validation curve, not training loss alone, so overfitting is visible.
+- Fine-tuning the bundled 100-item text classification sample reaches a macro-F1 of at least 0.70 on its own valid split, with every class predicted at least once.

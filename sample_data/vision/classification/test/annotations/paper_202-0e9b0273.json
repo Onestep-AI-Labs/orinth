@@ -1,0 +1,11 @@
+{
+  "annotations": [
+    {
+      "class_id": 3,
+      "class_name": "paper",
+      "kind": "classification",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

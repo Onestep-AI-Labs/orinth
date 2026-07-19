@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Dykes and pumps let the Dutch reclaim land, leaving a quarter of the country below sea level.",
+      "answer": "Dykes and pumps let the Dutch reclaim land, leaving a quarter of the country below sea level.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

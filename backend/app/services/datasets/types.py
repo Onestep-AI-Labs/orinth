@@ -14,3 +14,8 @@ class DatasetLocation:
     editable: bool
     labels: list[str]
     metadata: dict
+    #: Visible from every project, owned by none. Tracked starter datasets set
+    #: this; it replaces the old ``id.startswith("sample_")`` convention, which
+    #: was duplicated across the dataset and evaluation services and silently
+    #: dropped a dataset out of both the moment it was renamed.
+    shared: bool = False

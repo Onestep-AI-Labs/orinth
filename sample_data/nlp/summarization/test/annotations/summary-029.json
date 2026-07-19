@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The genome's three billion bases hold ~20,000 genes, with much of the rest regulatory.",
+      "answer": "The genome's three billion bases hold ~20,000 genes, with much of the rest regulatory.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What curdled the milk that became cheese?",
+      "answer": "enzymes in animal stomach linings",
+      "text": "enzymes in animal stomach linings",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

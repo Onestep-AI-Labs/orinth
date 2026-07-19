@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Apollo 11 landed humans on the Moon in 1969, with Armstrong steering manually past boulders.",
+      "answer": "Apollo 11 landed humans on the Moon in 1969, with Armstrong steering manually past boulders.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

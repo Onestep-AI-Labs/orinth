@@ -1,0 +1,11 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "cardboard",
+      "kind": "classification",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

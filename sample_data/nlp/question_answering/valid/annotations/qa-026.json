@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Where does aspirin originate from?",
+      "answer": "willow bark",
+      "text": "willow bark",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

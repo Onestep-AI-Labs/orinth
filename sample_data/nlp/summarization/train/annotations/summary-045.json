@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Chess is about 1,500 years old and has more possible games than the universe has atoms.",
+      "answer": "Chess is about 1,500 years old and has more possible games than the universe has atoms.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

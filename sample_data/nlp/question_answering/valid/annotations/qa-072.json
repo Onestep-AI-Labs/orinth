@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Where do hurricanes get their energy?",
+      "answer": "warm ocean water",
+      "text": "warm ocean water",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

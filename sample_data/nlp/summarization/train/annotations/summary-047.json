@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Pollinators underpin much of the food supply but are declining from habitat loss and pesticides.",
+      "answer": "Pollinators underpin much of the food supply but are declining from habitat loss and pesticides.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

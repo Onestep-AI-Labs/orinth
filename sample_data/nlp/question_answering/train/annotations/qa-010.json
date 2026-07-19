@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How many time zones does the Trans-Siberian cross?",
+      "answer": "eight time zones",
+      "text": "eight time zones",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

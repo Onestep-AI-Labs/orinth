@@ -1,0 +1,11 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "positive",
+      "kind": "classification",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

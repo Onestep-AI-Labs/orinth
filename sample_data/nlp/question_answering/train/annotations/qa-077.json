@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How do eruptions cool the climate?",
+      "answer": "by injecting sulphur particles into the stratosphere",
+      "text": "by injecting sulphur particles into the stratosphere",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

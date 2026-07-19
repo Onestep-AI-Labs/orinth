@@ -20,18 +20,28 @@ type DragState = {
   original: DatasetAnnotation;
 };
 
-export function AnnotationEditor({
-  dataset,
-  item,
-  onSaved
-}: {
+type AnnotationEditorProps = {
   dataset: DatasetSummary;
   item: DatasetItemDetail;
   onSaved: () => void | Promise<void>;
-}) {
+};
+
+/**
+ * Dispatches to the editor for the dataset's domain.
+ *
+ * Deliberately hook-free: the vision editor below owns a dozen `useState`
+ * calls, so branching inside it would change hook count between renders and
+ * blow up with "rendered more hooks than during the previous render" the
+ * moment a mounted editor saw the task type flip domains.
+ */
+export function AnnotationEditor({ dataset, item, onSaved }: AnnotationEditorProps) {
   if (isNlpTask(dataset.task_type)) {
     return <NlpAnnotationEditor dataset={dataset} item={item} onSaved={onSaved} />;
   }
+  return <VisionAnnotationEditor dataset={dataset} item={item} onSaved={onSaved} />;
+}
+
+function VisionAnnotationEditor({ dataset, item, onSaved }: AnnotationEditorProps) {
   const [annotations, setAnnotations] = useState<DatasetAnnotation[]>(item.annotations);
   const [draft, setDraft] = useState<number[][]>([]);
   const [classId, setClassId] = useState(0);

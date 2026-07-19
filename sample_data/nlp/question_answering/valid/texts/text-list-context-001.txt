@@ -1,1 +1,0 @@
-For NLP datasets, Dataset Studio shows text items as compact rows. The row includes a checkbox, filename, preview text, label, and annotation count.

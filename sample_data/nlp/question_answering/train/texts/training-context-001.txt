@@ -1,1 +1,0 @@
-The NLP training runner trains TF-IDF Logistic Regression for text classification. Summarization and question answering use lightweight extractive JSON baselines.
