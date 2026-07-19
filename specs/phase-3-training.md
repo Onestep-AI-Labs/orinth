@@ -36,6 +36,8 @@ Provide a local, project-scoped training job platform that runs long image train
 - YOLO logs stream into job artifacts while the subprocess runs.
 - YOLO jobs expose progress, elapsed time, log tail, and parsed `results.csv` metrics when available.
 - Training progress uses parsed epoch history from `results.csv` where available, exposing `processed/total` as current epoch over requested epochs.
+- Runners therefore rewrite `results.csv` after **every** epoch, not once at the end. A runner that writes it only on completion leaves the progress bar pinned and the curves empty for the whole run.
+- Training subprocesses run with `PYTHONUNBUFFERED=1`. `Popen(bufsize=1)` only line-buffers the parent's read of the pipe; without the env var the child block-buffers its own stdout and per-epoch output arrives in a single burst at exit, so the live log appeared to jump from checkpoint loading straight to completion.
 - Keras Applications classification training runs through a TensorFlow subprocess runner and writes `results.csv`, `best_model.keras`, `last_model.keras`, and `metrics.json`.
 - Completed runnable YOLO and Keras classification jobs are copied to stable ignored trained-model directories named with both a slugified model display name and the stable model id, then registered automatically.
 - Training jobs expose full metric history, curve metadata, public artifact URLs, and latest metrics.
@@ -51,7 +53,8 @@ Provide a local, project-scoped training job platform that runs long image train
 - NLP model options are discovered from task/model package catalogs instead of being hardcoded directly in the training service.
 - Runnable NLP Keras text-classification jobs write `best_model.keras`, `last_model.keras`, `tokenizer.json`, `metadata.json`, `results.csv`, `metrics.json`, and `validation_predictions.json`.
 - Runnable Hugging Face NLP jobs write a saved model directory plus tokenizer/config files and run-level metrics/prediction artifacts.
-- Hugging Face BERT training keeps `bert-base-uncased` as a neutral base checkpoint, suppresses expected task-head load reports, and logs a concise note that task heads are initialized for the selected dataset.
+- Hugging Face BERT training suppresses expected task-head load reports and logs a concise note that task heads are initialized for the selected dataset.
+- Hyperparameter fields hydrate from the selected option's catalog defaults, and the learning-rate field shows the recommended value. For Hugging Face options a rate above `1e-4` is flagged as too high: transformer fine-tuning needs roughly `1e-5`–`5e-5`, and an order-of-magnitude larger rate wrecks the pretrained weights, producing a validation curve that oscillates and rises while training loss falls. The value is still accepted — it is a warning, not a block.
 - Training UI and detail views show task-relevant parameters; NLP length and vocabulary settings are sent through `hyperparameters`.
 - Terminal jobs can be deleted singly, in selected batches, or by clear-all; active jobs are blocked.
 - Backend startup marks queued/running jobs as failed because FastAPI background subprocesses do not survive restarts.

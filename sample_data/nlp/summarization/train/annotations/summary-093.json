@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Bread stales from starch recrystallising, a process refrigeration accelerates.",
+      "answer": "Bread stales from starch recrystallising, a process refrigeration accelerates.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

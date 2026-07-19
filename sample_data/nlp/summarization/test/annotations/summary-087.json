@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Deserts are defined by low rainfall, making Antarctica the largest by that measure.",
+      "answer": "Deserts are defined by low rainfall, making Antarctica the largest by that measure.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

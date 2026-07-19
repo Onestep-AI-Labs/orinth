@@ -1,1 +1,0 @@
-Inference results store input type, model id, project id, parameters, timing details, and task-specific NLP output. Text runs do not create image overlays.

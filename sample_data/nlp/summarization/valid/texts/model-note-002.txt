@@ -1,1 +1,0 @@
-The text classifier can load a trained TF-IDF artifact or fall back to keyword scoring. Summarization and QA use lightweight extractive predictors for offline operation.

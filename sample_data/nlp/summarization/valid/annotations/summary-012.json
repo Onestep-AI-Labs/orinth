@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Panama Canal, opened in 1914 at great human cost, dramatically shortened ocean voyages.",
+      "answer": "The Panama Canal, opened in 1914 at great human cost, dramatically shortened ocean voyages.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

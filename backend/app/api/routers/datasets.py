@@ -1,7 +1,10 @@
-from fastapi import APIRouter, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
 from app.container import dataset_service
+from app.core.database import get_db
+from app.db.models import Project
 from app.schemas import (
     DatasetAnnotationSave,
     DatasetCloneRequest,
@@ -34,8 +37,18 @@ router = APIRouter(prefix="/datasets")
 
 
 @router.get("", response_model=list[DatasetSummary])
-def list_datasets(project_id: str | None = Query(default=None)) -> list[DatasetSummary]:
-    return dataset_service.list_datasets(project_id)
+def list_datasets(
+    project_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[DatasetSummary]:
+    # The shared starter samples are filtered to the project's own task types,
+    # so a vision workspace is not offered text datasets and vice versa.
+    task_types = None
+    if project_id:
+        project = db.get(Project, project_id)
+        if project is not None:
+            task_types = list(project.task_types or [])
+    return dataset_service.list_datasets(project_id, task_types)
 
 
 @router.post("", response_model=DatasetSummary)

@@ -1,1 +1,0 @@
-Dataset Studio lets users upload text files, CSV rows, or JSONL records. Imported rows become individual text items with matching annotation files so each split can be reviewed independently.

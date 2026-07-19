@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activePollInterval,
+  allowedTaskTypesForProject,
   areTasksCompatible,
   isActiveStatus,
   isNlpTask,
@@ -114,5 +115,33 @@ describe("labelColor / labelFill", () => {
     // colour, which paints annotation overlays opaque black over the image.
     expect(labelFill(0)).toBe("color-mix(in oklab, var(--color-label-0) 20%, transparent)");
     expect(labelFill(1, 50)).toBe("color-mix(in oklab, var(--color-label-1) 50%, transparent)");
+  });
+});
+
+describe("allowedTaskTypesForProject", () => {
+  it("keeps every task type a mixed-domain project declares", () => {
+    expect(
+      allowedTaskTypesForProject({ task_types: ["classification", "summarization"] })
+    ).toEqual(["classification", "summarization"]);
+  });
+
+  it("returns empty while the project is still resolving", () => {
+    // Substituting a default here flashes vision tasks at an NLP project on
+    // every page load, because useProject reports null until projects arrive.
+    expect(allowedTaskTypesForProject(null)).toEqual([]);
+    expect(allowedTaskTypesForProject(undefined)).toEqual([]);
+  });
+
+  it("drops unknown task types and falls back only for a resolved empty project", () => {
+    expect(allowedTaskTypesForProject({ task_types: ["nonsense"] })).toEqual([
+      "classification",
+      "object_detection",
+      "segmentation"
+    ]);
+    expect(allowedTaskTypesForProject({ task_types: [] })).toEqual([
+      "classification",
+      "object_detection",
+      "segmentation"
+    ]);
   });
 });

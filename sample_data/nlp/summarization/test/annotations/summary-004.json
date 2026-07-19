@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Venice, built on lagoon islands and served by canals, is sinking and floods ever more often.",
+      "answer": "Venice, built on lagoon islands and served by canals, is sinking and floods ever more often.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

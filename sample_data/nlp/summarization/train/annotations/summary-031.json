@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Berlin Wall stood 28 years until a muddled 1989 announcement helped open it.",
+      "answer": "The Berlin Wall stood 28 years until a muddled 1989 announcement helped open it.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

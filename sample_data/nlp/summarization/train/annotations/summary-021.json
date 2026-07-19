@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Glass is rapidly cooled molten silica; recycling it melts cooler and saves energy.",
+      "answer": "Glass is rapidly cooled molten silica; recycling it melts cooler and saves energy.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

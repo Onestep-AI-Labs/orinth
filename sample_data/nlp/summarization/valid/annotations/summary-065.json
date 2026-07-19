@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Japan's highest peak, Fuji, last erupted in 1707 and remains an art and pilgrimage subject.",
+      "answer": "Japan's highest peak, Fuji, last erupted in 1707 and remains an art and pilgrimage subject.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

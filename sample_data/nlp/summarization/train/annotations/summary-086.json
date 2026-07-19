@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Cheese likely began accidentally when stomach-lining enzymes curdled stored milk.",
+      "answer": "Cheese likely began accidentally when stomach-lining enzymes curdled stored milk.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

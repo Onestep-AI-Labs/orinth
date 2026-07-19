@@ -1,0 +1,1 @@
+Wind turbine output rises with the cube of wind speed, so small increases in wind give large gains.

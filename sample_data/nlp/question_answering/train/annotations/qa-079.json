@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What leavens sourdough bread?",
+      "answer": "a culture of wild yeast and bacteria",
+      "text": "a culture of wild yeast and bacteria",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

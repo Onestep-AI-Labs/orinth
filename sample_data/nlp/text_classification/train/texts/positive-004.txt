@@ -1,1 +1,0 @@
-The annotation review was clear and the saved label matched the selected class.

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Where is coffee grown?",
+      "answer": "in a belt around the equator",
+      "text": "in a belt around the equator",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

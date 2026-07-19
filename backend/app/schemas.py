@@ -219,6 +219,7 @@ class EvaluationDatasetInfo(BaseModel):
     format: DatasetFormat
     split: str
     available: bool
+    shared: bool = False
     path: str
     labels: list[str] = Field(default_factory=lambda: DEFAULT_LABELS.copy())
 
@@ -367,6 +368,7 @@ class DatasetSummary(BaseModel):
     format: DatasetFormat
     source: DatasetSource
     editable: bool
+    shared: bool = False
     path: str
     labels: list[str]
     classes: list[str]

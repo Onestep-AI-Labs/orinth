@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How long has chess been played?",
+      "answer": "roughly fifteen hundred years",
+      "text": "roughly fifteen hundred years",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

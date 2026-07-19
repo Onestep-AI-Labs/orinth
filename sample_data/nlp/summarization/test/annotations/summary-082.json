@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "A pineapple is a ground-growing bromeliad that takes two years to fruit.",
+      "answer": "A pineapple is a ground-growing bromeliad that takes two years to fruit.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

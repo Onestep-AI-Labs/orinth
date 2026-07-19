@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Who gave the Statue of Liberty?",
+      "answer": "France",
+      "text": "France",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

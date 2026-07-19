@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Titanic's 1912 sinking, with lifeboats for half aboard, permanently reformed maritime law.",
+      "answer": "Titanic's 1912 sinking, with lifeboats for half aboard, permanently reformed maritime law.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,1 +1,0 @@
-NLP augmentation creates extra training examples with synonym replacement, word swaps, or word deletion. Materialized copies are written only into versioned dataset storage.

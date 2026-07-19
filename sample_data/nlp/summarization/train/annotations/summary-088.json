@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The violin has barely changed since the 1600s, and Stradivari's remain most prized.",
+      "answer": "The violin has barely changed since the 1600s, and Stradivari's remain most prized.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

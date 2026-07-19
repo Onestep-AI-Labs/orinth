@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How did Roman aqueducts move water?",
+      "answer": "using a carefully maintained gradient",
+      "text": "using a carefully maintained gradient",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Saffron costs most by weight: three hand-picked stigmas per flower.",
+      "answer": "Saffron costs most by weight: three hand-picked stigmas per flower.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

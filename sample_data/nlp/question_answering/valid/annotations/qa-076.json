@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What did the Inca use instead of writing?",
+      "answer": "knotted cords",
+      "text": "knotted cords",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

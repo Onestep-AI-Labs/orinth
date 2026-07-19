@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Iceland's volcanic geology lets it run almost entirely on hydro and geothermal power.",
+      "answer": "Iceland's volcanic geology lets it run almost entirely on hydro and geothermal power.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -518,6 +518,11 @@ def test_nlp_training_option_command_and_runner(tmp_path: Path, settings: Settin
     ]
     assert "nlp_tfidf_classifier" in text_option_ids
     assert "hf_bert_text_classifier" in text_option_ids
+    # The training page auto-selects the first runnable option, so the best
+    # small-data default has to lead its family.
+    hf_text_ids = [option_id for option_id in text_option_ids if option_id.startswith("hf_")]
+    assert hf_text_ids[0] == "hf_distilbert_text_classifier"
+    assert {"hf_roberta_text_classifier", "hf_albert_text_classifier"}.issubset(set(hf_text_ids))
     assert service.prepare_model_asset(
         ModelAssetPrepareRequest(option_id="hf_bert_text_classifier", download=False)
     ).status == "missing"
@@ -690,6 +695,11 @@ def test_keras_seq2seq_and_hf_catalog(tmp_path: Path, settings: Settings):
     assert "nlp_keras_seq2seq_summarizer" in summary_option_ids
     assert "hf_bart_summarizer" in summary_option_ids
     assert "hf_bert_question_answering" in qa_option_ids
+    # SQuAD-pretrained checkpoints answer well before any fine-tuning, which is
+    # the single largest quality win available on a small QA corpus.
+    assert {"hf_distilbert_squad_qa", "hf_roberta_squad_qa"}.issubset(qa_option_ids)
+    qa_order = [option.id for option in service.model_options("question_answering")]
+    assert [item for item in qa_order if item.startswith("hf_")][0] == "hf_distilbert_squad_qa"
 
     run_dir = tmp_path / "seq2seq"
     metrics, predictions = train_keras_seq2seq_summarizer(
@@ -744,6 +754,9 @@ def test_nlp_reference_models_and_evaluation(settings: Settings, db_session: Ses
     )
     metrics, artifacts = service._evaluate_nlp(db_session, job, datetime.utcnow(), "text_classification")
 
-    assert metrics["samples"] == 3
+    # Tie the expectation to the sample itself rather than a literal, so growing
+    # the tracked sample does not break an assertion about evaluation.
+    expected_samples = dataset_service.summary("sample_text_classification").splits["test"].item_count
+    assert metrics["samples"] == expected_samples
     assert "text_classification" in metrics
     assert Path(artifacts["metrics"]).exists()

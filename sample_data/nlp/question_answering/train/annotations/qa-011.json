@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What share of marine species do reefs support?",
+      "answer": "around a quarter",
+      "text": "around a quarter",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

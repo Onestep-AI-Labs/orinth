@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How tall is Mount Everest?",
+      "answer": "about 8,849 metres",
+      "text": "about 8,849 metres",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

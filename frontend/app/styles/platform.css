@@ -447,6 +447,7 @@ not a bar indicator. */
 
 .form-grid {
   display: grid;
+  align-items: start;
   gap: 12px;
 }
 
@@ -982,6 +983,29 @@ button.task-choice {
   box-shadow: var(--ring-accent);
 }
 
+/* Full cross-domain selection, so switching Vision/NLP never looks destructive. */
+.task-selection-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid var(--color-line);
+  padding-top: 12px;
+}
+
+.task-selection-label {
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.task-selection-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .task-choice-premium strong {
   white-space: normal;
 }
@@ -1236,6 +1260,29 @@ button.task-choice {
   color: var(--color-ink-subtle);
   font-size: 11px;
   font-weight: 600;
+}
+
+/* Hints that read as a caption under a control rather than a right-aligned
+   counter, which is what the default `justify-self: end` is for. */
+.field-hint-start {
+  justify-self: start;
+}
+
+/* Secondary note on the right of a field label. Weight and colour drop below
+   the label so it reads as annotation, not as a second label. */
+.field-label-hint {
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A setting that will not fail outright but will produce a bad model. */
+.field-warning {
+  color: var(--color-warn-strong);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .upload-panel,
@@ -2980,6 +3027,18 @@ td {
   background: var(--color-surface);
   color: var(--color-ink);
   box-shadow: var(--shadow-subtle);
+}
+
+/* Selection count per segment: the task grid only renders one domain at a
+   time, so without this a selection in the hidden domain is invisible. */
+.segmented-control .segmented-count {
+  margin-left: 6px;
+  color: var(--color-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.segmented-control .segmented-active .segmented-count {
+  color: var(--color-accent-strong);
 }
 
 .text-item-list {

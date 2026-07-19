@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Bamboo is a grass whose fastest species can grow almost a metre a day.",
+      "answer": "Bamboo is a grass whose fastest species can grow almost a metre a day.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,1 +1,0 @@
-The prediction job returned an error and no usable output was saved.

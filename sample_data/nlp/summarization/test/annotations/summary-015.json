@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Sleep aids memory, immunity, and repair; chronic shortage raises disease and attention risks.",
+      "answer": "Sleep aids memory, immunity, and repair; chronic shortage raises disease and attention risks.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

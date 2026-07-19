@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What defines a desert?",
+      "answer": "low precipitation",
+      "text": "low precipitation",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

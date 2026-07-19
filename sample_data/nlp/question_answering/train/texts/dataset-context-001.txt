@@ -1,1 +1,0 @@
-NLP datasets store text items under a texts directory. Each item can have a JSON annotation file that stores a label, a summary, or question-answer fields.

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How deep is the Mariana Trench?",
+      "answer": "almost eleven thousand metres",
+      "text": "almost eleven thousand metres",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

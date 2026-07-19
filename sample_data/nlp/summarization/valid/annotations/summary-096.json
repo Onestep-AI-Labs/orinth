@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Clonal plantation bananas let Panama disease devastate the crop twice.",
+      "answer": "Clonal plantation bananas let Panama disease devastate the crop twice.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

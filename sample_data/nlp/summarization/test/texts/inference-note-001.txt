@@ -1,1 +1,0 @@
-Inference jobs accept a selected model, run predictions, save result metadata, and keep project-scoped history so users can inspect previous outputs later.

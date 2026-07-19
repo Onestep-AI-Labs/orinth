@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Earthquakes release fault stress; each magnitude step means about thirty times the energy.",
+      "answer": "Earthquakes release fault stress; each magnitude step means about thirty times the energy.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

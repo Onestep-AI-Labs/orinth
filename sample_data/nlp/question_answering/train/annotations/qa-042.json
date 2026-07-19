@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Why did the Aral Sea shrink?",
+      "answer": "its feeder rivers were diverted to irrigate cotton",
+      "text": "its feeder rivers were diverted to irrigate cotton",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

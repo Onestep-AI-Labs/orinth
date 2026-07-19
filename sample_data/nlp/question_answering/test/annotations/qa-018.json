@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How many protein-coding genes does the human genome contain?",
+      "answer": "around twenty thousand",
+      "text": "around twenty thousand",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

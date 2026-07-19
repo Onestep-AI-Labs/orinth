@@ -1,0 +1,1 @@
+Refunds are processed through the original payment method.

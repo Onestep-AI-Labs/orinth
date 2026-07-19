@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How does turbine output scale with wind speed?",
+      "answer": "with the cube of wind speed",
+      "text": "with the cube of wind speed",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

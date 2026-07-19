@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Elephants rumble below human hearing, carrying messages through the ground over distance.",
+      "answer": "Elephants rumble below human hearing, carrying messages through the ground over distance.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

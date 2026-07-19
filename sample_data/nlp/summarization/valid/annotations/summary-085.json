@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Channel Tunnel runs 50 km between England and France, 38 of them undersea.",
+      "answer": "The Channel Tunnel runs 50 km between England and France, 38 of them undersea.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

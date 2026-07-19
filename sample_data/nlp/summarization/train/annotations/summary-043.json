@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Nile flows north through eleven countries, its floods long fertilising Egyptian farmland.",
+      "answer": "The Nile flows north through eleven countries, its floods long fertilising Egyptian farmland.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

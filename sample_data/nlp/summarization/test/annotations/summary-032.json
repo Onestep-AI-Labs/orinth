@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Olive trees fruit for centuries, with some Mediterranean specimens over a millennium old.",
+      "answer": "Olive trees fruit for centuries, with some Mediterranean specimens over a millennium old.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

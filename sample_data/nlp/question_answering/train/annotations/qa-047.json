@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How much of the Netherlands lies below sea level?",
+      "answer": "Roughly a quarter",
+      "text": "Roughly a quarter",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

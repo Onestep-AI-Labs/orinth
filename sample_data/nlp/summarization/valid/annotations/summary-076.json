@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Fewer than fifty mostly incomplete copies of the movable-type Gutenberg Bible survive.",
+      "answer": "Fewer than fifty mostly incomplete copies of the movable-type Gutenberg Bible survive.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -6,8 +6,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TrainingJobTable } from "@/features/training/training-components";
-import { NLP_TASK_TYPES, VISION_TASK_TYPES, isNlpTask, listPollInterval } from "@/features/platform/utils";
-import { CardGridSkeleton, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, TableSkeleton, useConfirmationDialog } from "@/features/platform/ui";
+import { allowedTaskTypesForProject, isNlpTask, listPollInterval } from "@/features/platform/utils";
+import { CardGridSkeleton, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, TableSkeleton, useConfirmationDialog } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
 
 export function TrainingPage() {
@@ -55,10 +55,7 @@ export function TrainingPage() {
   });
   const options = useMemo(() => optionsQuery.data ?? [], [optionsQuery.data]);
   const option = options.find((item) => item.id === modelOptionId);
-  const taskOptions = useMemo(() => {
-    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
-    return tasks.length ? tasks : VISION_TASK_TYPES;
-  }, [project?.task_types]);
+  const taskOptions = useMemo(() => allowedTaskTypesForProject(project), [project]);
   const nlp = isNlpTask(taskType);
   const nlpBaseline = nlp && option?.source === "local" && ["nlp_tfidf_classifier", "nlp_extractive_summarizer", "nlp_keyword_qa"].includes(option.id);
   const nlpNeural = nlp && !nlpBaseline;
@@ -99,6 +96,16 @@ export function TrainingPage() {
     setTargetMaxLength((value) => Number(option.defaults.target_max_length ?? value));
     setVocabSize((value) => Number(option.defaults.vocab_size ?? value));
   }, [option]);
+
+  // Transformer fine-tuning lives in a narrow learning-rate band. At 1e-3 the
+  // updates are large enough to wreck the pretrained weights, which shows up as
+  // a validation curve that oscillates and climbs while training loss falls.
+  const recommendedLearningRate =
+    option?.defaults.learning_rate !== undefined ? Number(option.defaults.learning_rate) : null;
+  const learningRateWarning =
+    option?.source === "huggingface" && learningRate > 0.0001
+      ? `${learningRate} is far too high for fine-tuning; use ${recommendedLearningRate ?? 0.00005} or lower.`
+      : null;
 
   useEffect(() => {
     if (datasets.length === 0) {
@@ -195,56 +202,61 @@ export function TrainingPage() {
               ))}
             </select>
           </Field>
-          <div className={`form-grid ${showBatch ? "form-grid-three" : "form-grid-two"}`}>
+          {/* One grid for every numeric parameter: the visible set changes with
+              task and model, and separate per-row grids left ragged half-width
+              and full-width fields stacked against each other. */}
+          <div className="form-grid form-grid-two">
             <Field label="Epochs">
-              <input type="number" min={1} max={1000} value={epochs} onChange={(event) => setEpochs(Number(event.target.value))} />
+              <NumberInput min={1} max={1000} value={epochs} onChange={setEpochs} />
             </Field>
             {!nlp && (
-              <Field label="Size">
-                <input type="number" min={128} max={2048} value={imageSize} onChange={(event) => setImageSize(Number(event.target.value))} />
+              <Field label="Image size">
+                <NumberInput min={128} max={2048} value={imageSize} onChange={setImageSize} />
               </Field>
             )}
             {showBatch && (
-              <Field label="Batch">
-                <input type="number" min={1} max={256} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value))} />
+              <Field label="Batch size">
+                <NumberInput min={1} max={256} value={batchSize} onChange={setBatchSize} />
+              </Field>
+            )}
+            {showMaxLength && (
+              <Field label="Max length">
+                <NumberInput min={8} max={2048} value={maxLength} onChange={setMaxLength} />
+              </Field>
+            )}
+            {showTargetMaxLength && (
+              <Field label="Target length">
+                <NumberInput min={8} max={512} value={targetMaxLength} onChange={setTargetMaxLength} />
+              </Field>
+            )}
+            {showVocabSize && (
+              <Field label="Vocab size">
+                <NumberInput min={100} max={100000} value={vocabSize} onChange={setVocabSize} />
               </Field>
             )}
           </div>
-          {showMaxLength && (
-            <div className="form-grid form-grid-two">
-              <Field label="Max length">
-                <input type="number" min={8} max={2048} value={maxLength} onChange={(event) => setMaxLength(Number(event.target.value))} />
-              </Field>
-              {showTargetMaxLength ? (
-                <Field label="Target length">
-                  <input type="number" min={8} max={512} value={targetMaxLength} onChange={(event) => setTargetMaxLength(Number(event.target.value))} />
-                </Field>
-              ) : showVocabSize ? (
-                <Field label="Vocab">
-                  <input type="number" min={100} max={100000} value={vocabSize} onChange={(event) => setVocabSize(Number(event.target.value))} />
-                </Field>
-              ) : null}
-            </div>
-          )}
-          {showTargetMaxLength && showVocabSize && (
-            <Field label="Vocab">
-              <input type="number" min={100} max={100000} value={vocabSize} onChange={(event) => setVocabSize(Number(event.target.value))} />
-            </Field>
-          )}
           {showOptimization && (
             <div className="form-grid form-grid-two">
               <Field label="Optimizer">
                 <select value={optimizer} onChange={(event) => setOptimizer(event.target.value)}>
                   <option value="AdamW">AdamW</option>
                   <option value="adam">Adam</option>
-                  <option value="adamw">AdamW</option>
                   <option value="sgd">SGD</option>
                   <option value="liblinear">Liblinear</option>
                   <option value="keyword">Keyword</option>
                 </select>
               </Field>
-              <Field label={option?.id === "nlp_tfidf_classifier" ? "C" : "LR"}>
-                <input type="number" step={0.0001} value={learningRate} onChange={(event) => setLearningRate(Number(event.target.value))} />
+              <Field
+                label={option?.id === "nlp_tfidf_classifier" ? "Regularisation (C)" : "Learning rate"}
+                hint={recommendedLearningRate !== null ? `Recommended ${recommendedLearningRate}` : undefined}
+              >
+                <NumberInput
+                  min={0}
+                  step={option?.source === "huggingface" ? 0.00001 : 0.0001}
+                  value={learningRate}
+                  onChange={setLearningRate}
+                />
+                {learningRateWarning ? <span className="field-warning">{learningRateWarning}</span> : null}
               </Field>
             </div>
           )}

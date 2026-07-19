@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "New Zealand's flightless kiwi lays an egg near a fifth of the female's body weight.",
+      "answer": "New Zealand's flightless kiwi lays an egg near a fifth of the female's body weight.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

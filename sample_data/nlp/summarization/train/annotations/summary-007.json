@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Overuse of antibiotics has bred resistant bacteria that respond to very few remaining drugs.",
+      "answer": "Overuse of antibiotics has bred resistant bacteria that respond to very few remaining drugs.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

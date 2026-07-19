@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What is marble made from?",
+      "answer": "limestone",
+      "text": "limestone",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

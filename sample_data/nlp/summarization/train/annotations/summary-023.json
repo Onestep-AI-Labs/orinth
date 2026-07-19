@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Bicycles are exceptionally efficient, carrying riders far further per unit of energy than walking.",
+      "answer": "Bicycles are exceptionally efficient, carrying riders far further per unit of energy than walking.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

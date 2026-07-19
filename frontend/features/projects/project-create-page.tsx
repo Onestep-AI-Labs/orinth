@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { NLP_TASK_TYPES, VISION_TASK_TYPES, formatDatasetTask, taskDescription } from "@/features/platform/utils";
-import { Button, Field, MutationError, PageHeader } from "@/features/platform/ui";
+import { Badge, Button, Field, MutationError, PageHeader } from "@/features/platform/ui";
 import { toast } from "@/features/platform/toast";
 import type { TaskType } from "@/types/api";
 
@@ -20,8 +20,10 @@ export function ProjectCreatePage() {
   const { setProjectId, refreshProjects } = useProject();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [domain, setDomain] = useState<ProjectDomain>("vision");
-  const [selectedTasks, setSelectedTasks] = useState<TaskType[]>(VISION_TASK_TYPES);
+  // No preselected domain or tasks: the workspace type is a deliberate choice,
+  // and defaulting to vision quietly created vision projects for NLP users.
+  const [domain, setDomain] = useState<ProjectDomain | null>(null);
+  const [selectedTasks, setSelectedTasks] = useState<TaskType[]>([]);
   const trimmedName = name.trim();
   const trimmedDescription = description.trim();
   const canCreateProject = Boolean(trimmedName && trimmedDescription && selectedTasks.length > 0);
@@ -36,13 +38,9 @@ export function ProjectCreatePage() {
   });
 
   function toggleTaskCard(task: TaskType) {
-    setSelectedTasks((tasks) => {
-      if (tasks.includes(task)) {
-        const next = tasks.filter((item) => item !== task);
-        return next.length ? next : tasks;
-      }
-      return [...tasks, task];
-    });
+    setSelectedTasks((tasks) =>
+      tasks.includes(task) ? tasks.filter((item) => item !== task) : [...tasks, task]
+    );
   }
 
   function submitProject() {
@@ -51,7 +49,7 @@ export function ProjectCreatePage() {
       name: trimmedName,
       description: trimmedDescription,
       task_types: selectedTasks,
-      metadata: { domain }
+      metadata: { domain: selectedDomain }
     });
   }
 
@@ -64,12 +62,16 @@ export function ProjectCreatePage() {
     return <BarChart3 size={20} />;
   }
 
-  function setProjectDomain(nextDomain: ProjectDomain) {
-    setDomain(nextDomain);
-    setSelectedTasks(nextDomain === "vision" ? VISION_TASK_TYPES : NLP_TASK_TYPES);
-  }
-
-  const domainTasks = domain === "vision" ? VISION_TASK_TYPES : NLP_TASK_TYPES;
+  const domainTasks = domain === null ? [] : domain === "vision" ? VISION_TASK_TYPES : NLP_TASK_TYPES;
+  const visionCount = selectedTasks.filter((task) => VISION_TASK_TYPES.includes(task)).length;
+  const nlpCount = selectedTasks.filter((task) => NLP_TASK_TYPES.includes(task)).length;
+  // Task types are the source of truth downstream; `domain` only records which
+  // side the workspace leans to, so a cross-domain project reads as "mixed".
+  const selectedDomain: ProjectDomain | "mixed" =
+    visionCount > 0 && nlpCount > 0 ? "mixed" : nlpCount > 0 ? "nlp" : "vision";
+  const orderedSelection = [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].filter((task) =>
+    selectedTasks.includes(task)
+  );
 
   return (
     <div className="create-project-page">
@@ -87,13 +89,13 @@ export function ProjectCreatePage() {
       <section className="panel create-project-panel">
         <div className="create-project-form">
           <Field label="Project name">
-            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: Dental Radiograph Workspace" />
+            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name this workspace" />
           </Field>
           <Field label="Short description">
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Example: Dental X-ray segmentation experiments for YOLO and U-Net models"
+              placeholder="What this workspace is for"
               maxLength={PROJECT_DESCRIPTION_LIMIT}
               rows={3}
             />
@@ -103,13 +105,16 @@ export function ProjectCreatePage() {
         <div className="field">
           <label>Project type</label>
           <div className="segmented-control mb-3">
-            <button className={domain === "vision" ? "segmented-active" : ""} type="button" onClick={() => setProjectDomain("vision")}>
-              Vision
+            <button className={domain === "vision" ? "segmented-active" : ""} type="button" onClick={() => setDomain("vision")}>
+              Vision{visionCount > 0 ? <span className="segmented-count">{visionCount}</span> : null}
             </button>
-            <button className={domain === "nlp" ? "segmented-active" : ""} type="button" onClick={() => setProjectDomain("nlp")}>
-              NLP
+            <button className={domain === "nlp" ? "segmented-active" : ""} type="button" onClick={() => setDomain("nlp")}>
+              NLP{nlpCount > 0 ? <span className="segmented-count">{nlpCount}</span> : null}
             </button>
           </div>
+          {domain === null ? (
+            <p className="hint-text">Choose Vision or NLP to see the task types available.</p>
+          ) : (
           <div className="task-choice-grid task-choice-grid-premium">
             {domainTasks.map((task) => {
               const active = selectedTasks.includes(task);
@@ -133,6 +138,19 @@ export function ProjectCreatePage() {
               );
             })}
           </div>
+          )}
+          {orderedSelection.length > 0 ? (
+            <div className="task-selection-summary">
+              <span className="task-selection-label">Included task types</span>
+              <div className="task-selection-chips">
+                {orderedSelection.map((task) => (
+                  <Badge key={task} tone="neutral">
+                    {formatDatasetTask(task)}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="create-project-actions">
           <Button onClick={submitProject} disabled={createProject.isPending || !canCreateProject}>

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Fingerprints form before birth, never change, and differ even between identical twins.",
+      "answer": "Fingerprints form before birth, never change, and differ even between identical twins.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

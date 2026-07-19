@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Aspirin derives from willow bark remedies and was first stably synthesised in the 1800s.",
+      "answer": "Aspirin derives from willow bark remedies and was first stably synthesised in the 1800s.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

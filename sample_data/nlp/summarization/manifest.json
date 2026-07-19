@@ -3,14 +3,17 @@
   "name": "Sample Summarization",
   "task_type": "summarization",
   "format": "text_folder",
-  "labels": ["summary"],
+  "labels": [
+    "summary"
+  ],
   "metadata": {
     "created_from": "tracked_sample",
-    "sample_count": 20,
+    "sample_count": 100,
     "split_counts": {
-      "train": 12,
-      "valid": 4,
-      "test": 4
-    }
+      "train": 70,
+      "valid": 20,
+      "test": 10
+    },
+    "content": "real-world subject matter (reviews, encyclopedic facts)"
   }
 }

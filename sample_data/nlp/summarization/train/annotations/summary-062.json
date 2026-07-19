@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Fringed wing feathers break up turbulence, letting owls fly almost silently.",
+      "answer": "Fringed wing feathers break up turbulence, letting owls fly almost silently.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TestingComparison, TestingJobTable } from "@/features/testing/testing-components";
-import { NLP_TASK_TYPES, VISION_TASK_TYPES, areTasksCompatible, formatDatasetTask, listPollInterval } from "@/features/platform/utils";
+import { allowedTaskTypesForProject, areTasksCompatible, formatDatasetTask, listPollInterval } from "@/features/platform/utils";
 import {
   ButtonLink,
   CardGridSkeleton,
@@ -56,10 +56,7 @@ export function TestingPage() {
   });
   const rawModels = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
   const rawDatasets = useMemo(() => datasetsQuery.data ?? [], [datasetsQuery.data]);
-  const taskOptions = useMemo(() => {
-    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
-    return tasks.length ? tasks : VISION_TASK_TYPES;
-  }, [project?.task_types]);
+  const taskOptions = useMemo(() => allowedTaskTypesForProject(project), [project]);
   const datasets = useMemo(
     () => rawDatasets.filter((dataset) => dataset.task_type === taskType),
     [rawDatasets, taskType]
@@ -101,11 +98,11 @@ export function TestingPage() {
     setSelectedIds([]);
   }, [taskType]);
   useEffect(() => {
+    // Drop models that vanished, but never preselect one: an auto-checked model
+    // is easy to miss and gets tested by accident.
     setModelIds((current) => {
       const availableIds = new Set(models.map((model) => model.id));
-      const kept = current.filter((id) => availableIds.has(id));
-      if (kept.length > 0 || models.length === 0) return kept;
-      return [models[0].id];
+      return current.filter((id) => availableIds.has(id));
     });
   }, [models]);
   useEffect(() => {

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Volcanic sulphur can cool the climate; Tambora's 1815 blast caused a summerless year.",
+      "answer": "Volcanic sulphur can cool the climate; Tambora's 1815 blast caused a summerless year.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

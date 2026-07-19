@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Heat-stressed coral expels its algae, losing colour and its main food source.",
+      "answer": "Heat-stressed coral expels its algae, losing colour and its main food source.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

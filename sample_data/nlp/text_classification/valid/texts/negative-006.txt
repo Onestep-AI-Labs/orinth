@@ -1,1 +1,0 @@
-The evaluation job stopped early and the detail page showed a failure message.

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Lightning superheats air far past solar surface temperature, and its expansion makes thunder.",
+      "answer": "Lightning superheats air far past solar surface temperature, and its expansion makes thunder.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

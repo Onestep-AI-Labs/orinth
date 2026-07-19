@@ -1,1 +1,0 @@
-Evaluation artifacts include metrics JSON and per-item prediction rows. The frontend reads those artifacts to display comparisons, detail tables, and task-specific score cards.

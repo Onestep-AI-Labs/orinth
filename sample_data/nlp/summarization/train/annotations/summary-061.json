@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Maldives averages 1.5 metres elevation, leaving it acutely exposed to sea level rise.",
+      "answer": "The Maldives averages 1.5 metres elevation, leaving it acutely exposed to sea level rise.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

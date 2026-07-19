@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Sahara, now the largest hot desert, was green grassland only six thousand years ago.",
+      "answer": "The Sahara, now the largest hot desert, was green grassland only six thousand years ago.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The blue whale, largest animal ever, grows to 30 metres on a diet of filtered krill.",
+      "answer": "The blue whale, largest animal ever, grows to 30 metres on a diet of filtered krill.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

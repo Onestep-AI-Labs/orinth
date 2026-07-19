@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What powers Iceland's electricity?",
+      "answer": "hydropower and geothermal energy",
+      "text": "hydropower and geothermal energy",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

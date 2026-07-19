@@ -56,10 +56,14 @@ Text data is reserved as future metadata only. The platform remains a local rese
 ## Behavior
 
 - A default research image project is created automatically for existing data.
-- Project creation happens on a dedicated create page where users provide a name, a required short UI description, and one or more image task types.
+- Project creation happens on a dedicated create page where users provide a name, a required short UI description, and one or more task types.
+- Nothing is preselected: no domain, no task types, and Create Project stays disabled until at least one task type is chosen. Defaulting to vision silently produced vision-only projects for users who wanted NLP.
+- The Vision/NLP control on that page filters which task cards are shown; it never mutates the selection. A project may therefore mix vision and NLP tasks, and `metadata.domain` records `mixed` when it does. Because only one domain's cards render at a time, the selection count per segment and the full list of included task types are always displayed — otherwise discarding the hidden domain's picks would be invisible.
+- `task_types` is the source of truth downstream; `metadata.domain` is descriptive only.
 - Project cards open workspaces and expose a three-dot menu for rename and deletion; projects cannot be created inline from the project list.
 - User-created projects can be removed when they do not own datasets or history; the default project cannot be deleted.
-- Dataset creation follows the active project's allowed image task types.
+- Dataset creation follows the active project's allowed task types, resolved through one shared helper also used by the training, testing, and inference pages. While the project is still loading that helper returns nothing and callers show a loading state, rather than substituting a default that would flash the wrong domain.
+- Dataset creation asks for the domain (Vision or NLP) first and only then lists that domain's tasks, intersected with what the project allows. Only domains the project actually declared are offered, and a project with a single domain skips the step rather than presenting one lone tab. Label fields and the create button stay hidden or disabled until a task is chosen, so nothing on the panel describes a task the user has not picked.
 - Editable dataset manifests include `project_id`, `task_type`, `format`, and `labels`.
 - Editable dataset manifests can persist allowlisted preprocessing config for training-time prepared copies.
 - Preprocessing config supports random training-time augmentation and materialized generated copies; generated version artifacts live under ignored `storage/dataset_versions`.

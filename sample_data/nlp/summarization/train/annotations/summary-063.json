@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Suez Canal carries much of world trade and was blocked six days by one ship in 2021.",
+      "answer": "The Suez Canal carries much of world trade and was blocked six days by one ship in 2021.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

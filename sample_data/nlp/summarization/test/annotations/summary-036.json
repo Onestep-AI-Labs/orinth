@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Solar particles hitting atmospheric gases make aurorae, green-red from oxygen and blue from nitrogen.",
+      "answer": "Solar particles hitting atmospheric gases make aurorae, green-red from oxygen and blue from nitrogen.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

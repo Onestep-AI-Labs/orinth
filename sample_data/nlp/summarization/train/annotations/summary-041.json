@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Dogs, domesticated over 15,000 years ago, descend from now-extinct wolf populations.",
+      "answer": "Dogs, domesticated over 15,000 years ago, descend from now-extinct wolf populations.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

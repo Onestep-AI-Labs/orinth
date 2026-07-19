@@ -93,6 +93,26 @@ export function isVisionTask(task: TaskType | string | undefined): boolean {
 
 export const VISION_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
 export const NLP_TASK_TYPES: TaskType[] = ["text_classification", "summarization", "question_answering"];
+export const ALL_TASK_TYPES: TaskType[] = [...VISION_TASK_TYPES, ...NLP_TASK_TYPES];
+
+/**
+ * Task types a project may work in — the shared source for the dataset,
+ * training, testing, and inference task pickers.
+ *
+ * Returns `[]` while the project is still resolving. Callers must render a
+ * loading state for that case instead of substituting a default: `useProject`
+ * reports `null` until the projects list arrives, so falling back to vision
+ * here flashes the wrong domain at an NLP project on every page load.
+ */
+export function allowedTaskTypesForProject(
+  project: { task_types?: string[] } | null | undefined
+): TaskType[] {
+  if (!project) return [];
+  const tasks = (project.task_types ?? []).filter((task): task is TaskType =>
+    ALL_TASK_TYPES.includes(task as TaskType)
+  );
+  return tasks.length ? tasks : VISION_TASK_TYPES;
+}
 
 export function defaultPreprocessConfig(): DatasetPreprocessConfig {
   return {

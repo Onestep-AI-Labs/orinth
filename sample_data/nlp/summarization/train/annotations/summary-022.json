@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Dead Sea, deep below sea level and intensely salty, is shrinking as the Jordan is diverted.",
+      "answer": "The Dead Sea, deep below sea level and intensely salty, is shrinking as the Jordan is diverted.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

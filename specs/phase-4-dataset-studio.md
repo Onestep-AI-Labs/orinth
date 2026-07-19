@@ -37,9 +37,16 @@ Provide a local dataset workspace for browsing reference datasets and managing e
 
 ## Behavior
 
-- Reference YOLO and COCO datasets under `datasets/` are browsable and read-only.
+- Reference YOLO and COCO datasets under `datasets/` are browsable and read-only. They stay scoped to the default workspace: `datasets/` is git-ignored local data, so they cannot be relied on to exist elsewhere.
+- Tracked starter samples under `sample_data/` are committed, so a fresh clone has usable data with no seeding step. They are marked `shared`, which makes them visible read-only in every project while belonging to none — `count_owned_datasets` excludes them, or a project owning nothing would be undeletable.
+- `shared` is a field on the dataset, not an id-prefix convention. The prefix check it replaced was duplicated across the dataset and evaluation services and dropped a sample out of both the moment it was renamed.
+- Shared samples are filtered to the requesting project's declared `task_types`, so an NLP-only workspace is never offered an image dataset. A project's own datasets are always listed regardless of task.
+- Current samples: `sample_image_classification` (300 waste images across six classes, 210/60/30) and the three NLP samples. Object detection and segmentation have no tracked sample, so a project declaring only those tasks sees none.
 - Editable datasets are stored under ignored `storage/datasets/{dataset_id}` with an `unassigned` inbox plus train/valid/test splits.
 - Editable dataset manifests include `project_id`, `task_type`, `format`, and arbitrary labels.
+- The dataset create panel asks for a class-label list only where labels are meaningful — image classification, text classification, object detection, and segmentation. Summarization and question answering carry their content in the annotation payload and have a fixed label (`summary` / `answer`), which the client sends regardless of the label draft. Offering the field there previously saved those datasets with a stray `object` label.
+- The label list starts empty and Create dataset stays disabled until at least one label is entered. A prefilled placeholder label shipped on every dataset whose author did not notice it. Labels are entered one at a time with Enter, or several at once separated by `;` or `,`.
+- Storage format is derived from the task, never chosen, so it is shown as a caption on the task step rather than as its own field.
 - Editable dataset manifests may include an allowlisted preprocessing config with enabled flag, preset, resize, normalize, and safe transform names.
 - Editable dataset manifests may include a split config with train/valid/test proportions, seed, stratify, and resplit-all flags.
 - New uploads default to the `unassigned` inbox. Proceed saves config and splits inbox items into train/valid/test with default 70/20/10 proportions and seed `42`.

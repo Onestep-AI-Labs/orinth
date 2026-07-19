@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How long did the Berlin Wall divide the city?",
+      "answer": "twenty-eight years",
+      "text": "twenty-eight years",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

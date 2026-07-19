@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Where is the Sahara?",
+      "answer": "northern Africa",
+      "text": "northern Africa",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

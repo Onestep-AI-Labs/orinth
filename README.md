@@ -207,9 +207,10 @@ Project AI guidance is shared across Codex and Claude Code:
 
 ## ToDo
 
-- refine NLP transformer fine-tuning
-- planning simple LLM task pipeline
-- planning for auto data prep
+- [x] refine NLP transformer fine-tuning
+- [ ] planning simple LLM task pipeline
+- [ ] planning for auto data prep
+- [ ] planning to add jupyter notebook for custom model with sandbox env (isolation)
 
 ## License
 

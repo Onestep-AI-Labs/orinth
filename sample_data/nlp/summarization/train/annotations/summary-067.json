@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Arctic terns make the animal kingdom's longest annual migration, pole to pole.",
+      "answer": "Arctic terns make the animal kingdom's longest annual migration, pole to pole.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

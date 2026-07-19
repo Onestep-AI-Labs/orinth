@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What was wrong with Hubble at launch?",
+      "answer": "a flawed mirror",
+      "text": "a flawed mirror",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What causes coral to lose its colour?",
+      "answer": "stressed coral expels the algae",
+      "text": "stressed coral expels the algae",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import { Play, ScanEye, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
-import { NLP_TASK_TYPES, VISION_TASK_TYPES, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
+import { allowedTaskTypesForProject, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
 import {
   Button,
   ButtonLink,
@@ -52,10 +52,10 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
     [models]
   );
   const taskOptions = useMemo(() => {
-    const projectTasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
+    const projectTasks = allowedTaskTypesForProject(project);
     const modelTasks = [...new Set(models.map((model) => model.task_type))] as TaskType[];
-    return projectTasks.length ? projectTasks : modelTasks.length ? modelTasks : VISION_TASK_TYPES;
-  }, [models, project?.task_types]);
+    return projectTasks.length ? projectTasks : modelTasks;
+  }, [models, project]);
   const nlp = isNlpTask(taskType);
   const showDetectionParams = selectedModelInfo ? selectedModelInfo.task_type !== "classification" : false;
   const historyQuery = useQuery({
@@ -88,11 +88,12 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
   }, [taskOptions, taskType]);
 
   useEffect(() => {
-    if (taskModels.length === 0) {
-      if (selectedModel) setSelectedModel("");
-      return;
+    // Clear a model that is no longer offered for this task, but leave the
+    // choice empty rather than picking one — running inference against a model
+    // you did not choose produces results you cannot interpret.
+    if (selectedModel && !taskModels.some((model) => model.id === selectedModel)) {
+      setSelectedModel("");
     }
-    if (!taskModels.some((model) => model.id === selectedModel)) setSelectedModel(taskModels[0].id);
   }, [taskModels, selectedModel]);
 
   useEffect(() => {
@@ -159,6 +160,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           </Field>
           <Field label="Model">
             <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+              <option value="">Choose a model…</option>
               {taskModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name} - {formatDatasetTask(model.task_type)}

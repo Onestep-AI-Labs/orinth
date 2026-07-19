@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How many spectators could the Colosseum hold?",
+      "answer": "fifty thousand",
+      "text": "fifty thousand",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Concrete is the world's most used material, and its cement is a major carbon source.",
+      "answer": "Concrete is the world's most used material, and its cement is a major carbon source.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

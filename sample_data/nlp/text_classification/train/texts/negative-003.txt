@@ -1,1 +1,0 @@
-The upload stalled and the workspace showed an error before any rows were saved.

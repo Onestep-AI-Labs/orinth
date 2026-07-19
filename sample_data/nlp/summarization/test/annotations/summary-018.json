@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Trans-Siberian covers 9,000 kilometres and eight time zones in roughly a week.",
+      "answer": "The Trans-Siberian covers 9,000 kilometres and eight time zones in roughly a week.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

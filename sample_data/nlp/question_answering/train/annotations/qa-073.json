@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How long can olive trees live?",
+      "answer": "many centuries",
+      "text": "many centuries",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

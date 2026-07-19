@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Which text allowed hieroglyphs to be deciphered?",
+      "answer": "the Greek text",
+      "text": "the Greek text",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

@@ -136,12 +136,87 @@ export function HistoryHeader({
   );
 }
 
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({
+  label,
+  hint,
+  children
+}: {
+  label: string;
+  /** Secondary note shown on the right of the label row. Lives there rather
+   *  than under the control so it adds no height — a caption below one field
+   *  in a two-column row knocks its neighbour's control out of alignment. */
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="field">
-      <label>{label}</label>
+      <label>
+        <span>{label}</span>
+        {hint ? <span className="field-label-hint">{hint}</span> : null}
+      </label>
       {children}
     </div>
+  );
+}
+
+/**
+ * Numeric input that tolerates being emptied while you retype it.
+ *
+ * A plain `onChange={(e) => set(Number(e.target.value))}` turns "" into 0 the
+ * moment you clear the field, so the caret jumps and you end up editing "0"
+ * instead of an empty box. Here the draft stays a string while focused and is
+ * only committed on blur, falling back to the last good value if what is left
+ * cannot be parsed.
+ */
+export function NumberInput({
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  disabled
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  function commit(raw: string) {
+    setDraft(null);
+    const parsed = Number(raw);
+    if (raw.trim() === "" || Number.isNaN(parsed)) return;
+    let next = parsed;
+    if (min !== undefined) next = Math.max(min, next);
+    if (max !== undefined) next = Math.min(max, next);
+    if (next !== value) onChange(next);
+  }
+
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      value={draft ?? value}
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      onChange={(event) => {
+        const raw = event.target.value;
+        setDraft(raw);
+        // Propagate only complete values, so a parent that derives state from
+        // this field is not driven by half-typed input.
+        const parsed = Number(raw);
+        if (raw.trim() !== "" && !Number.isNaN(parsed)) onChange(parsed);
+      }}
+      onBlur={(event) => commit(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") commit((event.target as HTMLInputElement).value);
+      }}
+    />
   );
 }
 

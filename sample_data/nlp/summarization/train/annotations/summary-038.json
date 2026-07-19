@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "The Mariana Trench plunges nearly 11,000 metres, hosting life under crushing pressure.",
+      "answer": "The Mariana Trench plunges nearly 11,000 metres, hosting life under crushing pressure.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

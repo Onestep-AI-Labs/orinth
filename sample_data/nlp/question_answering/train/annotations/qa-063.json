@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "How do elephants communicate over distance?",
+      "answer": "very low frequency rumbles",
+      "text": "very low frequency rumbles",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

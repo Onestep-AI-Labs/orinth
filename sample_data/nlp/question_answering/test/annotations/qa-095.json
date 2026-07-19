@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "Why can one pathogen devastate banana crops?",
+      "answer": "Plantation bananas are genetically near-identical clones",
+      "text": "Plantation bananas are genetically near-identical clones",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

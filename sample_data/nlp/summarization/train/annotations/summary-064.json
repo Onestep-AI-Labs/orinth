@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Humans must eat vitamin C; without it scurvy ravaged sailors until citrus rations.",
+      "answer": "Humans must eat vitamin C; without it scurvy ravaged sailors until citrus rations.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

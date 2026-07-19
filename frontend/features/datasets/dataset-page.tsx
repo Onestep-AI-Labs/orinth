@@ -33,13 +33,12 @@ import {
 import { DatasetImagesTab } from "@/features/datasets/images-tab";
 import { SPLITS } from "@/features/platform/constants";
 import {
+  allowedTaskTypesForProject,
   defaultPreprocessConfig,
   defaultSplitConfig,
   isNlpTask,
-  NLP_TASK_TYPES,
   preprocessFromDataset,
-  splitConfigFromDataset,
-  VISION_TASK_TYPES
+  splitConfigFromDataset
 } from "@/features/platform/utils";
 import { MutationError, PageSkeleton, useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetItemPage, DatasetItemSummary, DatasetPreprocessConfig, DatasetSplitConfig, DatasetSplitFilter, DatasetSummary, SplitKey, TaskType } from "@/types/api";
@@ -67,7 +66,7 @@ export function DatasetPage() {
   const [selectedItemSplits, setSelectedItemSplits] = useState<Record<string, SplitKey>>({});
   const [newDatasetName, setNewDatasetName] = useState("");
   const [taskType, setTaskType] = useState<TaskType>("classification");
-  const [labelDraft, setLabelDraft] = useState("object");
+  const [labelDraft, setLabelDraft] = useState("");
   const [cloneName, setCloneName] = useState("");
   const [editName, setEditName] = useState("");
   const [catalogRenameDraft, setCatalogRenameDraft] = useState("");
@@ -82,10 +81,7 @@ export function DatasetPage() {
   const [versionName, setVersionName] = useState("");
   const [uploadErrors, setUploadErrors] = useState<Array<Record<string, string>>>([]);
   const { confirm, confirmationDialog } = useConfirmationDialog();
-  const allowedDatasetTasks = useMemo(() => {
-    const tasks = (project?.task_types ?? []).filter((task): task is TaskType => [...VISION_TASK_TYPES, ...NLP_TASK_TYPES].includes(task));
-    return tasks.length ? tasks : VISION_TASK_TYPES;
-  }, [project?.task_types]);
+  const allowedDatasetTasks = useMemo(() => allowedTaskTypesForProject(project), [project]);
   const openDataset = useCallback(
     (datasetId: string) => {
       const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -259,8 +255,11 @@ export function DatasetPage() {
   }, [imagePage, imagesPerPage, itemPage.total]);
 
   useEffect(() => {
+    // Empty means the project has not resolved yet — leave the task alone
+    // rather than snapping it to a default the project may not allow.
+    if (allowedDatasetTasks.length === 0) return;
     if (!allowedDatasetTasks.includes(taskType)) {
-      setTaskType(allowedDatasetTasks[0] ?? "classification");
+      setTaskType(allowedDatasetTasks[0]);
     }
   }, [allowedDatasetTasks, taskType]);
 

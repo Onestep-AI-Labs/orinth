@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Paper, invented in China and carried west, made records far cheaper than parchment.",
+      "answer": "Paper, invented in China and carried west, made records far cheaper than parchment.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

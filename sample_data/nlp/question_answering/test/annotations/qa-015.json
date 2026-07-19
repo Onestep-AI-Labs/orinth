@@ -1,0 +1,14 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "answer",
+      "kind": "qa",
+      "question": "What is the most consumed drink in the world?",
+      "answer": "water",
+      "text": "water",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

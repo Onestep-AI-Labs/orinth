@@ -1,0 +1,13 @@
+{
+  "annotations": [
+    {
+      "class_id": 0,
+      "class_name": "summary",
+      "kind": "summary",
+      "text": "Rice feeds over half the world but paddy fields emit significant methane.",
+      "answer": "Rice feeds over half the world but paddy fields emit significant methane.",
+      "bbox": null,
+      "polygon": []
+    }
+  ]
+}

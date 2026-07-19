@@ -33,6 +33,7 @@ Serve local image inference for registered model families. The original referenc
 - Model catalog entries can be downloaded from `GET /api/models/{model_id}/download`; single-file models stream the asset directly, and multi-asset models are bundled as zip archives under ignored storage.
 - Inference UI queries `GET /api/models?available_only=true`; users can only run models with local or promoted trained assets available.
 - Inference UI selection is task-first, then available models filtered to the selected task.
+- No model is preselected. The picker opens on a "Choose a model…" placeholder and Run inference stays disabled until one is chosen; a model that stops being offered for the current task is cleared rather than silently swapped. The same rule applies to the testing page's model checklist — an auto-selected model is easy to miss and gets run by accident, and its results are then attributed to the wrong model.
 - Inference UI renders task-aware parameters: classification models hide detection-specific thresholds, while detection and segmentation models expose confidence and IoU controls.
 - Inference UI uses neutral inference iconography because the page supports both image and text inference.
 - Inference UI keeps model task metadata and result summary as compact inline rows instead of boxed metric grids.
