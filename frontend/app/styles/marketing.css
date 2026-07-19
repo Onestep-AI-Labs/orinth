@@ -1,0 +1,697 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Narrative Workflow
+ * theme: system-managed (frontend/DESIGN.md — locked; catalog dispatch skipped)
+ * nav: N9 edge-aligned minimal · hero: H2 split diptych · stages: F4 step sequence
+ * proof: F3 tabular spec sheet · footer: Ft2 inline single line
+ * enrichment: real product captures (public/brand), hairline figures — no re-drawn chrome
+ * motion: none — reveals off, hover/focus transitions only (motion-cut project)
+ * pre-emit critique: P5 H5 E5 S5 R5 V4
+ *
+ * Scope: the public entry surface only (/ and /signin). Everything here obeys
+ * DESIGN.md — token-only color, border-first structure, weight cap 600, one accent
+ * under 5%. The single sanctioned extension is the landing type scale
+ * (--display-hero / --display-section), documented at DESIGN.md §10.
+ */
+
+/* Gate 34: no horizontal scroll anywhere on the public pages. clip, never hidden. */
+html:has(.landing),
+html:has(.landing) body,
+html:has(.signin),
+html:has(.signin) body {
+  overflow-x: clip;
+}
+
+.landing,
+.signin {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.landing-container {
+  width: 100%;
+  max-width: var(--landing-max);
+  margin: 0 auto;
+  padding-inline: clamp(1rem, 4vw, 2.5rem);
+}
+
+/* ---------------------------------------------------------------------------
+ * N9 · Edge-aligned minimal nav
+ * Wordmark hard left, actions hard right, nothing centered — deliberately not
+ * the logo-left/links-center/CTA-right arrangement. Hairline only, no blur,
+ * no shadow: DESIGN.md §5 forbids elevation on a resting surface.
+ * ------------------------------------------------------------------------ */
+.landing-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px clamp(1rem, 4vw, 2.5rem);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.landing-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--color-ink);
+}
+
+.landing-wordmark img {
+  display: block;
+  width: 30px;
+  height: 30px;
+}
+
+.landing-wordmark strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+  white-space: nowrap;
+}
+
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  color: var(--color-ink-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap; /* gate 49: clickable text never wraps to two lines */
+  transition: color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.landing-nav-link:hover {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+.landing-nav-link:focus-visible,
+.landing-wordmark:focus-visible,
+.landing-inline-link:focus-visible,
+.landing-footer a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Shared section furniture
+ * ------------------------------------------------------------------------ */
+.landing-section {
+  padding-block: var(--landing-gap);
+  border-top: 1px solid var(--color-line);
+}
+
+.landing-eyebrow {
+  display: block;
+  margin: 0 0 12px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landing-h2 {
+  margin: 0;
+  max-width: 22ch;
+  font-family: var(--font-display);
+  font-size: var(--display-section);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: var(--display-tracking);
+  /* Gate 51: long tokens must break rather than push the page wide. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.landing-lede {
+  margin: 16px 0 0;
+  max-width: var(--landing-measure);
+  color: var(--color-ink-muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.landing-inline-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* ---------------------------------------------------------------------------
+ * H2 · Split diptych hero
+ * ------------------------------------------------------------------------ */
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); /* gate 50 */
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4rem);
+  padding-block: clamp(3rem, 7vw, 5.5rem) var(--landing-gap);
+}
+
+.landing-h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--display-hero);
+  font-weight: 600; /* DESIGN.md §3: weight cap is 600, landing included */
+  line-height: 1.05;
+  letter-spacing: var(--hero-tracking);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.landing-hero .landing-lede {
+  margin-top: 20px;
+  font-size: 17px;
+}
+
+.landing-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.landing-note {
+  margin: 20px 0 0;
+  max-width: var(--landing-measure);
+  color: var(--color-ink-subtle);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Real product captures. Hairline frame, no shadow, no fabricated browser chrome. */
+.landing-figure {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-2);
+}
+
+/* next/image emits intrinsic width/height attributes (1915x927 here). Without
+ * max-width the img lays out at 1915px and pushes the page to ~2000px on phones,
+ * which the figure's overflow:hidden hides visually while the document stays wide. */
+.landing-figure img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.landing-figure figcaption {
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-subtle);
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+ * F4 · Step sequence — the Narrative Workflow spine
+ * A persistent left rail carries the stage number and a hairline connector;
+ * the content column holds the copy and its capture.
+ * ------------------------------------------------------------------------ */
+.landing-stages {
+  display: grid;
+  gap: 0;
+  margin-top: 48px;
+}
+
+.landing-stage {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0 24px;
+  padding-block: 40px;
+  border-top: 1px solid var(--color-line);
+}
+
+.landing-stage:first-child {
+  border-top: 0;
+}
+
+.landing-stage-rail {
+  position: relative;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.landing-stage-number {
+  font-family: var(--font-display);
+  font-size: var(--display-stage);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--display-tracking);
+  color: var(--color-ink-subtle);
+  line-height: 1.2;
+}
+
+.landing-stage-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); /* gate 50 */
+  align-items: start;
+  gap: clamp(1.5rem, 4vw, 3rem);
+}
+
+.landing-stage-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--display-stage);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: var(--display-tracking);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.landing-stage-copy {
+  margin: 12px 0 0;
+  color: var(--color-ink-muted);
+  font-size: 15px;
+}
+
+.landing-stage-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-stage-tags li {
+  padding: 3px 9px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-subtle);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+ * F3 · Tabular spec sheet — semantic table in a scroll wrapper (DESIGN.md §9)
+ * ------------------------------------------------------------------------ */
+.landing-table-wrap {
+  margin-top: 32px;
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+}
+
+.landing-table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+/*
+ * platform.css styles bare `table`/`th`/`td` for dense dashboard grids — nowrap,
+ * ellipsis truncation, a 340px cap, sticky uppercase headers. Those are right for
+ * a data table and wrong for a prose spec sheet, and they apply to any unscoped
+ * <table> in the app. Reset them here rather than weakening the global rule,
+ * which ~20 dashboard tables depend on.
+ */
+.landing-table th,
+.landing-table td {
+  max-width: none;
+  padding: 14px 16px;
+  overflow: visible;
+  border-bottom: 0;
+  text-align: left;
+  text-overflow: clip;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.landing-table thead th {
+  position: static;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface-2);
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.landing-table tbody tr + tr th,
+.landing-table tbody tr + tr td {
+  border-top: 1px solid var(--color-line-soft);
+}
+
+/* Row headers are names, not micro-labels — undo the global uppercase treatment. */
+.landing-table tbody th {
+  position: static;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.landing-table td {
+  color: var(--color-ink-muted);
+}
+
+.landing-table code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+/* ---------------------------------------------------------------------------
+ * Quickstart
+ * ------------------------------------------------------------------------ */
+.landing-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(2rem, 5vw, 4rem);
+}
+
+.landing-code {
+  margin: 0;
+  overflow-x: auto;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.landing-code .landing-code-comment {
+  color: var(--color-ink-subtle);
+}
+
+/* ---------------------------------------------------------------------------
+ * Closing CTA — one button, per the CTA voice rule
+ * ------------------------------------------------------------------------ */
+.landing-close {
+  padding-block: var(--landing-gap);
+  border-top: 1px solid var(--color-line);
+  text-align: left;
+}
+
+.landing-close .landing-cta-row {
+  margin-top: 24px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Ft2 · Inline single line footer
+ * ------------------------------------------------------------------------ */
+.landing-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding-block: 28px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-subtle);
+  font-size: 13px;
+}
+
+.landing-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.landing-footer a {
+  color: var(--color-ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.landing-footer a:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Sign-in — presentational only, no auth behind it yet
+ * ------------------------------------------------------------------------ */
+.signin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.signin-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 5vw, 4rem);
+}
+
+.signin-form-wrap {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.signin-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 40px;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.signin-back:hover {
+  color: var(--color-ink);
+}
+
+.signin-back:focus-visible,
+.signin-aside a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.signin-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--display-section);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: var(--display-tracking);
+}
+
+.signin-sub {
+  margin: 10px 0 0;
+  color: var(--color-ink-muted);
+  font-size: 15px;
+}
+
+.signin-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.signin-field {
+  display: grid;
+  gap: 6px;
+}
+
+.signin-field span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.signin-field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  /* DESIGN.md §9: controls use --line-input, not --line (WCAG 1.4.11). */
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.signin-field input::placeholder {
+  color: var(--color-ink-subtle);
+}
+
+.signin-field input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.signin-form .primary-button {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.signin-notice {
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Right column: quiet context, hairline separated. No stock imagery. */
+.signin-aside {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  padding: clamp(2rem, 6vw, 4rem);
+  border-left: 1px solid var(--color-line);
+  background: var(--color-canvas);
+}
+
+.signin-aside-inner {
+  max-width: 26rem;
+}
+
+.signin-aside p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.signin-aside .signin-aside-lede {
+  margin-top: 20px;
+}
+
+.signin-aside-list {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signin-aside-list li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  color: var(--color-ink-muted);
+  font-size: 14px;
+}
+
+.signin-aside-list b {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-ink-subtle);
+}
+
+/* ---------------------------------------------------------------------------
+ * Responsive — verified at 320 / 375 / 414 / 768
+ * ------------------------------------------------------------------------ */
+@media (max-width: 60rem) {
+  .landing-hero,
+  .landing-stage-body,
+  .landing-split,
+  .signin {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .signin {
+    min-height: 0;
+  }
+
+  /* Context reads as a footer to the form on narrow screens, not a side panel. */
+  .signin-aside {
+    border-left: 0;
+    border-top: 1px solid var(--color-line);
+  }
+
+  .landing-stage-body {
+    gap: 24px;
+  }
+}
+
+@media (max-width: 40rem) {
+  .landing-section {
+    padding-block: clamp(2.5rem, 10vw, 4rem);
+  }
+
+  /* F4 collapse: the number moves out of the rail and inline with the title. */
+  .landing-stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-block: 32px;
+  }
+
+  .landing-stage-rail {
+    margin-bottom: 8px;
+  }
+
+  .landing-stage-number {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+  }
+
+  .landing-nav {
+    padding-inline: 1rem;
+  }
+
+  /* Documentation drops out of the nav at phone width; it stays in the footer. */
+  .landing-nav-link-secondary {
+    display: none;
+  }
+
+  .landing-hero .landing-lede {
+    font-size: 16px;
+  }
+
+  .landing-cta-row .primary-button,
+  .landing-cta-row .secondary-button {
+    width: 100%; /* 44px+ hit target, no cramped side-by-side buttons */
+  }
+
+  .landing-footer {
+    justify-content: flex-start;
+  }
+}
+
+/* Motion: this page ships no reveals. Transitions are hover/focus only and
+ * already sit inside the 120–200ms ease-out band. Honour the preference anyway
+ * so nothing here can animate for a user who asked it not to. */
+@media (prefers-reduced-motion: reduce) {
+  .landing *,
+  .signin * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -24,9 +24,12 @@ Applies to any change that adds or alters a UI surface. Skip only for pure backe
 - Invoke the `/frontend-design` skill for all UI and styling work.
 - Invoke `hallmark` only with an explicit verb — `hallmark audit <target>` to score an existing surface, or
   `hallmark redesign <target>` to rework one. Component-scope briefs ("just the button") are also fine.
-- **Do not run hallmark's default greenfield flow.** It composes marketing pages — heroes, marquees,
-  feature pills, testimonials, footers — which `docs/ai/rules.md` forbids ("keep the first screen as the
-  working app, not a landing page"). Its `audit` and `redesign` verbs are the parts that fit this app.
+- **Do not run hallmark's default greenfield flow on a `(platform)` route.** It composes marketing
+  pages — heroes, marquees, feature pills, testimonials, footers — which `docs/ai/rules.md` forbids for
+  the working app. Its `audit` and `redesign` verbs are the parts that fit those surfaces.
+- The greenfield flow *is* appropriate for `frontend/app/(marketing)` (`/` and `/signin`), which is the
+  project's public entry surface. See `frontend/DESIGN.md` §10 and `specs/phase-9-landing-and-signin.md`
+  for what that scope allows and what still binds.
 - Design decisions that change tokens, elevation, typography, or shell anatomy belong in a spec before
   implementation, and in `frontend/DESIGN.md` after.
 - Reuse tokens and shared primitives. Add a token rather than a literal; add a variant rather than a

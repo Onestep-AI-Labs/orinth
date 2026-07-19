@@ -6,7 +6,8 @@ AI-readable design contract for the frontend. Tokens live in `app/globals.css`; 
 
 Operational research instrument for medical-imaging and NLP experiments — not a marketing site, not a diagnostic device.
 
-- The first screen is the working app. No landing-page composition.
+- Every platform screen is the working app. No landing-page composition inside `app/(platform)`.
+  The one public entry surface — `/` and `/signin` — is scoped in §10 and is the sole exception.
 - Labels are nouns ("Training runs"). Buttons are verbs ("Start training").
 - Dense over spacious; informative over decorative.
 - Never imply final clinical diagnosis or autonomous medical decision-making.
@@ -173,9 +174,43 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 - **Do** keep tables semantic (`<table>`) inside a horizontal-scroll wrapper; **don't** rebuild them as div grids.
 - **Do** write empty states with a next-step action; **don't** render bare "No data".
 - **Don't** add elevation to resting surfaces.
-- **Don't** set type above 24px, or use weight 700.
+- **Don't** set type above 24px on a `(platform)` route, or use weight 700 anywhere. The landing type
+  scale in §10 is the only sanctioned way past 24px, and it is scoped to `/` and `/signin`.
 - **Don't** use gradients, icon-tile card grids, decorative accent blobs, or centered hero layouts.
-- **Don't** add marketing or diagnosis language.
+- **Don't** add diagnosis language anywhere, or marketing language on a `(platform)` route.
+
+## 10. Landing scope — `/` and `/signin` only
+
+The public entry surface is a landing page and a sign-in screen. It is the one place the system is
+allowed to compose like a marketing page, and the allowance is deliberately narrow. Tokens live in
+`app/globals.css`; selectors live in `app/styles/marketing.css`.
+
+**What the landing scope may do that a platform route may not:**
+
+| Allowance | Token | Why it is scoped |
+|---|---|---|
+| Type above 24px | `--display-hero` (36→56px), `--display-section` (26→34px) | A headline is the page's whole job. Nothing inside the app has that job |
+| Section rhythm past 48px | `--landing-gap` (64→112px) | The app is a full-bleed dashboard; the landing page is a read-through document |
+| Centered content column | `--landing-max` (72rem), `--landing-measure` (34rem) | The shell is a fixed sidebar; the landing page has no sidebar |
+
+**What does not change, and must not:** one typeface (Inter), weight cap 600, token-only color, the
+single-accent budget, and border-first elevation. `--accent` on the landing page is links and focus
+rings only — the primary CTA is the near-black `--ink` fill, exactly as `Button` renders it everywhere
+else. No shadow on a resting surface, including the nav, the figures, and the spec table.
+
+**Content rules.** Product captures are real screenshots from `public/brand` in a hairline `<figure>` —
+never a re-drawn browser frame, phone mockup, or fake IDE chrome. No invented metrics, testimonials,
+logo walls, or user counts. The medical-context rule applies with full force: the page may say the
+platform *measures model behavior*, never that it diagnoses.
+
+**Beware the global table rules.** `app/styles/platform.css` styles bare `table` / `th` / `td` for
+dense dashboards — `white-space: nowrap`, ellipsis truncation, a 340px cap, sticky uppercase headers.
+Any unscoped `<table>` inherits them. `.landing-table` resets them explicitly; a new prose table must
+do the same rather than weakening the global rule.
+
+**Beware `next/image` intrinsic sizing.** A sized `<Image>` lays out at its intrinsic width unless the
+CSS sets `max-width: 100%`. `width: 100%` alone is not enough, and a wrapper's `overflow: hidden` will
+hide the resulting document overflow instead of preventing it.
 
 ## Exceptions
 

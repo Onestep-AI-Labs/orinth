@@ -134,7 +134,7 @@ function GlobalLoadingOverlay() {
 function GlobalSidebar({ pathname, compact = false }: { pathname: string; compact?: boolean }) {
   return (
     <aside className={`sidebar sidebar-global ${compact ? "sidebar-global-compact" : ""}`}>
-      <Link className="brand-block brand-link" href="/" title="Onestep AI Platform home">
+      <Link className="brand-block brand-link" href="/projects" title="Onestep AI Platform workspace">
         <span className="brand-mark" aria-hidden="true">
           <Image src="/brand/logo_transparent.png" alt="" width={42} height={42} priority />
         </span>
@@ -144,7 +144,7 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
         </div>
       </Link>
       <nav className="side-nav">
-        <SideLink href="/" active={pathname === "/"} icon={<ScanEye size={17} />}>
+        <SideLink href="/projects" active={pathname.startsWith("/projects")} icon={<ScanEye size={17} />}>
           Projects
         </SideLink>
         <SideLink href="/documentation" active={pathname.startsWith("/documentation")} icon={<BookOpen size={17} />}>
@@ -207,7 +207,7 @@ function ProjectSidebar({
   return (
     <aside className="sidebar sidebar-project">
       <div className="project-sidebar-top">
-        <Link className="project-back-link" href="/">
+        <Link className="project-back-link" href="/projects">
           <ArrowLeft size={16} />
           <span>Projects</span>
         </Link>

@@ -117,6 +117,9 @@
   --font-display: var(--font-sans);
   --display-tracking: -0.02em;
 
+  /* Code face — logs, snippets, quickstart blocks (DESIGN.md §3). */
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
   /*
    * Three elevations only. Resting surfaces get none — they are border-defined.
    * --shadow-subtle: primary button, active segment, controls floating over imagery
@@ -127,6 +130,23 @@
   --shadow-overlay: 0 10px 15px -3px oklch(var(--shadow-ink) / 0.1),
     0 4px 6px -4px oklch(var(--shadow-ink) / 0.1);
   --ring-accent: 0 0 0 2px oklch(var(--accent) / 0.2);
+
+  /*
+   * Landing scope only — see DESIGN.md §10. The working app is still capped at a
+   * 24px page title; these three steps exist so the public entry page (/, /signin)
+   * can carry a headline, and are not available to platform surfaces. Weight stays
+   * capped at 600 and the face is still Inter — the scale grows, the system does not
+   * gain a second typeface or a second accent.
+   */
+  --display-hero: clamp(2.25rem, 4.4vw + 0.75rem, 3.5rem); /* 36 -> 56px */
+  --display-section: clamp(1.625rem, 2.2vw + 0.75rem, 2.125rem); /* 26 -> 34px */
+  --display-stage: 1.5rem; /* 24px — the app's ceiling, reused as the stage title */
+  --hero-tracking: -0.03em; /* one step tighter than --display-tracking; only above 36px */
+
+  /* Landing rhythm. Section gaps are larger than any app surface uses. */
+  --landing-gap: clamp(4rem, 8vw, 7rem);
+  --landing-measure: 34rem; /* lede/prose max-width, ~70 characters at 16px */
+  --landing-max: 72rem; /* content container */
 }
 
 * {

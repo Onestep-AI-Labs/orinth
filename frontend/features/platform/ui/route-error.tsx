@@ -37,7 +37,7 @@ export function RouteErrorPanel({
           <Button onClick={reset}>
             <RefreshCw size={16} /> Try again
           </Button>
-          <ButtonLink variant="secondary" href="/">
+          <ButtonLink variant="secondary" href="/projects">
             Back to projects
           </ButtonLink>
         </div>

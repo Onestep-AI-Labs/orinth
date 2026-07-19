@@ -1,10 +1,10 @@
 {
-  "date": "2026-07-18",
+  "date": "2026-07-19",
   "design_md": "frontend/DESIGN.md (system-managed project — overrides theme selection)",
   "font_stack": "Inter via next/font/google (app/layout.tsx); single face, display aliases body",
   "palette": "OKLCH channel triples in app/globals.css; Tailwind consumes oklch(var(--x) / <alpha-value>)",
   "motion": "motion-cut — no framer-motion/gsap/motion; CSS transitions only, prefers-reduced-motion honored",
   "spacing": "4pt scale, hand-rolled in platform.css (not Tailwind extend.spacing)",
   "framework": "Next.js 14 (app router) + Tailwind v3 + pnpm",
-  "notes": "Dense operational dashboard. Greenfield/landing-page flow is out of scope; use audit/redesign/component verbs only. No visual regression suite — class names are the regression surface, do not rename them."
+  "notes": "Two route groups: app/(marketing) is the public entry surface (/ and /signin) and is the ONLY place landing composition is allowed — see DESIGN.md §10. app/(platform) is the dense operational app; use audit/redesign/component verbs there, never the greenfield flow. Gotchas: platform.css styles bare table/th/td globally (nowrap + ellipsis + uppercase headers) so any new prose table must reset them; next/image needs max-width:100% or it lays out at intrinsic width. No visual regression suite — class names are the regression surface, do not rename them."
 }

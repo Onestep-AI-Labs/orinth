@@ -76,7 +76,7 @@ export function ProjectCreatePage() {
   return (
     <div className="create-project-page">
       <div className="create-project-heading">
-        <Link className="project-back-link" href="/">
+        <Link className="project-back-link" href="/projects">
           <ArrowLeft size={16} />
           <span>Projects</span>
         </Link>
