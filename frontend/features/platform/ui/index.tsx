@@ -331,9 +331,22 @@ export function SliderField({
   );
 }
 
-export function PageHeader({ title, subtitle, icon, eyebrow }: { title: string; subtitle: string; icon: React.ReactNode; eyebrow?: string }) {
+export function PageHeader({
+  title,
+  subtitle,
+  icon,
+  eyebrow,
+  actions
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  eyebrow?: string;
+  /** Right-aligned status or controls, per DESIGN.md §6 page-header anatomy. */
+  actions?: React.ReactNode;
+}) {
   return (
-    <header className="page-header">
+    <header className={`page-header ${actions ? "page-header-with-actions" : ""}`}>
       <div>
         <span>{icon}</span>
         <div>
@@ -342,6 +355,7 @@ export function PageHeader({ title, subtitle, icon, eyebrow }: { title: string; 
           <p>{subtitle}</p>
         </div>
       </div>
+      {actions ? <div className="page-header-actions">{actions}</div> : null}
     </header>
   );
 }

@@ -1,5 +1,17 @@
 [
   {
+    "date": "2026-07-19",
+    "verb": "default",
+    "macrostructure": "Narrative Workflow",
+    "genre": "modern-minimal",
+    "theme": "system-managed (frontend/DESIGN.md — catalog dispatch skipped)",
+    "theme_axes": "light paper / grotesk-sans display (Inter 600) / cool accent",
+    "nav": "N9 edge-aligned minimal",
+    "footer": "Ft2 inline single line",
+    "enrichment": "real product captures from public/brand — no re-drawn chrome",
+    "brief": "Onestep AI Platform · public landing + sign-in at / and /signin; OSS/self-host positioning. Rules narrowed: landing composition now allowed on the two (marketing) routes only, DESIGN.md §10."
+  },
+  {
     "date": "2026-07-18",
     "verb": "redesign",
     "scope": "whole-app design system (system layer only)",

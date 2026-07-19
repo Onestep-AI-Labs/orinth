@@ -3,7 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.container import dataset_service, project_service
 from app.core.database import get_db
-from app.schemas import DeleteResponse, ProjectCreate, ProjectSummary, ProjectUpdate
+from app.schemas import (
+    DeleteResponse,
+    ProjectCreate,
+    ProjectStats,
+    ProjectSummary,
+    ProjectUpdate,
+)
 
 router = APIRouter(prefix="/projects")
 
@@ -23,6 +29,12 @@ def update_project(
     project_id: str, payload: ProjectUpdate, db: Session = Depends(get_db)
 ) -> ProjectSummary:
     return project_service.update_project(db, project_id, payload)
+
+
+@router.get("/{project_id}/stats", response_model=ProjectStats)
+def project_stats(project_id: str, db: Session = Depends(get_db)) -> ProjectStats:
+    dataset_count = dataset_service.count_owned_datasets(project_id)
+    return project_service.project_stats(db, project_id, dataset_count)
 
 
 @router.delete("/{project_id}", response_model=DeleteResponse)

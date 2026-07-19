@@ -21,7 +21,7 @@ export default function NotFound() {
           icon={<Compass size={32} />}
           label="Nothing here"
           description="Check the URL or head back to your projects."
-          action={<ButtonLink href="/">Back to projects</ButtonLink>}
+          action={<ButtonLink href="/projects">Back to projects</ButtonLink>}
         />
       </section>
     </div>

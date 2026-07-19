@@ -6,8 +6,14 @@ from fastapi import HTTPException
 from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_TASK_TYPES
 from app.core.database import Base
 from app.db.models import Project, TrainingJob
-from app.schemas import ProjectCreate
+from app.schemas import ProjectCreate, ProjectUpdate
 from app.services.projects import ProjectService
+
+
+def _session(tmp_path, name):
+    engine = create_engine(f"sqlite:///{tmp_path / name}")
+    Base.metadata.create_all(bind=engine)
+    return sessionmaker(bind=engine)()
 
 
 def test_project_service_creates_default_and_user_project(tmp_path):
@@ -94,5 +100,111 @@ def test_project_service_backfills_default_nlp_tasks(tmp_path):
             "summarization",
             "question_answering",
         ]
+    finally:
+        db.close()
+
+
+def test_archive_round_trips_through_metadata(tmp_path):
+    db = _session(tmp_path, "projects-archive.db")
+    service = ProjectService()
+    try:
+        created = service.create_project(db, ProjectCreate(name="Finished Study"))
+        assert created.archived is False
+
+        archived = service.update_project(db, created.id, ProjectUpdate(archived=True))
+        assert archived.archived is True
+        assert db.get(Project, created.id).metadata_json["archived"] is True
+
+        restored = service.update_project(db, created.id, ProjectUpdate(archived=False))
+        assert restored.archived is False
+        assert "archived" not in db.get(Project, created.id).metadata_json
+    finally:
+        db.close()
+
+
+def test_metadata_replacement_preserves_archived_state(tmp_path):
+    """`metadata` replaces the dict wholesale, so a client that omits the
+    service-owned `archived` key must not silently un-archive the project."""
+    db = _session(tmp_path, "projects-archive-metadata.db")
+    service = ProjectService()
+    try:
+        created = service.create_project(db, ProjectCreate(name="Archived Study"))
+        service.update_project(db, created.id, ProjectUpdate(archived=True))
+
+        updated = service.update_project(db, created.id, ProjectUpdate(metadata={"note": "kept"}))
+
+        assert updated.archived is True
+        assert updated.metadata["note"] == "kept"
+
+        # An explicit `archived` in the same request still wins.
+        explicit = service.update_project(
+            db, created.id, ProjectUpdate(metadata={"note": "kept"}, archived=False)
+        )
+        assert explicit.archived is False
+    finally:
+        db.close()
+
+
+def test_default_project_cannot_be_archived(tmp_path):
+    db = _session(tmp_path, "projects-archive-default.db")
+    service = ProjectService()
+    try:
+        service.ensure_default(db)
+        with pytest.raises(HTTPException) as exc:
+            service.update_project(db, DEFAULT_PROJECT_ID, ProjectUpdate(archived=True))
+        assert exc.value.status_code == 409
+    finally:
+        db.close()
+
+
+def test_project_stats_blockers_match_the_delete_message(tmp_path):
+    db = _session(tmp_path, "projects-stats.db")
+    service = ProjectService()
+    try:
+        created = service.create_project(db, ProjectCreate(name="Busy Project"))
+        db.add(TrainingJob(id="job-1", project_id=created.id, model_family="yolo"))
+        db.commit()
+
+        stats = service.project_stats(db, created.id, dataset_count=2)
+
+        assert stats.datasets == 2
+        assert stats.training_jobs == 1
+        assert stats.deletable is False
+        assert stats.blockers == ["2 datasets", "1 training job"]
+
+        # The danger zone renders `blockers`; delete raises with the same strings.
+        with pytest.raises(HTTPException) as exc:
+            service.delete_project(db, created.id, dataset_count=2)
+        assert exc.value.detail == (
+            f"This project still has {' and '.join(stats.blockers)}. Delete those first."
+        )
+    finally:
+        db.close()
+
+
+def test_project_stats_reports_deletable_when_empty(tmp_path):
+    db = _session(tmp_path, "projects-stats-empty.db")
+    service = ProjectService()
+    try:
+        created = service.create_project(db, ProjectCreate(name="Empty Project"))
+
+        stats = service.project_stats(db, created.id)
+        assert stats.blockers == []
+        assert stats.deletable is True
+
+        # The default project is undeletable for a separate reason and reports so.
+        service.ensure_default(db)
+        assert service.project_stats(db, DEFAULT_PROJECT_ID).deletable is False
+    finally:
+        db.close()
+
+
+def test_project_stats_rejects_unknown_project(tmp_path):
+    db = _session(tmp_path, "projects-stats-missing.db")
+    service = ProjectService()
+    try:
+        with pytest.raises(HTTPException) as exc:
+            service.project_stats(db, "does-not-exist")
+        assert exc.value.status_code == 404
     finally:
         db.close()

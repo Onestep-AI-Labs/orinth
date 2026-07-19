@@ -26,8 +26,13 @@
 - Keep feature implementations under `frontend/features` and shared page exports in `frontend/components/platform-pages.tsx`.
 - Keep API calls in the domain-based `frontend/lib/api/` package and preserve `import { api } from "@/lib/api"`.
 - Keep generated TypeScript build info out of git tracking.
-- Keep the first screen as the working app, not a landing page.
-- Prefer dense, operational UI over marketing-style presentation.
+- Keep every platform surface the working app. Route entry is `/` (landing) → `/signin` → `/projects`;
+  everything from `/projects` inward is dense operational UI and must never take on marketing framing.
+- The public entry surface is exactly two routes, `app/(marketing)/page.tsx` and
+  `app/(marketing)/signin/page.tsx`. Adding a third marketing route needs a spec first.
+- Prefer dense, operational UI over marketing-style presentation on every `(platform)` route.
+- Marketing copy must stay honest: no invented metrics, testimonials, logo walls, or user counts.
+  Every claim on the landing page traces to `README.md` or this file.
 - Use the design tokens defined in `frontend/app/globals.css` and documented in `frontend/DESIGN.md`; never hardcode hex, rgb, or hsl values.
 - Use the shared primitives from `@/features/platform/ui` (Button, Badge, EmptyState, toast, skeletons) instead of raw class names in new code.
 - Follow the `/frontend-design` skill for UI work. Use `hallmark` only via `audit` / `redesign` or on component-scope briefs; its greenfield flow composes marketing pages and is out of scope here.

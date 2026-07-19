@@ -20,6 +20,7 @@ export type DatasetSplitFilter = "all" | SplitKey;
 // generated schema (`@/types/generated/api`) remains the single source of truth, while
 // most call sites can keep importing the familiar names from "@/types/api" unchanged.
 export type ProjectSummary = components["schemas"]["ProjectSummary"];
+export type ProjectStats = components["schemas"]["ProjectStats"];
 export type ModelInfo = components["schemas"]["ModelInfo"];
 export type Detection = components["schemas"]["Detection"];
 export type InferenceResult = components["schemas"]["InferenceResult"];

@@ -64,6 +64,9 @@ class ProjectSummary(BaseModel):
     description: str | None = None
     task_types: list[TaskType] = Field(default_factory=lambda: list(_DEFAULT_TASK_TYPES))
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # Stored inside the `metadata` JSON column under the reserved `archived` key
+    # (no migration), but surfaced as a typed field so the API contract is explicit.
+    archived: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -84,10 +87,24 @@ class ProjectUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     task_types: list[TaskType] | None = None
     metadata: dict[str, Any] | None = None
+    archived: bool | None = None
 
     _normalize_task_types = field_validator("task_types", mode="before")(
         _normalize_task_type_list_field
     )
+
+
+class ProjectStats(BaseModel):
+    project_id: str
+    datasets: int = 0
+    training_jobs: int = 0
+    evaluation_jobs: int = 0
+    inference_jobs: int = 0
+    inference_runs: int = 0
+    deletable: bool = True
+    # Same strings `delete_project` raises with, so the danger zone and the
+    # eventual 409 message cannot drift apart.
+    blockers: list[str] = Field(default_factory=list)
 
 
 class Box(BaseModel):

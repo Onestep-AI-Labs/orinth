@@ -542,6 +542,23 @@ export interface paths {
         patch: operations["update_project_api_projects__project_id__patch"];
         trace?: never;
     };
+    "/api/projects/{project_id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Project Stats */
+        get: operations["project_stats_api_projects__project_id__stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -2384,8 +2401,53 @@ export interface components {
              */
             task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering")[];
         };
+        /** ProjectStats */
+        ProjectStats: {
+            /**
+             * Blockers
+             * @default null
+             */
+            blockers: string[];
+            /**
+             * Datasets
+             * @default 0
+             */
+            datasets: number;
+            /**
+             * Deletable
+             * @default true
+             */
+            deletable: boolean;
+            /**
+             * Evaluation Jobs
+             * @default 0
+             */
+            evaluation_jobs: number;
+            /**
+             * Inference Jobs
+             * @default 0
+             */
+            inference_jobs: number;
+            /**
+             * Inference Runs
+             * @default 0
+             */
+            inference_runs: number;
+            /** Project Id */
+            project_id: string;
+            /**
+             * Training Jobs
+             * @default 0
+             */
+            training_jobs: number;
+        };
         /** ProjectSummary */
         ProjectSummary: {
+            /**
+             * Archived
+             * @default false
+             */
+            archived: boolean;
             /**
              * Created At
              * Format: date-time
@@ -2420,6 +2482,11 @@ export interface components {
         };
         /** ProjectUpdate */
         ProjectUpdate: {
+            /**
+             * Archived
+             * @default null
+             */
+            archived: boolean | null;
             /**
              * Description
              * @default null
@@ -4043,6 +4110,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_stats_api_projects__project_id__stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectStats"];
                 };
             };
             /** @description Validation Error */

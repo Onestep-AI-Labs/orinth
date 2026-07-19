@@ -3361,3 +3361,212 @@ td {
     opacity: 1;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Project settings
+ * ------------------------------------------------------------------------ */
+
+/*
+ * Sticky footer for the project-scoped settings entry. The rail scrolls its nav
+ * (`.sidebar` is overflow-y:auto), so pinning here keeps Settings reachable
+ * without hunting for the bottom of a long project nav. Only above 960px —
+ * below that the sidebar stops scrolling and becomes a stacked block.
+ */
+.project-sidebar-footer {
+  margin: 0 -18px -18px;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 12px 18px;
+}
+
+.sidebar-project-collapsed .project-sidebar-footer {
+  width: calc(100% + 24px);
+  margin: 0 -12px -16px;
+  padding: 12px;
+}
+
+@media (min-width: 961px) {
+  .project-sidebar-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+  }
+}
+
+/* Two columns: the form on the left, read-only context on the right. Keeps the
+   inputs off a 1200px measure on a wide monitor. */
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.settings-column {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 16px;
+}
+
+@media (min-width: 68rem) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+
+  .settings-aside {
+    position: sticky;
+    top: 0;
+  }
+}
+
+/* Identity is reference data, not a metric — a labelled list, not a tile grid,
+   so a 40-character project id has somewhere to wrap. */
+.settings-identity {
+  display: grid;
+  margin: 0;
+}
+
+.settings-identity > div {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr);
+  gap: 12px;
+  border-top: 1px solid var(--color-line-soft);
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.settings-identity > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.settings-identity dt {
+  color: var(--color-ink-subtle);
+  font-weight: 500;
+}
+
+.settings-identity dd {
+  margin: 0;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.settings-identity .settings-identity-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Save follows the user down a long form instead of sitting above the fold.
+   Border-defined, not lifted — DESIGN.md §5. */
+.settings-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  padding: 12px 16px;
+}
+
+.settings-savebar-note {
+  color: var(--color-ink-muted);
+  font-size: 13px;
+}
+
+.settings-savebar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Danger zone: set apart by its border, never by elevation (DESIGN.md §5). The
+   danger hue is carried by the edge and the header; the buttons inside supply
+   the one destructive accent. */
+.danger-zone {
+  overflow: hidden;
+  border-color: var(--color-danger);
+  padding: 0;
+}
+
+.danger-zone-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-danger);
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.danger-zone-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 16px;
+}
+
+.danger-zone-row + .danger-zone-row {
+  border-top: 1px solid var(--color-line);
+}
+
+.danger-zone-copy {
+  min-width: 0;
+  flex: 1 1 20rem;
+}
+
+.danger-zone-copy strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.danger-zone-copy p {
+  margin: 4px 0 0;
+  max-width: 54ch;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.danger-zone-error {
+  padding: 0 16px 16px;
+}
+
+@media (max-width: 40rem) {
+  .danger-zone-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .danger-zone-row .secondary-button,
+  .danger-zone-row .danger-button {
+    width: 100%;
+  }
+}
+
+/* Page-header actions sit opposite the title block (DESIGN.md §6). Only applied
+   when actions are present, so the default single-child header is untouched. */
+.page-header-with-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

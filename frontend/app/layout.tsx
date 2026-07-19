@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { AppShell } from "@/components/app-shell";
 import { Providers } from "./providers";
 import "./globals.css";
 import "./styles/platform.css";
+import "./styles/marketing.css";
 
 // One face. Display type is Inter 500 with tightened tracking (see DESIGN.md §3);
 // --font-display aliases --font-sans in globals.css.
@@ -20,13 +20,13 @@ export const metadata: Metadata = {
   }
 };
 
+// The shell lives in app/(platform)/layout.tsx, not here — the marketing group
+// renders its own chrome and must not mount the sidebar or the project context.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={inter.variable}>
-        <Providers>
-          <AppShell>{children}</AppShell>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

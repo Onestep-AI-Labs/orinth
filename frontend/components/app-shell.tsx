@@ -2,12 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowLeft,
-  BarChart3,
   BookOpen,
   Boxes,
   ChevronsLeft,
@@ -15,7 +14,8 @@ import {
   Database,
   FlaskConical,
   ScanEye,
-  Settings
+  Settings,
+  Settings2
 } from "lucide-react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -24,6 +24,12 @@ import { Toaster } from "@/features/platform/toast";
 import type { ProjectSummary } from "@/types/api";
 
 const DEFAULT_PROJECT_ID = "default-research-project";
+
+/**
+ * `/projects/{id}/settings` is project-scoped and shows the project sidebar;
+ * `/projects` (the list) and `/projects/new` are not and must not match.
+ */
+const PROJECT_SETTINGS_PATH = /^\/projects\/[^/]+\/settings/;
 
 type ProjectContextValue = {
   projectId: string;
@@ -53,9 +59,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => projects.find((item) => item.id === projectId) ?? null,
     [projects, projectId]
   );
-  const isProjectArea = ["/datasets", "/models", "/inference", "/testing", "/training"].some((prefix) =>
-    pathname?.startsWith(prefix)
-  );
+  const isProjectArea =
+    ["/datasets", "/models", "/inference", "/testing", "/training"].some((prefix) =>
+      pathname?.startsWith(prefix)
+    ) || PROJECT_SETTINGS_PATH.test(pathname ?? "");
 
   useEffect(() => {
     const saved = window.localStorage.getItem("image-platform-project");
@@ -134,7 +141,7 @@ function GlobalLoadingOverlay() {
 function GlobalSidebar({ pathname, compact = false }: { pathname: string; compact?: boolean }) {
   return (
     <aside className={`sidebar sidebar-global ${compact ? "sidebar-global-compact" : ""}`}>
-      <Link className="brand-block brand-link" href="/" title="Onestep AI Platform home">
+      <Link className="brand-block brand-link" href="/projects" title="Onestep AI Platform workspace">
         <span className="brand-mark" aria-hidden="true">
           <Image src="/brand/logo_transparent.png" alt="" width={42} height={42} priority />
         </span>
@@ -144,7 +151,13 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
         </div>
       </Link>
       <nav className="side-nav">
-        <SideLink href="/" active={pathname === "/"} icon={<ScanEye size={17} />}>
+        {/* Project settings is a project-scoped destination owned by the project
+            sidebar, so it must not light up the global Projects entry as well. */}
+        <SideLink
+          href="/projects"
+          active={pathname.startsWith("/projects") && !PROJECT_SETTINGS_PATH.test(pathname)}
+          icon={<ScanEye size={17} />}
+        >
           Projects
         </SideLink>
         <SideLink href="/documentation" active={pathname.startsWith("/documentation")} icon={<BookOpen size={17} />}>
@@ -177,6 +190,15 @@ function ProjectSidebar({
   setOpen: (value: boolean) => void;
   setProjectId: (value: string) => void;
 }) {
+  const router = useRouter();
+
+  // The settings route is per-project. Without moving the URL, switching projects
+  // renames the sidebar while the form underneath keeps editing the old project.
+  function switchProject(nextId: string) {
+    setProjectId(nextId);
+    if (PROJECT_SETTINGS_PATH.test(pathname)) router.replace(`/projects/${nextId}/settings`);
+  }
+
   if (!open) {
     return (
       <aside className="sidebar sidebar-project sidebar-project-collapsed">
@@ -200,6 +222,18 @@ function ProjectSidebar({
             Inference
           </SideLink>
         </nav>
+        <div className="sidebar-spacer" />
+        <div className="project-sidebar-footer">
+          <SideLink
+            href={`/projects/${projectId}/settings`}
+            active={PROJECT_SETTINGS_PATH.test(pathname)}
+            icon={<Settings2 size={17} />}
+            title="Project settings"
+            iconOnly
+          >
+            Settings
+          </SideLink>
+        </div>
       </aside>
     );
   }
@@ -207,7 +241,7 @@ function ProjectSidebar({
   return (
     <aside className="sidebar sidebar-project">
       <div className="project-sidebar-top">
-        <Link className="project-back-link" href="/">
+        <Link className="project-back-link" href="/projects">
           <ArrowLeft size={16} />
           <span>Projects</span>
         </Link>
@@ -221,15 +255,19 @@ function ProjectSidebar({
       </div>
       <label className="project-switcher">
         <span>Switch project</span>
-        <select value={project?.id ?? projectId} onChange={(event) => setProjectId(event.target.value)}>
+        <select value={project?.id ?? projectId} onChange={(event) => switchProject(event.target.value)}>
           {!projects.some((item) => item.id === projectId) && (
             <option value={projectId}>Project</option>
           )}
-          {projects.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
+          {projects
+            // Archived projects drop out of the switcher, except the active one —
+            // otherwise selecting it would show a workspace the control cannot display.
+            .filter((item) => !item.archived || item.id === projectId)
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.archived ? `${item.name} (archived)` : item.name}
+              </option>
+            ))}
         </select>
       </label>
       <nav className="side-nav">
@@ -249,6 +287,17 @@ function ProjectSidebar({
           Inference
         </SideLink>
       </nav>
+      <div className="sidebar-spacer" />
+      <div className="project-sidebar-footer">
+        <SideLink
+          href={`/projects/${projectId}/settings`}
+          active={PROJECT_SETTINGS_PATH.test(pathname)}
+          icon={<Settings2 size={17} />}
+          title="Project settings"
+        >
+          Settings
+        </SideLink>
+      </div>
     </aside>
   );
 }
@@ -258,19 +307,25 @@ function SideLink({
   active,
   icon,
   iconOnly = false,
+  title,
   children
 }: {
   href: string;
   active: boolean;
   icon: React.ReactNode;
   iconOnly?: boolean;
+  /** Tooltip override. Defaults to the label, which is all the collapsed rail shows. */
+  title?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Link className={`nav-link ${active ? "nav-link-active" : ""} ${iconOnly ? "nav-link-icon-only" : ""}`} href={href} title={String(children)}>
+    <Link
+      className={`nav-link ${active ? "nav-link-active" : ""} ${iconOnly ? "nav-link-icon-only" : ""}`}
+      href={href}
+      title={title ?? String(children)}
+    >
       {icon}
       {!iconOnly && <span>{children}</span>}
-      {active && !iconOnly && <BarChart3 size={14} />}
     </Link>
   );
 }
