@@ -79,9 +79,11 @@ export function TrainingPage() {
   }, [taskOptions, taskType]);
 
   useEffect(() => {
-    if (!options.some((item) => item.id === modelOptionId)) {
-      const firstRunnable = options.find((item) => item.runnable) ?? options[0];
-      if (firstRunnable) setModelOptionId(firstRunnable.id);
+    // Clear a model that this task does not offer, but never pick one. The
+    // base model determines the hyperparameter defaults below, so an
+    // auto-selected one silently decides how the run is configured.
+    if (modelOptionId && !options.some((item) => item.id === modelOptionId)) {
+      setModelOptionId("");
     }
   }, [modelOptionId, options]);
 
@@ -106,6 +108,8 @@ export function TrainingPage() {
     option?.source === "huggingface" && learningRate > 0.0001
       ? `${learningRate} is far too high for fine-tuning; use ${recommendedLearningRate ?? 0.00005} or lower.`
       : null;
+  const showRecommendedLearningRate =
+    recommendedLearningRate !== null && learningRate !== recommendedLearningRate;
 
   useEffect(() => {
     if (datasets.length === 0) {
@@ -116,7 +120,9 @@ export function TrainingPage() {
   }, [datasetId, datasets]);
 
   async function runTraining() {
-    const selectedOption = option ?? options[0];
+    // No falling back to options[0]: training against a model the user did not
+    // choose produces a run whose configuration they cannot account for.
+    const selectedOption = option;
     if (!selectedOption || !datasetId) return;
     const hyperparameters: Record<string, number> = {};
     if (nlp && showMaxLength) hyperparameters.max_length = maxLength;
@@ -184,6 +190,7 @@ export function TrainingPage() {
           </Field>
           <Field label="Base model">
             <select value={modelOptionId} onChange={(event) => setModelOptionId(event.target.value)}>
+              <option value="">Choose a model…</option>
               {options.map((item) => (
                 <option key={item.id} value={item.id} disabled={!item.runnable}>
                   {item.name}
@@ -246,17 +253,21 @@ export function TrainingPage() {
                   <option value="keyword">Keyword</option>
                 </select>
               </Field>
-              <Field
-                label={option?.id === "nlp_tfidf_classifier" ? "Regularisation (C)" : "Learning rate"}
-                hint={recommendedLearningRate !== null ? `Recommended ${recommendedLearningRate}` : undefined}
-              >
+              <Field label={option?.id === "nlp_tfidf_classifier" ? "Regularisation (C)" : "Learning rate"}>
                 <NumberInput
                   min={0}
                   step={option?.source === "huggingface" ? 0.00001 : 0.0001}
                   value={learningRate}
                   onChange={setLearningRate}
                 />
-                {learningRateWarning ? <span className="field-warning">{learningRateWarning}</span> : null}
+                {/* Silent at the default, since the field is already filled with
+                    the recommended value — restating it there is noise that only
+                    forces the label to wrap. Speaks up once you deviate. */}
+                {learningRateWarning ? (
+                  <span className="field-warning">{learningRateWarning}</span>
+                ) : showRecommendedLearningRate ? (
+                  <span className="field-hint field-hint-start">Recommended {recommendedLearningRate}</span>
+                ) : null}
               </Field>
             </div>
           )}

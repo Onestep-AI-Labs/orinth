@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ImageIcon, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, ImageIcon, RefreshCw, Trash2 } from "lucide-react";
 import { formatSeconds } from "@/features/platform/utils";
 import type { JobProgress } from "@/types/api";
 import { Badge, Button, IconButton } from "./primitives";
@@ -217,6 +217,94 @@ export function NumberInput({
         if (event.key === "Enter") commit((event.target as HTMLInputElement).value);
       }}
     />
+  );
+}
+
+/**
+ * Dropdown that selects several options at once.
+ *
+ * A native `<select multiple>` is the literal control for this, but it renders
+ * as an always-open scroll box and requires ctrl/cmd-click to add a second
+ * item, which almost nobody discovers. This keeps the closed, summarised
+ * affordance of a dropdown and puts checkboxes in the panel.
+ */
+export function MultiSelect({
+  options,
+  values,
+  onChange,
+  placeholder = "Choose…",
+  disabled
+}: {
+  options: Array<{ value: string; label: string; hint?: string }>;
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const selected = options.filter((option) => values.includes(option.value));
+  const summary =
+    selected.length === 0
+      ? placeholder
+      : selected.length <= 2
+        ? selected.map((option) => option.label).join(", ")
+        : `${selected.length} selected`;
+
+  function toggle(value: string) {
+    onChange(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
+  }
+
+  return (
+    <div className="multiselect" ref={rootRef}>
+      <button
+        type="button"
+        className="multiselect-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled || options.length === 0}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className={selected.length === 0 ? "multiselect-placeholder" : undefined}>{summary}</span>
+        <ChevronDown size={16} />
+      </button>
+      {open && (
+        <div className="multiselect-panel" role="listbox" aria-multiselectable="true">
+          <div className="choice-list compact">
+            {options.map((option) => (
+              <label key={option.value}>
+                <input
+                  type="checkbox"
+                  checked={values.includes(option.value)}
+                  onChange={() => toggle(option.value)}
+                />
+                <span>
+                  {option.label}
+                  {option.hint ? <small className="multiselect-hint">{option.hint}</small> : null}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

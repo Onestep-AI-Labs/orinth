@@ -83,13 +83,13 @@ Text data is reserved as future metadata only. The platform remains a local rese
 - Inference history, testing jobs, and comparison tables display model names when the model is still registered, falling back to the stable model id only when needed.
 - Trained-model storage folders include a slugified model display name and stable model id, and registry-managed renames update owned trained-model folder paths.
 - Model catalog cards expose a three-dot menu for trained/promoted model rename and delete actions; reference models are visible but read-only.
-- Testing can create comparison runs by selecting multiple available models for the same dataset.
+- Testing can create comparison runs by selecting multiple available models for the same dataset, through a multi-select dropdown that is closed and empty by default. It stays multi-select for comparison runs, but a native `<select multiple>` is not used: it renders as an always-open scroll box and hides multi-selection behind ctrl/cmd-click.
 - Testing comparison runs are grouped by `comparison_id`, and opening any job in the group shows all sibling model results.
 - History deletion hard-deletes DB rows and owned `storage/` artifacts.
 - Active testing/training jobs cannot be deleted until terminal.
 - YOLO training remains runnable with dataset-driven class names.
 - Training selection is task-first; model options are filtered by classification, object detection, or segmentation.
-- The training UI defaults to classification and selects the first runnable classification option when available.
+- The training UI defaults to classification but selects no base model: the picker opens on a "Choose a model…" placeholder and Start training stays disabled until one is chosen. The base model supplies the hyperparameter defaults, so an auto-selected one silently decides how the run is configured, and there is no fallback to the first option at submit time.
 - Ultralytics YOLO11 and YOLO26 detection/segmentation options are runnable through the YOLO family runner.
 - Ultralytics SAM3, MobileSAM, FastSAM, YOLO-NAS, RT-DETR, and YOLO-World are listed but gated until validated.
 - Keras Applications classification training is runnable through a subprocess runner.
