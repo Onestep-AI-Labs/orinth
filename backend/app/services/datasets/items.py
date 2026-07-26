@@ -144,6 +144,8 @@ class ItemsMixin:
             (location.root / payload.split / "annotations" / f"{stem}.json").unlink(missing_ok=True)
             (location.root / payload.split / "labels" / f"{stem}.txt").unlink(missing_ok=True)
             deleted += 1
+        if self._is_llm_task(location.task_type):
+            self._regenerate_records_jsonl(location, payload.split)
         return DeleteResponse(deleted=deleted, missing=missing)
 
     def bulk_set_item_labels(
@@ -294,6 +296,8 @@ class ItemsMixin:
                         image_url=detail.image_url,
                         text_url=detail.text_url,
                         text_preview=detail.text_preview,
+                        output_preview=detail.output_preview,
+                        token_estimate=detail.token_estimate,
                         width=detail.width,
                         height=detail.height,
                         annotation_count=detail.annotation_count,
@@ -324,6 +328,9 @@ class ItemsMixin:
     def text_path(self, dataset_id: str, split: str, item_id: str) -> Path:
         self._validate_split(split)
         location = self._location(dataset_id)
+        # LLM records reuse the text route to serve the raw record JSON.
+        if self._is_llm_task(location.task_type):
+            return self._record_path(location, split, item_id)
         if not self._is_nlp_task(location.task_type):
             raise HTTPException(status_code=409, detail="Dataset item is not text")
         return self._text_path(location, split, item_id)
@@ -384,6 +391,14 @@ class ItemsMixin:
 
     def _split_summary(self, location: DatasetLocation, split: str) -> DatasetSplitSummary:
         items = self._item_paths(location, split)
+        if self._is_llm_task(location.task_type):
+            return DatasetSplitSummary(
+                split=split,  # type: ignore[arg-type]
+                image_count=0,
+                text_count=len(items),
+                item_count=len(items),
+                annotation_count=len(items),
+            )
         annotation_count = 0
         for item_path in items:
             annotation_count += len(self._annotations(location, split, item_path, 1, 1))
@@ -400,6 +415,8 @@ class ItemsMixin:
     def _item_from_path(
         self, location: DatasetLocation, split: str, image_path: Path, include_annotations: bool
     ) -> DatasetItemDetail:
+        if self._is_llm_task(location.task_type):
+            return self._record_item_from_path(location, split, image_path, include_annotations)
         if self._is_nlp_task(location.task_type):
             return self._text_item_from_path(location, split, image_path, include_annotations)
         with Image.open(image_path) as image:
@@ -481,9 +498,13 @@ class ItemsMixin:
         raise HTTPException(status_code=404, detail="Dataset text item not found")
 
     def _item_paths(self, location: DatasetLocation, split: str) -> list[Path]:
+        if self._is_llm_task(location.task_type):
+            return self._record_paths(location, split)
         return self._text_paths(location, split) if self._is_nlp_task(location.task_type) else self._image_paths(location, split)
 
     def _item_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
+        if self._is_llm_task(location.task_type):
+            return self._record_path(location, split, item_id)
         return self._text_path(location, split, item_id) if self._is_nlp_task(location.task_type) else self._image_path(location, split, item_id)
 
     def _label_is_used(self, location: DatasetLocation, label_index: int) -> bool:
@@ -548,6 +569,23 @@ class ItemsMixin:
             raise NotImplementedError
 
         def _is_nlp_task(self, task_type: str) -> bool:
+            raise NotImplementedError
+
+        def _is_llm_task(self, task_type: str) -> bool:
+            raise NotImplementedError
+
+        def _record_paths(self, location: DatasetLocation, split: str) -> list[Path]:
+            raise NotImplementedError
+
+        def _record_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
+            raise NotImplementedError
+
+        def _record_item_from_path(
+            self, location: DatasetLocation, split: str, path: Path, include: bool
+        ) -> DatasetItemDetail:
+            raise NotImplementedError
+
+        def _regenerate_records_jsonl(self, location: DatasetLocation, split: str) -> None:
             raise NotImplementedError
 
         def _clean_label(self, label: str) -> str:

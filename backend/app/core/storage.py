@@ -15,12 +15,23 @@ class Storage:
         self.evaluations = self.root / "evaluations"
         self.training_runs = self.root / "training_runs"
         self.trained_models = self.root / "trained_models"
+        self.uploaded_models = self.root / "uploaded_models"
         self.datasets = self.root / "datasets"
         self.dataset_versions = self.root / "dataset_versions"
+        self.recipes = self.root / "recipes"
         self.previews = self.root / "previews"
         self.model_assets = self.root / "model_assets"
         self.model_downloads = self.model_assets / "downloads"
         self.registry_file = self.root / "model_registry.json"
+        # Phase 15: converter tooling cache and the llama.cpp serving state file
+        # (pid/port of the managed subprocess, for orphan reaping).
+        self.tools = self.root / "tools"
+        self.serving = self.root / "serving"
+        self.serving_state_file = self.serving / "state.json"
+        # Persisted serving preferences (last models directory, etc.).
+        self.serving_config_file = self.serving / "config.json"
+        # GGUF/MLX models downloaded from the Hub for serving (phase 15).
+        self.serving_models = self.serving / "models"
 
     def ensure(self) -> None:
         for path in [
@@ -30,11 +41,16 @@ class Storage:
             self.evaluations,
             self.training_runs,
             self.trained_models,
+            self.uploaded_models,
             self.datasets,
             self.dataset_versions,
+            self.recipes,
             self.previews,
             self.model_assets,
             self.model_downloads,
+            self.tools,
+            self.serving,
+            self.serving_models,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 

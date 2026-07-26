@@ -1,7 +1,9 @@
 import csv
 import json
 import re
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TextIO
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 HF_LOAD_REPORT_RE = re.compile(
@@ -25,6 +27,8 @@ def find_best_model(run_dir: Path) -> Path | None:
         run_dir / "best_model.keras",
         run_dir / "best_unet_model.keras",
         run_dir / "hf_model",
+        run_dir / "adapter",
+        run_dir / "model",
         run_dir / "model.pkl",
         run_dir / "model.json",
     ]
@@ -132,3 +136,26 @@ def clean_log_line(line: str) -> str:
     if HF_LOAD_REPORT_RE.match(compact):
         return ""
     return compact
+
+
+def iter_process_lines(stream: TextIO) -> Iterator[str]:
+    """Yield output split on either newline or carriage return.
+
+    Hugging Face / tqdm progress bars redraw in place with ``\\r`` and no
+    ``\\n``, so a plain ``for line in stream`` (which splits on ``\\n`` only)
+    buffers the entire multi-GB download into one chunk and the live log jumps
+    straight from "loading" to "done". Treating ``\\r`` as a boundary too
+    surfaces each progress redraw as its own line, so download percentage
+    streams to the training detail page in real time.
+    """
+    buffer: list[str] = []
+    while True:
+        char = stream.read(1)
+        if char == "":
+            break
+        buffer.append(char)
+        if char in ("\r", "\n"):
+            yield "".join(buffer)
+            buffer = []
+    if buffer:
+        yield "".join(buffer)

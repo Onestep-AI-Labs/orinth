@@ -7,14 +7,19 @@ type TrainingJob = components["schemas"]["TrainingJobRead"];
 type TrainingModelOption = components["schemas"]["TrainingModelOption"];
 type ModelAssetStatus = components["schemas"]["ModelAssetStatus"];
 type DeleteResponse = components["schemas"]["DeleteResponse"];
+type LlmEnvironment = components["schemas"]["LlmEnvironment"];
+type LlmModelInfo = components["schemas"]["LlmModelInfo"];
 
 export const trainingApi = {
   trainingOptions: (taskType?: TaskType) =>
     jsonFetch<TrainingModelOption[]>(`/training/model-options${query({ task_type: taskType })}`),
-  prepareModelAsset: (optionId: string, download = true) =>
+  llmEnvironment: () => jsonFetch<LlmEnvironment>("/training/llm/environment"),
+  llmModelInfo: (modelRef: string) =>
+    jsonFetch<LlmModelInfo>(`/training/llm/model-info${query({ model_ref: modelRef })}`),
+  prepareModelAsset: (optionId: string, download = true, modelRef?: string) =>
     jsonFetch<ModelAssetStatus>("/training/model-assets/prepare", {
       method: "POST",
-      body: JSON.stringify({ option_id: optionId, download })
+      body: JSON.stringify({ option_id: optionId, download, model_ref: modelRef ?? null })
     }),
   trainingJobs: (projectId?: string) =>
     jsonFetchChecked<TrainingJob[]>(`/training/jobs${query({ project_id: projectId })}`, jobListSchema),

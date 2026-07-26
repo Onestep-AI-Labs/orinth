@@ -9,8 +9,13 @@ from app.api.routes import router
 from app.container import (
     evaluation_executor,
     evaluation_service,
+    export_executor,
+    export_service,
     inference_executor,
     inference_service,
+    recipe_executor,
+    recipe_service,
+    serving_service,
     storage,
     training_executor,
     training_service,
@@ -26,10 +31,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     training_service.reconcile_stale_jobs()
     evaluation_service.reconcile_stale_jobs()
     inference_service.reconcile_stale_jobs()
+    recipe_service.reconcile_stale_recipes()
+    export_service.reconcile_stale_exports()
+    # A crashed API process cannot leak a llama.cpp server: reap whatever the
+    # serving state file still records before serving requests.
+    serving_service.reap_orphans()
     yield
+    serving_service.shutdown()
     training_executor.shutdown(wait=True)
     evaluation_executor.shutdown(wait=True)
     inference_executor.shutdown(wait=True)
+    recipe_executor.shutdown(wait=True)
+    export_executor.shutdown(wait=True)
 
 
 settings = get_settings()

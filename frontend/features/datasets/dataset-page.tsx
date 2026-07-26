@@ -4,18 +4,21 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileText, ImageIcon } from "lucide-react";
+import { FileJson, FileText, ImageIcon } from "lucide-react";
 import { useProject } from "@/components/app-shell";
 import { DatasetAnnotateTab } from "@/features/datasets/annotate-tab";
 import { DatasetCatalogView } from "@/features/datasets/catalog-view";
 import { DatasetConfigTab } from "@/features/datasets/config-tab";
 import { EdaPanel } from "@/features/datasets/dataset-components";
 import { DatasetDetailHeader } from "@/features/datasets/detail-header";
-import { DatasetDetailTabs } from "@/features/datasets/detail-tabs";
+import { DatasetDetailTabs, type DatasetDetailTab } from "@/features/datasets/detail-tabs";
+import { HubImportPanel } from "@/features/datasets/hub-import-panel";
+import { DatasetRecordsTab } from "@/features/datasets/records-tab";
 import {
   useBulkLabelDatasetItemsMutation,
   useCloneDatasetMutation,
   useCreateDatasetMutation,
+  useCreateDatasetRecordMutation,
   useCreateDatasetVersionMutation,
   useDatasetCatalogQuery,
   useDatasetEdaQuery,
@@ -27,8 +30,10 @@ import {
   useMoveDatasetItemsMutation,
   usePreviewDatasetPreprocessMutation,
   useProcessDatasetMutation,
+  useSaveDatasetRecordMutation,
   useUpdateDatasetMutation,
-  useUploadDatasetMutation
+  useUploadDatasetMutation,
+  useUploadDatasetRecordsMutation
 } from "@/features/datasets/hooks";
 import { DatasetImagesTab } from "@/features/datasets/images-tab";
 import { SPLITS } from "@/features/platform/constants";
@@ -36,6 +41,7 @@ import {
   allowedTaskTypesForProject,
   defaultPreprocessConfig,
   defaultSplitConfig,
+  isLlmTask,
   isNlpTask,
   preprocessFromDataset,
   splitConfigFromDataset
@@ -50,12 +56,13 @@ export function DatasetPage() {
   const datasetParam = searchParams?.get("dataset") ?? "";
   const [selectedDatasetId, setSelectedDatasetId] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showHub, setShowHub] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showDatasetOptions, setShowDatasetOptions] = useState(false);
   const [catalogMenuDatasetId, setCatalogMenuDatasetId] = useState("");
   const [catalogRenameDatasetId, setCatalogRenameDatasetId] = useState("");
   const [showRename, setShowRename] = useState(false);
-  const [detailTab, setDetailTab] = useState<"images" | "annotate" | "eda" | "config">("images");
+  const [detailTab, setDetailTab] = useState<DatasetDetailTab>("images");
   const [split, setSplit] = useState<DatasetSplitFilter>("all");
   const [imagePage, setImagePage] = useState(0);
   const [imagesPerPage, setImagesPerPage] = useState(50);
@@ -103,7 +110,9 @@ export function DatasetPage() {
     [datasets, selectedDatasetId]
   );
   const selectedDatasetIsNlp = Boolean(selectedDataset && isNlpTask(selectedDataset.task_type));
-  const ItemIcon = selectedDatasetIsNlp ? FileText : ImageIcon;
+  const selectedDatasetIsLlm = Boolean(selectedDataset && isLlmTask(selectedDataset.task_type));
+  const ItemIcon = selectedDatasetIsLlm ? FileJson : selectedDatasetIsNlp ? FileText : ImageIcon;
+  const canImportHub = allowedDatasetTasks.includes("llm_finetune");
   const itemsQuery = useDatasetItemsQuery(selectedDataset?.id, split, classFilter, imagePage, imagesPerPage);
   const itemPage = useMemo<DatasetItemPage>(
     () => itemsQuery.data ?? { items: [], total: 0, limit: imagesPerPage, offset: imagePage * imagesPerPage },
@@ -111,8 +120,17 @@ export function DatasetPage() {
   );
   const items = useMemo(() => itemPage.items, [itemPage.items]);
   const selectedItemSummary = useMemo(
-    () => items.find((item) => item.id === selectedItemId && item.split === selectedItemSplit) ?? null,
-    [items, selectedItemId, selectedItemSplit]
+    // Guard on dataset_id too: the items query keeps previous data across a
+    // dataset switch, and a leftover item from the old dataset would otherwise
+    // fire a detail fetch against the new one (a spurious 404).
+    () =>
+      items.find(
+        (item) =>
+          item.id === selectedItemId &&
+          item.split === selectedItemSplit &&
+          item.dataset_id === selectedDatasetId
+      ) ?? null,
+    [items, selectedItemId, selectedItemSplit, selectedDatasetId]
   );
   const selectedItemDetailSplit = selectedItemSummary?.split ?? selectedItemSplit;
   const detailQuery = useDatasetItemDetailQuery(
@@ -180,6 +198,8 @@ export function DatasetPage() {
     setSplit,
     setSelectedItemIds,
     setSelectedItemSplits,
+    setSelectedItemId,
+    setSelectedItemSplit,
     catalogQuery,
     itemsQuery,
     edaQuery
@@ -191,6 +211,9 @@ export function DatasetPage() {
     catalogQuery,
     edaQuery
   });
+  const createRecordMutation = useCreateDatasetRecordMutation({ itemsQuery, catalogQuery, edaQuery });
+  const saveRecordMutation = useSaveDatasetRecordMutation({ itemsQuery, catalogQuery, edaQuery, detailQuery });
+  const uploadRecordsMutation = useUploadDatasetRecordsMutation({ itemsQuery, catalogQuery, edaQuery });
 
   useEffect(() => {
     setSelectedDatasetId(datasetParam);
@@ -230,7 +253,7 @@ export function DatasetPage() {
     setShowRename(false);
     setShowDuplicate(false);
     setCatalogRenameDatasetId("");
-    setDetailTab("images");
+    setDetailTab(isLlmTask(selectedDataset.task_type) ? "records" : "images");
     setSplit("all");
     setImagePage(0);
   }, [selectedDataset]);
@@ -317,6 +340,17 @@ export function DatasetPage() {
         deleteDatasetMutation={deleteDatasetMutation}
         onDeleteDataset={confirmDeleteDataset}
         confirmationDialog={confirmationDialog}
+        showHub={showHub}
+        setShowHub={setShowHub}
+        canImportHub={canImportHub}
+        hubImportPanel={
+          <HubImportPanel
+            projectId={projectId}
+            openDataset={openDataset}
+            catalogQuery={catalogQuery}
+            onImported={() => setShowHub(false)}
+          />
+        }
       />
     );
   }
@@ -373,8 +407,29 @@ export function DatasetPage() {
         itemLabel={selectedDatasetIsNlp ? "Texts" : "Images"}
         activeTab={detailTab}
         setActiveTab={setDetailTab}
+        isLlm={selectedDatasetIsLlm}
       />
-      {detailTab === "images" ? (
+      {detailTab === "records" ? (
+        <DatasetRecordsTab
+          dataset={selectedDataset}
+          items={items}
+          itemsQuery={itemsQuery}
+          itemPage={itemPage}
+          split={split}
+          setSplit={setSplit}
+          imagesPerPage={imagesPerPage}
+          imagePage={imagePage}
+          setImagePage={setImagePage}
+          detailQuery={detailQuery}
+          onSelectItem={selectDatasetItem}
+          selectedItemId={selectedItemId}
+          createRecordMutation={createRecordMutation}
+          saveRecordMutation={saveRecordMutation}
+          uploadRecordsMutation={uploadRecordsMutation}
+          deleteItemsMutation={deleteItemsMutation}
+          confirm={confirm}
+        />
+      ) : detailTab === "images" ? (
         <DatasetImagesTab
           {...sharedTabProps}
           uploadFiles={uploadFiles}
@@ -414,7 +469,7 @@ export function DatasetPage() {
       ) : (
         <DatasetConfigTab
           dataset={selectedDataset}
-          nlp={selectedDatasetIsNlp}
+          nlp={selectedDatasetIsNlp || selectedDatasetIsLlm}
           catalogQuery={catalogQuery}
           preprocessConfig={preprocessConfig}
           setPreprocessConfig={setPreprocessConfig}

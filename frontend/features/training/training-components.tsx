@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { mediaUrl } from "@/lib/api";
-import { formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
+import { formatDatasetTask, formatMetric, isLlmTask, isNlpTask, labelColor } from "@/features/platform/utils";
 import { Metric, StatusBadge, toggleId } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
 
@@ -45,7 +45,7 @@ export function TrainingJobTable({
               <td data-label="Family">{job.model_family}</td>
               <td data-label="Dataset">{job.parameters?.dataset_id ?? "-"}</td>
               <td data-label="Epoch">{(job.metrics as Record<string, any> | undefined)?.epoch ?? job.progress.processed ?? "-"}</td>
-              <td data-label="Metric">{formatMetric(job.metrics?.["metrics/mAP50(B)"] ?? job.metrics?.val_accuracy ?? job.metrics?.accuracy ?? job.metrics?.macro_f1 ?? job.metrics?.rougeL ?? job.metrics?.f1)}</td>
+              <td data-label="Metric">{formatMetric(job.metrics?.["metrics/mAP50(B)"] ?? job.metrics?.val_accuracy ?? job.metrics?.accuracy ?? job.metrics?.macro_f1 ?? job.metrics?.rougeL ?? job.metrics?.f1 ?? job.metrics?.val_loss ?? job.metrics?.loss)}</td>
               <td data-label="Open"><Link className="secondary-button" href={`/training/${job.id}`}>Details</Link></td>
             </tr>
           ))}
@@ -63,9 +63,13 @@ export function TrainingJobTable({
 export function TrainingDetails({ job }: { job: TrainingJob }) {
   const metricRows = Object.entries(job.metrics ?? {}).filter(([, value]) => typeof value !== "object");
   const chartKeys = trainingChartKeys(job);
+  const advancedRows = advancedTrainingParameters(job);
   return (
     <div className="space-y-4">
       <KeyValueTable title="Parameters" value={visibleTrainingParameters(job)} />
+      {Object.keys(advancedRows).length > 0 && (
+        <KeyValueTable title="Advanced settings" value={advancedRows} />
+      )}
       {metricRows.length > 0 && (
         <div className="metric-grid">
           {metricRows.slice(0, 10).map(([key, value]) => (
@@ -80,6 +84,7 @@ export function TrainingDetails({ job }: { job: TrainingJob }) {
           ))}
         </div>
       )}
+      <SampleGenerations job={job} />
       <TrainingRocPanel curves={job.curves} />
       <TrainingArtifactImages urls={job.artifact_urls ?? {}} />
       {job.progress.logs.length > 0 && (
@@ -127,6 +132,14 @@ function visibleTrainingParameters(job: TrainingJob): Record<string, any> {
   if (params.model_name) rows["Model name"] = params.model_name;
   if (params.epochs !== undefined) rows.Epochs = params.epochs;
 
+  if (isLlmTask(taskType)) {
+    rows.Method = LLM_METHOD_LABELS[String(hyperparameters.finetune_method ?? "lora")] ?? "LoRA adapter";
+    rows.Epochs = params.epochs ?? "-";
+    rows.Batch = params.batch_size ?? "-";
+    rows.LR = params.learning_rate ?? "-";
+    return rows;
+  }
+
   if (isNlpTask(taskType)) {
     if (modelOptionId === "nlp_tfidf_classifier") {
       rows.Strategy = "TF-IDF + Logistic Regression";
@@ -161,6 +174,28 @@ function visibleTrainingParameters(job: TrainingJob): Record<string, any> {
   return rows;
 }
 
+const LLM_METHOD_LABELS: Record<string, string> = {
+  lora: "LoRA adapter",
+  qlora: "QLoRA (4-bit) adapter",
+  full: "Full fine-tune",
+  continued_pretrain: "Continued pretraining (LoRA)"
+};
+
+// The NLP knobs `visibleTrainingParameters` already lists as basic fields; the
+// rest of `hyperparameters` are advanced values, rendered so a finished run
+// documents its own configuration.
+const BASIC_HYPERPARAMETER_KEYS = new Set(["max_length", "target_max_length", "vocab_size", "finetune_method"]);
+
+function advancedTrainingParameters(job: TrainingJob): Record<string, any> {
+  const hyperparameters = (job.parameters?.hyperparameters ?? {}) as Record<string, any>;
+  const rows: Record<string, any> = {};
+  for (const [key, value] of Object.entries(hyperparameters)) {
+    if (BASIC_HYPERPARAMETER_KEYS.has(key) || value === null || value === undefined) continue;
+    rows[key.replaceAll("_", " ")] = typeof value === "boolean" ? (value ? "on" : "off") : value;
+  }
+  return rows;
+}
+
 function MiniLineChart({ rows, valueKey, color }: { rows: Array<Record<string, any>>; valueKey: string; color: string }) {
   const values = rows.map((row) => Number(row[valueKey])).filter((value) => Number.isFinite(value));
   if (values.length < 2) return null;
@@ -183,6 +218,38 @@ function MiniLineChart({ rows, valueKey, color }: { rows: Array<Record<string, a
       <svg viewBox="0 0 100 48" preserveAspectRatio="none">
         <polyline points={points} fill="none" style={{ stroke: color }} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
       </svg>
+    </div>
+  );
+}
+
+type SampleGeneration = { prompt?: string; reference?: string; generated?: string };
+
+/**
+ * Qualitative outputs from the just-trained adapter (phase 14), rendered next
+ * to the loss curves so a finished LLM run shows what it actually learned.
+ */
+function SampleGenerations({ job }: { job: TrainingJob }) {
+  const generations = (job.artifacts?.sample_generations as SampleGeneration[] | undefined) ?? [];
+  if (!Array.isArray(generations) || generations.length === 0) return null;
+  return (
+    <div>
+      <h3 className="section-title">Sample Generations</h3>
+      <div className="generation-grid">
+        {generations.map((item, index) => (
+          <div className="generation-card" key={`${item.prompt ?? ""}-${index}`}>
+            <p className="generation-label">Prompt</p>
+            <pre>{item.prompt || "—"}</pre>
+            <p className="generation-label">Generated</p>
+            <pre>{item.generated || "(no output)"}</pre>
+            {item.reference ? (
+              <>
+                <p className="generation-label">Reference</p>
+                <pre>{item.reference}</pre>
+              </>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

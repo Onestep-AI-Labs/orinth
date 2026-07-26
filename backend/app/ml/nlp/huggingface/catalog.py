@@ -1,6 +1,18 @@
 from typing import Any
 
+from app.ml.common.advanced import OPTIMIZATION, RUNTIME, number, select
 from app.ml.common.catalog import TrainingModelDefinition
+
+# Keys map to the Hugging Face NLP runner (`runners/nlp/huggingface.py`).
+# Epochs, learning rate, batch size and max length stay as basic fields.
+HF_ADVANCED_PARAMETERS = [
+    number("weight_decay", "Weight decay", default=0.01, group=OPTIMIZATION, minimum=0.0, maximum=0.3, step=0.01),
+    number("warmup_ratio", "Warmup ratio", default=0.1, group=OPTIMIZATION, minimum=0.0, maximum=0.5, step=0.01),
+    select("lr_scheduler", "LR scheduler", options=["linear", "cosine"], default="linear", group=OPTIMIZATION),
+    number("gradient_accumulation_steps", "Gradient accumulation", default=1, group=OPTIMIZATION, minimum=1, maximum=32, integer=True, help="Effective batch size is batch size × this."),
+    number("seed", "Seed", default=42, group=RUNTIME, minimum=0, maximum=1_000_000, integer=True),
+    select("precision", "Precision", options=["fp32", "fp16", "bf16"], default="fp32", group=RUNTIME, help="fp16/bf16 require CUDA; downgraded to fp32 on MPS/CPU."),
+]
 
 CLASSIFICATION_FAMILY = "hf_bert_text_classification"
 QA_FAMILY = "hf_bert_question_answering"
@@ -196,6 +208,7 @@ def huggingface_training_options() -> list[TrainingModelDefinition]:
             needs_download=True,
             description=item["description"],
             defaults={**item["defaults"], "model_id": item["model_id"]},
+            advanced_parameters=HF_ADVANCED_PARAMETERS,
         )
         for item in HUGGINGFACE_MODEL_OPTIONS
     ]

@@ -17,7 +17,18 @@ from app.core.database import SessionLocal
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.storage import Storage
 from app.db.models import TrainingJob
-from app.ml.model_registry import ModelRegistry, model_storage_dir_name
+from app.ml.llm.catalog import (
+    LLM_HF_CUSTOM_ID,
+    LLM_INSTALL_HINT,
+    LLM_MODEL_OPTIONS,
+    LLM_SFT_FAMILY,
+    LOCAL_BASE_OPTION_PREFIX,
+    llm_extras_available,
+    llm_gated_license,
+    llm_model_id,
+    local_llm_base_options,
+)
+from app.ml.model_registry import ModelRegistry, model_storage_dir_name, slugify_model_name
 from app.ml.nlp.huggingface.catalog import huggingface_model_id
 from app.ml.training_catalog import training_model_options
 from app.ml.vision.keras_classification.catalog import (
@@ -26,6 +37,7 @@ from app.ml.vision.keras_classification.catalog import (
 )
 from app.ml.vision.yolo.catalog import ULTRALYTICS_OPTIONS_BY_ID
 from app.schemas import (
+    LlmModelInfo,
     ModelAssetPrepareRequest,
     ModelAssetStatus,
     TrainingJobCreate,
@@ -39,6 +51,7 @@ from app.services.training.artifacts import (
     collect_training_curves,
     collect_training_metrics,
     find_best_model,
+    iter_process_lines,
     parse_training_history,
 )
 
@@ -60,6 +73,13 @@ class TrainingService:
 
     def create_job(self, db: Session, payload: TrainingJobCreate) -> TrainingJob:
         option = self.option_by_id(payload.model_option_id)
+        if option.family == LLM_SFT_FAMILY and not llm_extras_available():
+            raise ValueError(f"LLM fine-tuning dependencies are missing. {LLM_INSTALL_HINT}")
+        if option.id == LLM_HF_CUSTOM_ID and not (payload.base_model or "").strip():
+            raise ValueError(
+                "Enter a Hugging Face model id in the Base model field for custom fine-tuning "
+                "(for example `Qwen/Qwen2.5-1.5B-Instruct`)."
+            )
         if not option.runnable:
             raise ValueError(f"Training option is not runnable yet: {payload.model_option_id}")
         if payload.task_type not in option.task_types:
@@ -88,7 +108,13 @@ class TrainingService:
         return job_runner.list_jobs(db, TrainingJob, limit=limit, offset=offset, project_id=project_id)
 
     def model_options(self, task_type: str | None = None) -> list[TrainingModelOption]:
-        return training_model_options(task_type)
+        options = training_model_options(task_type)
+        # "Local base models": one dynamic option per registered llm_hf model
+        # (phase 12 uploads and prior merges), resolved per request so a fresh
+        # upload lists without a restart.
+        if task_type in (None, "llm_finetune"):
+            options.extend(local_llm_base_options(self.registry))
+        return options
 
     def option_by_id(self, option_id: str) -> TrainingModelOption:
         for option in self.model_options():
@@ -96,8 +122,79 @@ class TrainingService:
                 return option
         raise ValueError(f"Unknown training option: {option_id}")
 
+    def llm_model_details(self, model_ref: str) -> LlmModelInfo:
+        """Accurate base-model details from the Hugging Face Hub API (phase 14).
+
+        Resolves a catalog option id or local base id to its underlying model,
+        then queries the Hub for real total size, file count, gating, and
+        popularity — so the training form shows true numbers instead of the
+        catalog's rough estimate. Local bases report their on-disk size.
+        """
+        ref = (model_ref or "").strip()
+        if not ref:
+            return LlmModelInfo(model_ref=ref, exists=False, error="No model id provided.")
+
+        # Resolve a catalog/local option id to its actual model.
+        if ref.startswith(LOCAL_BASE_OPTION_PREFIX):
+            try:
+                spec = self.registry.get_spec(ref.removeprefix(LOCAL_BASE_OPTION_PREFIX))
+            except KeyError:
+                return LlmModelInfo(model_ref=ref, exists=False, error="Local base model not found.")
+            path = next(iter(spec.paths.values()), None)
+            size = spec.size_on_disk()
+            file_count = None
+            if path is not None and path.is_dir():
+                file_count = sum(1 for child in path.rglob("*") if child.is_file())
+            return LlmModelInfo(
+                model_ref=ref,
+                exists=spec.available,
+                size_bytes=size,
+                file_count=file_count,
+                library="local",
+            )
+        if ref in {item["id"] for item in LLM_MODEL_OPTIONS}:
+            ref = llm_model_id(ref)
+
+        try:
+            from huggingface_hub import model_info  # noqa: PLC0415
+
+            info = model_info(ref, files_metadata=True, token=self.settings.huggingface_token)
+            sizes = [f.size for f in (info.siblings or []) if f.size]
+            gated = bool(getattr(info, "gated", False))
+            return LlmModelInfo(
+                model_ref=ref,
+                exists=True,
+                gated=gated,
+                size_bytes=sum(sizes) or None,
+                file_count=len(info.siblings or []) or None,
+                downloads=getattr(info, "downloads", None),
+                likes=getattr(info, "likes", None),
+                library=getattr(info, "library_name", None),
+            )
+        except Exception as exc:  # noqa: BLE001 — surfaced to the form, never a 500
+            # Classify by exception type, not message text: a 404's own message
+            # mentions "gated" generically, which would misreport a typo'd id.
+            name = type(exc).__name__
+            if name == "GatedRepoError":
+                return LlmModelInfo(
+                    model_ref=ref,
+                    exists=True,
+                    gated=True,
+                    error="Access to this model is gated — accept its license on huggingface.co "
+                    "with the account behind your Hugging Face token (Settings).",
+                )
+            if name in {"RepositoryNotFoundError", "EntryNotFoundError"}:
+                return LlmModelInfo(
+                    model_ref=ref,
+                    exists=False,
+                    error="Model id not found on the Hugging Face Hub.",
+                )
+            return LlmModelInfo(model_ref=ref, exists=False, error=str(exc))
+
     def prepare_model_asset(self, payload: ModelAssetPrepareRequest) -> ModelAssetStatus:
         option = self.option_by_id(payload.option_id)
+        if option.family == LLM_SFT_FAMILY:
+            return self._prepare_llm_base(payload, option)
         if option.source == "huggingface":
             if not option.runnable:
                 return ModelAssetStatus(
@@ -260,6 +357,128 @@ class TrainingService:
             message="No asset preparation path is registered for this option.",
         )
 
+    def _prepare_llm_base(self, payload: ModelAssetPrepareRequest, option) -> ModelAssetStatus:
+        """Prepare an LLM base: local registry lookup or hub snapshot download.
+
+        Downloads run 2–8 GB each, so a disk-space preflight fails before the
+        download instead of at 90%; a Gemma 403 without an accepted license
+        returns an actionable message naming the model page.
+        """
+        if option.id.startswith(LOCAL_BASE_OPTION_PREFIX):
+            model_id = option.id.removeprefix(LOCAL_BASE_OPTION_PREFIX)
+            try:
+                spec = self.registry.get_spec(model_id)
+            except KeyError:
+                return ModelAssetStatus(
+                    option_id=payload.option_id,
+                    status="missing",
+                    message=f"Registered base model not found: {model_id}",
+                )
+            path = next(iter(spec.paths.values()), None)
+            return ModelAssetStatus(
+                option_id=payload.option_id,
+                status="ready" if spec.available else "missing",
+                path=str(path) if path else None,
+                message=None if spec.available else "Local base model files are missing.",
+            )
+
+        # The custom option's hub id is typed by the user, so it rides the
+        # request rather than resolving from a fixed catalog entry.
+        if (option.defaults or {}).get("custom_hf"):
+            model_id = (payload.model_ref or "").strip()
+            if not model_id:
+                return ModelAssetStatus(
+                    option_id=payload.option_id,
+                    status="missing",
+                    message="Enter a Hugging Face model id to prepare it.",
+                )
+            asset_dir = self.storage.model_assets / "huggingface" / "custom" / slugify_model_name(model_id)
+        else:
+            model_id = llm_model_id(payload.option_id)
+            asset_dir = self.storage.model_assets / "huggingface" / payload.option_id
+        cache_dir = self.storage.model_assets / "huggingface_cache"
+        asset_dir.mkdir(parents=True, exist_ok=True)
+        if not payload.download:
+            marker = asset_dir / "prepared.json"
+            return ModelAssetStatus(
+                option_id=payload.option_id,
+                status="ready" if marker.exists() else "missing",
+                path=str(asset_dir),
+                message=None if marker.exists() else "Download was not requested.",
+            )
+
+        token = self.settings.huggingface_token
+        approx_gb = float((option.defaults or {}).get("approx_download_gb") or 8)
+
+        required_bytes = int(approx_gb * 1024**3)
+        try:
+            from huggingface_hub import model_info  # noqa: PLC0415
+
+            info = model_info(model_id, files_metadata=True, token=token)
+            sizes = [file.size for file in (info.siblings or []) if file.size]
+            if sizes:
+                required_bytes = sum(sizes)
+        except Exception:  # noqa: BLE001 — metadata is a refinement; the catalog estimate stands
+            pass
+        free_bytes = shutil.disk_usage(self.storage.model_assets).free
+        margin = 1024**3
+        if free_bytes < required_bytes + margin:
+            required_gb = required_bytes / 1024**3
+            free_gb = free_bytes / 1024**3
+            return ModelAssetStatus(
+                option_id=payload.option_id,
+                status="failed",
+                path=str(asset_dir),
+                message=(
+                    f"Not enough disk space for {model_id}: needs ~{required_gb:.1f} GB "
+                    f"(plus 1 GB margin), only {free_gb:.1f} GB free under storage/."
+                ),
+            )
+
+        try:
+            from huggingface_hub import snapshot_download  # noqa: PLC0415
+
+            kwargs: dict[str, Any] = {"cache_dir": str(cache_dir)}
+            if token:
+                kwargs["token"] = token
+            snapshot_download(model_id, **kwargs)
+        except Exception as exc:  # noqa: BLE001 — surfaced to the user as asset status
+            message = str(exc)
+            status = "failed"
+            if "403" in message or "gated" in message.lower() or "restricted" in message.lower():
+                status = "gated"
+                message = (
+                    f"Access to {model_id} is gated. Accept the license on "
+                    f"https://huggingface.co/{model_id} with the account behind your "
+                    "Hugging Face token (Settings), then retry."
+                )
+            return ModelAssetStatus(
+                option_id=payload.option_id,
+                status=status,
+                path=str(asset_dir),
+                message=message,
+            )
+        marker = asset_dir / "prepared.json"
+        marker.write_text(
+            json.dumps(
+                {
+                    "option_id": payload.option_id,
+                    "model_id": model_id,
+                    "token_configured": bool(token),
+                    "gated_license": llm_gated_license(payload.option_id),
+                    "prepared_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return ModelAssetStatus(
+            option_id=payload.option_id,
+            status="ready",
+            path=str(asset_dir),
+            message=f"Base model snapshot is prepared for {model_id}.",
+        )
+
     def delete_jobs(self, db: Session, ids: list[str] | None = None, project_id: str | None = None) -> dict:
         def is_deletable(job: TrainingJob) -> bool:
             return job.status in {"completed", "failed", "canceled"}
@@ -331,6 +550,9 @@ class TrainingService:
         curves = collect_training_curves(run_dir)
         if curves:
             artifacts["curves"] = curves
+        sample_generations = self._read_sample_generations(run_dir)
+        if sample_generations:
+            artifacts["sample_generations"] = sample_generations
         artifact_urls = self._artifact_urls(run_dir)
         if artifact_urls:
             artifacts["artifact_urls"] = artifact_urls
@@ -378,6 +600,17 @@ class TrainingService:
         job.updated_at = finished_at
         db.commit()
 
+    def _read_sample_generations(self, run_dir: Path) -> list:
+        """Runner-written qualitative outputs (`sample_generations.json`, phase 14)."""
+        path = run_dir / "sample_generations.json"
+        if not path.exists():
+            return []
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return []
+        return payload if isinstance(payload, list) else []
+
     def promote(self, db: Session, job_id: str) -> str:
         job = db.get(TrainingJob, job_id)
         if job is None:
@@ -385,6 +618,7 @@ class TrainingService:
         if job.model_family not in {
             "yolo",
             "keras_classification",
+            "llm_sft",
             "nlp_text_classification",
             "nlp_summarization",
             "nlp_qa",
@@ -460,8 +694,61 @@ class TrainingService:
         finally:
             db.close()
 
+    def _llm_model_ref(self, option_id: str, base_model: str | None = None) -> str:
+        """Resolve the base a run trains against.
+
+        Local options resolve to the registered model's filesystem path; the
+        custom option uses the hub id the user typed (carried on ``base_model``);
+        every other option resolves from its fixed catalog entry.
+        """
+        if option_id.startswith(LOCAL_BASE_OPTION_PREFIX):
+            spec = self.registry.get_spec(option_id.removeprefix(LOCAL_BASE_OPTION_PREFIX))
+            path = next(iter(spec.paths.values()), None)
+            if path is None:
+                raise ValueError(f"Registered base model has no files: {option_id}")
+            return str(path)
+        if option_id == LLM_HF_CUSTOM_ID:
+            ref = (base_model or "").strip()
+            if not ref:
+                raise ValueError(
+                    "Custom Hugging Face fine-tuning requires a model id in the Base model field."
+                )
+            return ref
+        return llm_model_id(option_id)
+
     def _command_for_job(self, job: TrainingJob, run_dir: Path) -> list[str]:
         params = job.parameters
+        if job.model_family == LLM_SFT_FAMILY:
+            dataset_id = params.get("dataset_id")
+            if not dataset_id or self.dataset_service is None:
+                raise ValueError("LLM fine-tuning requires an llm_finetune project dataset")
+            dataset_root = self.dataset_service.prepared_training_root(
+                dataset_id, run_dir / "prepared_dataset"
+            )
+            option_id = str(params.get("model_option_id") or "")
+            return [
+                sys.executable,
+                "-m",
+                "app.training.runners.llm_sft",
+                "--run-dir",
+                str(run_dir),
+                "--dataset-root",
+                str(dataset_root),
+                "--model-ref",
+                self._llm_model_ref(option_id, params.get("base_model")),
+                "--model-option-id",
+                option_id,
+                "--epochs",
+                str(params.get("epochs", 3)),
+                "--learning-rate",
+                str(params.get("learning_rate", 0.0002)),
+                "--batch-size",
+                str(params.get("batch_size", 2)),
+                "--hf-cache-dir",
+                str(self.storage.model_assets / "huggingface_cache"),
+                "--advanced",
+                json.dumps(params.get("hyperparameters") or {}),
+            ]
         if job.model_family in {
             "nlp_text_classification",
             "nlp_summarization",
@@ -528,6 +815,8 @@ class TrainingService:
                 str(defaults.get("model_id") or huggingface_model_id(option_id)),
                 "--hf-cache-dir",
                 str(self.storage.model_assets / "huggingface_cache"),
+                "--advanced",
+                json.dumps(hyperparameters),
             ]
         if job.model_family == "yolo":
             dataset_id = params.get("dataset_id", "reference_yolo")
@@ -570,6 +859,8 @@ class TrainingService:
                 str(params.get("optimizer", "AdamW")),
                 "--learning-rate",
                 str(params.get("learning_rate", 0.002)),
+                "--advanced",
+                json.dumps(params.get("hyperparameters") or {}),
             ]
             if params.get("device"):
                 command.extend(["--device", str(params["device"])])
@@ -613,6 +904,8 @@ class TrainingService:
                 str(params.get("optimizer", "adam")),
                 "--learning-rate",
                 str(params.get("learning_rate", 0.001)),
+                "--advanced",
+                json.dumps(params.get("hyperparameters") or {}),
             ]
         return [
             sys.executable,
@@ -651,7 +944,10 @@ class TrainingService:
             self._set_pid(db, job_id, process.pid)
             last_update = 0.0
             assert process.stdout is not None
-            for line in process.stdout:
+            # Split on \r as well as \n so Hugging Face download progress bars
+            # (which redraw in place with \r) stream to the live log instead of
+            # appearing only once the multi-GB download finishes.
+            for line in iter_process_lines(process.stdout):
                 log_file.write(line)
                 log_file.flush()
                 clean = clean_log_line(line)
@@ -672,6 +968,13 @@ class TrainingService:
         env["PYTHONUNBUFFERED"] = "1"
         env.setdefault("HF_HOME", str(self.storage.model_assets / "huggingface_home"))
         env.setdefault("TRANSFORMERS_CACHE", str(self.storage.model_assets / "huggingface_cache"))
+        # Disable the Xet downloader so base-model downloads stream to a growing
+        # `.incomplete` blob under the model cache dir, which the runner's
+        # progress poller measures. Xet writes to a separate cache and only
+        # lands the blob at the end, which froze the reported percentage while
+        # the network kept downloading. Must be set in the child env because
+        # huggingface_hub reads this flag at import time.
+        env["HF_HUB_DISABLE_XET"] = "1"
         token = self.settings.huggingface_token
         if token:
             env["HUGGINGFACE_HUB_TOKEN"] = token
@@ -702,9 +1005,26 @@ class TrainingService:
         epochs = int(job.parameters.get("epochs", 0))
         history = parse_training_history(run_dir / "results.csv")
         metrics = history[-1] if history else {}
-        raw_epoch = int(metrics.get("epoch", 0)) if metrics else 0
-        epoch = max(raw_epoch, len(history))
-        step = logs[-1] if logs else "Training running"
+        if job.model_family == LLM_SFT_FAMILY:
+            # LLM runs are step-denominated: the runner writes step/max_steps
+            # per logging step, which map onto processed/total here.
+            processed = int(metrics.get("step", 0)) if metrics else 0
+            total = int(metrics.get("max_steps", 0)) or None if metrics else None
+        else:
+            raw_epoch = int(metrics.get("epoch", 0)) if metrics else 0
+            processed = max(raw_epoch, len(history))
+            total = epochs or None
+        # Prefer a readable step/loss summary once training is producing metrics;
+        # before that (data prep, download), show the latest log line as-is.
+        if job.model_family == LLM_SFT_FAMILY and metrics and processed:
+            parts = [f"Training — step {processed}" + (f"/{total}" if total else "")]
+            if "loss" in metrics:
+                parts.append(f"loss {float(metrics['loss']):.3f}")
+            if "val_loss" in metrics:
+                parts.append(f"val loss {float(metrics['val_loss']):.3f}")
+            step = " · ".join(parts)
+        else:
+            step = logs[-1] if logs else "Training running"
         artifacts = dict(job.artifacts or {})
         artifacts["logs"] = logs[-100:]
         if history:
@@ -712,9 +1032,9 @@ class TrainingService:
         if metrics:
             artifacts["metrics"] = metrics
         artifacts["progress"] = make_progress(
-            percent=(epoch / epochs * 100) if epochs and epoch else min(99, 5 + len(logs)),
-            processed=epoch,
-            total=epochs or None,
+            percent=(processed / total * 100) if total and processed else min(99, 5 + len(logs)),
+            processed=processed,
+            total=total,
             current_step=step[:180],
             started_at=started_at,
             logs=artifacts["logs"],
@@ -742,6 +1062,8 @@ class TrainingService:
         if self.dataset_service is not None and dataset_id:
             labels = self.dataset_service.summary(dataset_id).labels
 
+        base_model_id: str | None = None
+        model_format: str | None = None
         if job.model_family == "yolo":
             weights_dir = model_dir / "weights"
             weights_dir.mkdir(parents=True, exist_ok=True)
@@ -749,6 +1071,30 @@ class TrainingService:
             shutil.copy2(best_model, stable_model)
             paths = {"weights": stable_model}
             family = "yolo"
+        elif job.model_family == "llm_sft":
+            # A LoRA/QLoRA/continued-pretrain run produces a small adapter dir
+            # (registered llm_adapter, exported via a merge in phase 15); a full
+            # fine-tune produces a standalone HF model (registered llm_hf, served
+            # directly). The runner names the output dir accordingly.
+            is_full = best_model.name == "model"
+            stable_model = model_dir / best_model.name
+            if stable_model.exists():
+                shutil.rmtree(stable_model)
+            shutil.copytree(best_model, stable_model)
+            for sidecar in ["metrics.json", "sample_generations.json"]:
+                source_sidecar = run_dir / sidecar
+                if source_sidecar.exists():
+                    shutil.copy2(source_sidecar, model_dir / sidecar)
+            paths = {"model": stable_model}
+            family = "llm_hf" if is_full else "llm_adapter"
+            model_format = "safetensors"
+            option_id = str(params.get("model_option_id") or "")
+            base_model_id = (
+                option_id.removeprefix(LOCAL_BASE_OPTION_PREFIX)
+                if option_id.startswith(LOCAL_BASE_OPTION_PREFIX)
+                else option_id
+            )
+            labels = []
         elif job.model_family == "keras_classification":
             stable_model = model_dir / "best_model.keras"
             shutil.copy2(best_model, stable_model)
@@ -826,6 +1172,8 @@ class TrainingService:
             metrics=metrics,
             artifacts=metadata,
             source="trained",
+            base_model_id=base_model_id,
+            format=model_format,
         )
         return info.id
 

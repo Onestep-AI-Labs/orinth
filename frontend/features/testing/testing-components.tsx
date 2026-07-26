@@ -6,7 +6,7 @@ import { areTasksCompatible, displayModelName, formatMetric } from "@/features/p
 import { EmptyState, Metric, StatusBadge, toggleId } from "@/features/platform/ui";
 import type { EvaluationJob, EvaluationPerImageRow, TaskType } from "@/types/api";
 
-type EvaluationDisplayKind = "classification" | "vision" | "text_classification" | "summarization" | "question_answering";
+type EvaluationDisplayKind = "classification" | "vision" | "text_classification" | "summarization" | "question_answering" | "llm";
 type MetricEntry = { key: string; label: string; value: number };
 
 export function TestingJobTable({
@@ -124,6 +124,7 @@ function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string
   if (taskKind === "summarization") return summarizationMetricColumns().slice(0, 2);
   if (taskKind === "question_answering") return qaMetricColumns().slice(0, 2);
   if (taskKind === "vision") return visionMetricColumns().slice(0, 2);
+  if (taskKind === "llm") return llmMetricColumns().slice(0, 2);
   const kinds = new Set(jobs.map((job) => inferEvaluationKind(job, modelTaskById[job.model_id])));
   if (kinds.size === 1 && kinds.has("classification")) {
     return classificationMetricColumns().slice(0, 2);
@@ -131,6 +132,7 @@ function testingTableColumns(jobs: EvaluationJob[], modelTaskById: Record<string
   if (kinds.size === 1 && kinds.has("text_classification")) return textClassificationMetricColumns().slice(0, 2);
   if (kinds.size === 1 && kinds.has("summarization")) return summarizationMetricColumns().slice(0, 2);
   if (kinds.size === 1 && kinds.has("question_answering")) return qaMetricColumns().slice(0, 2);
+  if (kinds.size === 1 && kinds.has("llm")) return llmMetricColumns().slice(0, 2);
   if (kinds.size === 1 && kinds.has("vision")) {
     return visionMetricColumns().slice(0, 2);
   }
@@ -147,11 +149,13 @@ function comparisonMetricColumns(jobs: EvaluationJob[], modelTaskById: Record<st
   if (taskKind === "summarization") return summarizationMetricColumns();
   if (taskKind === "question_answering") return qaMetricColumns();
   if (taskKind === "vision") return visionMetricColumns();
+  if (taskKind === "llm") return llmMetricColumns();
   const kinds = new Set(jobs.map((job) => inferEvaluationKind(job, modelTaskById[job.model_id])));
   if (kinds.size === 1 && kinds.has("classification")) return classificationMetricColumns();
   if (kinds.size === 1 && kinds.has("text_classification")) return textClassificationMetricColumns();
   if (kinds.size === 1 && kinds.has("summarization")) return summarizationMetricColumns();
   if (kinds.size === 1 && kinds.has("question_answering")) return qaMetricColumns();
+  if (kinds.size === 1 && kinds.has("llm")) return llmMetricColumns();
   if (kinds.size === 1 && kinds.has("vision")) return visionMetricColumns();
   return [
     ...classificationMetricColumns().slice(0, 2),
@@ -200,6 +204,14 @@ function qaMetricColumns() {
   ];
 }
 
+function llmMetricColumns() {
+  return [
+    { key: "perplexity", label: "Perplexity", get: (job: EvaluationJob) => numberMetric(metricsOf(job).llm?.perplexity) },
+    { key: "token_accuracy", label: "Token accuracy", get: (job: EvaluationJob) => numberMetric(metricsOf(job).llm?.token_accuracy) },
+    { key: "loss", label: "Loss", get: (job: EvaluationJob) => numberMetric(metricsOf(job).llm?.loss) }
+  ];
+}
+
 function detailMetricEntries(job: EvaluationJob, kind: EvaluationDisplayKind): MetricEntry[] {
   const columns = kind === "classification"
     ? classificationMetricColumns()
@@ -209,7 +221,9 @@ function detailMetricEntries(job: EvaluationJob, kind: EvaluationDisplayKind): M
         ? summarizationMetricColumns()
         : kind === "question_answering"
           ? qaMetricColumns()
-          : visionMetricColumns();
+          : kind === "llm"
+            ? llmMetricColumns()
+            : visionMetricColumns();
   const entries = columns
     .map((column) => ({ key: column.key, label: column.label, value: column.get(job) }))
     .filter((entry): entry is MetricEntry => typeof entry.value === "number");
@@ -229,6 +243,8 @@ function inferEvaluationKind(job: EvaluationJob, modelTask?: TaskType): Evaluati
   if (modelTask === "classification") return "classification";
   if (modelTask === "object_detection" || modelTask === "segmentation") return "vision";
   if (modelTask === "text_classification" || modelTask === "summarization" || modelTask === "question_answering") return modelTask;
+  if (modelTask === "llm_finetune") return "llm";
+  if (metricsOf(job).llm) return "llm";
   if (metricsOf(job).pixel || metricsOf(job).object) return "vision";
   if (metricsOf(job).text_classification) return "text_classification";
   if (metricsOf(job).summarization) return "summarization";
@@ -241,6 +257,7 @@ function evaluationKindFromTask(taskType: TaskType): EvaluationDisplayKind {
   if (taskType === "text_classification") return "text_classification";
   if (taskType === "summarization") return "summarization";
   if (taskType === "question_answering") return "question_answering";
+  if (taskType === "llm_finetune") return "llm";
   return "vision";
 }
 
@@ -249,6 +266,7 @@ function evaluationKindLabel(kind: EvaluationDisplayKind): string {
   if (kind === "vision") return "Detection / segmentation";
   if (kind === "text_classification") return "Text classification";
   if (kind === "summarization") return "Summarization";
+  if (kind === "llm") return "LLM (perplexity)";
   return "Question answering";
 }
 
@@ -382,6 +400,36 @@ function PerImageTable({
   const classification = kind === "classification";
   const textClassification = kind === "text_classification";
   const generativeText = kind === "summarization" || kind === "question_answering";
+  const llm = kind === "llm";
+  if (llm) {
+    return (
+      <div>
+        <h3 className="section-title">Per Record</h3>
+        <div className="table-wrap max-h-[420px] overflow-y-auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Prompt</th>
+                <th>Reference</th>
+                <th>Perplexity</th>
+                <th>Loss</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.image}>
+                  <td>{row.text_preview || row.image}</td>
+                  <td>{row.reference_text ?? "-"}</td>
+                  <td>{formatMetric(row.scores?.perplexity)}</td>
+                  <td>{formatMetric(row.scores?.loss)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
   return (
     <div>
       <h3 className="section-title">{kind === "vision" || kind === "classification" ? "Per Image" : "Per Text"}</h3>

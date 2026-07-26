@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -13,7 +16,19 @@ from app.core.database import SessionLocal
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID
 from app.core.storage import Storage
 from app.db.models import EvaluationJob
-from app.ml.model_registry import ModelRegistry
+from app.ml.llm.model_paths import (
+    ModelPathError,
+)
+from app.ml.llm.model_paths import (
+    adapter_dir as llm_adapter_dir,
+)
+from app.ml.llm.model_paths import (
+    hf_model_dir as llm_hf_model_dir,
+)
+from app.ml.llm.model_paths import (
+    resolve_base_ref as llm_resolve_base_ref,
+)
+from app.ml.model_registry import ModelRegistry, ModelSpec
 from app.schemas import (
     Detection,
     EvaluationDatasetInfo,
@@ -101,7 +116,7 @@ class EvaluationService:
         ]
         if self.dataset_service is not None:
             for dataset in self.dataset_service.list_datasets():
-                if (not dataset.editable and not dataset.shared) or dataset.format not in {"yolo", "image_folder", "text_folder", "jsonl", "csv"}:
+                if (not dataset.editable and not dataset.shared) or dataset.format not in {"yolo", "image_folder", "text_folder", "jsonl", "csv", "instruction_jsonl", "chat_jsonl"}:
                     continue
                 if project_id and dataset.project_id != project_id and not dataset.shared:
                     continue
@@ -297,6 +312,8 @@ class EvaluationService:
         spec = self.registry.get_spec(job.model_id)
         if spec.task_type == "classification":
             return self._evaluate_classification(db, job, started_at)
+        if spec.task_type == "llm_finetune":
+            return self._evaluate_llm(db, job, started_at, spec)
         if spec.task_type in {"text_classification", "summarization", "question_answering"}:
             return self._evaluate_nlp(db, job, started_at, spec.task_type)
 
@@ -540,6 +557,128 @@ class EvaluationService:
         metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
         per_image_path.write_text(json.dumps(per_image, indent=2), encoding="utf-8")
         return metrics, {"metrics": str(metrics_path), "per_image": str(per_image_path)}
+
+    def _evaluate_llm(
+        self, db: Session, job: EvaluationJob, started_at: datetime, spec: ModelSpec
+    ) -> tuple[dict, dict]:
+        """Score a fine-tuned LLM on a held-out split (perplexity, loss, token accuracy).
+
+        The heavy model load + forward passes run in a subprocess for memory
+        isolation, exactly like training; this method resolves the base/adapter
+        paths, streams progress from the subprocess, and lifts its metrics into
+        the standard evaluation artifacts.
+        """
+        if spec.family == "llm_gguf":
+            raise ValueError(
+                "GGUF models are tested interactively via serving and chat, not batch "
+                "perplexity evaluation. Test the adapter or Hugging Face checkpoint instead."
+            )
+        if not job.dataset_key.startswith("dataset:") or self.dataset_service is None:
+            raise KeyError(job.dataset_key)
+        _, dataset_id, split = job.dataset_key.split(":", 2)
+        # The runner reads `<dataset-root>/<split>/data.jsonl`, so the root is the
+        # split directory's parent.
+        dataset_root = self.dataset_service.split_root(dataset_id, split).parent
+
+        try:
+            if spec.family == "llm_adapter":
+                model_ref = llm_resolve_base_ref(self.registry, spec)
+                adapter_path = str(llm_adapter_dir(spec))
+            else:  # llm_hf: a full/merged checkpoint, no adapter
+                model_ref = str(llm_hf_model_dir(spec))
+                adapter_path = ""
+        except ModelPathError as exc:
+            raise ValueError(str(exc)) from exc
+
+        output_dir = self.storage.evaluations / job.id
+        run_dir = output_dir / "llm_eval"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        command = [
+            sys.executable,
+            "-m",
+            "app.training.runners.llm_eval",
+            "--run-dir",
+            str(run_dir),
+            "--dataset-root",
+            str(dataset_root),
+            "--split",
+            split,
+            "--model-ref",
+            model_ref,
+            "--adapter-dir",
+            adapter_path,
+            "--hf-cache-dir",
+            str(self.storage.model_assets / "huggingface_cache"),
+        ]
+        if job.limit:
+            command += ["--limit", str(job.limit)]
+
+        self._update_progress(
+            db, job, percent=5, processed=0, total=0,
+            step="Loading model", started_at=started_at,
+        )
+        self._run_llm_eval_process(db, job, command, started_at)
+
+        metrics_file = run_dir / "metrics.json"
+        if not metrics_file.exists():
+            raise ValueError("LLM evaluation did not produce metrics; see the run log for the cause.")
+        metrics = json.loads(metrics_file.read_text(encoding="utf-8"))
+        per_record_file = run_dir / "per_record.json"
+        per_image = (
+            json.loads(per_record_file.read_text(encoding="utf-8"))
+            if per_record_file.exists()
+            else []
+        )
+
+        metrics_path = output_dir / "metrics.json"
+        per_image_path = output_dir / "per_image.json"
+        metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        per_image_path.write_text(json.dumps(per_image, indent=2, ensure_ascii=False), encoding="utf-8")
+        return metrics, {"metrics": str(metrics_path), "per_image": str(per_image_path)}
+
+    def _run_llm_eval_process(
+        self, db: Session, job: EvaluationJob, command: list[str], started_at: datetime
+    ) -> None:
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+        env.setdefault("HF_HOME", str(self.storage.model_assets / "huggingface_home"))
+        env.setdefault("TRANSFORMERS_CACHE", str(self.storage.model_assets / "huggingface_cache"))
+        token = self.settings.huggingface_token
+        if token:
+            env["HUGGINGFACE_HUB_TOKEN"] = token
+            env["HF_TOKEN"] = token
+
+        process = subprocess.Popen(
+            command,
+            cwd=self.settings.repo_root / "backend",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
+        tail: list[str] = []
+        assert process.stdout is not None
+        for raw_line in process.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
+            tail.append(line)
+            percent, processed, total = _parse_eval_progress(line)
+            self._update_progress(
+                db, job,
+                percent=percent if percent is not None else 20,
+                processed=processed,
+                total=total,
+                step="Scoring records" if processed else "Loading model",
+                started_at=started_at,
+                current_item=line[:120],
+                log_every=True,
+            )
+        code = process.wait()
+        if code != 0:
+            tail_text = "\n".join(tail[-12:]) or "(no output)"
+            raise ValueError(f"LLM evaluation failed (exit {code}):\n{tail_text}")
 
     def _evaluate_classification(
         self, db: Session, job: EvaluationJob, started_at: datetime
@@ -893,3 +1032,19 @@ def average_dicts(rows: list[dict[str, float]]) -> dict[str, float]:
         key: round(sum(float(row.get(key, 0.0)) for row in rows) / len(rows), 6)
         for key in keys
     }
+
+
+def _parse_eval_progress(line: str) -> tuple[float | None, int, int]:
+    """Map an LLM-eval subprocess log line to (percent, processed, total).
+
+    The runner prints ``eval <i>/<total>`` per scored record; the scoring phase
+    maps onto 20–95% so the earlier model-load phase keeps the bar off zero.
+    """
+    import re  # noqa: PLC0415
+
+    match = re.search(r"eval (\d+)/(\d+)", line)
+    if match:
+        processed, total = int(match.group(1)), int(match.group(2))
+        percent = 20 + (75 * processed / total) if total else 20
+        return percent, processed, total
+    return None, 0, 0

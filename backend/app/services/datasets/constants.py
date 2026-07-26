@@ -1,10 +1,18 @@
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 TEXT_SUFFIXES = {".txt", ".csv", ".jsonl"}
+RECORD_SUFFIX = ".json"
 SPLITS = ("unassigned", "train", "valid", "test")
 TRAINING_SPLITS = ("train", "valid", "test")
 IMAGE_TASK_TYPES = {"classification", "object_detection", "segmentation"}
 NLP_TASK_TYPES = {"text_classification", "summarization", "question_answering"}
+# LLM fine-tuning: one task, two record shapes selected by format (see phase 10).
+LLM_TASK_TYPES = {"llm_finetune"}
+LLM_FORMATS = {"instruction_jsonl", "chat_jsonl"}
+CHAT_ROLES = ("system", "user", "assistant")
 TASK_TYPE_ALIASES = {"text": "text_classification"}
+# Dataset provenance, stored on the manifest (see phase 10). Defaulted to
+# ``created`` for legacy manifests written before this field existed.
+DATASET_ORIGINS = ("created", "imported_hf", "recipe")
 
 ALLOWED_PREPROCESS_TRANSFORMS = {
     "horizontal_flip",

@@ -17,6 +17,32 @@ def test_model_registry_lists_static_models():
     assert "unet_inception" in model_ids
 
 
+def test_llm_models_do_not_inherit_medical_default_labels(tmp_path: Path):
+    settings = Settings(
+        MODELS_DIR=str(tmp_path / "models"),
+        DATASETS_DIR=str(tmp_path / "datasets"),
+        STORAGE_DIR=str(tmp_path / "storage"),
+        DATABASE_URL=f"sqlite:///{tmp_path / 'app.db'}",
+    )
+    storage = Storage(settings)
+    storage.ensure()
+    registry = ModelRegistry(settings, storage)
+    adapter_dir = storage.trained_models / "llm" / "adapter"
+    adapter_dir.mkdir(parents=True)
+    (adapter_dir / "adapter_config.json").write_text("{}", encoding="utf-8")
+
+    info = registry.register_model(
+        model_id="trained_llm",
+        name="Trained LLM",
+        family="llm_adapter",
+        task_type="llm_finetune",
+        paths={"model": adapter_dir},
+        labels=[],
+    )
+    # A label-free LLM must not render the medical DEFAULT_LABELS on its card.
+    assert info.labels == []
+
+
 def test_model_registry_renames_and_deletes_trained_models(tmp_path: Path):
     settings = Settings(
         MODELS_DIR=str(tmp_path / "models"),

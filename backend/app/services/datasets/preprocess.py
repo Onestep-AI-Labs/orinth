@@ -47,6 +47,8 @@ class PreprocessMixin:
         for split_name in splits:
             self._validate_split(split_name)
         location = self._location(dataset_id)
+        if self._is_llm_task(location.task_type):
+            return self._llm_eda_summary(location, dataset_id, split, splits)
         if self._is_nlp_task(location.task_type):
             return self._text_eda_summary(location, dataset_id, split, splits)
         class_counts = {label: 0 for label in location.labels}
@@ -521,6 +523,14 @@ class PreprocessMixin:
             raise NotImplementedError
 
         def _is_nlp_task(self, task_type: str) -> bool:
+            raise NotImplementedError
+
+        def _is_llm_task(self, task_type: str) -> bool:
+            raise NotImplementedError
+
+        def _llm_eda_summary(
+            self, location: DatasetLocation, dataset_id: str, split: str, splits: list[str]
+        ) -> DatasetEdaSummary:
             raise NotImplementedError
 
         def _image_paths(self, location: DatasetLocation, split: str) -> list[Path]:

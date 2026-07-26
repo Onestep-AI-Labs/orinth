@@ -1,5 +1,19 @@
 import argparse
 from pathlib import Path
+from typing import Any
+
+from app.ml.vision.yolo.catalog import YOLO_ADVANCED_PARAMETERS
+from app.training.runners.advanced import allowed_keys, log_ignored, parse_advanced, partition
+
+# Every advanced key for YOLO is a direct `model.train(**kwargs)` argument, so
+# the accepted subset merges straight onto the base train args.
+YOLO_ADVANCED_KEYS = allowed_keys(YOLO_ADVANCED_PARAMETERS)
+
+
+def build_advanced_train_args(raw: str | None) -> tuple[dict[str, Any], list[str]]:
+    """Return ``(train-arg overrides, ignored keys)`` from the advanced blob."""
+
+    return partition(parse_advanced(raw), YOLO_ADVANCED_KEYS)
 
 
 def main() -> None:
@@ -17,7 +31,11 @@ def main() -> None:
     parser.add_argument("--optimizer", default="AdamW")
     parser.add_argument("--learning-rate", type=float, default=0.002)
     parser.add_argument("--device", default="")
+    parser.add_argument("--advanced", default="{}")
     args = parser.parse_args()
+
+    advanced, ignored = build_advanced_train_args(args.advanced)
+    log_ignored(ignored)
 
     from ultralytics import YOLO
 
@@ -78,6 +96,9 @@ def main() -> None:
         "name": run_dir.name,
         "exist_ok": True,
     }
+    # Advanced overrides win over the base recipe above; every accepted key is a
+    # valid Ultralytics train argument.
+    train_args.update(advanced)
     if args.device:
         train_args["device"] = args.device
 

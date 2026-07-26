@@ -44,6 +44,8 @@ class ModelSpec:
     labels: list[str] | None = None
     source: str = "reference"
     training_job_id: str | None = None
+    base_model_id: str | None = None
+    format: str | None = None
     created_at: datetime | None = None
     metrics: dict[str, Any] | None = None
     artifacts: dict[str, Any] | None = None
@@ -52,7 +54,27 @@ class ModelSpec:
     def available(self) -> bool:
         return all(path.exists() for path in self.paths.values())
 
+    def size_on_disk(self) -> int | None:
+        total = 0
+        found = False
+        for path in self.paths.values():
+            if not path.exists():
+                continue
+            found = True
+            if path.is_dir():
+                for nested in path.rglob("*"):
+                    if nested.is_file():
+                        total += nested.stat().st_size
+            else:
+                total += path.stat().st_size
+        return total if found else None
+
     def to_info(self) -> ModelInfo:
+        # LLM artifacts are label-free (a fine-tune has no class list); falling
+        # back to the medical DEFAULT_LABELS here is what made an LLM adapter
+        # card render "granuloma / kista". Keep their label list empty.
+        is_llm = self.family in {"llm_hf", "llm_adapter", "llm_gguf"}
+        display_labels = list(self.labels or ([] if is_llm else DEFAULT_LABELS))
         return ModelInfo(
             id=self.id,
             name=self.name,
@@ -63,9 +85,12 @@ class ModelSpec:
             promoted=self.promoted,
             project_id=self.project_id,
             task_type=self.task_type,  # type: ignore[arg-type]
-            labels=(self.labels or DEFAULT_LABELS).copy(),
+            labels=display_labels,
             source=self.source,  # type: ignore[arg-type]
             training_job_id=self.training_job_id,
+            base_model_id=self.base_model_id,
+            format=self.format,
+            size_bytes=self.size_on_disk(),
             created_at=self.created_at,
             metrics=self.metrics or {},
             artifacts=self.artifacts or {},
@@ -242,6 +267,26 @@ class ModelRegistry:
                 spec.paths["model"],
                 spec.labels or ["answer"],
             )
+        if spec.family == "sklearn_pipeline":
+            # Lazy import: keeps the sklearn/joblib dependency off the module
+            # import path, consistent with the other predictor families.
+            from app.ml.sklearn.predictor import SklearnPipelinePredictor
+
+            return SklearnPipelinePredictor(
+                spec.paths["model"],
+                spec.labels or DEFAULT_LABELS,
+                task_type=spec.task_type,
+            )
+        if spec.family == "llm_gguf":
+            raise ValueError(
+                "GGUF models run through the managed llama.cpp server, not the form-based "
+                "predictor path. Start serving on the model detail page and use the chat surface."
+            )
+        if spec.family in {"llm_hf", "llm_adapter"}:
+            raise ValueError(
+                "This LLM artifact is not directly servable. Export it to GGUF from the "
+                "model detail page, then serve the registered GGUF model."
+            )
         raise ValueError(f"Unsupported model family: {spec.family}")
 
     def register_model(
@@ -259,6 +304,8 @@ class ModelRegistry:
         metrics: dict[str, Any] | None = None,
         artifacts: dict[str, Any] | None = None,
         source: str = "trained",
+        base_model_id: str | None = None,
+        format: str | None = None,
     ) -> ModelInfo:
         with self._lock:
             registry = self._read_registry()
@@ -274,6 +321,8 @@ class ModelRegistry:
                 "labels": labels,
                 "source": source,
                 "training_job_id": training_job_id,
+                "base_model_id": base_model_id,
+                "format": format,
                 "created_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
                 "metrics": metrics or {},
                 "artifacts": artifacts or {},
@@ -293,7 +342,11 @@ class ModelRegistry:
                 raise ValueError("Model name is required")
             item = dict(registry[model_id])
             item["name"] = clean_name
-            item = self._move_owned_model_dir(item)
+            # Uploaded model dirs are keyed by id (storage/uploaded_models/<id>),
+            # not by slug-name, so a rename never moves files — only trained
+            # model folders get the name-based relocation.
+            if item.get("source") != "uploaded":
+                item = self._move_owned_model_dir(item)
             registry[model_id] = item
             self._write_registry(registry)
             return self.get_spec(model_id).to_info()
@@ -305,6 +358,12 @@ class ModelRegistry:
             if item is None:
                 raise KeyError(model_id)
             self._write_registry(registry)
+            if item.get("source") == "uploaded":
+                # Uploaded weights live under storage/uploaded_models/<id>/;
+                # remove the whole directory the upload created.
+                self.storage.delete_owned_path(self.storage.uploaded_models / model_id)
+                self._predictors.pop(model_id, None)
+                return True
             model_dir = self._model_dir_for_registry_item(item)
             deleted_storage = self.storage.delete_owned_path(model_dir)
             if not deleted_storage:
@@ -395,9 +454,14 @@ class ModelRegistry:
                     promoted=bool(item.get("promoted", True)),
                     project_id=item.get("project_id", DEFAULT_PROJECT_ID),
                     task_type=item.get("task_type", "segmentation"),
-                    labels=item.get("labels") or DEFAULT_LABELS.copy(),
+                    # LLM artifacts are label-free; only non-LLM families fall
+                    # back to the medical DEFAULT_LABELS.
+                    labels=item.get("labels")
+                    or ([] if item["family"] in {"llm_hf", "llm_adapter", "llm_gguf"} else DEFAULT_LABELS.copy()),
                     source=item.get("source", "promoted"),
                     training_job_id=item.get("training_job_id"),
+                    base_model_id=item.get("base_model_id"),
+                    format=item.get("format"),
                     created_at=created_at,
                     metrics=item.get("metrics") or {},
                     artifacts=item.get("artifacts") or {},

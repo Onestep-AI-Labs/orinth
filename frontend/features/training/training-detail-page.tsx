@@ -28,6 +28,16 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
     }
   });
   const job = jobQuery.data;
+  // The reverse link training-run → registered model: the model records its
+  // originating job, so a completed run can jump straight to its artifact —
+  // for LLM runs, that is where Save / Export (GGUF, merged, adapter) lives.
+  const modelsQuery = useQuery({
+    queryKey: ["models", "for-training-job", job?.project_id ?? ""],
+    queryFn: () => api.models(false, job?.project_id),
+    enabled: Boolean(job && job.status === "completed")
+  });
+  const registeredModel = modelsQuery.data?.find((model) => model.training_job_id === jobId);
+  const isLlmRun = job?.model_family === "llm_sft" || (registeredModel?.family ?? "").startsWith("llm_");
 
   function confirmCancelTrainingJob(job: TrainingJob) {
     confirm({
@@ -60,7 +70,18 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
                 Test this model
               </ButtonLink>
             )}
+            {job.status === "completed" && isLlmRun && registeredModel && (
+              <ButtonLink href={`/models/${registeredModel.id}`}>
+                Save / Export
+              </ButtonLink>
+            )}
           </div>
+          {job.status === "completed" && isLlmRun && (
+            <p className="training-llm-export-hint">
+              Fine-tuning saved a LoRA adapter. Use Save / Export to convert it to GGUF (to serve and
+              chat), merged 16-bit, or an adapter zip — no separate step needed.
+            </p>
+          )}
           <ProgressPanel progress={job.progress} status={job.status} error={job.error} />
           <TrainingDetails job={job} />
           <MutationError mutations={[cancelMutation, promoteMutation]} />

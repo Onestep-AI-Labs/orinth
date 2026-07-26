@@ -15,6 +15,10 @@ type DatasetVersionSummary = components["schemas"]["DatasetVersionSummary"];
 type DatasetEdaSummary = components["schemas"]["DatasetEdaSummary"];
 type DatasetAnnotation = components["schemas"]["DatasetAnnotation"];
 type DeleteResponse = components["schemas"]["DeleteResponse"];
+type DatasetHubSearchResponse = components["schemas"]["DatasetHubSearchResponse"];
+type DatasetHubPreview = components["schemas"]["DatasetHubPreview"];
+type DatasetHubImportRequest = components["schemas"]["DatasetHubImportRequest"];
+type DatasetHubImportResponse = components["schemas"]["DatasetHubImportResponse"];
 
 export const datasetsApi = {
   datasetCatalog: (projectId?: string) =>
@@ -205,5 +209,44 @@ export const datasetsApi = {
         method: "PUT",
         body: JSON.stringify({ annotations })
       }
-    )
+    ),
+  createDatasetRecord: (datasetId: string, payload: { split: string; record: Record<string, any> }) =>
+    jsonFetch<DatasetItemDetail>(`/datasets/${datasetId}/records`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  saveDatasetRecord: (datasetId: string, split: string, itemId: string, record: Record<string, any>) =>
+    jsonFetch<DatasetItemDetail>(
+      `/datasets/${datasetId}/records/${split}/${encodeURIComponent(itemId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ record })
+      }
+    ),
+  uploadDatasetRecords: (datasetId: string, form: FormData) =>
+    jsonFetch<{ imported: number; skipped: number; warnings: string[] }>(
+      `/datasets/${datasetId}/records/upload`,
+      {
+        method: "POST",
+        body: form
+      }
+    ),
+  searchDatasetHub: (params: { query?: string; task?: string; limit?: number }) =>
+    jsonFetch<DatasetHubSearchResponse>(
+      `/datasets/hub/search${query({ query: params.query, task: params.task, limit: params.limit })}`
+    ),
+  previewDatasetHub: (params: { hub_id: string; config?: string; split?: string; limit?: number }) =>
+    jsonFetch<DatasetHubPreview>(
+      `/datasets/hub/preview${query({
+        hub_id: params.hub_id,
+        config: params.config,
+        split: params.split,
+        limit: params.limit
+      })}`
+    ),
+  importDatasetHub: (payload: DatasetHubImportRequest) =>
+    jsonFetch<DatasetHubImportResponse>("/datasets/import/hub", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    })
 };

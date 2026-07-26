@@ -7,9 +7,9 @@ import { BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, 
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
 import { SPLIT_FILTERS, SPLITS, TRAINING_SPLITS } from "@/features/platform/constants";
-import { formatDatasetFormat, formatDatasetTask, isNlpTask, labelColor, labelFill, pointsAttr, taskDescription } from "@/features/platform/utils";
+import { formatDatasetFormat, formatDatasetTask, isLlmTask, isNlpTask, labelColor, labelFill, pointsAttr, taskDescription } from "@/features/platform/utils";
 import { CardGridSkeleton, EmptyState, Field, InlineSpinner, Metric, MutationError, PanelTitle, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
-import type { DatasetEdaSummary, DatasetItemSummary, DatasetPreprocessConfig, DatasetSplitConfig, DatasetSplitFilter, DatasetSummary, DatasetVersionSummary, SplitKey, TaskType } from "@/types/api";
+import type { DatasetEdaSummary, DatasetFormat, DatasetItemSummary, DatasetPreprocessConfig, DatasetSplitConfig, DatasetSplitFilter, DatasetSummary, DatasetVersionSummary, SplitKey, TaskType } from "@/types/api";
 
 export function DatasetCreatePanel({
   newDatasetName,
@@ -29,7 +29,7 @@ export function DatasetCreatePanel({
   allowedTaskTypes: TaskType[];
   labelDraft: string;
   setLabelDraft: (value: string) => void;
-  onCreate: () => void;
+  onCreate: (override?: { format?: DatasetFormat }) => void;
   pending: boolean;
 }) {
   const labels = labelDraft
@@ -38,39 +38,53 @@ export function DatasetCreatePanel({
     .filter(Boolean);
   const visibleLabels = labels;
   const [labelInput, setLabelInput] = useState("");
-  // Domain is picked before the task list, so a mixed project shows three
-  // relevant choices instead of six spanning two unrelated kinds of data.
-  const [domain, setDomain] = useState<"vision" | "nlp" | null>(null);
-  const visionChoices = allowedTaskTypes.filter((task) => !isNlpTask(task));
+  // Instruction | chat is chosen here because the task alone does not fix the
+  // record shape for LLM fine-tuning (the phase-10 exception to derived format).
+  const [llmSchema, setLlmSchema] = useState<DatasetFormat>("instruction_jsonl");
+  // Domain is picked before the task list, so a mixed project shows only the
+  // relevant choices instead of every task spanning unrelated kinds of data.
+  const [domain, setDomain] = useState<"vision" | "nlp" | "llm" | null>(null);
+  const visionChoices = allowedTaskTypes.filter((task) => !isNlpTask(task) && !isLlmTask(task));
   const nlpChoices = allowedTaskTypes.filter((task) => isNlpTask(task));
-  const domainChoices = domain === "vision" ? visionChoices : domain === "nlp" ? nlpChoices : [];
+  const llmChoices = allowedTaskTypes.filter((task) => isLlmTask(task));
+  const domainChoices =
+    domain === "vision" ? visionChoices : domain === "nlp" ? nlpChoices : domain === "llm" ? llmChoices : [];
+  const llm = isLlmTask(taskType);
   const nlp = isNlpTask(taskType);
-  const format = nlp ? "text_folder" : taskType === "classification" ? "image_folder" : "yolo";
+  const format: DatasetFormat = llm
+    ? llmSchema
+    : nlp
+      ? "text_folder"
+      : taskType === "classification"
+        ? "image_folder"
+        : "yolo";
   const chosen = domain !== null && domainChoices.includes(taskType);
-  // Summarization and question answering carry their content in the annotation
-  // itself; their label list is fixed. Asking for one here produced datasets
-  // saved with a meaningless "object" label.
-  const needsLabels = taskType !== "summarization" && taskType !== "question_answering";
-  const bothDomains = visionChoices.length > 0 && nlpChoices.length > 0;
+  // Summarization/QA carry their content in the annotation itself and LLM
+  // records carry their own supervision; their label list is fixed or empty.
+  const needsLabels =
+    taskType !== "summarization" && taskType !== "question_answering" && !llm;
+  const activeDomains = [visionChoices, nlpChoices, llmChoices].filter((choices) => choices.length > 0).length;
+  const multiDomain = activeDomains > 1;
 
   const pickDomain = useCallback(
-    (next: "vision" | "nlp") => {
+    (next: "vision" | "nlp" | "llm") => {
       setDomain(next);
       // Park the task on the new domain's first option so the derived format
       // and label fields below never describe the domain the user just left.
-      const choices = next === "vision" ? visionChoices : nlpChoices;
+      const choices = next === "vision" ? visionChoices : next === "nlp" ? nlpChoices : llmChoices;
       if (choices.length && !choices.includes(taskType)) setTaskType(choices[0]);
     },
-    [nlpChoices, setTaskType, taskType, visionChoices]
+    [llmChoices, nlpChoices, setTaskType, taskType, visionChoices]
   );
 
   useEffect(() => {
     // A single-domain project has no choice to make, so skip straight to its
     // tasks rather than making the user click a lone tab.
-    if (domain !== null || bothDomains) return;
+    if (domain !== null || multiDomain) return;
     if (visionChoices.length > 0) pickDomain("vision");
     else if (nlpChoices.length > 0) pickDomain("nlp");
-  }, [bothDomains, domain, nlpChoices.length, pickDomain, visionChoices.length]);
+    else if (llmChoices.length > 0) pickDomain("llm");
+  }, [domain, llmChoices.length, multiDomain, nlpChoices.length, pickDomain, visionChoices.length]);
 
   function syncLabels(nextLabels: string[]) {
     setLabelDraft(nextLabels.join(", "));
@@ -111,26 +125,39 @@ export function DatasetCreatePanel({
           <>
             {/* Only the domains this project declared — a vision-only project
                 has no use for an NLP tab it can never choose. */}
-            {bothDomains ? (
+            {multiDomain ? (
               <div className="segmented-control mb-3">
-                <button
-                  type="button"
-                  className={domain === "vision" ? "segmented-active" : ""}
-                  onClick={() => pickDomain("vision")}
-                >
-                  Vision
-                </button>
-                <button
-                  type="button"
-                  className={domain === "nlp" ? "segmented-active" : ""}
-                  onClick={() => pickDomain("nlp")}
-                >
-                  NLP
-                </button>
+                {visionChoices.length > 0 ? (
+                  <button
+                    type="button"
+                    className={domain === "vision" ? "segmented-active" : ""}
+                    onClick={() => pickDomain("vision")}
+                  >
+                    Vision
+                  </button>
+                ) : null}
+                {nlpChoices.length > 0 ? (
+                  <button
+                    type="button"
+                    className={domain === "nlp" ? "segmented-active" : ""}
+                    onClick={() => pickDomain("nlp")}
+                  >
+                    NLP
+                  </button>
+                ) : null}
+                {llmChoices.length > 0 ? (
+                  <button
+                    type="button"
+                    className={domain === "llm" ? "segmented-active" : ""}
+                    onClick={() => pickDomain("llm")}
+                  >
+                    LLM
+                  </button>
+                ) : null}
               </div>
             ) : null}
             {domain === null ? (
-              <p className="hint-text">Choose Vision or NLP to see the tasks this project allows.</p>
+              <p className="hint-text">Choose a domain to see the tasks this project allows.</p>
             ) : (
               <div className="task-choice-grid">
                 {domainChoices.map((task) => (
@@ -146,7 +173,7 @@ export function DatasetCreatePanel({
                 ))}
               </div>
             )}
-            {chosen ? (
+            {chosen && !llm ? (
               <span className="field-hint field-hint-start">
                 Stored as {formatDatasetFormat(format)}
               </span>
@@ -154,6 +181,32 @@ export function DatasetCreatePanel({
           </>
         )}
       </div>
+      {chosen && llm ? (
+        <div className="field">
+          <label>Record schema</label>
+          {/* The task alone does not fix the record shape, so this is chosen
+              explicitly (phase-10 exception to derived format). */}
+          <div className="task-choice-grid">
+            <button
+              type="button"
+              className={`task-choice ${llmSchema === "instruction_jsonl" ? "task-choice-active" : ""}`}
+              onClick={() => setLlmSchema("instruction_jsonl")}
+            >
+              <strong>Instruction</strong>
+              <span>instruction / input / output rows</span>
+            </button>
+            <button
+              type="button"
+              className={`task-choice ${llmSchema === "chat_jsonl" ? "task-choice-active" : ""}`}
+              onClick={() => setLlmSchema("chat_jsonl")}
+            >
+              <strong>Chat</strong>
+              <span>system / user / assistant messages</span>
+            </button>
+          </div>
+          <span className="field-hint field-hint-start">Stored as {formatDatasetFormat(format)}</span>
+        </div>
+      ) : null}
       {chosen && needsLabels ? (
         <>
           <div className="field">
@@ -194,7 +247,7 @@ export function DatasetCreatePanel({
       ) : null}
       <button
         className="primary-button"
-        onClick={onCreate}
+        onClick={() => onCreate({ format })}
         disabled={pending || !newDatasetName.trim() || !chosen || (needsLabels && visibleLabels.length === 0)}
       >
         <FilePlus2 size={16} /> Create dataset
@@ -376,6 +429,9 @@ export function SplitConfigPanel({
   const [expanded, setExpanded] = useState(true);
   const total = config.train + config.valid + config.test;
   const unassigned = dataset.splits.unassigned?.item_count ?? dataset.splits.unassigned?.image_count ?? 0;
+  // LLM records carry no label, so "stratify by label" has nothing to balance
+  // on — hide the control and keep the sent config unstratified for them.
+  const llm = isLlmTask(dataset.task_type);
   function setRatio(key: "train" | "valid" | "test", value: number) {
     setConfig({ ...config, [key]: Math.max(0, Math.min(1, value)) });
   }
@@ -414,10 +470,12 @@ export function SplitConfigPanel({
               <input type="number" value={config.seed} disabled={!editable} onChange={(event) => setConfig({ ...config, seed: Number(event.target.value) })} />
             </Field>
             <div className="choice-list compact">
-              <label>
-                <input type="checkbox" checked={config.stratify} disabled={!editable} onChange={(event) => setConfig({ ...config, stratify: event.target.checked })} />
-                <span>Stratify labels</span>
-              </label>
+              {!llm && (
+                <label>
+                  <input type="checkbox" checked={config.stratify} disabled={!editable} onChange={(event) => setConfig({ ...config, stratify: event.target.checked })} />
+                  <span>Stratify labels</span>
+                </label>
+              )}
               <label>
                 <input type="checkbox" checked={config.resplit_all} disabled={!editable} onChange={(event) => setConfig({ ...config, resplit_all: event.target.checked })} />
                 <span>Resplit existing</span>
@@ -532,8 +590,11 @@ export function EdaPanel({
   setSplit: (split: DatasetSplitFilter) => void;
 }) {
   const totalImages = eda ? Object.values(eda.split_counts).reduce((total, count) => total + count, 0) : 0;
-  const nlp = isNlpTask(dataset.task_type);
-  const maxClassCount = eda ? Math.max(1, ...Object.values(eda.class_counts)) : 1;
+  const llm = isLlmTask(dataset.task_type);
+  const nlp = isNlpTask(dataset.task_type) || llm;
+  const roleCounts = eda?.role_counts ?? {};
+  const distribution = llm ? roleCounts : (eda?.class_counts ?? {});
+  const maxClassCount = eda ? Math.max(1, ...Object.values(distribution)) : 1;
   const maxSplitCount = eda ? Math.max(1, ...Object.values(eda.split_counts)) : 1;
   const coverage = eda && eda.image_count > 0 ? ((eda.image_count - eda.unlabeled_count) / eda.image_count) * 100 : 0;
   const avgAnnotations = eda && eda.image_count > 0 ? eda.annotation_count / eda.image_count : 0;
@@ -549,18 +610,30 @@ export function EdaPanel({
       ) : eda ? (
         <>
           <div className="eda-metric-grid">
-            <Metric label={nlp ? "Texts" : "Images"} value={nlp ? (eda.text_count || eda.item_count) : eda.image_count} />
-            <Metric label="Annotations" value={eda.annotation_count} />
-            <Metric label="Unlabeled" value={eda.unlabeled_count} />
-            <Metric label="Coverage" value={`${coverage.toFixed(1)}%`} />
-            <Metric label="Avg ann/img" value={avgAnnotations.toFixed(2)} />
+            <Metric label={llm ? "Records" : nlp ? "Texts" : "Images"} value={llm ? eda.item_count : nlp ? (eda.text_count || eda.item_count) : eda.image_count} />
+            {llm ? (
+              <>
+                <Metric label="Empty outputs" value={eda.unlabeled_count} />
+                <Metric label="Duplicates" value={eda.duplicate_count} />
+              </>
+            ) : (
+              <>
+                <Metric label="Annotations" value={eda.annotation_count} />
+                <Metric label="Unlabeled" value={eda.unlabeled_count} />
+                <Metric label="Coverage" value={`${coverage.toFixed(1)}%`} />
+                <Metric label="Avg ann/img" value={avgAnnotations.toFixed(2)} />
+              </>
+            )}
             <Metric label="All splits" value={totalImages} />
           </div>
           <div className="eda-chart-grid">
             <div className="eda-chart-card">
-              <h3>Class Balance</h3>
+              <h3>{llm ? "Message Roles" : "Class Balance"}</h3>
               <div className="eda-bars">
-                {Object.entries(eda.class_counts).map(([label, count], index) => (
+                {Object.keys(distribution).length === 0 && (
+                  <p className="hint-text">{llm ? "No chat roles (instruction dataset)." : "No labels yet."}</p>
+                )}
+                {Object.entries(distribution).map(([label, count], index) => (
                   <div className="eda-bar-row" key={label}>
                     <span title={label}>
                       <span className="class-dot" style={{ backgroundColor: labelColor(index) }} />
@@ -592,7 +665,7 @@ export function EdaPanel({
               </div>
             </div>
             <div className="eda-chart-card">
-              <h3>Image Geometry</h3>
+              <h3>{nlp ? "Length Distribution" : "Image Geometry"}</h3>
               <div className="eda-stats-list">
                 {nlp ? (
                   <>
@@ -614,8 +687,17 @@ export function EdaPanel({
             <div className="eda-chart-card">
               <h3>Dataset Health</h3>
               <div className="eda-stats-list">
-                <span>Missing annotations <strong>{eda.missing_annotation_count}</strong></span>
-                <span>Labeled images <strong>{eda.image_count - eda.unlabeled_count}</strong></span>
+                {llm ? (
+                  <>
+                    <span>Empty outputs <strong>{eda.unlabeled_count}</strong></span>
+                    <span>Duplicate records <strong>{eda.duplicate_count}</strong></span>
+                  </>
+                ) : (
+                  <>
+                    <span>Missing annotations <strong>{eda.missing_annotation_count}</strong></span>
+                    <span>Labeled images <strong>{eda.image_count - eda.unlabeled_count}</strong></span>
+                  </>
+                )}
                 <span>Task <strong>{formatDatasetTask(dataset.task_type)}</strong></span>
                 <span>Format <strong>{formatDatasetFormat(dataset.format)}</strong></span>
               </div>
@@ -643,7 +725,7 @@ export function DatasetSummaryBar({
   split: DatasetSplitFilter;
   setSplit: (split: DatasetSplitFilter) => void;
 }) {
-  const nlp = isNlpTask(dataset.task_type);
+  const unit = isLlmTask(dataset.task_type) ? "rec" : isNlpTask(dataset.task_type) ? "txt" : "img";
   const countFor = (splitName: string) => dataset.splits[splitName]?.item_count ?? dataset.splits[splitName]?.image_count ?? 0;
   const allCount = SPLITS.reduce((total, splitName) => total + countFor(splitName), 0);
   return (
@@ -657,7 +739,7 @@ export function DatasetSummaryBar({
             onClick={() => setSplit(splitName)}
           >
             <strong>{splitName}</strong>
-            <span>{count} {nlp ? "txt" : "img"}</span>
+            <span>{count} {unit}</span>
           </button>
         );
       })}

@@ -1,10 +1,22 @@
 import argparse
 import csv
 import json
+import math
 from pathlib import Path
 from typing import Any
 
+from app.ml.vision.keras_classification.catalog import KERAS_ADVANCED_PARAMETERS
+from app.training.runners.advanced import allowed_keys, log_ignored, parse_advanced, partition
+
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+KERAS_ADVANCED_KEYS = allowed_keys(KERAS_ADVANCED_PARAMETERS)
+
+
+def select_keras_advanced(raw: str | None) -> tuple[dict[str, Any], list[str]]:
+    """Return ``(accepted advanced values, ignored keys)`` for the Keras runner."""
+
+    return partition(parse_advanced(raw), KERAS_ADVANCED_KEYS)
 
 
 def main() -> None:
@@ -18,11 +30,18 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, required=True)
     parser.add_argument("--optimizer", default="adam")
     parser.add_argument("--learning-rate", type=float, default=0.001)
+    parser.add_argument("--advanced", default="{}")
     args = parser.parse_args()
+
+    advanced, ignored = select_keras_advanced(args.advanced)
+    log_ignored(ignored)
 
     import numpy as np
     import tensorflow as tf
     from PIL import Image
+
+    if "seed" in advanced:
+        tf.keras.utils.set_random_seed(int(advanced["seed"]))
 
     run_dir = Path(args.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -67,14 +86,35 @@ def main() -> None:
         pooling="avg",
         **application_kwargs,
     )
-    base.trainable = False
+    # Fine-tune the last N backbone layers when asked; otherwise the backbone
+    # stays frozen and only the fresh head trains.
+    unfreeze_layers = int(advanced.get("unfreeze_layers", 0) or 0)
+    if unfreeze_layers > 0:
+        base.trainable = True
+        for layer in base.layers[:-unfreeze_layers]:
+            layer.trainable = False
+    else:
+        base.trainable = False
     inputs = tf.keras.Input(shape=(args.image_size, args.image_size, 3))
-    x = base(inputs, training=False)
-    x = tf.keras.layers.Dropout(0.2)(x)
+    augmentation = build_augmentation(advanced, tf)
+    x = augmentation(inputs) if augmentation is not None else inputs
+    x = base(x, training=False)
+    x = tf.keras.layers.Dropout(float(advanced.get("dropout", 0.2)))(x)
     outputs = tf.keras.layers.Dense(len(labels), activation="softmax")(x)
     model = tf.keras.Model(inputs, outputs)
-    optimizer = optimizer_for(args.optimizer, args.learning_rate, tf)
-    model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"])
+    steps_per_epoch = max(1, math.ceil(len(train_items) / max(args.batch_size, 1)))
+    learning_rate = learning_rate_schedule(
+        str(advanced.get("lr_schedule", "constant")),
+        args.learning_rate,
+        steps_per_epoch,
+        args.epochs,
+        tf,
+    )
+    optimizer = optimizer_for(args.optimizer, learning_rate, tf)
+    loss = tf.keras.losses.CategoricalCrossentropy(
+        label_smoothing=float(advanced.get("label_smoothing", 0.0))
+    )
+    model.compile(optimizer=optimizer, loss=loss, metrics=["accuracy"])
 
     csv_path = run_dir / "results.csv"
     callbacks = [
@@ -86,7 +126,28 @@ def main() -> None:
             save_best_only=True,
         ),
     ]
-    history = model.fit(train_ds, validation_data=valid_ds, epochs=args.epochs, callbacks=callbacks)
+    early_stop_patience = int(advanced.get("early_stop_patience", 0) or 0)
+    if early_stop_patience > 0:
+        callbacks.append(
+            tf.keras.callbacks.EarlyStopping(
+                monitor="val_accuracy",
+                mode="max",
+                patience=early_stop_patience,
+                restore_best_weights=True,
+            )
+        )
+    if str(advanced.get("lr_schedule")) == "plateau":
+        callbacks.append(
+            tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3)
+        )
+    class_weight = class_weights(train_items, len(labels)) if advanced.get("class_weighting") else None
+    history = model.fit(
+        train_ds,
+        validation_data=valid_ds,
+        epochs=args.epochs,
+        callbacks=callbacks,
+        class_weight=class_weight,
+    )
     model.save(run_dir / "last_model.keras")
     scores = model.predict(valid_ds, verbose=0)
     y_true = [class_id for _image_path, class_id in valid_items]
@@ -146,13 +207,64 @@ def load_split(dataset_root: Path, split: str) -> list[tuple[Path, int]]:
     return items
 
 
-def optimizer_for(name: str, learning_rate: float, tf):
+def optimizer_for(name: str, learning_rate, tf):
     normalized = name.lower()
     if normalized == "sgd":
         return tf.keras.optimizers.SGD(learning_rate=learning_rate, momentum=0.9)
     if normalized == "adamw":
         return tf.keras.optimizers.AdamW(learning_rate=learning_rate)
     return tf.keras.optimizers.Adam(learning_rate=learning_rate)
+
+
+def learning_rate_schedule(kind: str, base_lr: float, steps_per_epoch: int, epochs: int, tf):
+    """Resolve the ``lr_schedule`` advanced knob to a value or Keras schedule.
+
+    ``constant`` and ``plateau`` keep a plain float — plateau adjusts the rate
+    through a ``ReduceLROnPlateau`` callback rather than a schedule object.
+    """
+
+    total_steps = max(1, steps_per_epoch * max(epochs, 1))
+    if kind == "cosine":
+        return tf.keras.optimizers.schedules.CosineDecay(base_lr, decay_steps=total_steps)
+    if kind == "step":
+        return tf.keras.optimizers.schedules.ExponentialDecay(
+            base_lr,
+            decay_steps=max(1, steps_per_epoch * max(epochs // 3, 1)),
+            decay_rate=0.1,
+            staircase=True,
+        )
+    return base_lr
+
+
+def build_augmentation(advanced: dict, tf):
+    """A Keras augmentation stack for the enabled toggles, or ``None``."""
+
+    layers = []
+    if advanced.get("aug_horizontal_flip"):
+        layers.append(tf.keras.layers.RandomFlip("horizontal"))
+    if advanced.get("aug_rotation"):
+        layers.append(tf.keras.layers.RandomRotation(0.1))
+    if advanced.get("aug_zoom"):
+        layers.append(tf.keras.layers.RandomZoom(0.1))
+    if advanced.get("aug_contrast"):
+        layers.append(tf.keras.layers.RandomContrast(0.1))
+    if not layers:
+        return None
+    return tf.keras.Sequential(layers, name="augmentation")
+
+
+def class_weights(train_items: list[tuple[Path, int]], num_classes: int) -> dict[int, float]:
+    """Balanced per-class weights (``n_samples / (n_classes * count)``)."""
+
+    counts: dict[int, int] = {}
+    for _image_path, class_id in train_items:
+        counts[class_id] = counts.get(class_id, 0) + 1
+    total = sum(counts.values())
+    return {
+        class_id: total / (num_classes * count)
+        for class_id, count in counts.items()
+        if count > 0
+    }
 
 
 def validation_metrics(y_true: list[int], y_pred: list[int], scores, labels: list[str]) -> dict:
