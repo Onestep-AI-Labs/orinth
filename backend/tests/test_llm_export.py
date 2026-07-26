@@ -166,6 +166,9 @@ def test_gguf_export_orchestrates_merge_convert_quantize(
     export_service, registry, storage, monkeypatch
 ):
     register_adapter(registry, storage)
+    # The fast CI job installs no LLM extras; the pipeline itself is subprocess-mocked,
+    # so report the extras present to exercise orchestration rather than the preflight.
+    monkeypatch.setattr("app.services.llm_export.find_spec", lambda name: object())
     calls = []
     monkeypatch.setattr(ExportService, "_run_subprocess", fake_subprocess_runner(calls))
     monkeypatch.setattr(
@@ -209,6 +212,7 @@ def test_gguf_export_from_hf_model_skips_merge(export_service, registry, storage
         labels=[],
         source="uploaded",
     )
+    monkeypatch.setattr("app.services.llm_export.find_spec", lambda name: object())
     calls = []
     monkeypatch.setattr(ExportService, "_run_subprocess", fake_subprocess_runner(calls))
     monkeypatch.setattr(
@@ -225,6 +229,7 @@ def test_gguf_export_from_hf_model_skips_merge(export_service, registry, storage
 
 def test_failed_step_leaves_no_artifact(export_service, registry, storage, monkeypatch):
     register_adapter(registry, storage)
+    monkeypatch.setattr("app.services.llm_export.find_spec", lambda name: object())
 
     def failing(self, export_dir, command, *, step_name, extra_env=None):
         raise RuntimeError(f"{step_name} failed (exit 1):\nboom")
@@ -265,6 +270,8 @@ def test_adapter_zip_needs_no_extras(export_service, registry, storage, monkeypa
 
 def test_disk_preflight_names_sizes(export_service, registry, storage, monkeypatch):
     register_adapter(registry, storage)
+    # Extras present so the export reaches the disk preflight rather than the extras gate.
+    monkeypatch.setattr("app.services.llm_export.find_spec", lambda name: object())
 
     class FakeUsage:
         free = 1024

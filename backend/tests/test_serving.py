@@ -6,7 +6,9 @@ import asyncio
 import json
 import socket
 import subprocess
+import sys
 import time
+import types
 
 import pytest
 
@@ -565,9 +567,11 @@ def test_web_search_maps_hits_and_tolerates_failure(settings, storage, registry,
                 {"title": "No URL", "body": "skipped"},
             ]
 
-    import ddgs
-
-    monkeypatch.setattr(ddgs, "DDGS", _DDGS)
+    # `ddgs` is an optional dep absent from the fast CI job; inject a stand-in
+    # module so the service's lazy `from ddgs import DDGS` resolves to the fake.
+    fake_ddgs = types.ModuleType("ddgs")
+    fake_ddgs.DDGS = _DDGS
+    monkeypatch.setitem(sys.modules, "ddgs", fake_ddgs)
     response = service.web_search("claude", max_results=5)
     assert response.error is None
     assert [r.url for r in response.results] == ["https://claude.com"]
@@ -576,7 +580,7 @@ def test_web_search_maps_hits_and_tolerates_failure(settings, storage, registry,
     def boom(*a, **k):
         raise RuntimeError("ratelimited")
 
-    monkeypatch.setattr(ddgs, "DDGS", boom)
+    fake_ddgs.DDGS = boom
     failed = service.web_search("claude")
     assert failed.error and failed.results == []
 
