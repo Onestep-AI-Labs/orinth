@@ -11,8 +11,18 @@ export type TaskType =
   | "segmentation"
   | "text_classification"
   | "summarization"
-  | "question_answering";
-export type DatasetFormat = "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv";
+  | "question_answering"
+  | "llm_finetune";
+export type DatasetFormat =
+  | "yolo"
+  | "coco"
+  | "image_folder"
+  | "image_manifest"
+  | "text_folder"
+  | "jsonl"
+  | "csv"
+  | "instruction_jsonl"
+  | "chat_jsonl";
 export type SplitKey = "unassigned" | "train" | "valid" | "test";
 export type DatasetSplitFilter = "all" | SplitKey;
 
@@ -30,6 +40,9 @@ export type EvaluationDataset = components["schemas"]["EvaluationDatasetInfo"];
 export type EvaluationJob = components["schemas"]["EvaluationJobRead"];
 export type EvaluationPerImageRow = components["schemas"]["EvaluationPerImageRow"];
 export type TrainingJob = components["schemas"]["TrainingJobRead"];
+export type TrainingModelOption = components["schemas"]["TrainingModelOption"];
+export type AdvancedParameterSpec = components["schemas"]["AdvancedParameterSpec"];
+export type LlmEnvironment = components["schemas"]["LlmEnvironment"];
 export type DatasetSummary = components["schemas"]["DatasetSummary"];
 export type DatasetPreprocessConfig = components["schemas"]["DatasetPreprocessConfig"];
 export type DatasetSplitConfig = components["schemas"]["DatasetSplitConfig"];
@@ -39,3 +52,31 @@ export type DatasetAnnotation = components["schemas"]["DatasetAnnotation"];
 export type DatasetItemSummary = components["schemas"]["DatasetItemSummary"];
 export type DatasetItemPage = components["schemas"]["DatasetItemPage"];
 export type DatasetItemDetail = components["schemas"]["DatasetItemDetail"];
+export type DatasetHubSearchResult = components["schemas"]["DatasetHubSearchResult"];
+export type DatasetHubSearchResponse = components["schemas"]["DatasetHubSearchResponse"];
+export type DatasetHubPreview = components["schemas"]["DatasetHubPreview"];
+export type DatasetHubColumnMapping = components["schemas"]["DatasetHubColumnMapping"];
+export type DatasetHubImportRequest = components["schemas"]["DatasetHubImportRequest"];
+export type DatasetHubImportResponse = components["schemas"]["DatasetHubImportResponse"];
+export type DatasetOrigin = "created" | "imported_hf" | "recipe";
+
+// Phase 11: data recipes.
+export type RecipeRead = components["schemas"]["RecipeRead"];
+export type RecipeSourceRead = components["schemas"]["RecipeSourceRead"];
+export type RecipeGenerationSettings = components["schemas"]["RecipeGenerationSettings"];
+export type RecipeGenerateRequest = components["schemas"]["RecipeGenerateRequest"];
+export type RecipeRecord = components["schemas"]["RecipeRecord"];
+export type RecipeRecordPage = components["schemas"]["RecipeRecordPage"];
+export type RecipeCommitResponse = components["schemas"]["RecipeCommitResponse"];
+export type OpenRouterModel = components["schemas"]["OpenRouterModel"];
+export type OpenRouterModelsResponse = components["schemas"]["OpenRouterModelsResponse"];
+
+// Phase 15: LLM export, serving, and chat.
+export type ModelExportStatus = components["schemas"]["ModelExportStatus"];
+export type ModelExportFormat = components["schemas"]["ModelExportRequest"]["format"];
+export type ServingStatus = components["schemas"]["ServingStatus"];
+export type ChatMessage = components["schemas"]["ChatMessage"];
+export type RecipeOutputFormat = "instruction_jsonl" | "chat_jsonl";
+export type RecipeStatus = "draft" | "extracting" | "generating" | "ready" | "failed";
+export type RecipeGenerationMode = "auto" | "llm" | "rules";
+export type RecipePromptFlavor = "qa" | "instruction" | "conversation";

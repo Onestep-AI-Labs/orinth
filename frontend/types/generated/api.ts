@@ -22,6 +22,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/hub/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Hub Dataset */
+        get: operations["preview_hub_dataset_api_datasets_hub_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/hub/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Hub Datasets */
+        get: operations["search_hub_datasets_api_datasets_hub_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/import": {
         parameters: {
             query?: never;
@@ -33,6 +67,23 @@ export interface paths {
         put?: never;
         /** Import Dataset */
         post: operations["import_dataset_api_datasets_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/import/hub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Hub Dataset */
+        post: operations["import_hub_dataset_api_datasets_import_hub_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,6 +382,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Dataset Record */
+        post: operations["create_dataset_record_api_datasets__dataset_id__records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/records/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Dataset Records */
+        post: operations["upload_dataset_records_api_datasets__dataset_id__records_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/records/{split}/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Dataset Record */
+        put: operations["save_dataset_record_api_datasets__dataset_id__records__split___item_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}/versions": {
         parameters: {
             query?: never;
@@ -471,6 +573,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/models/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Model */
+        post: operations["upload_model_api_models_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/upload-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Model Upload Options */
+        get: operations["model_upload_options_api_models_upload_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/models/{model_id}": {
         parameters: {
             query?: never;
@@ -498,6 +634,57 @@ export interface paths {
         };
         /** Download Model */
         get: operations["download_model_api_models__model_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/{model_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Model Export */
+        post: operations["create_model_export_api_models__model_id__export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/{model_id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Model Exports */
+        get: operations["list_model_exports_api_models__model_id__exports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/{model_id}/exports/{export_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Model Export */
+        get: operations["download_model_export_api_models__model_id__exports__export_id__download_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -553,6 +740,418 @@ export interface paths {
         get: operations["project_stats_api_projects__project_id__stats_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Recipes */
+        get: operations["list_recipes_api_recipes_get"];
+        put?: never;
+        /** Create Recipe */
+        post: operations["create_recipe_api_recipes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/openrouter/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Openrouter Models */
+        get: operations["list_openrouter_models_api_recipes_openrouter_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Recipe */
+        get: operations["get_recipe_api_recipes__recipe_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Recipe */
+        delete: operations["delete_recipe_api_recipes__recipe_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Recipe */
+        post: operations["cancel_recipe_api_recipes__recipe_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit Recipe */
+        post: operations["commit_recipe_api_recipes__recipe_id__commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Recipe */
+        post: operations["generate_recipe_api_recipes__recipe_id__generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Recipe Records */
+        get: operations["list_recipe_records_api_recipes__recipe_id__records_get"];
+        put?: never;
+        /** Add Recipe Record */
+        post: operations["add_recipe_record_api_recipes__recipe_id__records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/records/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete Recipe Records */
+        post: operations["delete_recipe_records_api_recipes__recipe_id__records_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/records/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Recipe Record */
+        patch: operations["update_recipe_record_api_recipes__recipe_id__records__index__patch"];
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Recipe Sources */
+        post: operations["add_recipe_sources_api_recipes__recipe_id__sources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{recipe_id}/sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Recipe Source */
+        delete: operations["delete_recipe_source_api_recipes__recipe_id__sources__source_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Browse */
+        get: operations["serving_browse_api_serving_browse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Serving Chat */
+        post: operations["serving_chat_api_serving_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Config */
+        get: operations["serving_config_api_serving_config_get"];
+        /** Serving Config Update */
+        put: operations["serving_config_update_api_serving_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/hf/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Serving Hf Download */
+        post: operations["serving_hf_download_api_serving_hf_download_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/hf/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Hf Files */
+        get: operations["serving_hf_files_api_serving_hf_files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/hf/recommended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Hf Recommended */
+        get: operations["serving_hf_recommended_api_serving_hf_recommended_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/hf/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Hf Search */
+        get: operations["serving_hf_search_api_serving_hf_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Serving Pick */
+        post: operations["serving_pick_api_serving_pick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Scan */
+        get: operations["serving_scan_api_serving_scan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Serving Start */
+        post: operations["serving_start_api_serving_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serving Status */
+        get: operations["serving_status_api_serving_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Serving Stop */
+        post: operations["serving_stop_api_serving_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/serving/web-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Serving Web Search */
+        post: operations["serving_web_search_api_serving_web_search_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -787,6 +1386,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/training/llm/environment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Llm Training Environment */
+        get: operations["llm_training_environment_api_training_llm_environment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/training/llm/model-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Llm Model Info */
+        get: operations["llm_model_info_api_training_llm_model_info_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/training/model-assets/prepare": {
         parameters: {
             query?: never;
@@ -842,6 +1475,68 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdvancedParameterSpec
+         * @description A single catalog-declared advanced training hyperparameter.
+         *
+         *     The frontend renders these generically from `type`/`min`/`max`/`step`/
+         *     `options` and groups them by `group`, so a new model family gets its
+         *     advanced UI purely by declaring specs — the form has no per-family
+         *     knowledge. Values ride the open-ended `TrainingJobCreate.hyperparameters`
+         *     dict, and each runner owns an allowlist that maps `key` to a runner
+         *     argument (see `app/training/runners/advanced.py`).
+         */
+        AdvancedParameterSpec: {
+            /**
+             * Default
+             * @default null
+             */
+            default: unknown;
+            /**
+             * Group
+             * @default Optimization
+             */
+            group: string;
+            /**
+             * Help
+             * @default null
+             */
+            help: string | null;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Max
+             * @default null
+             */
+            max: number | null;
+            /**
+             * Min
+             * @default null
+             */
+            min: number | null;
+            /**
+             * Options
+             * @default null
+             */
+            options: unknown[];
+            /**
+             * Step
+             * @default null
+             */
+            step: number | null;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "int" | "float" | "bool" | "select" | "multiselect" | "text";
+        };
+        /** Body_add_recipe_sources_api_recipes__recipe_id__sources_post */
+        Body_add_recipe_sources_api_recipes__recipe_id__sources_post: {
+            /** Files */
+            files: string[];
+        };
         /** Body_create_inference_api_inference_post */
         Body_create_inference_api_inference_post: {
             /**
@@ -962,6 +1657,73 @@ export interface components {
              */
             split: string;
         };
+        /** Body_upload_dataset_records_api_datasets__dataset_id__records_upload_post */
+        Body_upload_dataset_records_api_datasets__dataset_id__records_upload_post: {
+            /** File */
+            file: string;
+            /**
+             * Split
+             * @default unassigned
+             */
+            split: string;
+        };
+        /** Body_upload_model_api_models_upload_post */
+        Body_upload_model_api_models_upload_post: {
+            /**
+             * Archive
+             * @default null
+             */
+            archive: string | null;
+            /**
+             * Base Model Id
+             * @default null
+             */
+            base_model_id: string | null;
+            /**
+             * Classifier
+             * @default null
+             */
+            classifier: string | null;
+            /** Family */
+            family: string;
+            /**
+             * Input Size
+             * @default null
+             */
+            input_size: number | null;
+            /**
+             * Labels
+             * @default null
+             */
+            labels: string | null;
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Project Id
+             * @default null
+             */
+            project_id: string | null;
+            /**
+             * Task Type
+             * @default null
+             */
+            task_type: string | null;
+            /**
+             * Unet
+             * @default null
+             */
+            unet: string | null;
+            /**
+             * Weights
+             * @default null
+             */
+            weights: string | null;
+        };
         /** Box */
         Box: {
             /** Height */
@@ -972,6 +1734,41 @@ export interface components {
             x: number;
             /** Y */
             y: number;
+        };
+        /** ChatMessage */
+        ChatMessage: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "system" | "user" | "assistant";
+        };
+        /** ChatRequest */
+        ChatRequest: {
+            /**
+             * Max Tokens
+             * @default null
+             */
+            max_tokens: number | null;
+            /** Messages */
+            messages: components["schemas"]["ChatMessage"][];
+            /**
+             * System
+             * @default null
+             */
+            system: string | null;
+            /**
+             * Temperature
+             * @default null
+             */
+            temperature: number | null;
+            /**
+             * Top P
+             * @default null
+             */
+            top_p: number | null;
         };
         /**
          * ComparisonMetricSummary
@@ -1105,7 +1902,7 @@ export interface components {
              * @default yolo
              * @enum {string}
              */
-            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv";
+            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl";
             /**
              * Labels
              * @default null
@@ -1123,7 +1920,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
         };
         /** DatasetEdaSummary */
         DatasetEdaSummary: {
@@ -1146,6 +1943,11 @@ export interface components {
             /** Dataset Id */
             dataset_id: string;
             /**
+             * Duplicate Count
+             * @default 0
+             */
+            duplicate_count: number;
+            /**
              * Image Count
              * @default 0
              */
@@ -1167,6 +1969,13 @@ export interface components {
              * @default 0
              */
             missing_annotation_count: number;
+            /**
+             * Role Counts
+             * @default null
+             */
+            role_counts: {
+                [key: string]: number;
+            };
             /** Split */
             split: string;
             /** Split Counts */
@@ -1196,6 +2005,214 @@ export interface components {
              */
             warnings: string[];
         };
+        /** DatasetHubColumnMapping */
+        DatasetHubColumnMapping: {
+            /**
+             * Answer
+             * @default null
+             */
+            answer: string | null;
+            /**
+             * Context
+             * @default null
+             */
+            context: string | null;
+            /**
+             * Conversations
+             * @default null
+             */
+            conversations: string | null;
+            /**
+             * Input
+             * @default null
+             */
+            input: string | null;
+            /**
+             * Instruction
+             * @default null
+             */
+            instruction: string | null;
+            /**
+             * Messages
+             * @default null
+             */
+            messages: string | null;
+            /**
+             * Output
+             * @default null
+             */
+            output: string | null;
+            /**
+             * Question
+             * @default null
+             */
+            question: string | null;
+        };
+        /** DatasetHubImportRequest */
+        DatasetHubImportRequest: {
+            /**
+             * Config
+             * @default null
+             */
+            config: string | null;
+            /**
+             * Format
+             * @default instruction_jsonl
+             * @enum {string}
+             */
+            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl";
+            /** Hub Id */
+            hub_id: string;
+            /** @default null */
+            mapping: components["schemas"]["DatasetHubColumnMapping"];
+            /**
+             * Max Rows
+             * @default 5000
+             */
+            max_rows: number;
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Split
+             * @default train
+             */
+            split: string;
+            /**
+             * Task Type
+             * @default llm_finetune
+             * @enum {string}
+             */
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+        };
+        /** DatasetHubImportResponse */
+        DatasetHubImportResponse: {
+            dataset: components["schemas"]["DatasetSummary"];
+            /**
+             * Imported Rows
+             * @default 0
+             */
+            imported_rows: number;
+            /**
+             * Skipped Rows
+             * @default 0
+             */
+            skipped_rows: number;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
+        /** DatasetHubPreview */
+        DatasetHubPreview: {
+            /**
+             * Columns
+             * @default null
+             */
+            columns: string[];
+            /**
+             * Config
+             * @default null
+             */
+            config: string | null;
+            /**
+             * Configs
+             * @default null
+             */
+            configs: string[];
+            /**
+             * Detected Format
+             * @default null
+             */
+            detected_format: string | null;
+            /**
+             * Detected Mapping
+             * @default null
+             */
+            detected_mapping: {
+                [key: string]: string;
+            };
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /** Hub Id */
+            hub_id: string;
+            /**
+             * Rows
+             * @default null
+             */
+            rows: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Split
+             * @default null
+             */
+            split: string | null;
+            /**
+             * Splits
+             * @default null
+             */
+            splits: string[];
+        };
+        /** DatasetHubSearchResponse */
+        DatasetHubSearchResponse: {
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Results
+             * @default null
+             */
+            results: components["schemas"]["DatasetHubSearchResult"][];
+        };
+        /** DatasetHubSearchResult */
+        DatasetHubSearchResult: {
+            /**
+             * Author
+             * @default null
+             */
+            author: string | null;
+            /**
+             * Downloads
+             * @default 0
+             */
+            downloads: number;
+            /**
+             * Gated
+             * @default false
+             */
+            gated: boolean;
+            /** Hub Id */
+            hub_id: string;
+            /**
+             * Likes
+             * @default 0
+             */
+            likes: number;
+            /**
+             * Tags
+             * @default null
+             */
+            tags: string[];
+            /**
+             * Updated At
+             * @default null
+             */
+            updated_at: string | null;
+        };
         /** DatasetImportRequest */
         DatasetImportRequest: {
             /**
@@ -1203,7 +2220,7 @@ export interface components {
              * @default yolo
              * @enum {string}
              */
-            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv";
+            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl";
             /**
              * Labels
              * @default null
@@ -1226,7 +2243,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
         };
         /** DatasetItemBatchUploadResponse */
         DatasetItemBatchUploadResponse: {
@@ -1330,7 +2347,19 @@ export interface components {
              * @default image
              * @enum {string}
              */
-            media_type: "image" | "text";
+            media_type: "image" | "text" | "record";
+            /**
+             * Output Preview
+             * @default null
+             */
+            output_preview: string | null;
+            /**
+             * Record
+             * @default null
+             */
+            record: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Split
              * @enum {string}
@@ -1351,6 +2380,11 @@ export interface components {
              * @default null
              */
             text_url: string | null;
+            /**
+             * Token Estimate
+             * @default 0
+             */
+            token_estimate: number;
             /**
              * Width
              * @default 0
@@ -1470,7 +2504,12 @@ export interface components {
              * @default image
              * @enum {string}
              */
-            media_type: "image" | "text";
+            media_type: "image" | "text" | "record";
+            /**
+             * Output Preview
+             * @default null
+             */
+            output_preview: string | null;
             /**
              * Split
              * @enum {string}
@@ -1486,6 +2525,11 @@ export interface components {
              * @default null
              */
             text_url: string | null;
+            /**
+             * Token Estimate
+             * @default 0
+             */
+            token_estimate: number;
             /**
              * Width
              * @default 0
@@ -1600,6 +2644,44 @@ export interface components {
             };
             split_config: components["schemas"]["DatasetSplitConfig"];
         };
+        /** DatasetRecordCreate */
+        DatasetRecordCreate: {
+            /** Record */
+            record: {
+                [key: string]: unknown;
+            };
+            /**
+             * Split
+             * @default unassigned
+             * @enum {string}
+             */
+            split: "unassigned" | "train" | "valid" | "test";
+        };
+        /** DatasetRecordSave */
+        DatasetRecordSave: {
+            /** Record */
+            record: {
+                [key: string]: unknown;
+            };
+        };
+        /** DatasetRecordUploadResponse */
+        DatasetRecordUploadResponse: {
+            /**
+             * Imported
+             * @default 0
+             */
+            imported: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
         /** DatasetSplitConfig */
         DatasetSplitConfig: {
             /**
@@ -1671,7 +2753,7 @@ export interface components {
              * Format
              * @enum {string}
              */
-            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv";
+            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl";
             /** Id */
             id: string;
             /** Labels */
@@ -1685,6 +2767,17 @@ export interface components {
             };
             /** Name */
             name: string;
+            /**
+             * Origin
+             * @default created
+             * @enum {string}
+             */
+            origin: "created" | "imported_hf" | "recipe";
+            /**
+             * Origin Ref
+             * @default null
+             */
+            origin_ref: string | null;
             /** Path */
             path: string;
             /**
@@ -1711,7 +2804,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
         };
         /** DatasetUpdate */
         DatasetUpdate: {
@@ -1874,7 +2967,7 @@ export interface components {
              * Format
              * @enum {string}
              */
-            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv";
+            format: "yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl";
             /** Key */
             key: string;
             /**
@@ -1903,7 +2996,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
         };
         /** EvaluationJobBatchCreate */
         EvaluationJobBatchCreate: {
@@ -2039,6 +3132,154 @@ export interface components {
              * @default null
              */
             detail: components["schemas"]["ValidationError"][];
+        };
+        /** HubDownloadRequest */
+        HubDownloadRequest: {
+            /** Filename */
+            filename: string;
+            /** Repo Id */
+            repo_id: string;
+        };
+        /** HubDownloadResult */
+        HubDownloadResult: {
+            /**
+             * Message
+             * @default null
+             */
+            message: string | null;
+            /** Path */
+            path: string;
+            /**
+             * Servable
+             * @default true
+             */
+            servable: boolean;
+            /**
+             * Size Bytes
+             * @default null
+             */
+            size_bytes: number | null;
+        };
+        /** HubFilesResponse */
+        HubFilesResponse: {
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Files
+             * @default null
+             */
+            files: components["schemas"]["HubModelFile"][];
+            /** Repo Id */
+            repo_id: string;
+        };
+        /** HubModelFile */
+        HubModelFile: {
+            /** Filename */
+            filename: string;
+            /**
+             * Quantization
+             * @default null
+             */
+            quantization: string | null;
+            /**
+             * Size Bytes
+             * @default null
+             */
+            size_bytes: number | null;
+        };
+        /** HubModelResult */
+        HubModelResult: {
+            /**
+             * Author
+             * @default null
+             */
+            author: string | null;
+            /**
+             * Downloads
+             * @default 0
+             */
+            downloads: number;
+            /**
+             * Files
+             * @default null
+             */
+            files: components["schemas"]["HubModelFile"][];
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "gguf" | "mlx";
+            /**
+             * Likes
+             * @default 0
+             */
+            likes: number;
+            /** Repo Id */
+            repo_id: string;
+            /**
+             * Updated At
+             * @default null
+             */
+            updated_at: string | null;
+        };
+        /** HubModelSearchResponse */
+        HubModelSearchResponse: {
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Results
+             * @default null
+             */
+            results: components["schemas"]["HubModelResult"][];
+        };
+        /** HubRecommendation */
+        HubRecommendation: {
+            /** Approx Size Gb */
+            approx_size_gb: number;
+            /** Fits */
+            fits: boolean;
+            /**
+             * Format
+             * @default gguf
+             * @enum {string}
+             */
+            format: "gguf" | "mlx";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** Params */
+            params: string;
+            /** Repo Id */
+            repo_id: string;
+            /** Title */
+            title: string;
+        };
+        /** HubRecommendationsResponse */
+        HubRecommendationsResponse: {
+            /**
+             * Device
+             * @default cpu
+             * @enum {string}
+             */
+            device: "cuda" | "mps" | "cpu";
+            /**
+             * Results
+             * @default null
+             */
+            results: components["schemas"]["HubRecommendation"][];
+            /**
+             * Total Memory Gb
+             * @default null
+             */
+            total_memory_gb: number | null;
         };
         /** InferenceJobRead */
         InferenceJobRead: {
@@ -2218,6 +3459,99 @@ export interface components {
              */
             total: number | null;
         };
+        /**
+         * LlmEnvironment
+         * @description What an LLM fine-tuning run would actually do on this machine (phase 14).
+         *
+         *     Rendered as an info banner on the training form so the Unsloth-vs-PEFT
+         *     backend choice and any capability gaps are visible before a job is
+         *     submitted, not discovered in the run log.
+         */
+        LlmEnvironment: {
+            /**
+             * Bitsandbytes Available
+             * @default false
+             */
+            bitsandbytes_available: boolean;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "cuda" | "mps" | "cpu";
+            /**
+             * Notes
+             * @default null
+             */
+            notes: string[];
+            /**
+             * Peft Available
+             * @default false
+             */
+            peft_available: boolean;
+            /**
+             * Recommended Backend
+             * @enum {string}
+             */
+            recommended_backend: "unsloth" | "peft";
+            /**
+             * Unsloth Available
+             * @default false
+             */
+            unsloth_available: boolean;
+        };
+        /**
+         * LlmModelInfo
+         * @description Accurate base-model details from the Hugging Face Hub API (phase 14).
+         *
+         *     Powers the training form's "model detail" line so download size, file count,
+         *     and gating are real values from the Hub rather than the catalog's rough
+         *     estimate. ``exists`` is false when the repo id is unknown; ``gated`` is true
+         *     when the repo requires an accepted license or the token lacks access.
+         */
+        LlmModelInfo: {
+            /**
+             * Downloads
+             * @default null
+             */
+            downloads: number | null;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Exists
+             * @default false
+             */
+            exists: boolean;
+            /**
+             * File Count
+             * @default null
+             */
+            file_count: number | null;
+            /**
+             * Gated
+             * @default false
+             */
+            gated: boolean;
+            /**
+             * Library
+             * @default null
+             */
+            library: string | null;
+            /**
+             * Likes
+             * @default null
+             */
+            likes: number | null;
+            /** Model Ref */
+            model_ref: string;
+            /**
+             * Size Bytes
+             * @default null
+             */
+            size_bytes: number | null;
+        };
         /** ModelAssetPrepareRequest */
         ModelAssetPrepareRequest: {
             /**
@@ -2225,6 +3559,11 @@ export interface components {
              * @default true
              */
             download: boolean;
+            /**
+             * Model Ref
+             * @default null
+             */
+            model_ref: string | null;
             /** Option Id */
             option_id: string;
         };
@@ -2248,6 +3587,72 @@ export interface components {
              */
             status: "ready" | "missing" | "gated" | "failed";
         };
+        /** ModelExportRequest */
+        ModelExportRequest: {
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "adapter_zip" | "merged_16bit" | "gguf_q4_k_m" | "gguf_q5_k_m" | "gguf_q8_0" | "gguf_f16";
+        };
+        /** ModelExportStatus */
+        ModelExportStatus: {
+            /**
+             * Artifact Name
+             * @default null
+             */
+            artifact_name: string | null;
+            /**
+             * Created At
+             * @default null
+             */
+            created_at: string | null;
+            /**
+             * Current Step
+             * @default null
+             */
+            current_step: string | null;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Finished At
+             * @default null
+             */
+            finished_at: string | null;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "adapter_zip" | "merged_16bit" | "gguf_q4_k_m" | "gguf_q5_k_m" | "gguf_q8_0" | "gguf_f16";
+            /** Id */
+            id: string;
+            /**
+             * Logs
+             * @default null
+             */
+            logs: string[];
+            /** Model Id */
+            model_id: string;
+            /**
+             * Registered Model Id
+             * @default null
+             */
+            registered_model_id: string | null;
+            /**
+             * Size Bytes
+             * @default null
+             */
+            size_bytes: number | null;
+            /**
+             * Status
+             * @default queued
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed";
+        };
         /** ModelInfo */
         ModelInfo: {
             /**
@@ -2260,6 +3665,11 @@ export interface components {
             /** Available */
             available: boolean;
             /**
+             * Base Model Id
+             * @default null
+             */
+            base_model_id: string | null;
+            /**
              * Created At
              * @default null
              */
@@ -2268,6 +3678,11 @@ export interface components {
             description: string;
             /** Family */
             family: string;
+            /**
+             * Format
+             * @default null
+             */
+            format: string | null;
             /** Id */
             id: string;
             /**
@@ -2299,17 +3714,22 @@ export interface components {
              */
             promoted: boolean;
             /**
+             * Size Bytes
+             * @default null
+             */
+            size_bytes: number | null;
+            /**
              * Source
              * @default reference
              * @enum {string}
              */
-            source: "reference" | "trained" | "promoted";
+            source: "reference" | "trained" | "promoted" | "uploaded";
             /**
              * Task Type
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
             /**
              * Training Job Id
              * @default null
@@ -2320,6 +3740,120 @@ export interface components {
         ModelUpdate: {
             /** Name */
             name: string;
+        };
+        /**
+         * ModelUploadField
+         * @description One extra metadata field the upload form should collect.
+         */
+        ModelUploadField: {
+            /**
+             * Help
+             * @default null
+             */
+            help: string | null;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Options
+             * @default null
+             */
+            options: string[] | null;
+            /**
+             * Placeholder
+             * @default null
+             */
+            placeholder: string | null;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "text" | "labels" | "number" | "select";
+        };
+        /**
+         * ModelUploadFileSlot
+         * @description One file input the upload form should render for a family.
+         */
+        ModelUploadFileSlot: {
+            /** Accept */
+            accept: string[];
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+        };
+        /**
+         * ModelUploadOption
+         * @description Per-family descriptor driving the dynamic upload form.
+         *
+         *     The frontend renders the form purely from this, so adding a family later
+         *     is a backend-only change.
+         */
+        ModelUploadOption: {
+            /** Description */
+            description: string;
+            /** Family */
+            family: string;
+            /**
+             * Fields
+             * @default null
+             */
+            fields: components["schemas"]["ModelUploadField"][];
+            /** Files */
+            files: components["schemas"]["ModelUploadFileSlot"][];
+            /**
+             * Gate Note
+             * @default null
+             */
+            gate_note: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "single" | "pair" | "zip";
+            /** Label */
+            label: string;
+            /**
+             * Security Note
+             * @default null
+             */
+            security_note: string | null;
+            /**
+             * Servable
+             * @default true
+             */
+            servable: boolean;
+        };
+        /** ModelUploadResult */
+        ModelUploadResult: {
+            /**
+             * Duplicate Name
+             * @default false
+             */
+            duplicate_name: boolean;
+            model: components["schemas"]["ModelInfo"];
+            /**
+             * Validated
+             * @default structural
+             * @constant
+             */
+            validated: "structural";
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
         };
         /** NlpQuestionAnsweringResult */
         NlpQuestionAnsweringResult: {
@@ -2363,6 +3897,26 @@ export interface components {
              */
             task: "text_classification";
         };
+        /** OpenRouterModel */
+        OpenRouterModel: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** OpenRouterModelsResponse */
+        OpenRouterModelsResponse: {
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /**
+             * Models
+             * @default null
+             */
+            models: components["schemas"]["OpenRouterModel"][];
+        };
         /** PlatformSettingsRead */
         PlatformSettingsRead: {
             /**
@@ -2370,6 +3924,16 @@ export interface components {
              * @default false
              */
             huggingface_hub_token_configured: boolean;
+            /**
+             * Openrouter Api Key Configured
+             * @default false
+             */
+            openrouter_api_key_configured: boolean;
+            /**
+             * Openrouter Model
+             * @default null
+             */
+            openrouter_model: string | null;
         };
         /** PlatformSettingsUpdate */
         PlatformSettingsUpdate: {
@@ -2378,6 +3942,16 @@ export interface components {
              * @default null
              */
             huggingface_hub_token: string | null;
+            /**
+             * Openrouter Api Key
+             * @default null
+             */
+            openrouter_api_key: string | null;
+            /**
+             * Openrouter Model
+             * @default null
+             */
+            openrouter_model: string | null;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -2399,7 +3973,7 @@ export interface components {
              * Task Types
              * @default null
              */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering")[];
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[];
         };
         /** ProjectStats */
         ProjectStats: {
@@ -2473,7 +4047,7 @@ export interface components {
              * Task Types
              * @default null
              */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering")[];
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[];
             /**
              * Updated At
              * Format: date-time
@@ -2508,7 +4082,479 @@ export interface components {
              * Task Types
              * @default null
              */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering")[] | null;
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[] | null;
+        };
+        /** RecipeCommitRequest */
+        RecipeCommitRequest: {
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+        };
+        /** RecipeCommitResponse */
+        RecipeCommitResponse: {
+            /**
+             * Committed Records
+             * @default 0
+             */
+            committed_records: number;
+            dataset: components["schemas"]["DatasetSummary"];
+        };
+        /** RecipeCreate */
+        RecipeCreate: {
+            /** @default null */
+            generation: components["schemas"]["RecipeGenerationSettings"];
+            /** Name */
+            name: string;
+            /**
+             * Output Format
+             * @default instruction_jsonl
+             * @enum {string}
+             */
+            output_format: "instruction_jsonl" | "chat_jsonl";
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+        };
+        /** RecipeGenerateRequest */
+        RecipeGenerateRequest: {
+            /**
+             * Chunk Overlap
+             * @default null
+             */
+            chunk_overlap: number | null;
+            /**
+             * Chunk Size
+             * @default null
+             */
+            chunk_size: number | null;
+            /**
+             * Mode
+             * @default auto
+             * @enum {string}
+             */
+            mode: "auto" | "llm" | "rules";
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
+            /**
+             * Prompt Flavor
+             * @default null
+             */
+            prompt_flavor: ("qa" | "instruction" | "conversation") | null;
+            /**
+             * Records Per Chunk
+             * @default null
+             */
+            records_per_chunk: number | null;
+        };
+        /** RecipeGenerationSettings */
+        RecipeGenerationSettings: {
+            /**
+             * Chunk Overlap
+             * @default 200
+             */
+            chunk_overlap: number;
+            /**
+             * Chunk Size
+             * @default 3000
+             */
+            chunk_size: number;
+            /**
+             * Mode
+             * @default auto
+             * @enum {string}
+             */
+            mode: "auto" | "llm" | "rules";
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
+            /**
+             * Prompt Flavor
+             * @default qa
+             * @enum {string}
+             */
+            prompt_flavor: "qa" | "instruction" | "conversation";
+            /**
+             * Records Per Chunk
+             * @default 3
+             */
+            records_per_chunk: number;
+        };
+        /** RecipeRead */
+        RecipeRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /** @default null */
+            generation: components["schemas"]["RecipeGenerationSettings"];
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Output Format
+             * @enum {string}
+             */
+            output_format: "instruction_jsonl" | "chat_jsonl";
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Record Count
+             * @default 0
+             */
+            record_count: number;
+            /**
+             * Sources
+             * @default null
+             */
+            sources: components["schemas"]["RecipeSourceRead"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "extracting" | "generating" | "ready" | "failed";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
+        /** RecipeRecord */
+        RecipeRecord: {
+            /**
+             * Chunk Index
+             * @default null
+             */
+            chunk_index: number | null;
+            /**
+             * Generator
+             * @enum {string}
+             */
+            generator: "llm" | "rules";
+            /** Index */
+            index: number;
+            /** Record */
+            record: {
+                [key: string]: unknown;
+            };
+            /**
+             * Source Id
+             * @default null
+             */
+            source_id: string | null;
+        };
+        /** RecipeRecordCreate */
+        RecipeRecordCreate: {
+            /** Record */
+            record: {
+                [key: string]: unknown;
+            };
+        };
+        /** RecipeRecordDeleteRequest */
+        RecipeRecordDeleteRequest: {
+            /** Indices */
+            indices: number[];
+        };
+        /** RecipeRecordPage */
+        RecipeRecordPage: {
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 50
+             */
+            page_size: number;
+            /**
+             * Records
+             * @default null
+             */
+            records: components["schemas"]["RecipeRecord"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /** RecipeRecordUpdate */
+        RecipeRecordUpdate: {
+            /** Record */
+            record: {
+                [key: string]: unknown;
+            };
+        };
+        /** RecipeSourceRead */
+        RecipeSourceRead: {
+            /**
+             * Characters
+             * @default 0
+             */
+            characters: number;
+            /**
+             * Excluded
+             * @default false
+             */
+            excluded: boolean;
+            /** Filename */
+            filename: string;
+            /** Id */
+            id: string;
+            /** Media Type */
+            media_type: string;
+            /**
+             * Pages
+             * @default null
+             */
+            pages: number | null;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
+        /** ServingBrowseDir */
+        ServingBrowseDir: {
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+        };
+        /** ServingBrowseFile */
+        ServingBrowseFile: {
+            /**
+             * Model Id
+             * @default null
+             */
+            model_id: string | null;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Size Bytes
+             * @default null
+             */
+            size_bytes: number | null;
+        };
+        /**
+         * ServingBrowseResult
+         * @description One directory level for the server-side path browser.
+         */
+        ServingBrowseResult: {
+            /**
+             * Dirs
+             * @default null
+             */
+            dirs: components["schemas"]["ServingBrowseDir"][];
+            /**
+             * Gguf Files
+             * @default null
+             */
+            gguf_files: components["schemas"]["ServingBrowseFile"][];
+            /**
+             * Parent
+             * @default null
+             */
+            parent: string | null;
+            /** Path */
+            path: string;
+        };
+        /**
+         * ServingConfig
+         * @description Persisted serving preferences (phase 15). ``models_dir`` is the last
+         *     custom directory the user picked, restored and auto-scanned on load.
+         */
+        ServingConfig: {
+            /**
+             * Models Dir
+             * @default null
+             */
+            models_dir: string | null;
+        };
+        /** ServingConfigUpdate */
+        ServingConfigUpdate: {
+            /**
+             * Models Dir
+             * @default null
+             */
+            models_dir: string | null;
+        };
+        /** ServingPickRequest */
+        ServingPickRequest: {
+            /**
+             * Kind
+             * @default folder
+             * @enum {string}
+             */
+            kind: "folder" | "file";
+        };
+        /** ServingPickResult */
+        ServingPickResult: {
+            /**
+             * Canceled
+             * @default false
+             */
+            canceled: boolean;
+            /**
+             * Message
+             * @default null
+             */
+            message: string | null;
+            /**
+             * Path
+             * @default null
+             */
+            path: string | null;
+            /**
+             * Unavailable
+             * @default false
+             */
+            unavailable: boolean;
+        };
+        /** ServingScanEntry */
+        ServingScanEntry: {
+            /**
+             * Kind
+             * @default file
+             * @enum {string}
+             */
+            kind: "registered" | "file";
+            /**
+             * Model Id
+             * @default null
+             */
+            model_id: string | null;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Size Bytes
+             * @default null
+             */
+            size_bytes: number | null;
+        };
+        /** ServingScanResult */
+        ServingScanResult: {
+            /**
+             * Entries
+             * @default null
+             */
+            entries: components["schemas"]["ServingScanEntry"][];
+            /**
+             * Exportable Dirs
+             * @default null
+             */
+            exportable_dirs: string[];
+            /** Root */
+            root: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** ServingStartRequest */
+        ServingStartRequest: {
+            /**
+             * Context Length
+             * @default null
+             */
+            context_length: number | null;
+            /**
+             * Model Id
+             * @default null
+             */
+            model_id: string | null;
+            /**
+             * Model Path
+             * @default null
+             */
+            model_path: string | null;
+            /**
+             * N Gpu Layers
+             * @default null
+             */
+            n_gpu_layers: number | null;
+        };
+        /** ServingStatus */
+        ServingStatus: {
+            /**
+             * Context Length
+             * @default null
+             */
+            context_length: number | null;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Last Activity At
+             * @default null
+             */
+            last_activity_at: string | null;
+            /**
+             * Model Id
+             * @default null
+             */
+            model_id: string | null;
+            /**
+             * Model Name
+             * @default null
+             */
+            model_name: string | null;
+            /**
+             * Port
+             * @default null
+             */
+            port: number | null;
+            /**
+             * Started At
+             * @default null
+             */
+            started_at: string | null;
+            /**
+             * State
+             * @default stopped
+             * @enum {string}
+             */
+            state: "stopped" | "starting" | "running" | "stopping";
+            /**
+             * Stderr Tail
+             * @default null
+             */
+            stderr_tail: string[];
+            /**
+             * Uptime Seconds
+             * @default null
+             */
+            uptime_seconds: number | null;
         };
         /** TrainingJobCreate */
         TrainingJobCreate: {
@@ -2602,7 +4648,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
             /**
              * Workers
              * @default 0
@@ -2679,6 +4725,11 @@ export interface components {
         /** TrainingModelOption */
         TrainingModelOption: {
             /**
+             * Advanced Parameters
+             * @default null
+             */
+            advanced_parameters: components["schemas"]["AdvancedParameterSpec"][];
+            /**
              * Defaults
              * @default null
              */
@@ -2706,7 +4757,7 @@ export interface components {
              */
             source: "local" | "ultralytics" | "keras_applications" | "huggingface";
             /** Task Types */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering")[];
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[];
         };
         /** ValidationError */
         ValidationError: {
@@ -2726,6 +4777,43 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WebSearchRequest */
+        WebSearchRequest: {
+            /**
+             * Max Results
+             * @default 5
+             */
+            max_results: number;
+            /** Query */
+            query: string;
+        };
+        /** WebSearchResponse */
+        WebSearchResponse: {
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /** Query */
+            query: string;
+            /**
+             * Results
+             * @default null
+             */
+            results: components["schemas"]["WebSearchResult"][];
+        };
+        /** WebSearchResult */
+        WebSearchResult: {
+            /**
+             * Snippet
+             * @default
+             */
+            snippet: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
     };
     responses: never;
@@ -2800,6 +4888,73 @@ export interface operations {
             };
         };
     };
+    preview_hub_dataset_api_datasets_hub_preview_get: {
+        parameters: {
+            query: {
+                hub_id: string;
+                config?: string | null;
+                split?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetHubPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_hub_datasets_api_datasets_hub_search_get: {
+        parameters: {
+            query?: {
+                query?: string | null;
+                task?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetHubSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_dataset_api_datasets_import_post: {
         parameters: {
             query?: never;
@@ -2820,6 +4975,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_hub_dataset_api_datasets_import_hub_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetHubImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetHubImportResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3530,6 +5718,113 @@ export interface operations {
             };
         };
     };
+    create_dataset_record_api_datasets__dataset_id__records_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetRecordCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_dataset_records_api_datasets__dataset_id__records_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_dataset_records_api_datasets__dataset_id__records_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetRecordUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_dataset_record_api_datasets__dataset_id__records__split___item_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                split: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetRecordSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_dataset_versions_api_datasets__dataset_id__versions_get: {
         parameters: {
             query?: never;
@@ -3907,6 +6202,59 @@ export interface operations {
             };
         };
     };
+    upload_model_api_models_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_model_api_models_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelUploadResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    model_upload_options_api_models_upload_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelUploadOption"][];
+                };
+            };
+        };
+    };
     delete_model_api_models__model_id__delete: {
         parameters: {
             query?: never;
@@ -3979,6 +6327,104 @@ export interface operations {
             header?: never;
             path: {
                 model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_model_export_api_models__model_id__export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelExportStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_model_exports_api_models__model_id__exports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelExportStatus"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_model_export_api_models__model_id__exports__export_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+                export_id: string;
             };
             cookie?: never;
         };
@@ -4141,6 +6587,864 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectStats"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recipes_api_recipes_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_recipe_api_recipes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_openrouter_models_api_recipes_openrouter_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenRouterModelsResponse"];
+                };
+            };
+        };
+    };
+    get_recipe_api_recipes__recipe_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_recipe_api_recipes__recipe_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_recipe_api_recipes__recipe_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_recipe_api_recipes__recipe_id__commit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeCommitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_recipe_api_recipes__recipe_id__generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recipe_records_api_recipes__recipe_id__records_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRecordPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_recipe_record_api_recipes__recipe_id__records_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeRecordCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_recipe_records_api_recipes__recipe_id__records_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeRecordDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_recipe_record_api_recipes__recipe_id__records__index__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeRecordUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_recipe_sources_api_recipes__recipe_id__sources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_add_recipe_sources_api_recipes__recipe_id__sources_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_recipe_source_api_recipes__recipe_id__sources__source_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_browse_api_serving_browse_get: {
+        parameters: {
+            query?: {
+                path?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingBrowseResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_chat_api_serving_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_config_api_serving_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingConfig"];
+                };
+            };
+        };
+    };
+    serving_config_update_api_serving_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServingConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_hf_download_api_serving_hf_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HubDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubDownloadResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_hf_files_api_serving_hf_files_get: {
+        parameters: {
+            query: {
+                repo_id: string;
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubFilesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_hf_recommended_api_serving_hf_recommended_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubRecommendationsResponse"];
+                };
+            };
+        };
+    };
+    serving_hf_search_api_serving_hf_search_get: {
+        parameters: {
+            query?: {
+                query?: string;
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubModelSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_pick_api_serving_pick_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServingPickRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingPickResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_scan_api_serving_scan_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingScanResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_start_api_serving_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServingStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serving_status_api_serving_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingStatus"];
+                };
+            };
+        };
+    };
+    serving_stop_api_serving_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServingStatus"];
+                };
+            };
+        };
+    };
+    serving_web_search_api_serving_web_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebSearchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4769,6 +8073,57 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    llm_training_environment_api_training_llm_environment_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmEnvironment"];
+                };
+            };
+        };
+    };
+    llm_model_info_api_training_llm_model_info_get: {
+        parameters: {
+            query: {
+                model_ref: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmModelInfo"];
                 };
             };
             /** @description Validation Error */

@@ -19,8 +19,39 @@ dependencies = [
     "ultralytics>=8.3.0",
     "tensorflow>=2.16.1",
     "torch>=2.3.0",
-    "transformers>=4.57.0",
+    # Gemma 4 support landed in transformers 5.5.0; the shared BERT/BART
+    # runners ride the same dependency, so their tests gate this upgrade.
+    "transformers>=5.5.0",
     "albumentations>=1.4.24,<2.0",
+    "pypdf>=6.14.2",
+    "python-docx>=1.2.0",
+    # Phase 15 chat proxy: async streaming client between the API and the
+    # managed llama.cpp server.
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+# LLM fine-tuning (phase 14). Installable on every platform, including macOS —
+# the CUDA-only packages are deliberately split into `llm-cuda` below so a Mac
+# can install this group at all.
+llm = [
+    "peft>=0.14.0",
+    "trl>=0.19.0",
+    "accelerate>=1.0.0",
+    "datasets>=3.0.0",
+    "sentencepiece>=0.2.0",
+    "gguf>=0.10.0",
+    # The `[server]` extra pulls the deps `python -m llama_cpp.server` needs at
+    # import (sse-starlette, starlette-context, pyyaml) on top of the base
+    # bindings — without it serving crashes with ModuleNotFoundError: sse_starlette.
+    "llama-cpp-python[server]>=0.3.0",
+    # Web search for the chat "Search" mode (DuckDuckGo, no API key).
+    "ddgs>=6.0",
+]
+# Only reliably installable on CUDA platforms.
+llm-cuda = [
+    "unsloth>=2025.12.1",
+    "bitsandbytes>=0.45.0",
 ]
 
 [dependency-groups]

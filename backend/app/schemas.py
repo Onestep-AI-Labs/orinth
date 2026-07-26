@@ -16,6 +16,7 @@ TaskType = Literal[
     "text_classification",
     "summarization",
     "question_answering",
+    "llm_finetune",
 ]
 DatasetFormat = Literal[
     "yolo",
@@ -25,9 +26,15 @@ DatasetFormat = Literal[
     "text_folder",
     "jsonl",
     "csv",
+    "instruction_jsonl",
+    "chat_jsonl",
 ]
 DatasetSource = Literal["reference", "editable"]
+# Manifest provenance grouping the catalog into Project / Imported / Shared
+# sections (see phase 10). `recipe` is produced by phase 11 document generation.
+DatasetOrigin = Literal["created", "imported_hf", "recipe"]
 SplitName = Literal["unassigned", "train", "valid", "test"]
+ChatRole = Literal["system", "user", "assistant"]
 
 # `DEFAULT_TASK_TYPE` lives in app.core.defaults as a plain `str` (shared with
 # non-Pydantic code), so it needs a one-time cast here to satisfy the `TaskType`
@@ -209,8 +216,14 @@ class ModelInfo(BaseModel):
     project_id: str = DEFAULT_PROJECT_ID
     task_type: TaskType = _DEFAULT_TASK_TYPE
     labels: list[str] = Field(default_factory=lambda: DEFAULT_LABELS.copy())
-    source: Literal["reference", "trained", "promoted"] = "reference"
+    source: Literal["reference", "trained", "promoted", "uploaded"] = "reference"
     training_job_id: str | None = None
+    # Uploaded LLM adapters point at the base model they were tuned against
+    # (phase 12/14). `format` records the on-disk artifact shape (e.g.
+    # "safetensors", "gguf", "pt", "keras", "joblib") for uploaded weights.
+    base_model_id: str | None = None
+    format: str | None = None
+    size_bytes: int | None = None
     created_at: datetime | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
     artifacts: dict[str, Any] = Field(default_factory=dict)
@@ -220,12 +233,66 @@ class ModelUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
 
+class ModelUploadFileSlot(BaseModel):
+    """One file input the upload form should render for a family."""
+
+    key: str
+    label: str
+    accept: list[str]
+    required: bool = True
+
+
+class ModelUploadField(BaseModel):
+    """One extra metadata field the upload form should collect."""
+
+    key: str
+    label: str
+    type: Literal["text", "labels", "number", "select"]
+    required: bool = False
+    options: list[str] | None = None
+    placeholder: str | None = None
+    help: str | None = None
+
+
+class ModelUploadOption(BaseModel):
+    """Per-family descriptor driving the dynamic upload form.
+
+    The frontend renders the form purely from this, so adding a family later
+    is a backend-only change.
+    """
+
+    family: str
+    label: str
+    description: str
+    kind: Literal["single", "pair", "zip"]
+    files: list[ModelUploadFileSlot]
+    fields: list[ModelUploadField] = Field(default_factory=list)
+    servable: bool = True
+    gate_note: str | None = None
+    security_note: str | None = None
+
+
+class ModelUploadResult(BaseModel):
+    model: ModelInfo
+    # Only structural validation runs at upload time; deep validation stays
+    # deferred to first use, exactly like every other registry family.
+    validated: Literal["structural"] = "structural"
+    duplicate_name: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
 class PlatformSettingsRead(BaseModel):
     huggingface_hub_token_configured: bool = False
+    # OpenRouter powers phase-11 LLM-assisted recipe generation. The key is
+    # write-only: reads only expose whether one is configured, never the value.
+    openrouter_api_key_configured: bool = False
+    openrouter_model: str | None = None
 
 
 class PlatformSettingsUpdate(BaseModel):
     huggingface_hub_token: str | None = Field(default=None, max_length=4096)
+    openrouter_api_key: str | None = Field(default=None, max_length=4096)
+    openrouter_model: str | None = Field(default=None, max_length=200)
 
 
 class EvaluationDatasetInfo(BaseModel):
@@ -386,6 +453,10 @@ class DatasetSummary(BaseModel):
     source: DatasetSource
     editable: bool
     shared: bool = False
+    # Provenance used to group the catalog (Project / Imported / Shared). Legacy
+    # manifests without the field default to `created`.
+    origin: DatasetOrigin = "created"
+    origin_ref: str | None = None
     path: str
     labels: list[str]
     classes: list[str]
@@ -465,10 +536,16 @@ class DatasetItemSummary(BaseModel):
     dataset_id: str
     split: SplitName
     filename: str
-    media_type: Literal["image", "text"] = "image"
+    media_type: Literal["image", "text", "record"] = "image"
     image_url: str = ""
     text_url: str | None = None
     text_preview: str | None = None
+    # LLM record excerpts: `text_preview` carries the instruction / first-user
+    # excerpt, `output_preview` the output / last-assistant excerpt, and
+    # `token_estimate` a heuristic (whitespace + punctuation) count so the
+    # Records table never loads a tokenizer.
+    output_preview: str | None = None
+    token_estimate: int = 0
     width: int = 0
     height: int = 0
     annotation_count: int
@@ -482,6 +559,24 @@ class DatasetItemSummary(BaseModel):
 class DatasetItemDetail(DatasetItemSummary):
     annotations: list[DatasetAnnotation]
     text_content: str | None = None
+    # Full parsed record for `llm_finetune` items (instruction/chat shape); None
+    # for image/text items.
+    record: dict[str, Any] | None = None
+
+
+class DatasetRecordCreate(BaseModel):
+    split: SplitName = "unassigned"
+    record: dict[str, Any]
+
+
+class DatasetRecordSave(BaseModel):
+    record: dict[str, Any]
+
+
+class DatasetRecordUploadResponse(BaseModel):
+    imported: int = 0
+    skipped: int = 0
+    warnings: list[str] = Field(default_factory=list)
 
 
 class DatasetItemPage(BaseModel):
@@ -594,6 +689,10 @@ class DatasetEdaSummary(BaseModel):
     image_size: dict[str, float | int | None] = Field(default_factory=dict)
     aspect_ratio: dict[str, float | None] = Field(default_factory=dict)
     text_length: dict[str, float | int | None] = Field(default_factory=dict)
+    # `llm_finetune` only: role message counts (chat data) and duplicate/empty
+    # counts surfaced as warnings. Empty for image/text datasets.
+    role_counts: dict[str, int] = Field(default_factory=dict)
+    duplicate_count: int = 0
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -617,6 +716,31 @@ class DeleteResponse(BaseModel):
     missing: list[str] = Field(default_factory=list)
 
 
+class AdvancedParameterSpec(BaseModel):
+    """A single catalog-declared advanced training hyperparameter.
+
+    The frontend renders these generically from `type`/`min`/`max`/`step`/
+    `options` and groups them by `group`, so a new model family gets its
+    advanced UI purely by declaring specs — the form has no per-family
+    knowledge. Values ride the open-ended `TrainingJobCreate.hyperparameters`
+    dict, and each runner owns an allowlist that maps `key` to a runner
+    argument (see `app/training/runners/advanced.py`).
+    """
+
+    key: str
+    label: str
+    type: Literal["int", "float", "bool", "select", "multiselect", "text"]
+    default: Any = None
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
+    options: list[Any] = Field(default_factory=list)
+    help: str | None = None
+    # One of the group micro-headers the form renders: Optimization,
+    # Augmentation, Regularization, Runtime.
+    group: str = "Optimization"
+
+
 class TrainingModelOption(BaseModel):
     id: str
     name: str
@@ -627,11 +751,16 @@ class TrainingModelOption(BaseModel):
     needs_download: bool = False
     description: str
     defaults: dict[str, Any] = Field(default_factory=dict)
+    # Empty for untouched catalogs, so they serialize exactly as before.
+    advanced_parameters: list[AdvancedParameterSpec] = Field(default_factory=list)
 
 
 class ModelAssetPrepareRequest(BaseModel):
     option_id: str
     download: bool = True
+    # For the "custom Hugging Face model" LLM base option: the hub id the user
+    # typed, since it is not resolvable from a fixed catalog entry.
+    model_ref: str | None = Field(default=None, max_length=200)
 
 
 class ModelAssetStatus(BaseModel):
@@ -639,3 +768,444 @@ class ModelAssetStatus(BaseModel):
     status: Literal["ready", "missing", "gated", "failed"]
     path: str | None = None
     message: str | None = None
+
+
+class LlmEnvironment(BaseModel):
+    """What an LLM fine-tuning run would actually do on this machine (phase 14).
+
+    Rendered as an info banner on the training form so the Unsloth-vs-PEFT
+    backend choice and any capability gaps are visible before a job is
+    submitted, not discovered in the run log.
+    """
+
+    device: Literal["cuda", "mps", "cpu"]
+    unsloth_available: bool = False
+    peft_available: bool = False
+    bitsandbytes_available: bool = False
+    recommended_backend: Literal["unsloth", "peft"]
+    notes: list[str] = Field(default_factory=list)
+
+
+class LlmModelInfo(BaseModel):
+    """Accurate base-model details from the Hugging Face Hub API (phase 14).
+
+    Powers the training form's "model detail" line so download size, file count,
+    and gating are real values from the Hub rather than the catalog's rough
+    estimate. ``exists`` is false when the repo id is unknown; ``gated`` is true
+    when the repo requires an accepted license or the token lacks access.
+    """
+
+    model_ref: str
+    exists: bool = False
+    gated: bool = False
+    size_bytes: int | None = None
+    file_count: int | None = None
+    downloads: int | None = None
+    likes: int | None = None
+    library: str | None = None
+    error: str | None = None
+
+
+class DatasetHubSearchResult(BaseModel):
+    hub_id: str
+    author: str | None = None
+    downloads: int = 0
+    likes: int = 0
+    gated: bool = False
+    tags: list[str] = Field(default_factory=list)
+    updated_at: str | None = None
+
+
+class DatasetHubSearchResponse(BaseModel):
+    results: list[DatasetHubSearchResult] = Field(default_factory=list)
+    # Hub failures surface here instead of a 500, so the local catalog keeps
+    # rendering when the Hub is unreachable or rate-limited.
+    error: str | None = None
+
+
+class DatasetHubPreview(BaseModel):
+    hub_id: str
+    config: str | None = None
+    split: str | None = None
+    configs: list[str] = Field(default_factory=list)
+    splits: list[str] = Field(default_factory=list)
+    columns: list[str] = Field(default_factory=list)
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+    # Detected record shape ("alpaca", "sharegpt", "messages", "qa") when the
+    # heuristics succeed, so the mapping dialog can pre-fill and show a banner.
+    detected_format: str | None = None
+    detected_mapping: dict[str, str] = Field(default_factory=dict)
+    error: str | None = None
+
+
+class DatasetHubColumnMapping(BaseModel):
+    instruction: str | None = None
+    input: str | None = None
+    output: str | None = None
+    messages: str | None = None
+    conversations: str | None = None
+    question: str | None = None
+    context: str | None = None
+    answer: str | None = None
+
+
+class DatasetHubImportRequest(BaseModel):
+    project_id: str = DEFAULT_PROJECT_ID
+    hub_id: str = Field(min_length=1, max_length=200)
+    config: str | None = None
+    split: str = "train"
+    task_type: TaskType = "llm_finetune"
+    format: DatasetFormat = "instruction_jsonl"
+    name: str | None = Field(default=None, max_length=120)
+    max_rows: int = Field(default=5000, ge=1, le=5000)
+    mapping: DatasetHubColumnMapping = Field(default_factory=DatasetHubColumnMapping)
+
+    _normalize_task_type = field_validator("task_type", mode="before")(
+        _normalize_task_type_field
+    )
+
+
+class DatasetHubImportResponse(BaseModel):
+    dataset: DatasetSummary
+    imported_rows: int = 0
+    skipped_rows: int = 0
+    warnings: list[str] = Field(default_factory=list)
+
+
+# --- Phase 11: Data Recipes ------------------------------------------------
+
+# Only the two LLM record shapes are valid recipe outputs; recipes always commit
+# to an `llm_finetune` dataset (see phase 10).
+RecipeOutputFormat = Literal["instruction_jsonl", "chat_jsonl"]
+RecipeStatus = Literal["draft", "extracting", "generating", "ready", "failed"]
+RecipeGenerationMode = Literal["auto", "llm", "rules"]
+# How the rule-based / LLM prompt frames each chunk. Presets pick one; it stays
+# editable afterward.
+RecipePromptFlavor = Literal["qa", "instruction", "conversation"]
+# Which generator produced a record, so the review table can badge origin and
+# per-chunk regeneration knows what to replace.
+RecipeGenerator = Literal["llm", "rules"]
+
+
+class RecipeGenerationSettings(BaseModel):
+    mode: RecipeGenerationMode = "auto"
+    prompt_flavor: RecipePromptFlavor = "qa"
+    chunk_size: int = Field(default=3000, ge=200, le=20000)
+    chunk_overlap: int = Field(default=200, ge=0, le=4000)
+    records_per_chunk: int = Field(default=3, ge=1, le=20)
+    # OpenRouter model override for this recipe; falls back to the platform
+    # setting when unset. Never carries a key.
+    model: str | None = Field(default=None, max_length=200)
+
+
+class RecipeSourceRead(BaseModel):
+    id: str
+    filename: str
+    media_type: str
+    characters: int = 0
+    pages: int | None = None
+    excluded: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class RecipeCreate(BaseModel):
+    project_id: str = DEFAULT_PROJECT_ID
+    name: str = Field(min_length=1, max_length=120)
+    output_format: RecipeOutputFormat = "instruction_jsonl"
+    generation: RecipeGenerationSettings = Field(default_factory=RecipeGenerationSettings)
+
+
+class RecipeRead(BaseModel):
+    id: str
+    project_id: str = DEFAULT_PROJECT_ID
+    name: str
+    output_format: RecipeOutputFormat
+    status: RecipeStatus
+    sources: list[RecipeSourceRead] = Field(default_factory=list)
+    generation: RecipeGenerationSettings = Field(default_factory=RecipeGenerationSettings)
+    warnings: list[str] = Field(default_factory=list)
+    record_count: int = 0
+    error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RecipeGenerateRequest(BaseModel):
+    mode: RecipeGenerationMode = "auto"
+    prompt_flavor: RecipePromptFlavor | None = None
+    model: str | None = Field(default=None, max_length=200)
+    chunk_size: int | None = Field(default=None, ge=200, le=20000)
+    chunk_overlap: int | None = Field(default=None, ge=0, le=4000)
+    records_per_chunk: int | None = Field(default=None, ge=1, le=20)
+
+
+class RecipeRecord(BaseModel):
+    index: int
+    record: dict[str, Any]
+    generator: RecipeGenerator
+    source_id: str | None = None
+    chunk_index: int | None = None
+
+
+class RecipeRecordPage(BaseModel):
+    records: list[RecipeRecord] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    page_size: int = 50
+
+
+class RecipeRecordCreate(BaseModel):
+    record: dict[str, Any]
+
+
+class RecipeRecordUpdate(BaseModel):
+    record: dict[str, Any]
+
+
+class RecipeRecordDeleteRequest(BaseModel):
+    indices: list[int] = Field(min_length=1)
+
+
+class RecipeCommitRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+
+
+class RecipeCommitResponse(BaseModel):
+    dataset: DatasetSummary
+    committed_records: int = 0
+
+
+class OpenRouterModel(BaseModel):
+    id: str
+    name: str
+
+
+class OpenRouterModelsResponse(BaseModel):
+    models: list[OpenRouterModel] = Field(default_factory=list)
+    # True when the list came live from OpenRouter with a configured key; False
+    # when it is the curated fallback, so the select never renders empty.
+    live: bool = False
+
+
+# --- Phase 15: LLM export, serving, and chat -------------------------------
+
+ModelExportFormat = Literal[
+    "adapter_zip",
+    "merged_16bit",
+    "gguf_q4_k_m",
+    "gguf_q5_k_m",
+    "gguf_q8_0",
+    "gguf_f16",
+]
+ModelExportState = Literal["queued", "running", "completed", "failed"]
+
+
+class ModelExportRequest(BaseModel):
+    format: ModelExportFormat
+
+
+class ModelExportStatus(BaseModel):
+    id: str
+    model_id: str
+    format: ModelExportFormat
+    status: ModelExportState = "queued"
+    error: str | None = None
+    # Manifest-backed job surface (no DB row): the export panel polls this for
+    # the live log tail while a job runs.
+    current_step: str | None = None
+    logs: list[str] = Field(default_factory=list)
+    artifact_name: str | None = None
+    size_bytes: int | None = None
+    # Set when a completed gguf_* export was registered as a servable
+    # `llm_gguf` model.
+    registered_model_id: str | None = None
+    created_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class ModelExportOption(BaseModel):
+    """One export format the detail page can offer for a given model."""
+
+    format: ModelExportFormat
+    label: str
+    description: str
+    available: bool = True
+    note: str | None = None
+
+
+class ServingStartRequest(BaseModel):
+    # Serve either a registered GGUF model (model_id) or a GGUF file anywhere on
+    # the local machine (model_path). Exactly one is required; the service
+    # rejects a request with neither or both.
+    model_id: str | None = None
+    model_path: str | None = None
+    context_length: int | None = Field(default=None, ge=256, le=131072)
+    n_gpu_layers: int | None = Field(default=None, ge=-1, le=1000)
+
+
+class ServingScanEntry(BaseModel):
+    path: str
+    name: str
+    size_bytes: int | None = None
+    # "registered" when this GGUF is already a catalog model (its id is set),
+    # "file" when it is a loose file discovered on disk.
+    kind: Literal["registered", "file"] = "file"
+    model_id: str | None = None
+
+
+class ServingScanResult(BaseModel):
+    root: str
+    entries: list[ServingScanEntry] = Field(default_factory=list)
+    # Non-GGUF model directories found alongside (config.json + safetensors):
+    # not directly servable, surfaced so the UI can point at Export.
+    exportable_dirs: list[str] = Field(default_factory=list)
+    truncated: bool = False
+
+
+class ServingBrowseDir(BaseModel):
+    name: str
+    path: str
+
+
+class ServingBrowseFile(BaseModel):
+    name: str
+    path: str
+    size_bytes: int | None = None
+    # A GGUF already in the catalog carries its model id so the UI can prefer it.
+    model_id: str | None = None
+
+
+class ServingBrowseResult(BaseModel):
+    """One directory level for the server-side path browser."""
+
+    path: str
+    parent: str | None = None
+    dirs: list[ServingBrowseDir] = Field(default_factory=list)
+    gguf_files: list[ServingBrowseFile] = Field(default_factory=list)
+
+
+class ServingConfig(BaseModel):
+    """Persisted serving preferences (phase 15). ``models_dir`` is the last
+    custom directory the user picked, restored and auto-scanned on load."""
+
+    models_dir: str | None = None
+
+
+class ServingConfigUpdate(BaseModel):
+    models_dir: str | None = Field(default=None, max_length=4096)
+
+
+class ServingPickRequest(BaseModel):
+    kind: Literal["folder", "file"] = "folder"
+
+
+class ServingPickResult(BaseModel):
+    # `path` is None when the native dialog was canceled.
+    path: str | None = None
+    canceled: bool = False
+    # Set when the OS dialog is unavailable (headless/unsupported platform), so
+    # the UI can fall back to manual path entry.
+    unavailable: bool = False
+    message: str | None = None
+
+
+class HubModelFile(BaseModel):
+    filename: str
+    size_bytes: int | None = None
+    quantization: str | None = None
+
+
+class HubModelResult(BaseModel):
+    repo_id: str
+    author: str | None = None
+    format: Literal["gguf", "mlx"]
+    downloads: int = 0
+    likes: int = 0
+    updated_at: str | None = None
+    files: list[HubModelFile] = Field(default_factory=list)
+
+
+class HubModelSearchResponse(BaseModel):
+    results: list[HubModelResult] = Field(default_factory=list)
+    # Hub failures surface here instead of a 500 so the picker keeps working.
+    error: str | None = None
+
+
+class HubFilesResponse(BaseModel):
+    repo_id: str
+    files: list[HubModelFile] = Field(default_factory=list)
+    error: str | None = None
+
+
+class HubRecommendation(BaseModel):
+    repo_id: str
+    title: str
+    params: str
+    format: Literal["gguf", "mlx"] = "gguf"
+    approx_size_gb: float
+    fits: bool
+    note: str = ""
+
+
+class HubRecommendationsResponse(BaseModel):
+    device: Literal["cuda", "mps", "cpu"] = "cpu"
+    total_memory_gb: float | None = None
+    results: list[HubRecommendation] = Field(default_factory=list)
+
+
+class HubDownloadRequest(BaseModel):
+    repo_id: str = Field(min_length=1, max_length=200)
+    filename: str = Field(min_length=1, max_length=400)
+
+
+class HubDownloadResult(BaseModel):
+    path: str
+    size_bytes: int | None = None
+    servable: bool = True
+    message: str | None = None
+
+
+class ServingStatus(BaseModel):
+    state: Literal["stopped", "starting", "running", "stopping"] = "stopped"
+    model_id: str | None = None
+    model_name: str | None = None
+    port: int | None = None
+    context_length: int | None = None
+    started_at: datetime | None = None
+    uptime_seconds: float | None = None
+    last_activity_at: datetime | None = None
+    # Tail of the subprocess log; populated after a crash or failed start so
+    # the UI can surface why.
+    stderr_tail: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class WebSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    max_results: int = Field(default=5, ge=1, le=10)
+
+
+class WebSearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str = ""
+
+
+class WebSearchResponse(BaseModel):
+    query: str
+    results: list[WebSearchResult] = Field(default_factory=list)
+    # Search failures surface here instead of a 500 so chat still answers.
+    error: str | None = None
+
+
+class ChatMessage(BaseModel):
+    role: ChatRole
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1)
+    system: str | None = None
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_tokens: int | None = Field(default=None, ge=1, le=32768)

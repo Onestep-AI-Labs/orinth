@@ -45,6 +45,7 @@ def train_hf_text_classifier(
     model_id: str,
     cache_dir: Path | None,
     seed: int = DEFAULT_SEED,
+    advanced: dict | None = None,
 ) -> tuple[dict, list[dict]]:
     import torch
     from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
@@ -52,6 +53,8 @@ def train_hf_text_classifier(
     from transformers import logging as transformers_logging
 
     run_dir.mkdir(parents=True, exist_ok=True)
+    advanced = advanced or {}
+    seed = int(advanced.get("seed", seed))
     _seed_everything(seed)
     train_pool = load_text_classification_split(dataset_root, "train")
     if not train_pool:
@@ -86,8 +89,18 @@ def train_hf_text_classifier(
     print(f"training on device: {device}")
     model.to(device)
 
-    optimizer = _build_optimizer(model, learning_rate)
-    scheduler = _build_scheduler(optimizer, len(train), batch_size, epochs)
+    config = _AdvancedConfig(advanced, device)
+    optimizer = _build_optimizer(model, learning_rate, config.weight_decay)
+    scheduler = _build_scheduler(
+        optimizer,
+        len(train),
+        batch_size,
+        epochs,
+        warmup_ratio=config.warmup_ratio,
+        kind=config.lr_scheduler,
+        accumulation_steps=config.accumulation_steps,
+    )
+    accumulator = _Accumulator(model, optimizer, scheduler, config, device)
     rng = random.Random(seed)
     history: list[dict] = []
     best_state: dict | None = None
@@ -96,9 +109,10 @@ def train_hf_text_classifier(
     for epoch in range(1, epochs + 1):
         model.train()
         epoch_losses = []
-        for batch_indices in _shuffled_batches(len(train), batch_size, rng):
+        batches = _shuffled_batches(len(train), batch_size, rng)
+        for index, batch_indices in enumerate(batches):
             batch = tokenizer(
-                [train[index]["text"] for index in batch_indices],
+                [train[position]["text"] for position in batch_indices],
                 padding="longest",
                 truncation=True,
                 max_length=max_length,
@@ -106,16 +120,13 @@ def train_hf_text_classifier(
             )
             batch = {key: value.to(device) for key, value in batch.items()}
             batch["labels"] = torch.tensor(
-                [int(train[index]["class_id"]) for index in batch_indices],
+                [int(train[position]["class_id"]) for position in batch_indices],
                 dtype=torch.long,
                 device=device,
             )
-            loss = model(**batch).loss
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
-            optimizer.step()
-            scheduler.step()
+            with accumulator.autocast():
+                loss = model(**batch).loss
+            accumulator.step(loss, index, len(batches))
             epoch_losses.append(float(loss.detach().cpu()))
 
         y_true, y_pred, probabilities, val_loss = _evaluate_classification(
@@ -211,6 +222,7 @@ def train_hf_summarizer(
     model_id: str,
     cache_dir: Path | None,
     seed: int = DEFAULT_SEED,
+    advanced: dict | None = None,
 ) -> tuple[dict, list[dict]]:
     import torch
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
@@ -218,6 +230,8 @@ def train_hf_summarizer(
     from app.services.metrics import rouge_scores
 
     run_dir.mkdir(parents=True, exist_ok=True)
+    advanced = advanced or {}
+    seed = int(advanced.get("seed", seed))
     _seed_everything(seed)
     train_pool = load_summary_split(dataset_root, "train")
     if not train_pool:
@@ -235,8 +249,18 @@ def train_hf_summarizer(
     print(f"training on device: {device}")
     model.to(device)
 
-    optimizer = _build_optimizer(model, learning_rate)
-    scheduler = _build_scheduler(optimizer, len(train), batch_size, epochs)
+    config = _AdvancedConfig(advanced, device)
+    optimizer = _build_optimizer(model, learning_rate, config.weight_decay)
+    scheduler = _build_scheduler(
+        optimizer,
+        len(train),
+        batch_size,
+        epochs,
+        warmup_ratio=config.warmup_ratio,
+        kind=config.lr_scheduler,
+        accumulation_steps=config.accumulation_steps,
+    )
+    accumulator = _Accumulator(model, optimizer, scheduler, config, device)
     rng = random.Random(seed)
     history: list[dict] = []
     best_state: dict | None = None
@@ -266,13 +290,11 @@ def train_hf_summarizer(
     for epoch in range(1, epochs + 1):
         model.train()
         epoch_losses = []
-        for batch_indices in _shuffled_batches(len(train), batch_size, rng):
-            loss = model(**encode(train, batch_indices)).loss
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
-            optimizer.step()
-            scheduler.step()
+        batches = _shuffled_batches(len(train), batch_size, rng)
+        for index, batch_indices in enumerate(batches):
+            with accumulator.autocast():
+                loss = model(**encode(train, batch_indices)).loss
+            accumulator.step(loss, index, len(batches))
             epoch_losses.append(float(loss.detach().cpu()))
 
         # Teacher-forced validation loss each epoch: cheap enough to run every
@@ -348,12 +370,15 @@ def train_hf_qa(
     model_id: str,
     cache_dir: Path | None,
     seed: int = DEFAULT_SEED,
+    advanced: dict | None = None,
 ) -> tuple[dict, list[dict]]:
     import torch
     from transformers import AutoModelForQuestionAnswering, AutoTokenizer
     from transformers import logging as transformers_logging
 
     run_dir.mkdir(parents=True, exist_ok=True)
+    advanced = advanced or {}
+    seed = int(advanced.get("seed", seed))
     _seed_everything(seed)
     train_pool = load_qa_split(dataset_root, "train")
     if not train_pool:
@@ -395,8 +420,18 @@ def train_hf_qa(
             "Answers must appear verbatim in the context text."
         )
 
-    optimizer = _build_optimizer(model, learning_rate)
-    scheduler = _build_scheduler(optimizer, len(features), batch_size, epochs)
+    config = _AdvancedConfig(advanced, device)
+    optimizer = _build_optimizer(model, learning_rate, config.weight_decay)
+    scheduler = _build_scheduler(
+        optimizer,
+        len(features),
+        batch_size,
+        epochs,
+        warmup_ratio=config.warmup_ratio,
+        kind=config.lr_scheduler,
+        accumulation_steps=config.accumulation_steps,
+    )
+    accumulator = _Accumulator(model, optimizer, scheduler, config, device)
     rng = random.Random(seed)
     history: list[dict] = []
     best_state: dict | None = None
@@ -405,18 +440,16 @@ def train_hf_qa(
     for epoch in range(1, epochs + 1):
         model.train()
         epoch_losses = []
-        for batch_indices in _shuffled_batches(len(features), batch_size, rng):
-            items = [features[index] for index in batch_indices]
+        batches = _shuffled_batches(len(features), batch_size, rng)
+        for index, batch_indices in enumerate(batches):
+            items = [features[position] for position in batch_indices]
             batch = _stack_hf_features([item["inputs"] for item in items])
             batch = {key: value.to(device) for key, value in batch.items()}
             batch["start_positions"] = torch.stack([item["start_position"] for item in items]).to(device)
             batch["end_positions"] = torch.stack([item["end_position"] for item in items]).to(device)
-            loss = model(**batch).loss
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
-            optimizer.step()
-            scheduler.step()
+            with accumulator.autocast():
+                loss = model(**batch).loss
+            accumulator.step(loss, index, len(batches))
             epoch_losses.append(float(loss.detach().cpu()))
 
         rows, _ = _evaluate_qa(
@@ -497,7 +530,7 @@ def _select_device():
     return torch.device("cpu")
 
 
-def _build_optimizer(model, learning_rate: float):
+def _build_optimizer(model, learning_rate: float, weight_decay: float = WEIGHT_DECAY):
     """AdamW with decay on weights but not on bias or LayerNorm parameters."""
     import torch
 
@@ -513,23 +546,106 @@ def _build_optimizer(model, learning_rate: float):
             decay_params.append(parameter)
     return torch.optim.AdamW(
         [
-            {"params": decay_params, "weight_decay": WEIGHT_DECAY},
+            {"params": decay_params, "weight_decay": weight_decay},
             {"params": plain_params, "weight_decay": 0.0},
         ],
         lr=learning_rate,
     )
 
 
-def _build_scheduler(optimizer, item_count: int, batch_size: int, epochs: int):
-    from transformers import get_linear_schedule_with_warmup
-
-    steps_per_epoch = max(1, math.ceil(item_count / max(batch_size, 1)))
-    total_steps = max(1, steps_per_epoch * max(epochs, 1))
-    return get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=int(total_steps * WARMUP_RATIO),
-        num_training_steps=total_steps,
+def _build_scheduler(
+    optimizer,
+    item_count: int,
+    batch_size: int,
+    epochs: int,
+    *,
+    warmup_ratio: float = WARMUP_RATIO,
+    kind: str = "linear",
+    accumulation_steps: int = 1,
+):
+    from transformers import (
+        get_cosine_schedule_with_warmup,
+        get_linear_schedule_with_warmup,
     )
+
+    batches_per_epoch = max(1, math.ceil(item_count / max(batch_size, 1)))
+    # Scheduler advances once per optimizer step, and gradient accumulation
+    # makes an optimizer step every ``accumulation_steps`` batches.
+    steps_per_epoch = max(1, math.ceil(batches_per_epoch / max(accumulation_steps, 1)))
+    total_steps = max(1, steps_per_epoch * max(epochs, 1))
+    warmup_steps = int(total_steps * max(warmup_ratio, 0.0))
+    builder = (
+        get_cosine_schedule_with_warmup if kind == "cosine" else get_linear_schedule_with_warmup
+    )
+    return builder(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
+
+
+class _AdvancedConfig:
+    """Resolved Hugging Face advanced knobs for one run."""
+
+    def __init__(self, advanced: dict | None, device):
+        from app.training.runners.advanced import resolve_precision
+
+        advanced = advanced or {}
+        self.weight_decay = float(advanced.get("weight_decay", WEIGHT_DECAY))
+        self.warmup_ratio = float(advanced.get("warmup_ratio", WARMUP_RATIO))
+        self.lr_scheduler = str(advanced.get("lr_scheduler", "linear"))
+        self.accumulation_steps = max(1, int(advanced.get("gradient_accumulation_steps", 1) or 1))
+        self.seed = int(advanced.get("seed", DEFAULT_SEED))
+        precision, note = resolve_precision(
+            advanced.get("precision"), cuda=device.type == "cuda", mps=device.type == "mps"
+        )
+        self.precision = precision
+        if note:
+            print(f"NOTE: {note}")
+
+
+class _Accumulator:
+    """Gradient accumulation + optional fp16/bf16 autocast for a hand-rolled loop.
+
+    Wraps the forward pass in autocast and steps the optimizer once every
+    ``accumulation_steps`` micro-batches (and on the final one), so an effective
+    batch size larger than what fits in memory is expressed without changing the
+    per-batch code in each trainer.
+    """
+
+    def __init__(self, model, optimizer, scheduler, config: _AdvancedConfig, device):
+        import torch
+
+        self.model = model
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.accumulation_steps = config.accumulation_steps
+        self.device_type = device.type
+        self.dtype = {"fp16": torch.float16, "bf16": torch.bfloat16}.get(config.precision)
+        # GradScaler is only needed for fp16, which is CUDA-only here.
+        self.scaler = torch.cuda.amp.GradScaler() if config.precision == "fp16" else None
+
+    def autocast(self):
+        import torch
+
+        return torch.autocast(
+            device_type=self.device_type, dtype=self.dtype, enabled=self.dtype is not None
+        )
+
+    def step(self, loss, index: int, total: int) -> None:
+        import torch
+
+        scaled = loss / self.accumulation_steps
+        (self.scaler.scale(scaled) if self.scaler else scaled).backward()
+        is_boundary = (index + 1) % self.accumulation_steps == 0 or (index + 1) == total
+        if not is_boundary:
+            return
+        if self.scaler:
+            self.scaler.unscale_(self.optimizer)
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), MAX_GRAD_NORM)
+        if self.scaler:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            self.optimizer.step()
+        self.scheduler.step()
+        self.optimizer.zero_grad()
 
 
 def _shuffled_batches(count: int, batch_size: int, rng: random.Random) -> list[list[int]]:

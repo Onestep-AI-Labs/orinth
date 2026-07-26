@@ -1,4 +1,5 @@
 from app.ml.common.catalog import TrainingModelDefinition
+from app.ml.llm.catalog import llm_training_options
 from app.ml.nlp.baseline.catalog import baseline_nlp_training_options
 from app.ml.nlp.huggingface.catalog import huggingface_training_options
 from app.ml.nlp.keras_bilstm.catalog import keras_bilstm_training_options
@@ -35,6 +36,7 @@ def training_model_definitions() -> list[TrainingModelDefinition]:
     definitions.extend(keras_seq2seq_training_options())
     definitions.extend(huggingface_training_options())
     definitions.extend(baseline_nlp_training_options())
+    definitions.extend(llm_training_options())
     return definitions
 
 

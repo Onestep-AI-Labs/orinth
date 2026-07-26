@@ -24,11 +24,34 @@ class Settings(BaseSettings):
     )
     huggingface_hub_token: str | None = Field(default=None, alias="HUGGINGFACE_HUB_TOKEN")
     hf_token: str | None = Field(default=None, alias="HF_TOKEN")
+    # OpenRouter powers phase-11 LLM-assisted record generation. The key is
+    # write-only from the UI's perspective (see SettingsService) and is injected
+    # server-side at call time — never echoed to the client or written to a
+    # recipe manifest.
+    openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
+    openrouter_model: str | None = Field(default=None, alias="OPENROUTER_MODEL")
     # Separate pools per job domain so long-running training/evaluation jobs
     # can't starve inference (or each other) out of worker threads.
     training_executor_workers: int = Field(default=1, alias="TRAINING_EXECUTOR_WORKERS")
     evaluation_executor_workers: int = Field(default=1, alias="EVALUATION_EXECUTOR_WORKERS")
     inference_executor_workers: int = Field(default=2, alias="INFERENCE_EXECUTOR_WORKERS")
+    recipe_executor_workers: int = Field(default=1, alias="RECIPE_EXECUTOR_WORKERS")
+    # Upload cap for custom model weights (phase 12). Default 10 GB admits
+    # multi-GB LLM directories while still bounding disk use; it also caps
+    # zip-bomb expansion.
+    model_upload_max_bytes: int = Field(
+        default=10 * 1024 * 1024 * 1024, alias="MODEL_UPLOAD_MAX_BYTES"
+    )
+    # LLM export jobs (phase 15) run on their own single-worker pool so a long
+    # merge/GGUF conversion can't starve evaluations (or vice versa).
+    export_executor_workers: int = Field(default=1, alias="EXPORT_EXECUTOR_WORKERS")
+    # llama.cpp serving (phase 15). The port range is walked for the first free
+    # port; the server binds localhost only. Idle timeout stops the subprocess
+    # after no chat activity; the ready timeout bounds startup (model load can
+    # take minutes for large GGUFs on first touch).
+    serving_port_range: str = Field(default="8600-8699", alias="SERVING_PORT_RANGE")
+    serving_idle_timeout_seconds: int = Field(default=900, alias="SERVING_IDLE_TIMEOUT_SECONDS")
+    serving_ready_timeout_seconds: int = Field(default=600, alias="SERVING_READY_TIMEOUT_SECONDS")
 
     @property
     def repo_root(self) -> Path:
@@ -73,6 +96,24 @@ class Settings(BaseSettings):
     def huggingface_token(self) -> str | None:
         token = (self.hf_token or self.huggingface_hub_token or "").strip()
         return token or None
+
+    @property
+    def openrouter_key(self) -> str | None:
+        token = (self.openrouter_api_key or "").strip()
+        return token or None
+
+    @property
+    def serving_ports(self) -> tuple[int, int]:
+        """Parsed inclusive (start, end) of `serving_port_range`; malformed input falls back to the default."""
+        raw = self.serving_port_range.strip()
+        try:
+            start_text, _, end_text = raw.partition("-")
+            start, end = int(start_text), int(end_text or start_text)
+        except ValueError:
+            return (8600, 8699)
+        if start < 1 or end > 65535 or end < start:
+            return (8600, 8699)
+        return (start, end)
 
 
 @lru_cache

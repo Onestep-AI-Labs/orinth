@@ -16,7 +16,8 @@ import shutil
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -73,6 +74,9 @@ class VersioningMixin:
                 continue
             moved += 1
             items.append(self.item_detail(dataset_id, payload.target_split, new_name))
+        if moved and self._is_llm_task(location.task_type):
+            self._regenerate_records_jsonl(location, payload.source_split)
+            self._regenerate_records_jsonl(location, payload.target_split)
         return DatasetItemMoveResponse(moved=moved, missing=missing, items=items)
 
     def process_dataset(self, dataset_id: str, payload: DatasetProcessRequest) -> DatasetProcessResponse:
@@ -89,13 +93,20 @@ class VersioningMixin:
         location = self._location(dataset_id)
 
         source_splits = list(SPLITS if split_config.resplit_all else ("unassigned",))
-        candidates = []
+        is_llm = self._is_llm_task(location.task_type)
+        candidates: list[tuple[str, Any]] = []
         for source_split in source_splits:
             for item_path in self._item_paths(location, source_split):
-                detail = self._item_from_path(location, source_split, item_path, include_annotations=True)
-                candidates.append((source_split, detail))
+                # LLM records carry no label, so splitting never needs to parse the
+                # record body — reading every file just to compute an excerpt made
+                # splitting a large imported dataset time out. Use a light stub.
+                if is_llm:
+                    candidates.append((source_split, SimpleNamespace(id=item_path.name, label=None)))
+                else:
+                    detail = self._item_from_path(location, source_split, item_path, include_annotations=True)
+                    candidates.append((source_split, detail))
 
-        grouped: dict[str, list[tuple[str, DatasetItemDetail]]] = {}
+        grouped: dict[str, list[tuple[str, Any]]] = {}
         if split_config.stratify:
             for source_split, item in candidates:
                 label = item.label or "__unlabeled__"
@@ -115,6 +126,9 @@ class VersioningMixin:
                 moved[target_split] += 1
                 if new_name != item.id:
                     item.id = new_name
+
+        if self._is_llm_task(location.task_type):
+            self._regenerate_all_records_jsonl(location)
 
         return DatasetProcessResponse(
             dataset=self.summary(dataset_id),
@@ -260,7 +274,7 @@ class VersioningMixin:
     ) -> str:
         item_path = self._item_path(location, source_split, item_id)
         source_stem = item_path.stem
-        media_dir = "texts" if self._is_nlp_task(location.task_type) else "images"
+        media_dir = self._media_dir(location.task_type)
         target_image_dir = location.root / target_split / media_dir
         target_annotation_dir = location.root / target_split / "annotations"
         target_label_dir = location.root / target_split / "labels"
@@ -435,6 +449,18 @@ class VersioningMixin:
             raise NotImplementedError
 
         def _is_nlp_task(self, task_type: str) -> bool:
+            raise NotImplementedError
+
+        def _is_llm_task(self, task_type: str) -> bool:
+            raise NotImplementedError
+
+        def _media_dir(self, task_type: str) -> str:
+            raise NotImplementedError
+
+        def _regenerate_records_jsonl(self, location: DatasetLocation, split: str) -> None:
+            raise NotImplementedError
+
+        def _regenerate_all_records_jsonl(self, location: DatasetLocation) -> None:
             raise NotImplementedError
 
         def _normalize_task_type(self, task_type: str) -> str:

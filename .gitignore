@@ -3,6 +3,8 @@
 /models/
 /notebooks/
 /dental_segmentation/
+# Vendored Unsloth reference checkout (Studio subdir is AGPL-3.0; never commit)
+/unsloth/
 .DS_Store
 
 # Runtime storage and generated artifacts

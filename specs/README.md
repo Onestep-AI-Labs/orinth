@@ -29,4 +29,10 @@ Use a spec when:
 - `phase-7-frontend-ui-revamp.md`
 - `phase-8-design-system-dub.md`
 - `phase-9-entry-flow-and-project-settings.md`
+- `phase-10-dataset-hub.md`
+- `phase-11-data-recipes.md`
+- `phase-12-custom-model-upload.md`
+- `phase-13-advanced-training-settings.md`
+- `phase-14-llm-finetuning.md`
+- `phase-15-llm-serving-and-export.md`
 - `SPEC_TEMPLATE.md`

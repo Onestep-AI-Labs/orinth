@@ -283,6 +283,8 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
     const setSplit = vi.fn();
     const setSelectedItemIds = vi.fn();
     const setSelectedItemSplits = vi.fn();
+    const setSelectedItemId = vi.fn();
+    const setSelectedItemSplit = vi.fn();
     const refetch = vi.fn().mockResolvedValue(undefined);
     const noopQuery = { refetch } as never;
 
@@ -294,6 +296,8 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
           setSplit,
           setSelectedItemIds,
           setSelectedItemSplits,
+          setSelectedItemId,
+          setSelectedItemSplit,
           catalogQuery: noopQuery,
           itemsQuery: noopQuery,
           edaQuery: noopQuery

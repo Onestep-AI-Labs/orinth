@@ -17,6 +17,8 @@ from app.schemas import (
 )
 from app.services.datasets.constants import (
     IMAGE_TASK_TYPES,
+    LLM_FORMATS,
+    LLM_TASK_TYPES,
     NLP_TASK_TYPES,
     SPLITS,
     TASK_TYPE_ALIASES,
@@ -24,11 +26,12 @@ from app.services.datasets.constants import (
 from app.services.datasets.format_io import FormatIoMixin
 from app.services.datasets.items import ItemsMixin
 from app.services.datasets.preprocess import PreprocessMixin
+from app.services.datasets.records import RecordsMixin
 from app.services.datasets.types import DatasetLocation
 from app.services.datasets.versioning import VersioningMixin
 
 
-class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin):
+class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin, FormatIoMixin):
     """Facade over dataset lifecycle, item CRUD, versioning, preprocessing, and format IO.
 
     The behavior lives in mixins split by concern (see ``items.py``, ``versioning.py``,
@@ -93,6 +96,8 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
             source=location.source,  # type: ignore[arg-type]
             editable=location.editable,
             shared=location.shared,
+            origin=location.origin,  # type: ignore[arg-type]
+            origin_ref=location.origin_ref,
             path=str(location.root),
             labels=location.labels,
             classes=location.labels,
@@ -102,7 +107,7 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
 
     def create_dataset(self, payload: DatasetCreate) -> DatasetSummary:
         task_type = self._normalize_task_type(payload.task_type)
-        if task_type not in IMAGE_TASK_TYPES | NLP_TASK_TYPES:
+        if task_type not in IMAGE_TASK_TYPES | NLP_TASK_TYPES | LLM_TASK_TYPES:
             raise HTTPException(status_code=400, detail="Unsupported dataset task type")
         labels = self._normalize_labels(payload.labels, task_type)
         dataset_id = self._new_dataset_id(payload.name)
@@ -292,6 +297,7 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
                     manifest.get("labels") or manifest.get("classes") or self._default_labels_for_task(task_type),
                     task_type,
                 )
+                origin = manifest.get("origin", "created")
                 locations.append(
                     DatasetLocation(
                         id=manifest["id"],
@@ -304,6 +310,8 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
                         editable=True,
                         labels=labels,
                         metadata=manifest.get("metadata", {}),
+                        origin=origin if origin in {"created", "imported_hf", "recipe"} else "created",
+                        origin_ref=manifest.get("origin_ref"),
                     )
                 )
         return locations
@@ -371,11 +379,12 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
 
     def _create_layout(self, root: Path, format_name: str, task_type: str, labels: list[str]) -> None:
         for split in SPLITS:
-            media_dir = "texts" if self._is_nlp_task(task_type) else "images"
-            (root / split / media_dir).mkdir(parents=True, exist_ok=True)
-            (root / split / "annotations").mkdir(parents=True, exist_ok=True)
-            (root / split / "labels").mkdir(parents=True, exist_ok=True)
-        if format_name == "yolo" and not self._is_nlp_task(task_type):
+            (root / split / self._media_dir(task_type)).mkdir(parents=True, exist_ok=True)
+            if not self._is_llm_task(task_type):
+                # Records carry their own supervision; no annotation/label sidecars.
+                (root / split / "annotations").mkdir(parents=True, exist_ok=True)
+                (root / split / "labels").mkdir(parents=True, exist_ok=True)
+        if format_name == "yolo" and not self._is_nlp_task(task_type) and not self._is_llm_task(task_type):
             self._write_data_yaml(root, labels)
 
     def _write_manifest(
@@ -389,6 +398,8 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
         task_type: str,
         labels: list[str],
         metadata: dict,
+        origin: str = "created",
+        origin_ref: str | None = None,
     ) -> None:
         root.mkdir(parents=True, exist_ok=True)
         (root / "manifest.json").write_text(
@@ -400,6 +411,8 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
                     "task_type": task_type,
                     "format": format_name,
                     "labels": labels,
+                    "origin": origin,
+                    "origin_ref": origin_ref,
                     "metadata": metadata,
                 },
                 indent=2,
@@ -416,6 +429,8 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
             "task_type": location.task_type,
             "format": location.format,
             "labels": location.labels,
+            "origin": location.origin,
+            "origin_ref": location.origin_ref,
             "metadata": location.metadata,
         }
         if manifest_path.exists():
@@ -426,10 +441,23 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
     def _is_nlp_task(self, task_type: str) -> bool:
         return self._normalize_task_type(task_type) in NLP_TASK_TYPES
 
+    def _is_llm_task(self, task_type: str) -> bool:
+        return self._normalize_task_type(task_type) in LLM_TASK_TYPES
+
+    def _media_dir(self, task_type: str) -> str:
+        if self._is_llm_task(task_type):
+            return "records"
+        return "texts" if self._is_nlp_task(task_type) else "images"
+
     def _normalize_task_type(self, task_type: str) -> str:
         return TASK_TYPE_ALIASES.get(str(task_type), str(task_type))
 
     def _default_format_for_task(self, task_type: str, format_name: str) -> str:
+        if self._is_llm_task(task_type):
+            # The task alone does not fix the record shape (phase 10 exception),
+            # so the create flow chooses a format; anything else falls back to
+            # the instruction shape.
+            return format_name if format_name in LLM_FORMATS else "instruction_jsonl"
         if task_type in NLP_TASK_TYPES and format_name in {"yolo", "image_folder", "image_manifest"}:
             return "text_folder"
         return format_name
@@ -441,6 +469,9 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
             return ["summary"]
         if task_type == "question_answering":
             return ["answer"]
+        # LLM records carry their own supervision; no label list.
+        if self._is_llm_task(task_type):
+            return []
         return DEFAULT_LABELS.copy()
 
     def _normalize_labels(self, labels: list[str], task_type: str = DEFAULT_TASK_TYPE) -> list[str]:
@@ -449,6 +480,9 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, FormatIoMixin
             cleaned = self._clean_label(label)
             if cleaned not in normalized:
                 normalized.append(cleaned)
+        # LLM datasets legitimately have no labels; keep the empty list.
+        if not normalized and self._is_llm_task(task_type):
+            return []
         return normalized or self._default_labels_for_task(task_type)
 
     def _new_dataset_id(self, name: str) -> str:

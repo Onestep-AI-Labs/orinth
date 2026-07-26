@@ -2,12 +2,14 @@
 
 /* eslint-disable @next/next/no-img-element */
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Play, ScanEye, Upload } from "lucide-react";
+import { MessagesSquare, Play, ScanEye, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { allowedTaskTypesForProject, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
+import { LlmServeView } from "@/features/inference/llm-serve-view";
 import {
   Button,
   ButtonLink,
@@ -57,6 +59,12 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
     return projectTasks.length ? projectTasks : modelTasks;
   }, [models, project]);
   const nlp = isNlpTask(taskType);
+  const isLlm = taskType === "llm_finetune";
+  // Only GGUF models serve, so the LLM launcher lists just the servable ones.
+  const llmModels = useMemo(
+    () => taskModels.filter((model) => model.family === "llm_gguf"),
+    [taskModels]
+  );
   const showDetectionParams = selectedModelInfo ? selectedModelInfo.task_type !== "classification" : false;
   const historyQuery = useQuery({
     queryKey: ["inference-history", projectId],
@@ -146,7 +154,31 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Inference" subtitle="Run models on project samples" icon={<ScanEye size={20} />} />
+      <PageHeader
+        title="Inference"
+        subtitle={isLlm ? "Serve and chat with a fine-tuned LLM" : "Run models on project samples"}
+        icon={<ScanEye size={20} />}
+        actions={
+          // The chat surface only applies to the LLM task with a servable
+          // model, so the button appears only then — not on vision/NLP tasks.
+          isLlm && llmModels.length > 0 ? (
+            <Link className="secondary-button" href="/inference/chat">
+              <MessagesSquare size={16} /> Chat with a served LLM
+            </Link>
+          ) : undefined
+        }
+      />
+      {isLlm ? (
+        <LlmServeView
+          taskType={taskType}
+          taskOptions={taskOptions}
+          onSelectTask={setTaskType}
+          models={llmModels}
+          selectedModel={selectedModel}
+          onSelectModel={setSelectedModel}
+          modelsLoading={modelsLoading}
+        />
+      ) : (
       <div className="workspace-grid workspace-grid-inference">
         <section className="panel">
           <PanelTitle icon={<Upload size={18} />} title="Run" />
@@ -239,6 +271,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           <MutationError mutations={[deleteMutation]} />
         </section>
       </div>
+      )}
       {confirmationDialog}
     </div>
   );

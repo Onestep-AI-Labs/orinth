@@ -31,6 +31,30 @@ export function pointsAttr(points: number[][]): string {
   return points.map((point) => `${point[0]},${point[1]}`).join(" ");
 }
 
+export function compactNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+export function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value >= 10 || Number.isInteger(value) ? 0 : 1)} ${units[unit]}`;
+}
+
+const LLM_FAMILIES = new Set(["llm_hf", "llm_adapter", "llm_gguf"]);
+
+export function isLlmModelFamily(family: string): boolean {
+  return LLM_FAMILIES.has(family);
+}
+
 const LABEL_RAMP_SIZE = 8;
 
 /**
@@ -57,6 +81,7 @@ export function formatDatasetTask(task: TaskType): string {
   if (task === "object_detection") return "Object detection";
   if (task === "text_classification") return "Text classification";
   if (task === "question_answering") return "Question answering";
+  if (task === "llm_finetune") return "LLM fine-tuning";
   return task.charAt(0).toUpperCase() + task.slice(1).replaceAll("_", " ");
 }
 
@@ -64,6 +89,8 @@ export function formatDatasetFormat(format: string): string {
   if (format === "image_folder") return "Image folder";
   if (format === "text_folder") return "Text folder";
   if (format === "jsonl") return "JSONL";
+  if (format === "instruction_jsonl") return "Instruction JSONL";
+  if (format === "chat_jsonl") return "Chat JSONL";
   return format.toUpperCase();
 }
 
@@ -74,7 +101,12 @@ export function taskDescription(task: TaskType): string {
   if (task === "text_classification") return "One class label per text";
   if (task === "summarization") return "Source text with reference summary";
   if (task === "question_answering") return "Context with question-answer pairs";
+  if (task === "llm_finetune") return "Instruction or chat SFT records";
   return "Task metadata";
+}
+
+export function isLlmTask(task: TaskType | string | undefined): boolean {
+  return task === "llm_finetune";
 }
 
 export function areTasksCompatible(modelTask: TaskType, datasetTask: TaskType): boolean {
@@ -93,7 +125,8 @@ export function isVisionTask(task: TaskType | string | undefined): boolean {
 
 export const VISION_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
 export const NLP_TASK_TYPES: TaskType[] = ["text_classification", "summarization", "question_answering"];
-export const ALL_TASK_TYPES: TaskType[] = [...VISION_TASK_TYPES, ...NLP_TASK_TYPES];
+export const LLM_TASK_TYPES: TaskType[] = ["llm_finetune"];
+export const ALL_TASK_TYPES: TaskType[] = [...VISION_TASK_TYPES, ...NLP_TASK_TYPES, ...LLM_TASK_TYPES];
 
 /**
  * Task types a project may work in — the shared source for the dataset,

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Database, FileImage, FileText, MessageSquareText, Shapes } from "lucide-react";
+import { BarChart3, Database, FileImage, FileText, MessageSquareText, Shapes, Sparkles } from "lucide-react";
 import { Badge } from "@/features/platform/ui";
 import {
   ALL_TASK_TYPES,
+  LLM_TASK_TYPES,
   NLP_TASK_TYPES,
   VISION_TASK_TYPES,
   formatDatasetTask,
@@ -12,7 +13,7 @@ import {
 } from "@/features/platform/utils";
 import type { TaskType } from "@/types/api";
 
-export type ProjectDomain = "vision" | "nlp";
+export type ProjectDomain = "vision" | "nlp" | "llm";
 
 /**
  * Which side a project leans to. Task types are the source of truth downstream —
@@ -21,16 +22,19 @@ export type ProjectDomain = "vision" | "nlp";
  * can never disagree about what a given task selection means.
  */
 export function domainForTasks(tasks: TaskType[]): ProjectDomain | "mixed" {
-  const vision = tasks.some((task) => VISION_TASK_TYPES.includes(task));
-  const nlp = tasks.some((task) => NLP_TASK_TYPES.includes(task));
-  if (vision && nlp) return "mixed";
-  return nlp ? "nlp" : "vision";
+  const present: ProjectDomain[] = [];
+  if (tasks.some((task) => VISION_TASK_TYPES.includes(task))) present.push("vision");
+  if (tasks.some((task) => NLP_TASK_TYPES.includes(task))) present.push("nlp");
+  if (tasks.some((task) => LLM_TASK_TYPES.includes(task))) present.push("llm");
+  if (present.length > 1) return "mixed";
+  return present[0] ?? "vision";
 }
 
 /** The tab to open on for an existing selection. Mixed projects start on vision. */
 export function initialDomainForTasks(tasks: TaskType[]): ProjectDomain | null {
   if (!tasks.length) return null;
-  return domainForTasks(tasks) === "nlp" ? "nlp" : "vision";
+  const domain = domainForTasks(tasks);
+  return domain === "mixed" ? "vision" : domain;
 }
 
 function taskIcon(task: TaskType) {
@@ -40,6 +44,7 @@ function taskIcon(task: TaskType) {
   if (task === "text_classification") return <FileText size={20} />;
   if (task === "summarization") return <BarChart3 size={20} />;
   if (task === "question_answering") return <MessageSquareText size={20} />;
+  if (task === "llm_finetune") return <Sparkles size={20} />;
   return <BarChart3 size={20} />;
 }
 
@@ -77,9 +82,17 @@ export function TaskTypePicker({
     setDomain(initialDomain);
   }
 
-  const domainTasks = domain === null ? [] : domain === "vision" ? VISION_TASK_TYPES : NLP_TASK_TYPES;
+  const domainTasks =
+    domain === null
+      ? []
+      : domain === "vision"
+        ? VISION_TASK_TYPES
+        : domain === "nlp"
+          ? NLP_TASK_TYPES
+          : LLM_TASK_TYPES;
   const visionCount = value.filter((task) => VISION_TASK_TYPES.includes(task)).length;
   const nlpCount = value.filter((task) => NLP_TASK_TYPES.includes(task)).length;
+  const llmCount = value.filter((task) => LLM_TASK_TYPES.includes(task)).length;
   const orderedSelection = ALL_TASK_TYPES.filter((task) => value.includes(task));
 
   function toggle(task: TaskType) {
@@ -103,9 +116,16 @@ export function TaskTypePicker({
         >
           NLP{nlpCount > 0 ? <span className="segmented-count">{nlpCount}</span> : null}
         </button>
+        <button
+          className={domain === "llm" ? "segmented-active" : ""}
+          type="button"
+          onClick={() => setDomain("llm")}
+        >
+          LLM{llmCount > 0 ? <span className="segmented-count">{llmCount}</span> : null}
+        </button>
       </div>
       {domain === null ? (
-        <p className="hint-text">Choose Vision or NLP to see the task types available.</p>
+        <p className="hint-text">Choose Vision, NLP, or LLM to see the task types available.</p>
       ) : (
         <div className="task-choice-grid task-choice-grid-premium">
           {domainTasks.map((task) => {

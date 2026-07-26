@@ -8,6 +8,8 @@ from app.db.models import TrainingJob
 from app.schemas import (
     DeleteRequest,
     DeleteResponse,
+    LlmEnvironment,
+    LlmModelInfo,
     ModelAssetPrepareRequest,
     ModelAssetStatus,
     TrainingJobCreate,
@@ -22,6 +24,19 @@ router = APIRouter(prefix="/training")
 @router.get("/model-options", response_model=list[TrainingModelOption])
 def list_training_model_options(task_type: str | None = Query(default=None)) -> list[TrainingModelOption]:
     return training_service.model_options(task_type)
+
+
+@router.get("/llm/environment", response_model=LlmEnvironment)
+def llm_training_environment() -> LlmEnvironment:
+    # Lazy import: the probe imports torch, which must stay off API startup.
+    from app.ml.llm.environment import probe_llm_environment  # noqa: PLC0415
+
+    return probe_llm_environment()
+
+
+@router.get("/llm/model-info", response_model=LlmModelInfo)
+def llm_model_info(model_ref: str = Query(..., min_length=1)) -> LlmModelInfo:
+    return training_service.llm_model_details(model_ref)
 
 
 @router.post("/model-assets/prepare", response_model=ModelAssetStatus)

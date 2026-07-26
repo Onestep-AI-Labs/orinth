@@ -64,6 +64,10 @@ def test_core_api_routes_are_wired(client: TestClient) -> None:
     assert training_options_response.status_code == 200
     assert any(option["family"] == "keras_classification" for option in training_options_response.json())
 
+    llm_environment_response = client.get("/api/training/llm/environment")
+    assert llm_environment_response.status_code == 200
+    assert llm_environment_response.json()["recommended_backend"] in {"unsloth", "peft"}
+
 
 def test_delete_project_ignores_shared_sample_datasets(client: TestClient) -> None:
     """A project owning nothing is deletable even though samples are visible to it.
@@ -156,11 +160,16 @@ def test_settings_routes_save_hf_token_to_temp_env(
     monkeypatch.setattr(settings_router, "refresh_settings", refresh_settings)
     env_path.write_text("HF_TOKEN=legacy_alias\n", encoding="utf-8")
 
-    assert client.get("/api/settings").json() == {"huggingface_hub_token_configured": False}
+    unset = {
+        "huggingface_hub_token_configured": False,
+        "openrouter_api_key_configured": False,
+        "openrouter_model": None,
+    }
+    assert client.get("/api/settings").json() == unset
 
     saved = client.patch("/api/settings", json={"huggingface_hub_token": "hf_test_token"})
     assert saved.status_code == 200
-    assert saved.json() == {"huggingface_hub_token_configured": True}
+    assert saved.json() == {**unset, "huggingface_hub_token_configured": True}
     saved_env = env_path.read_text(encoding="utf-8")
     assert "hf_test_token" in saved_env
     assert "HF_TOKEN" not in saved_env
@@ -171,5 +180,5 @@ def test_settings_routes_save_hf_token_to_temp_env(
 
     cleared = client.patch("/api/settings", json={"huggingface_hub_token": None})
     assert cleared.status_code == 200
-    assert cleared.json() == {"huggingface_hub_token_configured": False}
+    assert cleared.json() == unset
     assert "HUGGINGFACE_HUB_TOKEN" not in env_path.read_text(encoding="utf-8")

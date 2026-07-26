@@ -62,7 +62,14 @@ export function TestingPage() {
     [rawDatasets, taskType]
   );
   const models = useMemo(
-    () => rawModels.filter((model) => areTasksCompatible(model.task_type, taskType)),
+    () =>
+      rawModels.filter(
+        (model) =>
+          areTasksCompatible(model.task_type, taskType) &&
+          // GGUF models are tested interactively via serving/chat, not batch
+          // perplexity eval, so they are not offered on the testing page.
+          model.family !== "llm_gguf"
+      ),
     [rawModels, taskType]
   );
   const modelTaskById = useMemo(

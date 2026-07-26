@@ -22,6 +22,25 @@ class SettingsService:
             }
         )
 
+    def openrouter_key_configured(self) -> bool:
+        return bool(self.settings.openrouter_key)
+
+    def openrouter_model(self) -> str | None:
+        model = (self.settings.openrouter_model or "").strip()
+        return model or None
+
+    def save_openrouter_key(self, key: str | None) -> None:
+        cleaned = (key or "").strip()
+        if "\n" in (key or "") or "\r" in (key or ""):
+            raise ValueError("OpenRouter API key must be a single line")
+        self._write_env_values({"OPENROUTER_API_KEY": cleaned or None})
+
+    def save_openrouter_model(self, model: str | None) -> None:
+        cleaned = (model or "").strip()
+        if "\n" in (model or "") or "\r" in (model or ""):
+            raise ValueError("OpenRouter model must be a single line")
+        self._write_env_values({"OPENROUTER_MODEL": cleaned or None})
+
     def _write_env_values(self, updates: dict[str, str | None]) -> None:
         env_path = self.env_path or self.settings.repo_root / ".env"
         lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []

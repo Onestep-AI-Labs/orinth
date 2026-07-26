@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.container import dataset_service
+from app.container import dataset_hub_service, dataset_service
 from app.core.database import get_db
 from app.db.models import Project
 from app.schemas import (
@@ -10,6 +10,10 @@ from app.schemas import (
     DatasetCloneRequest,
     DatasetCreate,
     DatasetEdaSummary,
+    DatasetHubImportRequest,
+    DatasetHubImportResponse,
+    DatasetHubPreview,
+    DatasetHubSearchResponse,
     DatasetImportRequest,
     DatasetItemBatchUploadResponse,
     DatasetItemBulkLabelUpdate,
@@ -26,6 +30,9 @@ from app.schemas import (
     DatasetPreprocessPreviewRequest,
     DatasetProcessRequest,
     DatasetProcessResponse,
+    DatasetRecordCreate,
+    DatasetRecordSave,
+    DatasetRecordUploadResponse,
     DatasetSummary,
     DatasetUpdate,
     DatasetVersionCreate,
@@ -34,6 +41,25 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/datasets")
+
+
+def _require_project_task(db: Session, project_id: str, task_type: str) -> None:
+    """Block create/import of a task the project has not declared (phase 10).
+
+    Mirrors the `llm_finetune` gating the create panel and hub import enforce in
+    the UI; the backend is the authority so a direct API call cannot bypass it.
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        return
+    declared = list(project.task_types or [])
+    if declared and task_type not in declared:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Project does not allow '{task_type}' datasets. Add the task in project settings first."
+            ),
+        )
 
 
 @router.get("", response_model=list[DatasetSummary])
@@ -52,8 +78,36 @@ def list_datasets(
 
 
 @router.post("", response_model=DatasetSummary)
-def create_dataset(payload: DatasetCreate) -> DatasetSummary:
+def create_dataset(payload: DatasetCreate, db: Session = Depends(get_db)) -> DatasetSummary:
+    _require_project_task(db, payload.project_id, payload.task_type)
     return dataset_service.create_dataset(payload)
+
+
+@router.get("/hub/search", response_model=DatasetHubSearchResponse)
+def search_hub_datasets(
+    query: str | None = Query(default=None),
+    task: str | None = Query(default=None),
+    limit: int = Query(default=24, ge=1, le=100),
+) -> DatasetHubSearchResponse:
+    return dataset_hub_service.search(query, task, limit)
+
+
+@router.get("/hub/preview", response_model=DatasetHubPreview)
+def preview_hub_dataset(
+    hub_id: str = Query(...),
+    config: str | None = Query(default=None),
+    split: str | None = Query(default=None),
+    limit: int = Query(default=10, ge=1, le=100),
+) -> DatasetHubPreview:
+    return dataset_hub_service.preview(hub_id, config, split, limit)
+
+
+@router.post("/import/hub", response_model=DatasetHubImportResponse)
+def import_hub_dataset(
+    payload: DatasetHubImportRequest, db: Session = Depends(get_db)
+) -> DatasetHubImportResponse:
+    _require_project_task(db, payload.project_id, payload.task_type)
+    return dataset_hub_service.import_hub(payload)
 
 
 @router.patch("/{dataset_id}", response_model=DatasetSummary)
@@ -135,6 +189,27 @@ async def upload_dataset_items_batch(
     files: list[UploadFile] = File(...),
 ) -> DatasetItemBatchUploadResponse:
     return await dataset_service.upload_images(dataset_id, split, files, class_id, class_name)
+
+
+@router.post("/{dataset_id}/records", response_model=DatasetItemDetail)
+def create_dataset_record(dataset_id: str, payload: DatasetRecordCreate) -> DatasetItemDetail:
+    return dataset_service.create_record(dataset_id, payload)
+
+
+@router.post("/{dataset_id}/records/upload", response_model=DatasetRecordUploadResponse)
+async def upload_dataset_records(
+    dataset_id: str,
+    split: str = Form("unassigned"),
+    file: UploadFile = File(...),
+) -> DatasetRecordUploadResponse:
+    return await dataset_service.upload_records_file(dataset_id, split, file)
+
+
+@router.put("/{dataset_id}/records/{split}/{item_id}", response_model=DatasetItemDetail)
+def save_dataset_record(
+    dataset_id: str, split: str, item_id: str, payload: DatasetRecordSave
+) -> DatasetItemDetail:
+    return dataset_service.save_record(dataset_id, split, item_id, payload)
 
 
 @router.post("/{dataset_id}/items/delete", response_model=DeleteResponse)

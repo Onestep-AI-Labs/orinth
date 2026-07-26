@@ -1,6 +1,31 @@
 from typing import Any
 
+from app.ml.common.advanced import (
+    AUGMENTATION,
+    OPTIMIZATION,
+    REGULARIZATION,
+    RUNTIME,
+    number,
+    select,
+    toggle,
+)
 from app.ml.common.catalog import TrainingModelDefinition
+
+# Keys map to the Keras classification runner. Optimizer, learning rate,
+# epochs, image size and batch size stay as basic top-level fields.
+KERAS_ADVANCED_PARAMETERS = [
+    select("lr_schedule", "LR schedule", options=["constant", "cosine", "step", "plateau"], default="constant", group=OPTIMIZATION),
+    number("unfreeze_layers", "Unfreeze top layers", default=0, group=OPTIMIZATION, minimum=0, maximum=200, integer=True, help="Fine-tune the last N backbone layers; 0 keeps the backbone frozen."),
+    number("early_stop_patience", "Early stop patience", default=0, group=OPTIMIZATION, minimum=0, maximum=50, integer=True, help="Stop after N epochs without val-accuracy gain; 0 disables."),
+    number("seed", "Seed", default=42, group=RUNTIME, minimum=0, maximum=1_000_000, integer=True, help="Determinism is best-effort on GPU."),
+    number("dropout", "Dropout", default=0.2, group=REGULARIZATION, minimum=0.0, maximum=0.9, step=0.05),
+    number("label_smoothing", "Label smoothing", default=0.0, group=REGULARIZATION, minimum=0.0, maximum=0.3, step=0.01),
+    toggle("class_weighting", "Balance class weights", default=False, group=REGULARIZATION),
+    toggle("aug_horizontal_flip", "Random horizontal flip", default=False, group=AUGMENTATION),
+    toggle("aug_rotation", "Random rotation", default=False, group=AUGMENTATION),
+    toggle("aug_zoom", "Random zoom", default=False, group=AUGMENTATION),
+    toggle("aug_contrast", "Random contrast", default=False, group=AUGMENTATION),
+]
 
 KERAS_APPLICATION_OPTIONS: list[dict[str, Any]] = [
     {
@@ -165,6 +190,7 @@ def keras_classification_training_options() -> list[TrainingModelDefinition]:
                 "base_model": item["app_name"],
                 "application_kwargs": item["kwargs"],
             },
+            advanced_parameters=KERAS_ADVANCED_PARAMETERS,
         )
         for item in KERAS_APPLICATION_OPTIONS
     ]

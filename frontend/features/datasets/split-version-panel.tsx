@@ -2,6 +2,7 @@
 
 import { SplitConfigPanel, VersionPanel } from "@/features/datasets/dataset-components";
 import type { useCreateDatasetVersionMutation, useProcessDatasetMutation } from "@/features/datasets/hooks";
+import { isLlmTask } from "@/features/platform/utils";
 import type { useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetPreprocessConfig, DatasetSplitConfig, DatasetSummary, DatasetVersionSummary } from "@/types/api";
 
@@ -43,7 +44,13 @@ export function DatasetSplitVersionPanel({
       message: `This saves preprocessing settings and distributes inbox items in "${dataset.name}" into train, valid, and test.`,
       confirmLabel: "Proceed",
       tone: "warning",
-      onConfirm: () => processMutation.mutate({ datasetId: dataset.id, preprocess: preprocessConfig, split: splitConfig })
+      onConfirm: () =>
+        processMutation.mutate({
+          datasetId: dataset.id,
+          preprocess: preprocessConfig,
+          // LLM records have no label to stratify on; never send a stratified split for them.
+          split: isLlmTask(dataset.task_type) ? { ...splitConfig, stratify: false } : splitConfig
+        })
     });
   }
 

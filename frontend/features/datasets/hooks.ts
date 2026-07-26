@@ -347,6 +347,8 @@ export function useProcessDatasetMutation(options: {
   setSplit: (value: DatasetSplitFilter) => void;
   setSelectedItemIds: (ids: string[]) => void;
   setSelectedItemSplits: (splits: Record<string, SplitKey>) => void;
+  setSelectedItemId: (id: string) => void;
+  setSelectedItemSplit: (split: SplitKey | "") => void;
   catalogQuery: UseQueryResult<DatasetSummary[]>;
   itemsQuery: UseQueryResult<DatasetItemPage>;
   edaQuery: UseQueryResult<DatasetEdaSummary>;
@@ -360,12 +362,104 @@ export function useProcessDatasetMutation(options: {
       options.setSplit("train");
       options.setSelectedItemIds([]);
       options.setSelectedItemSplits({});
+      // Items were redistributed across splits; drop the single selection so its
+      // detail query does not fetch a now-moved record from its old split.
+      options.setSelectedItemId("");
+      options.setSelectedItemSplit("");
       toast.success("Dataset version generated", { action: { label: "Start training", href: "/training" } });
       await Promise.all([
         options.catalogQuery.refetch(),
         options.itemsQuery.refetch(),
         options.edaQuery.refetch()
       ]);
+    }
+  });
+}
+
+export function useCreateDatasetRecordMutation(options: {
+  itemsQuery: UseQueryResult<DatasetItemPage>;
+  catalogQuery: UseQueryResult<DatasetSummary[]>;
+  edaQuery: UseQueryResult<DatasetEdaSummary>;
+  onCreated?: (item: DatasetItemDetail) => void;
+}) {
+  return useMutation({
+    mutationFn: ({ datasetId, split, record }: { datasetId: string; split: SplitKey; record: Record<string, unknown> }) =>
+      api.createDatasetRecord(datasetId, { split, record }),
+    onSuccess: async (item) => {
+      toast.success("Record added");
+      options.onCreated?.(item);
+      await Promise.all([options.itemsQuery.refetch(), options.catalogQuery.refetch(), options.edaQuery.refetch()]);
+    }
+  });
+}
+
+export function useSaveDatasetRecordMutation(options: {
+  itemsQuery: UseQueryResult<DatasetItemPage>;
+  catalogQuery: UseQueryResult<DatasetSummary[]>;
+  edaQuery: UseQueryResult<DatasetEdaSummary>;
+  detailQuery: UseQueryResult<DatasetItemDetail>;
+  onSaved?: () => void;
+}) {
+  return useMutation({
+    mutationFn: ({
+      datasetId,
+      split,
+      itemId,
+      record
+    }: {
+      datasetId: string;
+      split: SplitKey;
+      itemId: string;
+      record: Record<string, unknown>;
+    }) => api.saveDatasetRecord(datasetId, split, itemId, record),
+    onSuccess: async () => {
+      toast.success("Record saved");
+      options.onSaved?.();
+      await Promise.all([
+        options.itemsQuery.refetch(),
+        options.catalogQuery.refetch(),
+        options.edaQuery.refetch(),
+        options.detailQuery.refetch()
+      ]);
+    }
+  });
+}
+
+export function useUploadDatasetRecordsMutation(options: {
+  itemsQuery: UseQueryResult<DatasetItemPage>;
+  catalogQuery: UseQueryResult<DatasetSummary[]>;
+  edaQuery: UseQueryResult<DatasetEdaSummary>;
+}) {
+  return useMutation({
+    mutationFn: ({ datasetId, form }: { datasetId: string; form: FormData }) =>
+      api.uploadDatasetRecords(datasetId, form),
+    onSuccess: async (result) => {
+      const skipped = result.skipped ? `, ${result.skipped} skipped` : "";
+      toast.success(`Uploaded ${result.imported} records${skipped}`);
+      await Promise.all([options.itemsQuery.refetch(), options.catalogQuery.refetch(), options.edaQuery.refetch()]);
+    }
+  });
+}
+
+export function useImportHubDatasetMutation(options: {
+  openDataset: (datasetId: string) => void;
+  catalogQuery: UseQueryResult<DatasetSummary[]>;
+  onImported?: () => void;
+}) {
+  return useMutation({
+    mutationFn: api.importDatasetHub,
+    onSuccess: async (response) => {
+      const skipped = response.skipped_rows ? `, ${response.skipped_rows} skipped` : "";
+      toast.success(`Imported ${response.imported_rows} rows${skipped}`);
+      options.onImported?.();
+      await options.catalogQuery.refetch();
+      options.openDataset(response.dataset.id);
+    },
+    onError: async () => {
+      // A slow import can outlive the dev proxy's socket timeout even though the
+      // backend finished writing the dataset. Refresh the catalog so it still
+      // appears under "Imported from HuggingFace" instead of seeming to vanish.
+      await options.catalogQuery.refetch();
     }
   });
 }

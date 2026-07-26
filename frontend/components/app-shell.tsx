@@ -53,6 +53,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [projectId, setProjectId] = useState(DEFAULT_PROJECT_ID);
   const [projectSidebarOpen, setProjectSidebarOpen] = useState(true);
   const activeMutations = useIsMutating();
+  // A model load (serving start) is a long blocking mutation; the global
+  // overlay stays full-screen but shows a progress bar instead of the circular
+  // spinner while it runs.
+  const loadingModel = useIsMutating({ mutationKey: ["serving-start"] }) > 0;
   const projectsQuery = useQuery({ queryKey: ["projects"], queryFn: api.projects });
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const project = useMemo(
@@ -121,18 +125,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
         <section className="content-shell">{children}</section>
       </main>
-      {activeMutations > 0 && <GlobalLoadingOverlay />}
+      {activeMutations > 0 && <GlobalLoadingOverlay loadingModel={loadingModel} />}
       <Toaster />
     </ProjectContext.Provider>
   );
 }
 
-function GlobalLoadingOverlay() {
+function GlobalLoadingOverlay({ loadingModel }: { loadingModel: boolean }) {
   return (
     <div className="global-loading-overlay" role="status" aria-live="polite">
       <div className="global-loading-panel">
-        <span className="global-loading-spinner" />
-        <strong>Working</strong>
+        {loadingModel ? (
+          <>
+            <div className="global-loading-bar">
+              <span />
+            </div>
+            <strong>Loading model…</strong>
+          </>
+        ) : (
+          <>
+            <span className="global-loading-spinner" />
+            <strong>Working</strong>
+          </>
+        )}
       </div>
     </div>
   );

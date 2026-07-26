@@ -4,7 +4,10 @@ import json
 import pickle
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
+from app.ml.nlp.baseline.catalog import SKLEARN_ADVANCED_PARAMETERS
+from app.training.runners.advanced import allowed_keys, log_ignored, partition
 from app.training.runners.nlp.common import (
     average_scores,
     load_qa_split,
@@ -13,9 +16,55 @@ from app.training.runners.nlp.common import (
     write_results_csv,
 )
 
+SKLEARN_ADVANCED_KEYS = allowed_keys(SKLEARN_ADVANCED_PARAMETERS)
+
+
+def parse_ngram_range(value: Any, default: tuple[int, int] = (1, 2)) -> tuple[int, int]:
+    """Parse an ``"lower,upper"`` n-gram range spec, falling back on bad input."""
+
+    try:
+        lower, upper = (int(part) for part in str(value).split(","))
+    except (ValueError, TypeError):
+        return default
+    if lower < 1 or upper < lower:
+        return default
+    return lower, upper
+
+
+def tfidf_classifier_settings(
+    advanced: dict[str, Any], epochs: int, learning_rate: float
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    """Resolve TF-IDF vectorizer and LogisticRegression kwargs from advanced values.
+
+    Returns ``(vectorizer_kwargs, classifier_kwargs, ignored_keys)``. Basic
+    ``epochs``/``learning_rate`` seed the defaults; advanced ``C``/``max_iter``
+    override them when supplied.
+    """
+
+    accepted, ignored = partition(advanced, SKLEARN_ADVANCED_KEYS)
+    vectorizer_kwargs: dict[str, Any] = {
+        "ngram_range": parse_ngram_range(accepted.get("tfidf_ngram_range", "1,2")),
+        "min_df": 1,
+    }
+    max_features = accepted.get("tfidf_max_features")
+    if max_features:
+        vectorizer_kwargs["max_features"] = int(max_features)
+    class_weight = accepted.get("class_weight")
+    classifier_kwargs: dict[str, Any] = {
+        "max_iter": int(accepted.get("max_iter") or max(epochs, 1) * 100),
+        "C": float(accepted.get("C") or max(learning_rate, 0.0001)),
+        "class_weight": "balanced" if class_weight == "balanced" else None,
+    }
+    return vectorizer_kwargs, classifier_kwargs, ignored
+
 
 def train_text_classifier(
-    dataset_root: Path, run_dir: Path, labels: list[str], epochs: int, learning_rate: float
+    dataset_root: Path,
+    run_dir: Path,
+    labels: list[str],
+    epochs: int,
+    learning_rate: float,
+    advanced: dict | None = None,
 ) -> tuple[dict, list[dict]]:
     from sklearn.dummy import DummyClassifier
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -23,18 +72,22 @@ def train_text_classifier(
     from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 
     run_dir.mkdir(parents=True, exist_ok=True)
+    vectorizer_kwargs, classifier_kwargs, ignored = tfidf_classifier_settings(
+        advanced or {}, epochs, learning_rate
+    )
+    log_ignored(ignored)
     train = load_text_classification_split(dataset_root, "train")
     valid = load_text_classification_split(dataset_root, "valid") or train
     if not train:
         raise ValueError("Text classification training requires labeled train texts")
-    vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1)
+    vectorizer = TfidfVectorizer(**vectorizer_kwargs)
     train_texts = [item["text"] for item in train]
     train_y = [int(item["class_id"]) for item in train]
     x_train = vectorizer.fit_transform(train_texts)
     if len(set(train_y)) < 2:
         classifier = DummyClassifier(strategy="constant", constant=train_y[0])
     else:
-        classifier = LogisticRegression(max_iter=max(epochs, 1) * 100, C=max(learning_rate, 0.0001))
+        classifier = LogisticRegression(**classifier_kwargs)
     classifier.fit(x_train, train_y)
 
     x_valid = vectorizer.transform([item["text"] for item in valid])

@@ -1,0 +1,133 @@
+# Spec: Phase 10 Dataset Hub and LLM Data Formats
+
+## Status
+
+Implemented. The backend (task type, formats, record storage + `data.jsonl`
+regeneration, ShareGPT normalization, Hub search/preview/import, LLM EDA, origin
+provenance) and the frontend (sectioned catalog, hub import panel, Records tab
+with role-aware edit drawer, LLM-aware EDA) are in place with backend tests. Two
+scope adjustments from the draft are recorded under Deferred.
+
+## Goal
+
+Reorganize the dataset catalog into a dynamic, sectioned hub that distinguishes user-created datasets from datasets imported from the HuggingFace Hub, and introduce the platform's LLM data vocabulary — a new `llm_finetune` task type with `instruction_jsonl` and `chat_jsonl` formats, a records-based viewer/editor, and LLM-aware EDA. This spec is the foundation for data recipes (phase 11) and LLM fine-tuning (phase 14): both produce or consume the formats defined here.
+
+## Scope
+
+In:
+
+- Sectioned dataset catalog: Project datasets / Imported from HuggingFace / Shared samples.
+- HuggingFace Hub search, preview, and import for text-task datasets.
+- New task type `llm_finetune` and dataset formats `instruction_jsonl` and `chat_jsonl`.
+- Records tab (viewer + editor) and LLM EDA for `llm_finetune` datasets.
+- Manifest `origin` / `origin_ref` provenance fields.
+
+Out:
+
+- Image dataset import from the HuggingFace Hub (deferred; text datasets only in this phase).
+- Document-to-dataset generation (phase 11).
+- Any training behavior for `llm_finetune` datasets (phase 14).
+- DB schema changes — datasets remain filesystem-only; no Alembic migration in this phase.
+
+## Interfaces
+
+- `GET /api/datasets/hub/search?query=&task=&limit=`
+- `GET /api/datasets/hub/preview?hub_id=&config=&split=&limit=`
+- `POST /api/datasets/import/hub`
+- Existing `GET /api/datasets` — summaries gain an `origin` field.
+- Existing dataset item routes (`GET/POST /api/datasets/{id}/items`, item detail, delete, move) work unchanged for `llm_finetune` records.
+- New item text route reuse: `GET /api/datasets/{id}/items/{split}/{item_id}/text` returns the raw record JSON for `llm_finetune` items.
+- Schemas: `DatasetHubSearchResult`, `DatasetHubPreview`, `DatasetHubImportRequest` in `backend/app/schemas.py`; `TaskType` gains `llm_finetune`; `DatasetFormat` gains `instruction_jsonl` and `chat_jsonl`.
+- Frontend surfaces: `frontend/features/datasets/catalog-view.tsx` (sections), new `frontend/features/datasets/hub-import-panel.tsx`, new `frontend/features/datasets/records-tab.tsx`, `detail-tabs.tsx` (tab switch by task type), `frontend/lib/api/datasets.ts` (hub search/preview/import calls).
+- Storage/DB changes: dataset manifests gain `origin` (`created | imported_hf | recipe`) and `origin_ref`; `llm_finetune` items stored as `<split>/records/<item_id>.json` plus a regenerated `<split>/data.jsonl`. No DB change.
+
+## Behavior
+
+### Catalog sections
+
+- The catalog groups datasets into three sections: Project datasets (`origin: created` or `recipe`), Imported from HuggingFace (`origin: imported_hf`), and Shared samples (existing `shared` flag). Sections render only when non-empty, so existing single-section workspaces look unchanged.
+- Existing manifests without an `origin` field are treated as `created`. Backfilling manifests on disk is not required; the default keeps old datasets in the right section without a migration step.
+- Task-type filter chips filter all sections at once. Shared-sample task filtering already exists and extends to `llm_finetune`.
+- `origin` is a manifest field, not an id or name convention, for the same reason `shared` is (phase 4): naming conventions break silently on rename.
+
+### LLM task type and formats
+
+- One task type `llm_finetune` covers instruction-, chat-, and QA-shaped SFT data. The format distinguishes record shape; the task stays singular because all shapes go through the same chat-template path at training time (phase 14).
+- `instruction_jsonl` records are `{"instruction": str, "input": str?, "output": str}`. QA-shaped data maps into it (question → instruction, context → input, answer → output) rather than getting a third format.
+- `chat_jsonl` records are `{"messages": [{"role": "system" | "user" | "assistant", "content": str}, ...]}` with at least one user and one assistant message.
+- ShareGPT-style `conversations: [{from, value}]` columns are detected on import and normalized to `messages` (`human` → `user`, `gpt` → `assistant`). This is a native re-implementation of a common community convention; no code is copied from the AGPL-licensed Unsloth Studio.
+- Phase 4's rule "storage format is derived from the task, never chosen" gains an explicit exception: the create flow for `llm_finetune` shows an instruction | chat schema selector on the task step, because the task alone does not determine record shape. All other task types keep the derived-format caption.
+- Projects must declare `llm_finetune` in their `task_types` to create or import datasets of that type; the create panel and hub import block otherwise, pointing at project settings.
+
+### Record storage
+
+- Each record is a JSON file at `<split>/records/<item_id>.json`, so the existing item CRUD, move, and delete routes work without special-casing. Records live alongside `images/`/`texts/` conventions but never mix with them in one dataset.
+- On every record write (create, edit, delete, move), the service regenerates `<split>/data.jsonl` — one record per line — as the canonical training input. This mirrors the YOLO precedent of writing `data.yaml`/`labels/*.txt` for training compatibility: editors work on items, trainers read one flat file.
+- `llm_finetune` datasets use the existing `unassigned` inbox plus train/valid/test splits and the existing split-processing flow; no label list is required at creation (record content carries the supervision).
+- Records can be populated three ways: one at a time in the Records tab, by uploading a `.jsonl`/`.json`/`.csv` file (`POST /api/datasets/{id}/records/upload` — each row validated against the dataset's shape, malformed rows skipped and counted), or by importing from the HuggingFace Hub. All three land through the same `_validate_record` path and regenerate `data.jsonl`.
+
+### HuggingFace Hub search, preview, import
+
+- `GET /api/datasets/hub/search` proxies `huggingface_hub.HfApi.list_datasets` (already a transitive dependency of transformers) and returns id, downloads, likes, tags, and a gated flag. Results are filtered to text-modality tags; hub errors surface as a panel message and never break the local catalog.
+- `GET /api/datasets/hub/preview` fetches sample rows through the hosted datasets-server rows API over `httpx`. When the hosted server does not cover a dataset, the backend falls back to `datasets` streaming — only when the `llm` extra (phase 14) is installed; otherwise the preview reports the limitation and import remains possible blind.
+- `POST /api/datasets/import/hub` takes `hub_id`, `config`, split mapping, target `task_type`, target format, column mapping, `max_rows`, `name`, and `project_id`. Import is synchronous and row-capped (max 5000; the UI defaults to 1000 with a 500/1000/2500/5000 selector). The datasets-server rows API caps a page at 100, so pages are fetched through a small worker pool and `data.jsonl` is written straight from the in-memory rows — a 1000-row import lands in ~7s, well under the dev proxy timeout, so no job table is warranted. Oversized requests are rejected with the cap stated.
+- Column mapping covers the supported shapes: instruction/input/output columns, a `messages` or `conversations` column, or QA question/context/answer columns. Unmapped required fields fail validation before any download starts.
+- Import writes into a temp directory and atomically moves into `storage/datasets/` on success, so an interrupted import never leaves a half-dataset in the catalog.
+- Imported datasets are editable (source `editable`), carry `origin: imported_hf` and `origin_ref: <hub_id>@<revision>`, and land in the `unassigned` inbox for the standard split flow.
+- Gated hub datasets use the configured HF token (`HUGGINGFACE_HUB_TOKEN`/`HF_TOKEN`); a 401/403 returns an actionable error naming the hub id and telling the user to accept the license on huggingface.co.
+- Duplicate import of the same hub id gets a name suffix instead of failing; provenance stays distinguishable via `origin_ref`.
+
+### Records tab and LLM EDA
+
+- For `llm_finetune` datasets the detail workspace replaces the Images and Annotate tabs with a Records tab: a paginated table (instruction/first-user-message excerpt, output/last-assistant excerpt, token estimate, split) with an edit drawer. The drawer is role-aware for chat records: messages render as an ordered list with per-message role select and content textarea; instruction records render as three labeled fields. The drawer also has a **Raw JSON** mode so a record can be edited as whatever structure the source actually carries, and the structured editor preserves any extra fields it does not surface (shown as field chips) rather than dropping them — imported rows keep unmapped columns intact. Splitting an LLM dataset uses a light path that never parses record bodies (records carry no label), so distributing a large imported dataset into train/valid/test stays fast.
+- Record edits validate shape server-side (roles from the allowed set, non-empty output/assistant content) and rewrite `data.jsonl` for the affected split.
+- The EDA tab for `llm_finetune` reports: record counts per split, token/character length distributions (estimated with a whitespace-and-punctuation heuristic so EDA never loads a tokenizer), role counts for chat data, and warnings (empty outputs, records over a configurable length threshold, duplicate records). Charts consume the `--label` ramp through `labelColor()`/`labelFill()` per the design contract.
+
+### Design and Studio UI adoption
+
+- Unsloth Studio (`unsloth/studio/frontend`, AGPL-3.0) is the UX reference for this phase: screen **anatomy and flows** are adopted; its code is never copied and its visual styling (gradients, shine borders, multi-hue cards) is not — everything renders in `frontend/DESIGN.md` tokens and `@/features/platform/ui` primitives.
+- Hub browse adopts the Studio Hub page anatomy (`features/hub/hub-page.tsx`): a Discover | Imported tab pair — Discover is search plus result list, Imported lists what already landed locally (our HF section of the catalog). Tab and query state live in the URL search params so hub views are deep-linkable, mirroring Studio's `?tab=&kind=` pattern.
+- The import flow adopts the Studio dataset-preview dialog anatomy (`features/studio/sections/dataset-preview-dialog*.tsx`): a preview rows table whose **column headers carry per-column role pickers** (instruction/input/output or message roles), a detected-format banner ("Detected alpaca format — no manual mapping needed") when heuristics succeed, an explicit manual-mapping state when they don't, and a footer Import button gated on mapping completeness. Detection heuristics (alpaca columns, `messages`/`conversations` shapes) are re-implemented natively in the backend per the Behavior section.
+- No new tokens, no shell change. Catalog sections are hairline-separated groups with uppercase micro-label headers, following existing panel structure.
+- The records table is a semantic `<table>` inside an `overflow-x: auto` wrapper; the edit drawer and the import dialog use `--shadow-overlay` (a sanctioned elevation).
+- Hub search results use existing card/list primitives from `@/features/platform/ui`; the gated flag renders as a `warning`-tone badge (`-tint` background, `-strong` text); the detected-format banner uses the `success` pair, the manual-mapping state the `info` pair.
+
+## Edge Cases
+
+- Hub unreachable or rate-limited: search/preview return a surfaced error; the local catalog renders normally.
+- Preview unsupported by the hosted datasets-server and `llm` extra absent: preview panel states the limitation; import stays available.
+- Import interrupted mid-download: temp dir is discarded; no partial dataset appears.
+- Non-UTF8 or oversized single records: skipped with a per-record warning count in the import response, not a run failure.
+- Empty or invalid column mapping: rejected with field-level messages before download.
+- Project without `llm_finetune` in `task_types`: create and import blocked with guidance to update project settings.
+- Record with zero assistant/output content: rejected on write with a field message.
+
+## Acceptance Criteria
+
+- Catalog shows sections only when non-empty; existing datasets appear under Project datasets without manifest edits.
+- Users can search the HF Hub, preview rows, map columns, and import a text dataset capped at the row limit; the imported dataset appears in the Imported from HuggingFace section and its items are browsable and editable.
+- Users can create an `llm_finetune` dataset choosing instruction or chat schema, add records via the Records tab, edit them role-aware, and see `data.jsonl` regenerate per split.
+- ShareGPT-style `conversations` import normalizes to `messages`.
+- Gated dataset import without an accepted license shows the actionable license message.
+- LLM EDA renders length distributions and warnings for a populated dataset.
+- Backend tests cover: format validation for both record shapes, ShareGPT normalization, import column mapping, atomic import, `data.jsonl` regeneration, origin defaulting for legacy manifests.
+
+## Deferred
+
+- Image/multimodal dataset import from the HF Hub.
+- Tokenizer-accurate token counts in EDA (requires the phase-14 extras).
+- Hub dataset revision pinning/update flows beyond recording `origin_ref`.
+- AI-assisted column mapping (Studio's "AI assist" button on the mapping dialog): needs the OpenRouter settings that phase 11 introduces; add it to the import dialog once those exist.
+- URL-deep-linkable hub browse state. The hub panel has the Studio **Discover | Imported** tab pair (Imported lists the HF-origin datasets already in the catalog), but keeps tab/search/selection/mapping in local component state rather than `?tab=&kind=` search params. Revisit if hub views need to be shareable.
+- `datasets`-streaming preview fallback. Preview and import go through the hosted datasets-server rows API only; when a dataset is not covered there the preview reports the limitation and import proceeds blind, as specified. Wire the streaming fallback when the phase-14 `llm` extra lands.
+
+## Validation
+
+Commands to run:
+
+```bash
+cd backend && uv run pytest
+cd frontend && pnpm typecheck
+cd frontend && pnpm lint
+cd frontend && pnpm build
+```

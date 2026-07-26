@@ -1,9 +1,13 @@
+export { ChatPage } from "@/features/inference/chat/chat-page";
 export { DatasetPage } from "@/features/datasets/dataset-page";
 export { InferencePage } from "@/features/inference/inference-page";
+export { ModelDetailPage } from "@/features/models/model-detail-page";
 export { ModelsPage } from "@/features/models/models-page";
 export { ProjectCreatePage } from "@/features/projects/project-create-page";
 export { ProjectLandingPage } from "@/features/projects/project-landing-page";
 export { ProjectSettingsPage } from "@/features/projects/project-settings-page";
+export { RecipesPage } from "@/features/recipes/recipes-page";
+export { RecipeWorkspace } from "@/features/recipes/recipe-workspace";
 export { SettingsPage } from "@/features/settings/settings-page";
 export { TestingDetailPage } from "@/features/testing/testing-detail-page";
 export { TestingPage } from "@/features/testing/testing-page";
