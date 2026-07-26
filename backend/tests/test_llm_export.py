@@ -4,6 +4,7 @@ stale-manifest reconciliation."""
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from zipfile import ZipFile
 
 import pytest
@@ -17,6 +18,11 @@ class InlineExecutor:
 
     def submit(self, fn, *args, **kwargs):
         fn(*args, **kwargs)
+
+
+def _ample_disk():
+    """A `shutil.disk_usage` stand-in reporting effectively unlimited free space."""
+    return SimpleNamespace(total=1 << 50, used=0, free=1 << 50)
 
 
 @pytest.fixture
@@ -169,6 +175,10 @@ def test_gguf_export_orchestrates_merge_convert_quantize(
     # The fast CI job installs no LLM extras; the pipeline itself is subprocess-mocked,
     # so report the extras present to exercise orchestration rather than the preflight.
     monkeypatch.setattr("app.services.llm_export.find_spec", lambda name: object())
+    # Small CI runners have little free disk; keep the disk preflight from tripping.
+    monkeypatch.setattr(
+        "app.services.llm_export.shutil.disk_usage", lambda path: _ample_disk()
+    )
     calls = []
     monkeypatch.setattr(ExportService, "_run_subprocess", fake_subprocess_runner(calls))
     monkeypatch.setattr(
@@ -230,6 +240,9 @@ def test_gguf_export_from_hf_model_skips_merge(export_service, registry, storage
 def test_failed_step_leaves_no_artifact(export_service, registry, storage, monkeypatch):
     register_adapter(registry, storage)
     monkeypatch.setattr("app.services.llm_export.find_spec", lambda name: object())
+    monkeypatch.setattr(
+        "app.services.llm_export.shutil.disk_usage", lambda path: _ample_disk()
+    )
 
     def failing(self, export_dir, command, *, step_name, extra_env=None):
         raise RuntimeError(f"{step_name} failed (exit 1):\nboom")
