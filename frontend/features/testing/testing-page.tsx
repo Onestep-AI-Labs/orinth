@@ -158,7 +158,7 @@ export function TestingPage() {
       <PageHeader title="Testing" subtitle="Evaluate model runs" icon={<FlaskConical size={20} />} />
       <div className="workspace-grid workspace-grid-testing">
         <section className="panel">
-          <PanelTitle icon={<FlaskConical size={18} />} title="New Test" />
+          <PanelTitle icon={<FlaskConical size={18} />} title="New Test" dataTour="testing-new" />
           {(modelsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
           <Field label="Task">
             <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
@@ -211,6 +211,7 @@ export function TestingPage() {
             onRefresh={() => jobsQuery.refetch()}
             onDelete={confirmDeleteTestingRows}
             onClear={confirmClearTestingJobs}
+            dataTour="testing-jobs"
           />
           <TestingJobTable
             jobs={jobsForTask}
@@ -224,7 +225,7 @@ export function TestingPage() {
           <MutationError mutations={[deleteMutation]} />
         </section>
         <section className="panel workspace-grid-full">
-          <PanelTitle icon={<BarChart3 size={18} />} title="Comparison" />
+          <PanelTitle icon={<BarChart3 size={18} />} title="Comparison" dataTour="testing-comparison" />
           <TestingComparison jobs={comparisonJobs} modelTaskById={modelTaskById} modelNameById={modelNameById} taskType={taskType} />
         </section>
       </div>

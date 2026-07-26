@@ -104,14 +104,14 @@ export function ModelsPage() {
         subtitle={project?.name ?? "Available trained models"}
         icon={<Boxes size={20} />}
         actions={
-          <Button onClick={() => setShowUpload(true)}>
+          <Button onClick={() => setShowUpload(true)} data-tour="models-upload">
             <UploadCloud size={16} /> Upload model
           </Button>
         }
       />
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={<Boxes size={18} />} title="Model catalog" />
+          <PanelTitle icon={<Boxes size={18} />} title="Model catalog" dataTour="models-catalog" />
           <div className="flex flex-wrap gap-2">
             <Metric label="Registered" value={models.length} />
             <Metric label="Available" value={availableCount} />

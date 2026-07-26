@@ -29,6 +29,7 @@ export function DatasetDetailTabs({
           className={`detail-tab ${activeTab === "records" ? "detail-tab-active" : ""}`}
           onClick={() => setActiveTab("records")}
           type="button"
+          data-tour="dataset-studio-items"
         >
           <FileJson size={16} /> Records
         </button>
@@ -38,6 +39,7 @@ export function DatasetDetailTabs({
             className={`detail-tab ${activeTab === "images" ? "detail-tab-active" : ""}`}
             onClick={() => setActiveTab("images")}
             type="button"
+            data-tour="dataset-studio-items"
           >
             <ItemIcon size={16} /> {itemLabel}
           </button>
@@ -45,6 +47,7 @@ export function DatasetDetailTabs({
             className={`detail-tab ${activeTab === "annotate" ? "detail-tab-active" : ""}`}
             onClick={() => setActiveTab("annotate")}
             type="button"
+            data-tour="dataset-studio-annotate"
           >
             <BarChart3 size={16} /> Annotate
           </button>
@@ -54,6 +57,7 @@ export function DatasetDetailTabs({
         className={`detail-tab ${activeTab === "eda" ? "detail-tab-active" : ""}`}
         onClick={() => setActiveTab("eda")}
         type="button"
+        data-tour="dataset-studio-eda"
       >
         <BarChart3 size={16} /> EDA
       </button>
@@ -61,6 +65,7 @@ export function DatasetDetailTabs({
         className={`detail-tab ${activeTab === "config" ? "detail-tab-active" : ""}`}
         onClick={() => setActiveTab("config")}
         type="button"
+        data-tour="dataset-studio-config"
       >
         <Save size={16} /> Config
       </button>

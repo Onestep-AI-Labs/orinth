@@ -48,14 +48,15 @@ cd frontend && pnpm lint
 cd frontend && pnpm build
 ```
 
-## Running the Documentation Site
+## Optional: API Keys
 
-The documentation is built with Nextra.
+Some features read keys you set under **Settings** in the app:
 
-```bash
-cd docs-site
-npm install
-npm run dev
-```
+- **Hugging Face token** — required to download gated base models for training and LLM fine-tuning. Also settable via `HUGGINGFACE_HUB_TOKEN` (alias `HF_TOKEN`) in the backend `.env`.
+- **OpenRouter key** — enables LLM-assisted record generation in Data Recipes. Without it, recipes fall back to deterministic rule-based records.
 
-- The docsite will be accessible at `http://localhost:3000` (make sure the platform frontend is running on a different port or run this on a different port if running simultaneously, e.g. `npm run dev -- -p 3001`).
+Both keys are stored server-side and never returned to the browser.
+
+## Documentation
+
+This guide ships inside the app. Start the frontend and open [`/documentation`](/documentation) — no separate documentation server is needed.

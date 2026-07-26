@@ -148,17 +148,20 @@ export function HistoryHeader({
   selectedCount,
   onRefresh,
   onDelete,
-  onClear
+  onClear,
+  dataTour
 }: {
   title: string;
   selectedCount: number;
   onRefresh: () => void;
   onDelete: () => void;
   onClear: () => void;
+  /** Guided-tour anchor, forwarded to the compact title. */
+  dataTour?: string;
 }) {
   return (
     <div className="history-header">
-      <PanelTitle icon={<RefreshCw size={18} />} title={title} />
+      <PanelTitle icon={<RefreshCw size={18} />} title={title} dataTour={dataTour} />
       <div className="history-actions">
         <IconButton aria-label="Refresh" onClick={onRefresh}><RefreshCw size={16} /></IconButton>
         <Button variant="secondary" onClick={onDelete} disabled={selectedCount === 0}><Trash2 size={16} /> Delete</Button>
@@ -392,9 +395,19 @@ export function PageHeader({
   );
 }
 
-export function PanelTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
+export function PanelTitle({
+  icon,
+  title,
+  dataTour
+}: {
+  icon: React.ReactNode;
+  title: string;
+  /** Guided-tour anchor (see features/platform/tour). Kept on the compact title
+   *  so a tour step spotlights the heading, not the whole panel. */
+  dataTour?: string;
+}) {
   return (
-    <div className="mb-4 flex items-center gap-2">
+    <div className="mb-4 flex items-center gap-2" data-tour={dataTour}>
       <span className="text-ink-subtle">{icon}</span>
       <h2 className="text-base font-semibold">{title}</h2>
     </div>

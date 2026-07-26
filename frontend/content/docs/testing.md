@@ -2,6 +2,8 @@
 
 Run local evaluation jobs against your image and text dataset splits and immediately store resulting metrics and curve artifacts for comparison.
 
+![Testing comparison across models](/brand/15_testing_comparison.png)
+
 ## Evaluation Jobs
 
 - **Comparison Runs:** Select multiple models across the same dataset to create a batch comparison run. Testing will group these into a single `comparison_id`, letting you stack models side-by-side to understand performance trade-offs.

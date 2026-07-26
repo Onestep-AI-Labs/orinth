@@ -21,3 +21,13 @@ Dataset Studio provides robust support for Computer Vision datasets across Image
 - **Exploratory Data Analysis (EDA):** A dedicated EDA tab gives you a real-time health check on your dataset, showing split counts, class balance, geometry constraints, and warnings.
 - **Preprocessing & Augmentation:** Apply allowlisted preprocessing (e.g., resize, normalize) and augmentations. The studio stores these materialized copies under versioned artifacts, ensuring original uploads are never altered.
 - **Format Agnostic Imports:** Supports YOLO and COCO formats natively for images, while keeping reference datasets completely read-only.
+- **Versioning:** Freeze a materialized, preprocessed snapshot as a named dataset version so a training run always points at an immutable input.
+
+## Importing from the Hugging Face Hub
+
+Rather than starting empty, you can pull an existing dataset straight from the Hugging Face Hub. Browse the Hub from the catalog, choose a dataset, and the platform imports it into the active project as a first-class dataset — ready to annotate, split, preprocess, and version like any other.
+
+![Import a dataset from the Hugging Face Hub](/brand/10_dataset_hub_import.png)
+
+- Imported datasets are grouped under **Imported from HuggingFace** in the catalog so their provenance stays clear.
+- To generate a dataset from your own source documents instead, see **Data Recipes**.

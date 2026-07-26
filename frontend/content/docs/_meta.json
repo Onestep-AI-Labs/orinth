@@ -3,8 +3,12 @@
   "installation": "Installation & Start",
   "projects": "1. Workspace & Projects",
   "dataset-studio": "2. Dataset Studio",
-  "training": "3. Models & Training",
-  "testing": "4. Testing & Evaluation",
-  "inference": "5. Inference",
-  "nlp": "6. NLP Capabilities"
+  "data-recipes": "3. Data Recipes",
+  "training": "4. Models & Training",
+  "llm": "5. LLM Fine-tuning & Chat",
+  "testing": "6. Testing & Evaluation",
+  "inference": "7. Inference",
+  "nlp": "8. NLP Capabilities",
+  "models": "9. Model Catalog & Serving",
+  "guided-tours": "10. Guided Tours"
 }

@@ -17,3 +17,7 @@ Serve local inference for registered model families effortlessly. The Inference 
 Every prediction is logged in the project's history.
 - Historical prediction payloads, alongside execution metrics like `duration_ms` and step `timings`, are stored and reviewable.
 - You can filter the history by project or clear it to purge database rows and related visual overlay artifacts securely.
+
+## Interactive LLM Inference
+
+Vision and NLP tasks run as single-shot predictions here. Language models work differently: pick the `llm_finetune` task to serve a fine-tuned model and open an interactive chat instead of a one-off form. See **LLM Fine-tuning & Chat** for serving, GGUF export, and the chat surface.

@@ -100,6 +100,29 @@ def test_evaluate_llm_rejects_gguf(settings, storage):
         service._evaluate_llm(None, job, datetime.now(UTC).replace(tzinfo=None), spec)
 
 
+def test_per_image_rows_missing_file_returns_empty(settings, storage, db_session):
+    """A job can carry a per_image artifact path whose file is gone — storage
+    relocated, artifacts pruned, or a stale absolute path from another
+    workspace. per_image_rows degrades to [] instead of raising."""
+    from app.db.models import EvaluationJob
+
+    registry = ModelRegistry(settings, storage)
+    dataset_service = DatasetService(settings, storage)
+    service = EvaluationService(settings, storage, registry, dataset_service)
+
+    job = EvaluationJob(
+        id="job-missing",
+        model_id="m1",
+        dataset_key="dataset:d:test",
+        status="completed",
+        artifacts={"per_image": str(storage.trained_models / "gone" / "per_image.json")},
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    assert service.per_image_rows(db_session, "job-missing") == []
+
+
 def test_llm_dataset_surfaces_on_testing_list(settings, storage):
     from app.schemas import DatasetCreate, DatasetRecordCreate
 

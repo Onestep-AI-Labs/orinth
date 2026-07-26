@@ -150,6 +150,7 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 | `toast` | `success` `error` | Bottom-right, max 3, 6s, `aria-live` |
 | Skeletons | `PageSkeleton` `CardGridSkeleton` `TableSkeleton` `InlineSpinner` | See loading contract |
 | `MultiSelect` / `TaskSelect` | — | Custom dropdowns: the closed trigger reads as a `<select>`, the open `--shadow-overlay` panel as a listbox. `MultiSelect` is checkbox multi-select; `TaskSelect` is single-select with Vision / NLP / LLM tabs + a search field (see §8) |
+| `PlatformTour` / `.tour-launch` | — | Guided tours (react-joyride) in `@/features/platform/tour`. The launcher is a pill that **floats over the working app**, so it carries `--shadow-overlay` (a control over content, not a resting surface) with a `--line-strong` border and an accent icon. Tooltip colors resolve from tokens via `oklch(var(--…))`. Route-aware and mounted once in the shell; see `specs/phase-16-guided-tours.md` |
 
 ## 8. Patterns
 
