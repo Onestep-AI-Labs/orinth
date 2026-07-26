@@ -9,7 +9,7 @@ import { useProject } from "@/components/app-shell";
 import { TrainingJobTable } from "@/features/training/training-components";
 import { AdvancedSettings, advancedDefaults, type AdvancedValues } from "@/features/training/advanced-settings";
 import { allowedTaskTypesForProject, compactNumber, formatBytes, isLlmTask, isNlpTask, listPollInterval } from "@/features/platform/utils";
-import { Badge, Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, TableSkeleton, useConfirmationDialog } from "@/features/platform/ui";
+import { Badge, Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, TableSkeleton, TaskSelect, useConfirmationDialog } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
 
 export function TrainingPage() {
@@ -264,11 +264,7 @@ export function TrainingPage() {
           {(optionsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
           <div className="form-grid form-grid-three">
             <Field label="Task">
-              <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
-                {taskOptions.map((task) => (
-                  <option value={task} key={task}>{task.replaceAll("_", " ")}</option>
-                ))}
-              </select>
+              <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
             </Field>
             <Field label="Base model">
               <select value={modelOptionId} onChange={(event) => setModelOptionId(event.target.value)}>

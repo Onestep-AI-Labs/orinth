@@ -23,6 +23,7 @@ import {
   ProgressPanel,
   SliderField,
   TableSkeleton,
+  TaskSelect,
   toggleId,
   useConfirmationDialog
 } from "@/features/platform/ui";
@@ -184,11 +185,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           <PanelTitle icon={<Upload size={18} />} title="Run" />
           {modelsLoading && <CardGridSkeleton count={1} />}
           <Field label="Task">
-            <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
-              {taskOptions.map((task) => (
-                <option value={task} key={task}>{formatDatasetTask(task)}</option>
-              ))}
-            </select>
+            <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
           </Field>
           <Field label="Model">
             <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>

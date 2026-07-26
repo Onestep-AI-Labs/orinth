@@ -30,6 +30,14 @@ const FORMAT_LABEL: Record<ModelExportFormat, string> = {
 
 const GGUF_QUANTS: ModelExportFormat[] = ["gguf_q4_k_m", "gguf_q5_k_m", "gguf_q8_0", "gguf_f16"];
 
+// One-line "what you get" for the currently chosen format, shown under the
+// chips so the choice is legible without reading the intro paragraph.
+const FORMAT_DESC: Record<string, string> = {
+  adapter_zip: "Just the tuned delta (smallest) — needs the base model to run.",
+  merged_16bit: "A full Hugging Face checkpoint to download (largest).",
+  gguf: "A standalone quantized model — registers a servable model you can chat with."
+};
+
 const EXPORT_ACTIVE = new Set(["queued", "running"]);
 
 function exportIntro(family: string): string {
@@ -81,64 +89,78 @@ export function ExportPanel({ model }: { model: ModelInfo }) {
 
   const isGgufSelected = selected.startsWith("gguf_");
   const effectiveFormat = isGgufSelected ? ggufQuant : selected;
+  const activeExports = (exportsQuery.data ?? []).filter((item) => EXPORT_ACTIVE.has(item.status));
+  const description = FORMAT_DESC[isGgufSelected ? "gguf" : selected] ?? "";
 
   return (
-    <section className="panel">
-      <h3 className="model-detail-section-title">Export</h3>
-      <p className="model-detail-empty">{exportIntro(model.family)}</p>
-
-      <div className="export-format-group">
-        {baseFormats.map((format) => (
-          <FormatChip
-            key={format}
-            label={FORMAT_LABEL[format]}
-            active={selected === format}
-            onClick={() => setSelected(format)}
-          />
-        ))}
-        {canGguf && (
-          <FormatChip
-            label="GGUF (quantized)"
-            active={isGgufSelected}
-            onClick={() => setSelected(ggufQuant)}
-          />
-        )}
+    <section className="panel export-panel">
+      <div className="export-header">
+        <h3 className="model-detail-section-title">Export</h3>
+        <p className="model-detail-empty export-intro">{exportIntro(model.family)}</p>
       </div>
 
-      <div className="export-controls">
-        {isGgufSelected && (
-          <Field label="Quantization">
-            <select
-              value={ggufQuant}
-              onChange={(event) => {
-                const next = event.target.value as ModelExportFormat;
-                setGgufQuant(next);
-                setSelected(next);
-              }}
-            >
-              {GGUF_QUANTS.filter((format) => families.includes(format)).map((format) => (
-                <option key={format} value={format}>
-                  {FORMAT_LABEL[format]}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
-        <Button
-          onClick={() => startExport.mutate(effectiveFormat)}
-          disabled={startExport.isPending || !families.length}
-        >
-          <Package size={16} /> Export {FORMAT_LABEL[effectiveFormat]}
-        </Button>
+      <div className="export-config">
+        <span className="export-label">Format</span>
+        <div className="export-format-group" role="group" aria-label="Export format">
+          {baseFormats.map((format) => (
+            <FormatChip
+              key={format}
+              label={FORMAT_LABEL[format]}
+              active={selected === format}
+              onClick={() => setSelected(format)}
+            />
+          ))}
+          {canGguf && (
+            <FormatChip
+              label="GGUF (quantized)"
+              active={isGgufSelected}
+              onClick={() => setSelected(ggufQuant)}
+            />
+          )}
+        </div>
+        {description ? <p className="export-format-desc">{description}</p> : null}
+
+        <div className="export-controls">
+          {isGgufSelected && (
+            <Field label="Quantization">
+              <select
+                value={ggufQuant}
+                onChange={(event) => {
+                  const next = event.target.value as ModelExportFormat;
+                  setGgufQuant(next);
+                  setSelected(next);
+                }}
+              >
+                {GGUF_QUANTS.filter((format) => families.includes(format)).map((format) => (
+                  <option key={format} value={format}>
+                    {FORMAT_LABEL[format]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          <Button
+            className="export-run-button"
+            onClick={() => startExport.mutate(effectiveFormat)}
+            disabled={startExport.isPending || !families.length}
+          >
+            <Package size={16} /> Export {FORMAT_LABEL[effectiveFormat]}
+          </Button>
+        </div>
+        <MutationError mutations={[startExport]} />
       </div>
 
-      <MutationError mutations={[startExport]} />
-
-      <ExportList
-        modelId={model.id}
-        exports={exportsQuery.data ?? []}
-        loading={exportsQuery.isLoading}
-      />
+      <div className="export-history">
+        <div className="export-history-head">
+          <span className="export-label">Recent exports</span>
+          {activeExports.length > 0 ? <Badge tone="info">{activeExports.length} running</Badge> : null}
+        </div>
+        <ExportList
+          modelId={model.id}
+          exports={exportsQuery.data ?? []}
+          loading={exportsQuery.isLoading}
+        />
+      </div>
     </section>
   );
 }
@@ -156,6 +178,7 @@ function FormatChip({
     <button
       type="button"
       className={`export-format-chip${active ? " export-format-chip-active" : ""}`}
+      aria-pressed={active}
       onClick={onClick}
     >
       {label}
@@ -181,11 +204,13 @@ function ExportList({
       {exports.map((item) => (
         <li key={item.id} className="export-row">
           <div className="export-row-head">
-            <span className="export-row-format">{FORMAT_LABEL[item.format]}</span>
-            <Badge tone={exportTone(item.status)}>{item.status}</Badge>
-            {item.size_bytes ? (
-              <span className="export-row-size">{formatBytes(item.size_bytes)}</span>
-            ) : null}
+            <div className="export-row-meta">
+              <span className="export-row-format">{FORMAT_LABEL[item.format]}</span>
+              <Badge tone={exportTone(item.status)}>{item.status}</Badge>
+              {item.size_bytes ? (
+                <span className="export-row-size">{formatBytes(item.size_bytes)}</span>
+              ) : null}
+            </div>
             {item.status === "completed" && item.artifact_name ? (
               <a
                 className="secondary-button export-row-download"
@@ -202,9 +227,12 @@ function ExportList({
             </Link>
           ) : null}
           {EXPORT_ACTIVE.has(item.status) && item.logs.length > 0 ? (
-            <pre className="export-log-tail" aria-live="polite">
-              {item.logs.slice(-8).join("\n")}
-            </pre>
+            <div className="export-log">
+              <span className="export-log-label">Live output</span>
+              <pre className="export-log-tail" aria-live="polite">
+                {item.logs.slice(-8).join("\n")}
+              </pre>
+            </div>
           ) : null}
           {item.status === "failed" && item.error ? (
             <p className="error-text export-row-error">{item.error}</p>

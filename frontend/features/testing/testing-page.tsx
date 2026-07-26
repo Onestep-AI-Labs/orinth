@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TestingComparison, TestingJobTable } from "@/features/testing/testing-components";
-import { allowedTaskTypesForProject, areTasksCompatible, formatDatasetTask, listPollInterval } from "@/features/platform/utils";
+import { allowedTaskTypesForProject, areTasksCompatible, listPollInterval } from "@/features/platform/utils";
 import {
   ButtonLink,
   CardGridSkeleton,
@@ -18,6 +18,7 @@ import {
   PageHeader,
   PanelTitle,
   TableSkeleton,
+  TaskSelect,
   useConfirmationDialog
 } from "@/features/platform/ui";
 import type { EvaluationJob, TaskType } from "@/types/api";
@@ -160,11 +161,7 @@ export function TestingPage() {
           <PanelTitle icon={<FlaskConical size={18} />} title="New Test" />
           {(modelsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
           <Field label="Task">
-            <select value={taskType} onChange={(event) => setTaskType(event.target.value as TaskType)}>
-              {taskOptions.map((task) => (
-                <option value={task} key={task}>{formatDatasetTask(task)}</option>
-              ))}
-            </select>
+            <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
           </Field>
           <Field label="Models">
             {models.length === 0 ? (
