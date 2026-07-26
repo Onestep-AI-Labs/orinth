@@ -6,6 +6,105 @@ from pathlib import Path
 from typing import TextIO
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+# ---------------------------------------------------------------------------
+# unified progress (one 0–100 bar across the whole run)
+# ---------------------------------------------------------------------------
+#
+# The runner streams phase markers (``[1/4] … [4/4]``) plus a self-reported
+# download percentage. The old bar mapped only the training step count onto
+# 0–100 and, before that, raced a ``5 + len(logs)`` fallback straight to 99 %
+# while the multi-GB download was still at 43 %. These helpers instead map the
+# entire lifecycle — data prep → base-model download → weight load → training →
+# saving — onto a single bar so 100 % means the run has actually finished.
+
+_DOWNLOAD_PCT_RE = re.compile(r"downloading base model:\s*(\d+(?:\.\d+)?)\s*%")
+_PHASE_MARKER_RE = re.compile(r"\[(\d)\s*/\s*4\]")
+
+# Fraction of the unified bar each LLM phase owns. Contiguous and ordered so
+# the bar only ever moves forward as the run advances through them.
+_LLM_BANDS: dict[str, tuple[float, float]] = {
+    "prep": (1.0, 5.0),
+    "download": (5.0, 35.0),
+    "load": (35.0, 45.0),
+    "train": (45.0, 97.0),
+    "save": (97.0, 99.0),
+}
+# Non-LLM (YOLO/Keras/NLP) runs are epoch-denominated: a small prep band before
+# the first epoch, then the epoch fraction across the rest of the bar.
+_EPOCH_BAND: tuple[float, float] = (5.0, 99.0)
+_EPOCH_PREP_PERCENT = 3.0
+
+
+def _band(bounds: tuple[float, float], fraction: float) -> float:
+    lo, hi = bounds
+    fraction = max(0.0, min(1.0, fraction))
+    return round(lo + (hi - lo) * fraction, 2)
+
+
+def llm_progress(logs: list[str], metrics: dict) -> tuple[float, str | None]:
+    """Unified ``(percent, phase_label)`` for an LLM fine-tuning run.
+
+    ``phase_label`` is ``None`` during the training loop so the caller can build
+    its richer "step N/M · loss …" line; every other phase names itself.
+    """
+    joined = "\n".join(logs[-40:]).lower()
+    marker = 0
+    for line in logs:
+        found = _PHASE_MARKER_RE.search(line)
+        if found:
+            marker = max(marker, int(found.group(1)))
+
+    step = int(metrics.get("step", 0)) if metrics else 0
+    max_steps = int(metrics.get("max_steps", 0)) if metrics else 0
+
+    # [4/4] Saving — the final phase before the process exits (100 % is set on
+    # completion in the service, not here).
+    if marker >= 4 or "saving" in joined or "finished" in joined:
+        return _band(_LLM_BANDS["save"], 0.5), "Saving model"
+
+    # Training — a real step count from results.csv is the strongest signal and
+    # survives log truncation (the [3/4] marker can scroll out of the window).
+    if step and max_steps:
+        return _band(_LLM_BANDS["train"], step / max_steps), None
+    if marker >= 3:
+        return _LLM_BANDS["train"][0], "Preparing training loop"
+
+    # Weights loaded (or a local base, which never downloads) → load band.
+    loaded = (
+        "base model ready" in joined
+        or "backend:" in joined
+        or "using local base model" in joined
+    )
+    if loaded:
+        return _band(_LLM_BANDS["load"], 0.5), "Loading model weights"
+
+    # Download — scale the runner's own percentage into the download band.
+    download_pct: float | None = None
+    for line in reversed(logs):
+        found = _DOWNLOAD_PCT_RE.search(line)
+        if found:
+            download_pct = float(found.group(1))
+            break
+    if marker >= 2 or download_pct is not None:
+        if download_pct is not None:
+            return (
+                _band(_LLM_BANDS["download"], download_pct / 100),
+                f"Downloading base model — {download_pct:.0f}%",
+            )
+        return _LLM_BANDS["download"][0], "Downloading base model"
+
+    return _band(_LLM_BANDS["prep"], 0.5), "Preparing dataset"
+
+
+def epoch_progress(processed: int, total: int | None) -> tuple[float, str | None]:
+    """Unified ``(percent, phase_label)`` for an epoch-denominated run."""
+    if total and processed:
+        return _band(_EPOCH_BAND, processed / total), None
+    return _EPOCH_PREP_PERCENT, "Preparing training"
+
+
+
 HF_LOAD_REPORT_RE = re.compile(
     r"^("
     r"\[transformers\].*LOAD REPORT.*|"

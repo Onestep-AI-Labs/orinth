@@ -82,7 +82,7 @@ export function TrainingDetailPage({ jobId }: { jobId: string }) {
               chat), merged 16-bit, or an adapter zip — no separate step needed.
             </p>
           )}
-          <ProgressPanel progress={job.progress} status={job.status} error={job.error} />
+          <ProgressPanel progress={job.progress} status={job.status} error={job.error} hideLogs />
           <TrainingDetails job={job} />
           <MutationError mutations={[cancelMutation, promoteMutation]} />
         </section>

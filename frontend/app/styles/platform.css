@@ -4742,6 +4742,186 @@ tr:last-child td {
   white-space: pre-wrap;
 }
 
+/* Training detail — live metrics, interactive graphs, and run log stacked so
+   the values that change during a run sit above the static configuration. */
+.training-detail-body {
+  display: grid;
+  gap: 24px;
+}
+
+.training-section {
+  display: grid;
+  gap: 12px;
+}
+
+.training-params-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
+}
+
+.progress-readout {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-readout strong {
+  color: var(--color-ink);
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 15px;
+}
+
+.progress-readout span {
+  color: var(--color-ink-subtle);
+  font-size: 13px;
+}
+
+/* Two-up panel grid so Loss and Accuracy read side by side rather than one
+   chart stretching the full page width. */
+.training-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+}
+
+.training-chart {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  padding: 14px 14px 8px;
+}
+
+.training-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.training-chart-title {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.training-chart-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.training-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+}
+
+.training-chart-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.training-chart-plot {
+  position: relative;
+  width: 100%;
+}
+
+.training-chart-plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+}
+
+.training-chart-gridline {
+  stroke: var(--color-line-soft);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.training-chart-axis-text {
+  fill: var(--color-ink-subtle);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.training-chart-axis-label {
+  fill: var(--color-ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.training-chart-crosshair {
+  stroke: var(--color-ink-subtle);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.training-chart-dot {
+  stroke: var(--color-surface);
+  stroke-width: 1.5;
+}
+
+.training-chart-tip {
+  position: absolute;
+  top: 8px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 4px;
+  min-width: 130px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  padding: 8px 10px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.training-chart-tip.flip {
+  transform: translateX(-100%) translateX(-12px);
+}
+
+.training-chart-tip-x {
+  color: var(--color-ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.training-chart-tip-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.training-chart-tip-label {
+  color: var(--color-ink-muted);
+}
+
+.training-chart-tip-value {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-track span {
+    transition: none;
+  }
+}
+
 @media (max-width: 720px) {
   .app-shell {
     grid-template-columns: 1fr;

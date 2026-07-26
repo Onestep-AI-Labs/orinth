@@ -50,8 +50,10 @@ from app.services.training.artifacts import (
     clean_log_line,
     collect_training_curves,
     collect_training_metrics,
+    epoch_progress,
     find_best_model,
     iter_process_lines,
+    llm_progress,
     parse_training_history,
 )
 
@@ -1005,7 +1007,8 @@ class TrainingService:
         epochs = int(job.parameters.get("epochs", 0))
         history = parse_training_history(run_dir / "results.csv")
         metrics = history[-1] if history else {}
-        if job.model_family == LLM_SFT_FAMILY:
+        is_llm = job.model_family == LLM_SFT_FAMILY
+        if is_llm:
             # LLM runs are step-denominated: the runner writes step/max_steps
             # per logging step, which map onto processed/total here.
             processed = int(metrics.get("step", 0)) if metrics else 0
@@ -1014,17 +1017,33 @@ class TrainingService:
             raw_epoch = int(metrics.get("epoch", 0)) if metrics else 0
             processed = max(raw_epoch, len(history))
             total = epochs or None
+
+        # One 0–100 bar across the whole run (download → load → train → save),
+        # so the reported percent tracks real progress instead of racing to 99 %
+        # on the download log count while the download is still at 43 %.
+        if is_llm:
+            percent, phase_label = llm_progress(logs, metrics)
+        else:
+            percent, phase_label = epoch_progress(processed, total)
+        # Never regress mid-run: a truncated log window or a dip in the reported
+        # download percentage must not walk the bar backwards.
+        previous = ((job.artifacts or {}).get("progress") or {}).get("percent")
+        if isinstance(previous, (int, float)) and job.status == "running":
+            percent = max(percent, float(previous))
+
         # Prefer a readable step/loss summary once training is producing metrics;
-        # before that (data prep, download), show the latest log line as-is.
-        if job.model_family == LLM_SFT_FAMILY and metrics and processed:
+        # otherwise name the current phase (data prep, download, load, saving).
+        if is_llm and metrics and processed and phase_label is None:
             parts = [f"Training — step {processed}" + (f"/{total}" if total else "")]
             if "loss" in metrics:
                 parts.append(f"loss {float(metrics['loss']):.3f}")
             if "val_loss" in metrics:
                 parts.append(f"val loss {float(metrics['val_loss']):.3f}")
             step = " · ".join(parts)
+        elif not is_llm and metrics and processed and phase_label is None:
+            step = f"Epoch {processed}" + (f"/{total}" if total else "")
         else:
-            step = logs[-1] if logs else "Training running"
+            step = phase_label or (logs[-1] if logs else "Training running")
         artifacts = dict(job.artifacts or {})
         artifacts["logs"] = logs[-100:]
         if history:
@@ -1032,7 +1051,7 @@ class TrainingService:
         if metrics:
             artifacts["metrics"] = metrics
         artifacts["progress"] = make_progress(
-            percent=(processed / total * 100) if total and processed else min(99, 5 + len(logs)),
+            percent=percent,
             processed=processed,
             total=total,
             current_step=step[:180],

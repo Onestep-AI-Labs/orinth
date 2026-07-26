@@ -455,6 +455,15 @@ def _progress_callback(run_dir: Path):
                 row["loss"] = round(float(logs["loss"]), 6)
             if "eval_loss" in logs:
                 row["val_loss"] = round(float(logs["eval_loss"]), 6)
+            # TRL's SFTTrainer reports token-level accuracy (fraction of predicted
+            # completion tokens that match) alongside the loss; surface it as the
+            # `accuracy`/`val_accuracy` columns so the detail page plots a loss
+            # curve on the left and an accuracy curve on the right. Guarded because
+            # older TRL/transformers versions do not emit these keys.
+            if "mean_token_accuracy" in logs:
+                row["accuracy"] = round(float(logs["mean_token_accuracy"]), 6)
+            if "eval_mean_token_accuracy" in logs:
+                row["val_accuracy"] = round(float(logs["eval_mean_token_accuracy"]), 6)
             if "learning_rate" in logs:
                 row["learning_rate"] = logs["learning_rate"]
             # Merge an eval row into the train row for the same step so the
@@ -903,6 +912,8 @@ def main() -> None:
         val_loss = float(eval_metrics.get("eval_loss", 0.0))
         metrics["val_loss"] = round(val_loss, 6)
         metrics["perplexity"] = round(math.exp(min(val_loss, 20.0)), 4)
+        if "eval_mean_token_accuracy" in eval_metrics:
+            metrics["val_accuracy"] = round(float(eval_metrics["eval_mean_token_accuracy"]), 6)
     (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     prompts = sample_prompts(valid_records if valid_records else train_records)

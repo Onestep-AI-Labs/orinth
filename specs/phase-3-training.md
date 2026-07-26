@@ -36,6 +36,8 @@ Provide a local, project-scoped training job platform that runs long image train
 - YOLO logs stream into job artifacts while the subprocess runs.
 - YOLO jobs expose progress, elapsed time, log tail, and parsed `results.csv` metrics when available.
 - Training progress uses parsed epoch history from `results.csv` where available, exposing `processed/total` as current epoch over requested epochs.
+- Progress is one unified 0–100 bar across the **whole** run — for LLM runs, data prep → base-model download → weight load → training loop → saving each own a contiguous band (`artifacts.llm_progress`); epoch-denominated runs use a small prep band then the epoch fraction (`artifacts.epoch_progress`). 100% means the run has finished, not just that the training loop reached its last step. The reported percent is clamped monotonic while `status == "running"` so a truncated log window or a dip in the self-reported download percentage never walks the bar backwards. This replaces the earlier `min(99, 5 + len(logs))` fallback that raced the download log count to 99% while the multi-GB base was still at 43%.
+- The base-model download band is driven by the runner's own `downloading base model: N%` line, not by log-line count, so the bar tracks real bytes transferred.
 - Runners therefore rewrite `results.csv` after **every** epoch, not once at the end. A runner that writes it only on completion leaves the progress bar pinned and the curves empty for the whole run.
 - Training subprocesses run with `PYTHONUNBUFFERED=1`. `Popen(bufsize=1)` only line-buffers the parent's read of the pipe; without the env var the child block-buffers its own stdout and per-epoch output arrives in a single burst at exit, so the live log appeared to jump from checkpoint loading straight to completion.
 - Keras Applications classification training runs through a TensorFlow subprocess runner and writes `results.csv`, `best_model.keras`, `last_model.keras`, and `metrics.json`.
@@ -75,7 +77,10 @@ Provide a local, project-scoped training job platform that runs long image train
 - Failed jobs persist a clear error.
 - Promotion registers a completed YOLO `best.pt` as an inference model.
 - Successful runnable training jobs appear in Available Models without requiring a manual promote click.
-- Training detail pages show metric history charts and runner curve artifacts.
+- The training detail page leads with the unified progress bar (percent-primary, ETA when known) then a **live metrics** grid — the values that change during a run (progress, elapsed, ETA, step/epoch, loss, val loss, best val loss, learning rate, and the family's headline metric: mAP / accuracy / F1 / ROUGE / perplexity). Static Parameters and Advanced settings move below the graphs, not above them.
+- Metric history renders as interactive `TrainingChart` panels (`features/training/training-chart.tsx`): a self-contained SVG line chart with axes, gridlines, a legend, and a hover crosshair + per-series tooltip. Series are grouped by a shared Y scale (loss curves together, mAP curves together, detection losses, learning rate, …) so overlaid lines stay comparable; only groups with an available column render.
+- The run log is shown once, on the detail page, with consecutive duplicate lines collapsed (`dedupeConsecutive`); `ProgressPanel` takes `hideLogs` there so the same lines are not repeated inline under the bar.
+- `ProgressPanel` shows the unified percent as the primary readout with the step/epoch count as a secondary detail, so the header can never contradict the bar.
 - Training list/detail progress displays epoch counts when the runner has produced epoch metrics.
 - Frontend lists runs separately from a dedicated training detail page.
 
