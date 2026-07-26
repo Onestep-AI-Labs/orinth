@@ -243,7 +243,7 @@ export function ChatPage() {
             busy={startServing.isPending || stopServing.isPending}
           />
 
-          <div className="chat-rail-section">
+          <div className="chat-rail-section" data-tour="chat-sampler">
             <span className="chat-rail-label">Sampler</span>
             <SliderField label="Temperature" value={temperature} min={0} max={2} step={0.05} onChange={setTemperature} />
             <SliderField label="Top-p" value={topP} min={0} max={1} step={0.01} onChange={setTopP} />
@@ -263,7 +263,7 @@ export function ChatPage() {
         </aside>
 
         <section className="panel chat-column">
-          <div className="chat-transcript" ref={transcriptRef}>
+          <div className="chat-transcript" ref={transcriptRef} data-tour="chat-transcript">
             {turns.length === 0 ? (
               <div className="chat-empty">
                 <MessagesSquare size={28} />
@@ -294,7 +294,7 @@ export function ChatPage() {
             </div>
           </div>
 
-          <div className="chat-composer">
+          <div className="chat-composer" data-tour="chat-composer">
             <div className="chat-composer-inner">
               <textarea
                 value={draft}
@@ -370,7 +370,7 @@ function ServingControl({
   }
 
   return (
-    <div className="chat-rail-section chat-serving-control">
+    <div className="chat-rail-section chat-serving-control" data-tour="chat-serving">
       <span className="chat-rail-label">Served model</span>
       <div className="serving-status-row">
         <Badge tone={servingTone(state)}>{state}</Badge>

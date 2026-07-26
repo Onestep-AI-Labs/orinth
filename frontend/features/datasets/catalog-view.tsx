@@ -177,6 +177,7 @@ export function DatasetCatalogView({
           dataset.editable ? "dataset-card-editable" : "dataset-card-readonly"
         }`}
         key={dataset.id}
+        data-tour="datasets-card"
       >
         <button className="dataset-card-main" type="button" onClick={() => openDataset(dataset.id)}>
           <div className="dataset-card-header">
@@ -271,7 +272,7 @@ export function DatasetCatalogView({
       <PageHeader title="Datasets" subtitle={projectName ?? "Project"} icon={<Database size={20} />} />
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={<Database size={18} />} title="Dataset Catalog" />
+          <PanelTitle icon={<Database size={18} />} title="Dataset Catalog" dataTour="datasets-catalog" />
           <div className="flex flex-wrap gap-2">
             {catalogQuery.isFetching && <InlineSpinner label="Refreshing" />}
             <button className="secondary-button" onClick={() => catalogQuery.refetch()}>
@@ -290,6 +291,7 @@ export function DatasetCatalogView({
                   setShowCreate(false);
                 }}
                 aria-pressed={showHub}
+                data-tour="datasets-import"
               >
                 <Cloud size={16} /> Browse HuggingFace
               </button>
@@ -300,6 +302,7 @@ export function DatasetCatalogView({
                 setShowCreate((value) => !value);
                 setShowHub(false);
               }}
+              data-tour="datasets-add"
             >
               <FilePlus2 size={16} /> Add Dataset
             </button>

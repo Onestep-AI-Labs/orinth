@@ -59,7 +59,7 @@ export function DatasetDetailHeader({
 
   return (
     <>
-      <div className="dataset-detail-header">
+      <div className="dataset-detail-header" data-tour="dataset-studio-header">
         <PageHeader title={dataset.name} subtitle="Dataset workspace" icon={<Database size={20} />} />
         <div className="dataset-header-actions">
           <button className="secondary-button" onClick={onBackToCatalog}>

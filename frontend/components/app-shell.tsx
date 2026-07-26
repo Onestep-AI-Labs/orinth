@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -21,6 +21,7 @@ import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { IconButton } from "@/features/platform/ui";
 import { Toaster } from "@/features/platform/toast";
+import { PlatformTour } from "@/features/platform/tour";
 import type { ProjectSummary } from "@/types/api";
 
 const DEFAULT_PROJECT_ID = "default-research-project";
@@ -127,6 +128,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       {activeMutations > 0 && <GlobalLoadingOverlay loadingModel={loadingModel} />}
       <Toaster />
+      {/* PlatformTour reads useSearchParams (to tell the dataset catalog from an
+          open Dataset Studio); a Suspense boundary keeps that CSR-only read from
+          forcing the statically-generated docs pages into client rendering. */}
+      <Suspense fallback={null}>
+        <PlatformTour />
+      </Suspense>
     </ProjectContext.Provider>
   );
 }
@@ -156,7 +163,7 @@ function GlobalLoadingOverlay({ loadingModel }: { loadingModel: boolean }) {
 function GlobalSidebar({ pathname, compact = false }: { pathname: string; compact?: boolean }) {
   return (
     <aside className={`sidebar sidebar-global ${compact ? "sidebar-global-compact" : ""}`}>
-      <Link className="brand-block brand-link" href="/projects" title="Onestep AI Platform workspace">
+      <Link className="brand-block brand-link" href="/projects" title="Onestep AI Platform workspace" data-tour="brand">
         <span className="brand-mark" aria-hidden="true">
           <Image src="/brand/logo_transparent.png" alt="" width={42} height={42} priority />
         </span>
@@ -172,13 +179,14 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
           href="/projects"
           active={pathname.startsWith("/projects") && !PROJECT_SETTINGS_PATH.test(pathname)}
           icon={<ScanEye size={17} />}
+          dataTour="nav-projects"
         >
           Projects
         </SideLink>
-        <SideLink href="/documentation" active={pathname.startsWith("/documentation")} icon={<BookOpen size={17} />}>
+        <SideLink href="/documentation" active={pathname.startsWith("/documentation")} icon={<BookOpen size={17} />} dataTour="nav-documentation">
           Documentation
         </SideLink>
-        <SideLink href="/settings" active={pathname.startsWith("/settings")} icon={<Settings size={17} />}>
+        <SideLink href="/settings" active={pathname.startsWith("/settings")} icon={<Settings size={17} />} dataTour="nav-settings">
           Settings
         </SideLink>
       </nav>
@@ -286,19 +294,19 @@ function ProjectSidebar({
         </select>
       </label>
       <nav className="side-nav">
-        <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />}>
+        <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} dataTour="nav-datasets">
           Datasets
         </SideLink>
-        <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />}>
+        <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />} dataTour="nav-models">
           Models
         </SideLink>
-        <SideLink href="/training" active={pathname.startsWith("/training")} icon={<Activity size={17} />}>
+        <SideLink href="/training" active={pathname.startsWith("/training")} icon={<Activity size={17} />} dataTour="nav-training">
           Training
         </SideLink>
-        <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />}>
+        <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />} dataTour="nav-testing">
           Testing
         </SideLink>
-        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ScanEye size={17} />}>
+        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ScanEye size={17} />} dataTour="nav-inference">
           Inference
         </SideLink>
       </nav>
@@ -323,6 +331,7 @@ function SideLink({
   icon,
   iconOnly = false,
   title,
+  dataTour,
   children
 }: {
   href: string;
@@ -331,6 +340,8 @@ function SideLink({
   iconOnly?: boolean;
   /** Tooltip override. Defaults to the label, which is all the collapsed rail shows. */
   title?: string;
+  /** Anchor id consumed by the guided tour (see features/platform/tour). */
+  dataTour?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -338,6 +349,7 @@ function SideLink({
       className={`nav-link ${active ? "nav-link-active" : ""} ${iconOnly ? "nav-link-icon-only" : ""}`}
       href={href}
       title={title ?? String(children)}
+      data-tour={dataTour}
     >
       {icon}
       {!iconOnly && <span>{children}</span>}

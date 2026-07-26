@@ -6298,3 +6298,37 @@ td {
 .recipe-warning-panel li {
   margin-top: 2px;
 }
+
+/* Guided tour launcher — a floating control that starts the current surface's
+   react-joyride tour. It floats over the working app, so it carries the overlay
+   elevation rather than reading as a resting surface. */
+.tour-launch {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-overlay);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.tour-launch:hover {
+  border-color: var(--color-accent);
+  background: var(--color-wash);
+}
+.tour-launch:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-overlay), var(--ring-accent);
+}
+.tour-launch svg {
+  color: var(--color-accent);
+}

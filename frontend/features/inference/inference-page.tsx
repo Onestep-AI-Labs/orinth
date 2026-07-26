@@ -182,7 +182,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
       ) : (
       <div className="workspace-grid workspace-grid-inference">
         <section className="panel">
-          <PanelTitle icon={<Upload size={18} />} title="Run" />
+          <PanelTitle icon={<Upload size={18} />} title="Run" dataTour="inference-run" />
           {modelsLoading && <CardGridSkeleton count={1} />}
           <Field label="Task">
             <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
@@ -238,7 +238,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           {jobQuery.data && <ProgressPanel progress={jobQuery.data.progress} status={jobQuery.data.status} error={jobQuery.data.error} />}
         </section>
         <section className="panel min-h-[520px]">
-          <PanelTitle icon={<ScanEye size={18} />} title="Result" />
+          <PanelTitle icon={<ScanEye size={18} />} title="Result" dataTour="inference-result" />
           {result ? (
             <InferenceResultView result={result} modelNameById={modelNameById} />
           ) : (
@@ -256,6 +256,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
             onRefresh={() => historyQuery.refetch()}
             onDelete={confirmDeleteInferenceRows}
             onClear={confirmClearInferenceHistory}
+            dataTour="inference-history"
           />
           <InferenceHistory
             rows={historyQuery.data ?? []}

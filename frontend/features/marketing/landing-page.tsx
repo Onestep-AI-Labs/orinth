@@ -34,8 +34,8 @@ const STAGES = [
   {
     n: "02",
     title: "Prepare",
-    copy: "Upload, label, annotate, split, and version datasets without rewriting the originals. Dataset Studio handles segmentation masks, classification labels, and text records.",
-    tags: ["Annotation", "Splits", "Versioning"],
+    copy: "Upload, label, annotate, split, and version datasets without rewriting the originals. Dataset Studio handles segmentation masks, classification labels, and text records — or import a set from the Hugging Face Hub, or build one from your own documents with data recipes.",
+    tags: ["Annotation", "Splits", "Versioning", "Hub import", "Recipes"],
     image: "/brand/5_dataset_studio_nlp_clasification_task.png",
     caption: "Dataset Studio — text classification"
   },
@@ -92,6 +92,43 @@ const MODEL_FAMILIES = [
         Fine-tuned locally. Gated repos need <code>HUGGINGFACE_HUB_TOKEN</code>.
       </>
     )
+  },
+  {
+    family: "LLMs (Transformers + GGUF)",
+    tasks: "Instruction fine-tuning, serving, chat",
+    notes: (
+      <>
+        Fine-tune with LoRA, QLoRA, or full runs; export to <code>GGUF</code> to serve and chat locally.
+      </>
+    )
+  }
+];
+
+/**
+ * Capabilities that live inside the workspace beyond the five-stage spine. Each
+ * line maps to a real surface — no aspirational features. See README.md pillars
+ * and specs/phase-10..15.
+ */
+const WORKSPACE_FEATURES = [
+  {
+    name: "Hugging Face Hub import",
+    copy: "Browse and pull a Hub dataset straight into a project, ready to annotate, split, and train."
+  },
+  {
+    name: "Data recipes",
+    copy: "Turn your own documents into an instruction dataset — deterministic by default, LLM-assisted when an OpenRouter key is set."
+  },
+  {
+    name: "Custom model upload",
+    copy: "Bring your own weights — a checkpoint, a GGUF file, or a LoRA adapter — into the same catalog as trained and reference models."
+  },
+  {
+    name: "EDA and versioning",
+    copy: "Read split counts, class balance, and geometry warnings, then freeze a materialized dataset version for a reproducible run."
+  },
+  {
+    name: "Guided tours",
+    copy: "A first-run walkthrough plus a per-page tour on every surface, so the workflow explains itself."
   }
 ];
 
@@ -221,6 +258,60 @@ export function LandingPage() {
                       <th scope="row">{row.family}</th>
                       <td>{row.tasks}</td>
                       <td>{row.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section className="landing-section">
+          <div className="landing-container landing-split">
+            <div>
+              <span className="landing-eyebrow">Language models</span>
+              <h2 className="landing-h2">Fine-tune an LLM, then chat with it.</h2>
+              <p className="landing-lede">
+                Fine-tune a Hugging Face base model with LoRA, QLoRA, or a full run — the platform
+                detects your accelerator and picks a matching backend. Export the result to GGUF,
+                serve it, and open a chat with sampler controls, an optional system prompt, web
+                search with citations, and a view into the model&rsquo;s reasoning.
+              </p>
+              <p className="landing-note">
+                A research instrument for measuring model behavior — not a medical assistant.
+              </p>
+            </div>
+            <figure className="landing-figure">
+              <Image
+                src="/brand/12_llm_chat.png"
+                alt="Chat surface conversing with a served GGUF model, with sampler controls and a served-model panel"
+                width={1915}
+                height={927}
+                loading="lazy"
+                sizes="(max-width: 60rem) 100vw, 45vw"
+              />
+              <figcaption>Chat — a served GGUF model</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section className="landing-section">
+          <div className="landing-container">
+            <span className="landing-eyebrow">More in the workspace</span>
+            <h2 className="landing-h2">Everything the five stages lean on.</h2>
+            <div className="landing-table-wrap">
+              <table className="landing-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Capability</th>
+                    <th scope="col">What it does</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {WORKSPACE_FEATURES.map((feature) => (
+                    <tr key={feature.name}>
+                      <th scope="row">{feature.name}</th>
+                      <td>{feature.copy}</td>
                     </tr>
                   ))}
                 </tbody>

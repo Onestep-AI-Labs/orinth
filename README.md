@@ -8,9 +8,9 @@
 [![Backend CI](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml/badge.svg)](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml)
 [![Frontend CI](https://github.com/L007/onestep-ai-platform/actions/workflows/frontend.yml/badge.svg)](https://github.com/L007/onestep-ai-platform/actions/workflows/frontend.yml)
 
-**One workspace for Computer Vision and NLP intelligence.**
+**One workspace for Computer Vision, NLP, and LLM intelligence.**
 
-Onestep AI Platform is a local studio where teams can turn image and text datasets into usable model experiments through labeling, preparation, training, testing, and inspection. Built for research and engineering workflows, it helps teams move from raw images and text to measurable model behavior without implying autonomous clinical diagnosis or final decision-making.
+Onestep AI Platform is a local studio where teams can turn image and text datasets into usable model experiments through labeling, preparation, training, testing, and inspection — and fine-tune, serve, and chat with language models in the same place. Built for research and engineering workflows, it helps teams move from raw images and text to measurable model behavior without implying autonomous clinical diagnosis or final decision-making.
 
 ## Workflow Pillars
 
@@ -20,23 +20,32 @@ Create projects and datasets that keep image and text work scoped and understand
 ![Dataset List](frontend/public/brand/2_dataset_list.png)
 
 ### Prepare
-Upload, label, annotate, split, preprocess, and version datasets without rewriting originals. Dataset Studio supports both computer vision and NLP formats.
+Upload, label, annotate, split, preprocess, and version datasets without rewriting originals. Dataset Studio supports both computer vision and NLP formats, imports from the Hugging Face Hub, and data recipes that build datasets from your own documents.
 ![Dataset Studio Image Segmentation](frontend/public/brand/3_dataset_studio_image_segmentation_task.png)
 ![Dataset Studio Image Classification](frontend/public/brand/4_dataset_studio_image_clasification_task.png)
 ![Dataset Studio NLP Classification](frontend/public/brand/5_dataset_studio_nlp_clasification_task.png)
+![Data Recipes](frontend/public/brand/9_data_recipes.png)
 
 ### Train
-Run task-compatible training jobs from prepared datasets, utilizing the local Models Zoo.
+Run task-compatible training jobs from prepared datasets, utilizing the local Models Zoo — including LoRA/QLoRA/full LLM fine-tuning.
 ![Available Trained Models](frontend/public/brand/5_available_trained_model_list.png)
 ![Training Details](frontend/public/brand/6_training_details.png)
 
 ### Test
 Compare model behavior with task-aware metrics and per-item inspection.
+![Testing Comparison](frontend/public/brand/15_testing_comparison.png)
 
 ### Inspect
 Keep model outputs, history, and dataset health visible for repeated iteration across all inference tasks.
 ![Inference Image Segmentation](frontend/public/brand/7_inference_image_segmentation_task.png)
 ![Inference Image Classification](frontend/public/brand/8_inference_image_clasification_task.png)
+
+### Serve & Chat
+Fine-tune a language model, export it to GGUF, serve it locally, and chat with sampler controls, web search, and a reasoning view.
+![LLM Chat](frontend/public/brand/12_llm_chat.png)
+
+### Learn as you go
+Guided in-app tours (built on [react-joyride](https://react-joyride.com/)) walk through every main surface, with a first-run welcome walkthrough on the Projects page.
 
 The repository keeps existing research assets local-only:
 
@@ -195,6 +204,22 @@ Phase 4 & 5 covers Dataset Studio and Image Platform MVP features.
 
 Phase 6 introduces comprehensive Natural Language Processing (NLP) task pipelines, extending the workspace to support text classification, summarization, and question answering.
 
+Phase 7 & 8 revamp the frontend UI and formalize the design system.
+
+Phase 9 adds the entry flow (landing → sign-in → workspace) and project settings.
+
+Phase 10 adds Hugging Face Hub dataset import (the Dataset Hub).
+
+Phase 11 adds Data Recipes — generating datasets from source documents, with optional LLM assistance.
+
+Phase 12 adds custom model upload into the registry.
+
+Phase 13 adds advanced training settings and device detection.
+
+Phase 14 adds LLM fine-tuning (LoRA, QLoRA, full, and continued pretraining).
+
+Phase 15 adds LLM serving, GGUF export, and the interactive chat surface.
+
 ## AI Workflow
 
 Project AI guidance is shared across Codex and Claude Code:
@@ -208,8 +233,8 @@ Project AI guidance is shared across Codex and Claude Code:
 ## ToDo
 
 - [x] refine NLP transformer fine-tuning
-- [ ] planning simple LLM task pipeline
-- [ ] planning for auto data prep
+- [x] LLM task pipeline (fine-tuning, serving, GGUF export, chat)
+- [x] auto data prep (data recipes)
 - [ ] planning to add jupyter notebook for custom model with sandbox env (isolation)
 
 ## License

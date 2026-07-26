@@ -303,7 +303,17 @@ class EvaluationService:
         path = (job.artifacts or {}).get("per_image")
         if not path:
             return []
-        rows = json.loads(Path(path).read_text(encoding="utf-8"))
+        # The artifact path is persisted on the job, but the file can be gone —
+        # storage relocated, artifacts pruned, or a stale absolute path from a
+        # different workspace. Treat a missing or unreadable file as "no rows"
+        # rather than 500-ing the whole testing detail view.
+        file = Path(path)
+        if not file.exists():
+            return []
+        try:
+            rows = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
         return [EvaluationPerImageRow.model_validate(row) for row in rows]
 
     def _evaluate(

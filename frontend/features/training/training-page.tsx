@@ -260,7 +260,7 @@ export function TrainingPage() {
           advanced — this is a layout regrouping only. */}
       <div className="training-config">
         <section className="panel training-model-section">
-          <PanelTitle icon={<Activity size={18} />} title="Model" />
+          <PanelTitle icon={<Activity size={18} />} title="Model" dataTour="training-model" />
           {(optionsQuery.isLoading || datasetsQuery.isLoading) && <CardGridSkeleton count={1} />}
           <div className="form-grid form-grid-three">
             <Field label="Task">
@@ -362,7 +362,7 @@ export function TrainingPage() {
         <div className="training-config-grid">
           <div className="training-config-rail">
             <section className="panel">
-              <PanelTitle icon={<Database size={18} />} title="Dataset" />
+              <PanelTitle icon={<Database size={18} />} title="Dataset" dataTour="training-dataset" />
               {datasetsQuery.isLoading ? (
                 <CardGridSkeleton count={1} />
               ) : datasets.length === 0 ? (
@@ -389,7 +389,7 @@ export function TrainingPage() {
               )}
             </section>
             <section className="panel training-run-card">
-              <PanelTitle icon={<Play size={18} />} title="Run" />
+              <PanelTitle icon={<Play size={18} />} title="Run" dataTour="training-run" />
               {!nlp && !llm && (
                 <Field label="Device" hint="auto-detected">
                   {/* Auto-detected accelerator, offered as a dropdown rather than
@@ -431,7 +431,7 @@ export function TrainingPage() {
             </section>
           </div>
           <section className="panel training-parameters-card">
-            <PanelTitle icon={<SlidersHorizontal size={18} />} title="Parameters" />
+            <PanelTitle icon={<SlidersHorizontal size={18} />} title="Parameters" dataTour="training-parameters" />
             {/* One grid for every numeric parameter: the visible set changes with
                 task and model, and separate per-row grids left ragged half-width
                 and full-width fields stacked against each other. */}
@@ -534,6 +534,7 @@ export function TrainingPage() {
             onRefresh={() => jobsQuery.refetch()}
             onDelete={confirmDeleteTrainingRows}
             onClear={confirmClearTrainingJobs}
+            dataTour="training-jobs"
           />
           <TrainingJobTable jobs={jobsQuery.data ?? []} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
           {jobsQuery.isLoading && <TableSkeleton rows={5} />}

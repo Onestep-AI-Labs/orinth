@@ -65,7 +65,7 @@ export function SettingsPage() {
         </div>
       </section>
       <section className="panel">
-        <PanelTitle icon={<KeyRound size={18} />} title="Hugging Face" />
+        <PanelTitle icon={<KeyRound size={18} />} title="Hugging Face" dataTour="settings-hf" />
         <div className="metric-grid mt-4">
           <Metric label="Hub token" value={tokenConfigured ? "Configured" : "Not configured"} />
           <Metric label="Request mode" value={tokenConfigured ? "Authenticated" : "Unauthenticated"} />
@@ -93,7 +93,7 @@ export function SettingsPage() {
         <MutationError mutations={[updateSettings]} />
       </section>
       <section className="panel">
-        <PanelTitle icon={<Sparkles size={18} />} title="OpenRouter" />
+        <PanelTitle icon={<Sparkles size={18} />} title="OpenRouter" dataTour="settings-openrouter" />
         <p className="mt-1 text-sm text-ink-subtle">
           Powers LLM-assisted record generation in data recipes. The key is write-only — it is stored server-side
           and never returned to the browser. Without a key, recipes fall back to deterministic rule-based records.

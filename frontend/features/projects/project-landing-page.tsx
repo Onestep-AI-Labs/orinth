@@ -100,7 +100,7 @@ export function ProjectLandingPage() {
                 <span>Show archived ({archivedCount})</span>
               </label>
             )}
-            <ButtonLink href="/projects/new">
+            <ButtonLink href="/projects/new" data-tour="projects-new">
               <FilePlus2 size={16} /> New Project
             </ButtonLink>
           </div>
@@ -110,7 +110,7 @@ export function ProjectLandingPage() {
         ) : (
           <div className="project-grid">
             {visibleProjects.map((project) => (
-              <article className="project-card" key={project.id}>
+              <article className="project-card" key={project.id} data-tour="projects-grid">
                 <button className="project-card-main" onClick={() => openProject(project.id)} type="button">
                   <div className="project-card-title">
                     <strong title={project.name}>{project.name}</strong>
