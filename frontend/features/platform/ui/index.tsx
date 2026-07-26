@@ -87,29 +87,60 @@ export function ConfirmationDialog({
   );
 }
 
-export function ProgressPanel({ progress, status, error }: { progress: JobProgress; status: string; error?: string | null }) {
-  const progressLabel = progress.total ? `${progress.processed}/${progress.total}` : `${progress.percent.toFixed(0)}%`;
+export function ProgressPanel({
+  progress,
+  status,
+  error,
+  hideLogs = false
+}: {
+  progress: JobProgress;
+  status: string;
+  error?: string | null;
+  /** Suppress the inline mini-log when the surface renders its own, richer log
+   *  view — otherwise the same lines appear twice on the page. */
+  hideLogs?: boolean;
+}) {
   const percent = Math.max(0, Math.min(100, progress.percent));
+  // A unified single-bar percent is the honest primary number; the step/epoch
+  // count is a secondary detail so the header never contradicts the bar.
+  const count = progress.total ? `${progress.processed}/${progress.total}` : null;
+  const lines = hideLogs ? [] : dedupeConsecutive(progress.logs).slice(-5);
   return (
     <div className="progress-panel">
       <div className="flex items-center justify-between gap-3">
         <StatusBadge status={status} />
-        <span className="text-sm text-ink-subtle">{progressLabel}</span>
+        <span className="progress-readout">
+          <strong>{percent.toFixed(0)}%</strong>
+          {count && <span className="text-ink-subtle">{count}</span>}
+        </span>
       </div>
       <div className="progress-track"><span style={{ width: `${percent}%` }} /></div>
       <div className="progress-meta">
         <span>{progress.current_step}</span>
-        <span>{formatSeconds(progress.elapsed_seconds)}</span>
+        <span>
+          {formatSeconds(progress.elapsed_seconds)}
+          {progress.eta_seconds ? ` · ETA ${formatSeconds(progress.eta_seconds)}` : ""}
+        </span>
       </div>
       {progress.current_item && <p className="text-sm text-ink-subtle">{progress.current_item}</p>}
       {error && <p className="error-text">{error}</p>}
-      {progress.logs.length > 0 && (
+      {lines.length > 0 && (
         <div className="mini-log">
-          {progress.logs.slice(-5).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}
+          {lines.map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}
         </div>
       )}
     </div>
   );
+}
+
+/** Collapse runs of identical adjacent lines (e.g. repeated "downloading base
+ *  model: 43%" redraws) so the log reads as progress, not noise. */
+export function dedupeConsecutive(lines: string[]): string[] {
+  const out: string[] = [];
+  for (const line of lines) {
+    if (out[out.length - 1] !== line) out.push(line);
+  }
+  return out;
 }
 
 export function HistoryHeader({
