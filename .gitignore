@@ -49,3 +49,6 @@ frontend/.env*.local
 backend/.env
 frontend/.env
 *.tsbuildinfo
+
+# graphify tool output (regenerable; never commit)
+graphify-out/
