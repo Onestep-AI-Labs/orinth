@@ -1067,18 +1067,55 @@ not a bar indicator. */
 }
 
 /* Phase 15: LLM export panel — format choice group + live log + artifact list. */
+.export-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.export-header {
+  display: grid;
+  gap: 6px;
+}
+
+.export-header .model-detail-section-title {
+  margin: 0;
+}
+
+/* Readable measure for the explanatory intro rather than a full-width wall. */
+.export-intro {
+  max-width: 78ch;
+  line-height: 1.5;
+}
+
+.export-config {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+}
+
+/* Uppercase micro-label above each export sub-section. */
+.export-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+
 .export-format-group {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 14px;
 }
 
 .export-format-chip {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-2);
-  padding: 6px 12px;
+  background: var(--color-surface);
+  padding: 6px 14px;
   color: var(--color-ink-muted);
   font-size: 13px;
   cursor: pointer;
@@ -1095,36 +1132,66 @@ not a bar indicator. */
   color: var(--color-accent-strong);
 }
 
+.export-format-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
 .export-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 4px;
 }
 
 .export-controls .field {
-  min-width: 200px;
+  min-width: 220px;
+  margin: 0;
+}
+
+.export-run-button {
+  flex-shrink: 0;
+}
+
+.export-history {
+  display: grid;
+  gap: 10px;
+}
+
+.export-history-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .export-list {
   display: grid;
   gap: 10px;
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .export-row {
   border: 1px solid var(--color-line);
-  border-radius: var(--radius);
-  background: var(--color-surface-2);
-  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 12px 14px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .export-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.export-row-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1132,7 +1199,7 @@ not a bar indicator. */
 }
 
 .export-row-format {
-  font-weight: 500;
+  font-weight: 600;
   font-size: 13px;
 }
 
@@ -1142,21 +1209,35 @@ not a bar indicator. */
 }
 
 .export-row-download {
-  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Live export output styled as a terminal block, matching the training log. */
+.export-log {
+  display: grid;
+  gap: 4px;
+}
+
+.export-log-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
 }
 
 .export-log-tail {
   margin: 0;
-  border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  padding: 8px 10px;
+  background: var(--color-shadow-ink);
+  color: var(--color-line);
+  padding: 10px 12px;
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  max-height: 160px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
@@ -3196,6 +3277,227 @@ button.task-choice {
   color: var(--color-ink-subtle);
   font-size: 11px;
   font-weight: 500;
+}
+
+/* Task picker: a single-select dropdown whose panel groups its options under
+   Vision / NLP / LLM headers. Shared by the training, testing, inference, and
+   serving forms — the closed trigger reads as a select, the panel as a grouped
+   listbox. */
+.task-select {
+  position: relative;
+}
+
+.task-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  color: var(--color-ink);
+  text-align: left;
+  transition: border-color 150ms ease-out;
+}
+
+.task-select-trigger:hover:not(:disabled) {
+  border-color: var(--color-line-strong);
+}
+
+.task-select-trigger:disabled {
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+.task-select-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-select-value-copy {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.task-select-domain-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  padding: 2px 7px;
+  color: var(--color-ink-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.task-select-placeholder {
+  flex: 1;
+  color: var(--color-ink-subtle);
+}
+
+.task-select-chevron {
+  flex-shrink: 0;
+  color: var(--color-ink-subtle);
+}
+
+.task-select-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-ink-muted);
+}
+
+.task-select-panel {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+/* Sticky tabs + search sit above the scrolling option list. */
+.task-select-head {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--color-wash);
+}
+
+.task-select-tabs {
+  display: flex;
+  width: 100%;
+}
+
+.task-select-tabs button {
+  flex: 1;
+}
+
+.task-select-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.task-select-search svg {
+  position: absolute;
+  left: 9px;
+  color: var(--color-ink-subtle);
+  pointer-events: none;
+}
+
+.task-select-search input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 6px 10px 6px 28px;
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+.task-select-list {
+  max-height: 268px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.task-select-empty {
+  padding: 14px 10px;
+  color: var(--color-ink-subtle);
+  font-size: 13px;
+  text-align: center;
+}
+
+.task-select-group {
+  padding-bottom: 2px;
+}
+
+.task-select-group + .task-select-group {
+  margin-top: 2px;
+  border-top: 1px solid var(--color-wash);
+  padding-top: 4px;
+}
+
+.task-select-group-label {
+  padding: 6px 10px 4px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.task-select-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--color-ink);
+  text-align: left;
+  transition: background-color 120ms ease-out;
+}
+
+.task-select-option:hover,
+.task-select-option:focus-visible {
+  background: var(--color-wash);
+}
+
+.task-select-option-active {
+  background: var(--color-accent-tint);
+}
+
+.task-select-option-active .task-select-icon,
+.task-select-option-active strong {
+  color: var(--color-accent-strong);
+}
+
+.task-select-option-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.task-select-option-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.task-select-option-copy small {
+  color: var(--color-ink-subtle);
+  font-size: 12px;
+}
+
+.task-select-check {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-accent-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-select-trigger,
+  .task-select-option {
+    transition: none;
+  }
 }
 
 .choice-list {

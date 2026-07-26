@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { MessagesSquare, Server, Square } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { formatDatasetTask, formatSeconds } from "@/features/platform/utils";
-import { Badge, Button, ButtonLink, Field, MutationError, PanelTitle } from "@/features/platform/ui";
+import { formatSeconds } from "@/features/platform/utils";
+import { Badge, Button, ButtonLink, Field, MutationError, PanelTitle, TaskSelect } from "@/features/platform/ui";
 import { toast } from "@/features/platform/toast";
 import { ModelSourcePicker, type StartTarget } from "@/features/inference/model-source-picker";
 import type { ModelInfo, ServingStatus, TaskType } from "@/types/api";
@@ -76,13 +76,7 @@ export function LlmServeView({
       <section className="panel serve-panel">
         <PanelTitle icon={<Server size={18} />} title="Serve a model" />
         <Field label="Task">
-          <select value={taskType} onChange={(event) => onSelectTask(event.target.value as TaskType)}>
-            {taskOptions.map((task) => (
-              <option value={task} key={task}>
-                {formatDatasetTask(task)}
-              </option>
-            ))}
-          </select>
+          <TaskSelect value={taskType} onChange={onSelectTask} options={taskOptions} />
         </Field>
 
         <div className="serving-status-row">
