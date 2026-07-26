@@ -23,10 +23,10 @@ from app.ml.common.advanced import (
     toggle,
 )
 from app.ml.common.catalog import TrainingModelDefinition
-from app.schemas import TrainingModelOption
+from app.schemas import TaskType, TrainingModelOption
 
 LLM_SFT_FAMILY = "llm_sft"
-LLM_TASK_TYPE = "llm_finetune"
+LLM_TASK_TYPE: TaskType = "llm_finetune"
 # Registry model ids are prefixed to become catalog option ids for the
 # "Local base models" group; the training service strips it back off to
 # resolve the registered model's filesystem path.

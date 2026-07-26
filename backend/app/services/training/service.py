@@ -6,7 +6,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
-from typing import Any
+from typing import Any, Literal, TextIO, cast
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -444,7 +444,7 @@ class TrainingService:
             snapshot_download(model_id, **kwargs)
         except Exception as exc:  # noqa: BLE001 — surfaced to the user as asset status
             message = str(exc)
-            status = "failed"
+            status: Literal["ready", "missing", "gated", "failed"] = "failed"
             if "403" in message or "gated" in message.lower() or "restricted" in message.lower():
                 status = "gated"
                 message = (
@@ -947,7 +947,7 @@ class TrainingService:
             # Split on \r as well as \n so Hugging Face download progress bars
             # (which redraw in place with \r) stream to the live log instead of
             # appearing only once the multi-GB download finishes.
-            for line in iter_process_lines(process.stdout):
+            for line in iter_process_lines(cast(TextIO, process.stdout)):
                 log_file.write(line)
                 log_file.flush()
                 clean = clean_log_line(line)

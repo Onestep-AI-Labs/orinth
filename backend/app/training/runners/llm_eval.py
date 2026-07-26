@@ -51,7 +51,7 @@ def load_model_for_eval(model_ref: str, adapter_dir: Path | None, device, cache_
     dtype = torch.float32
     if device.type in {"cuda", "mps"}:
         dtype = torch.bfloat16 if device.type == "cuda" else torch.float16
-    model = AutoModelForCausalLM.from_pretrained(model_ref, dtype=dtype, **common)
+    model: Any = AutoModelForCausalLM.from_pretrained(model_ref, dtype=dtype, **common)
     if adapter_dir is not None:
         from peft import PeftModel  # noqa: PLC0415
 
@@ -180,7 +180,7 @@ def main() -> None:
             print(f"eval {index}/{total}")
 
     mean_loss = total_loss / total_tokens if total_tokens else 0.0
-    metrics = {
+    metrics: dict[str, Any] = {
         "samples": len(examples),
         "labels": [],
         "llm": {

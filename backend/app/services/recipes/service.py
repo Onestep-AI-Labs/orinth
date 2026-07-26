@@ -16,6 +16,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
@@ -77,7 +78,7 @@ class RecipeService:
         root = self.storage.recipes / recipe_id
         (root / "sources").mkdir(parents=True, exist_ok=True)
         now = _now()
-        manifest = {
+        manifest: dict[str, Any] = {
             "id": recipe_id,
             "project_id": payload.project_id,
             "name": payload.name.strip(),
@@ -602,7 +603,7 @@ class RecipeService:
             return None
 
     def _all_manifests(self) -> list[dict]:
-        manifests = []
+        manifests: list[dict] = []
         if not self.storage.recipes.exists():
             return manifests
         for path in sorted(self.storage.recipes.glob("*/manifest.json")):

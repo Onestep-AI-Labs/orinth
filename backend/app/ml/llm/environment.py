@@ -6,6 +6,7 @@ say it up front instead of the run log saying it an hour in.
 """
 
 from importlib.util import find_spec
+from typing import Literal
 
 from app.ml.llm.catalog import LLM_INSTALL_HINT, llm_extras_available
 from app.schemas import LlmEnvironment
@@ -22,6 +23,7 @@ def probe_llm_environment() -> LlmEnvironment:
     # Lazy torch import: this handler must not add torch to API startup.
     import torch  # noqa: PLC0415
 
+    device: Literal["cuda", "mps", "cpu"]
     if torch.cuda.is_available():
         device = "cuda"
     elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
@@ -32,7 +34,9 @@ def probe_llm_environment() -> LlmEnvironment:
     unsloth_available = _importable("unsloth")
     peft_available = _importable("peft")
     bitsandbytes_available = _importable("bitsandbytes")
-    recommended = "unsloth" if device == "cuda" and unsloth_available else "peft"
+    recommended: Literal["unsloth", "peft"] = (
+        "unsloth" if device == "cuda" and unsloth_available else "peft"
+    )
 
     notes: list[str] = []
     if not llm_extras_available():

@@ -272,7 +272,8 @@ class RecordsMixin:
         self, location: DatasetLocation, record: dict
     ) -> tuple[str, str, int, list[str]]:
         if location.format == "chat_jsonl":
-            messages = record.get("messages") if isinstance(record.get("messages"), list) else []
+            raw_messages = record.get("messages")
+            messages = raw_messages if isinstance(raw_messages, list) else []
             roles = [str(message.get("role", "")) for message in messages if isinstance(message, dict)]
             first_user = next(
                 (m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"),
@@ -383,7 +384,8 @@ class RecordsMixin:
 
     def _record_char_length(self, location: DatasetLocation, record: dict) -> int:
         if location.format == "chat_jsonl":
-            messages = record.get("messages") if isinstance(record.get("messages"), list) else []
+            raw_messages = record.get("messages")
+            messages = raw_messages if isinstance(raw_messages, list) else []
             return sum(len(str(m.get("content", ""))) for m in messages if isinstance(m, dict))
         return sum(
             len(str(record.get(key, ""))) for key in ("instruction", "input", "output")

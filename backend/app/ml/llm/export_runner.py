@@ -13,6 +13,7 @@ subprocess.
 import argparse
 import os
 from pathlib import Path
+from typing import Any
 
 
 def _hf_env_token() -> str | None:
@@ -43,7 +44,7 @@ def run_merge(adapter_dir: Path, base_ref: str, out_dir: Path, cache_dir: Path |
         common_kwargs["token"] = token
 
     print(f"loading base model: {base_ref}")
-    model = AutoModelForCausalLM.from_pretrained(base_ref, dtype=torch.float16, **common_kwargs)
+    model: Any = AutoModelForCausalLM.from_pretrained(base_ref, dtype=torch.float16, **common_kwargs)
     print(f"attaching adapter: {adapter_dir}")
     model = PeftModel.from_pretrained(model, str(adapter_dir))
     print("merging adapter into base (merge_and_unload)")

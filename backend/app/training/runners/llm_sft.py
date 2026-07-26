@@ -407,7 +407,7 @@ class _PadCollator:
         import torch  # noqa: PLC0415
 
         width = max(len(feature["input_ids"]) for feature in features)
-        batch = {"input_ids": [], "attention_mask": [], "labels": []}
+        batch: dict[str, list] = {"input_ids": [], "attention_mask": [], "labels": []}
         for feature in features:
             pad = width - len(feature["input_ids"])
             batch["input_ids"].append(list(feature["input_ids"]) + [self.pad_token_id] * pad)

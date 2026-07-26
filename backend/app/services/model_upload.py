@@ -9,6 +9,7 @@ other registry family, preserving the platform's lazy-loading rule.
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 from zipfile import BadZipFile, ZipFile
 
@@ -45,7 +46,7 @@ class _FamilySpec:
     family: str
     label: str
     description: str
-    kind: str  # single | pair | zip
+    kind: Literal["single", "pair", "zip"]
     files: list[ModelUploadFileSlot]
     fields: list[ModelUploadField] = field(default_factory=list)
     fixed_task_type: str | None = None
@@ -374,7 +375,7 @@ class ModelUploadService:
         # Phase 14 introduces the LLM catalog; accept its ids if present. Until
         # then only registered llm_hf models qualify as adapter bases.
         try:
-            from app.ml.llm.catalog import catalog_base_ids  # type: ignore
+            from app.ml.llm.catalog import catalog_base_ids
 
             return set(catalog_base_ids())
         except Exception:  # noqa: BLE001 — catalog is optional in phase 12

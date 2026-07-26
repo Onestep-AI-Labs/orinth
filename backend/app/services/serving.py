@@ -25,6 +25,7 @@ from collections import deque
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from time import monotonic, sleep
+from typing import Literal
 
 from app.core.config import Settings
 from app.core.storage import Storage
@@ -150,16 +151,18 @@ class ServingService:
             # recognised as the already-running session.
             return f"path:{model_path.resolve()}", model_path.stem, model_path.resolve()
 
+        if payload.model_id is None:
+            raise ServingError("A registered model id or a custom .gguf path is required.")
         spec = self.registry.get_spec(payload.model_id)  # KeyError -> 404 upstream
         if spec.family != "llm_gguf":
             raise ServingError(
                 "Only GGUF models are servable. Export this model to GGUF first, then "
                 "serve the registered GGUF artifact."
             )
-        model_path = spec.paths.get("model")
-        if model_path is None or not model_path.exists():
+        gguf_path = spec.paths.get("model")
+        if gguf_path is None or not gguf_path.exists():
             raise ServingError("The GGUF file for this model is missing on disk.")
-        return payload.model_id, spec.name, model_path
+        return payload.model_id, spec.name, gguf_path
 
     def scan_models(self, raw_path: str) -> ServingScanResult:
         """List servable GGUF files at a path (a file or a directory to scan).
@@ -420,9 +423,9 @@ class ServingService:
         results.sort(key=lambda r: (not r.fits, r.approx_size_gb))
         return HubRecommendationsResponse(device=device, total_memory_gb=total_gb, results=results)
 
-    def _detect_memory(self) -> tuple[str, float | None]:
+    def _detect_memory(self) -> tuple[Literal["cuda", "mps", "cpu"], float | None]:
         """(device, total memory GB). Unified memory on Apple/CUDA stands in for VRAM."""
-        device = "cpu"
+        device: Literal["cuda", "mps", "cpu"] = "cpu"
         total_gb: float | None = None
         try:
             if hasattr(os, "sysconf") and "SC_PHYS_PAGES" in os.sysconf_names:

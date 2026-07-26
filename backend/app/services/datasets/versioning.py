@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -94,7 +94,7 @@ class VersioningMixin:
 
         source_splits = list(SPLITS if split_config.resplit_all else ("unassigned",))
         is_llm = self._is_llm_task(location.task_type)
-        candidates = []
+        candidates: list[tuple[str, Any]] = []
         for source_split in source_splits:
             for item_path in self._item_paths(location, source_split):
                 # LLM records carry no label, so splitting never needs to parse the
@@ -106,7 +106,7 @@ class VersioningMixin:
                     detail = self._item_from_path(location, source_split, item_path, include_annotations=True)
                     candidates.append((source_split, detail))
 
-        grouped: dict[str, list[tuple[str, object]]] = {}
+        grouped: dict[str, list[tuple[str, Any]]] = {}
         if split_config.stratify:
             for source_split, item in candidates:
                 label = item.label or "__unlabeled__"
