@@ -287,6 +287,12 @@ class ModelRegistry:
                 "This LLM artifact is not directly servable. Export it to GGUF from the "
                 "model detail page, then serve the registered GGUF model."
             )
+        if spec.family == "architecture_lm":
+            raise ValueError(
+                "From-scratch language models trained in the architecture studio are not "
+                "served for inference yet. Their sample generations are on the training "
+                "run's detail page."
+            )
         raise ValueError(f"Unsupported model family: {spec.family}")
 
     def register_model(

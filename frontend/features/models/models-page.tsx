@@ -22,6 +22,7 @@ import {
   StatusBadge,
   useConfirmationDialog
 } from "@/features/platform/ui";
+import { ModelsTabs } from "./models-tabs";
 import { UploadModelDialog } from "./upload-model-dialog";
 import type { ModelInfo } from "@/types/api";
 
@@ -109,6 +110,7 @@ export function ModelsPage() {
           </Button>
         }
       />
+      <ModelsTabs active="catalog" />
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <PanelTitle icon={<Boxes size={18} />} title="Model catalog" dataTour="models-catalog" />

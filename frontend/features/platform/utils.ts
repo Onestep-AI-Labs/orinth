@@ -82,6 +82,7 @@ export function formatDatasetTask(task: TaskType): string {
   if (task === "text_classification") return "Text classification";
   if (task === "question_answering") return "Question answering";
   if (task === "llm_finetune") return "LLM fine-tuning";
+  if (task === "language_modeling") return "Language modeling";
   return task.charAt(0).toUpperCase() + task.slice(1).replaceAll("_", " ");
 }
 
@@ -116,7 +117,13 @@ export function areTasksCompatible(modelTask: TaskType, datasetTask: TaskType): 
 }
 
 export function isNlpTask(task: TaskType | string | undefined): boolean {
-  return task === "text_classification" || task === "summarization" || task === "question_answering";
+  return (
+    task === "text_classification" ||
+    task === "summarization" ||
+    task === "question_answering" ||
+    // Text work, so the forms must not offer it an image size.
+    task === "language_modeling"
+  );
 }
 
 export function isVisionTask(task: TaskType | string | undefined): boolean {
@@ -124,7 +131,15 @@ export function isVisionTask(task: TaskType | string | undefined): boolean {
 }
 
 export const VISION_TASK_TYPES: TaskType[] = ["classification", "object_detection", "segmentation"];
-export const NLP_TASK_TYPES: TaskType[] = ["text_classification", "summarization", "question_answering"];
+export const NLP_TASK_TYPES: TaskType[] = [
+  "text_classification",
+  "summarization",
+  "question_answering",
+  // Phase 17: next-token prediction for architectures built in the studio.
+  // Grouped with NLP because it is text work — `llm_finetune` is a different
+  // job (adapting a pretrained base) and drives different form branches.
+  "language_modeling"
+];
 export const LLM_TASK_TYPES: TaskType[] = ["llm_finetune"];
 export const ALL_TASK_TYPES: TaskType[] = [...VISION_TASK_TYPES, ...NLP_TASK_TYPES, ...LLM_TASK_TYPES];
 

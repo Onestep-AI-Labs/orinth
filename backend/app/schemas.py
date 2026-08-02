@@ -17,6 +17,9 @@ TaskType = Literal[
     "summarization",
     "question_answering",
     "llm_finetune",
+    # Phase 17: next-token prediction for architectures built in the studio.
+    # Distinct from `llm_finetune`, which adapts a pretrained base model.
+    "language_modeling",
 ]
 DatasetFormat = Literal[
     "yolo",
@@ -48,7 +51,25 @@ _DEFAULT_AUGMENTATION_SPLITS: list[SplitName] = ["train"]
 # `_normalize_task_type_*` validators below) and normalized to the canonical
 # value before Literal validation runs, so every stored/serialized task_type
 # is always canonical.
-TASK_TYPE_ALIASES: dict[str, str] = {"text": "text_classification"}
+# `tabular` came from the removed Parquet-backed dataset kind (commit b70baa3).
+# Datasets written by that build still exist on disk; without an alias every
+# one of them fails validation and takes the whole dataset list down with it.
+# A labelled table read as rows of text is `text_classification` — the same
+# thing the removed pipeline ultimately produced.
+TASK_TYPE_ALIASES: dict[str, str] = {
+    "text": "text_classification",
+    "tabular": "text_classification",
+}
+
+# Same deprecation window for the format that shipped alongside it.
+DATASET_FORMAT_ALIASES: dict[str, str] = {"table": "csv"}
+
+
+def _normalize_dataset_format_field(value: object) -> object:
+    """`field_validator(mode="before")` for `format: DatasetFormat` fields."""
+    if isinstance(value, str):
+        return DATASET_FORMAT_ALIASES.get(value, value)
+    return value
 
 
 def _normalize_task_type_field(value: object) -> object:
@@ -463,6 +484,16 @@ class DatasetSummary(BaseModel):
     splits: dict[str, DatasetSplitSummary]
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    # Manifests on disk outlive the schema. A dataset written by a build whose
+    # task type or format has since been removed must still list, or one stale
+    # directory takes the whole catalog down.
+    _normalize_task_type = field_validator("task_type", mode="before")(
+        _normalize_task_type_field
+    )
+    _normalize_format = field_validator("format", mode="before")(
+        _normalize_dataset_format_field
+    )
+
 
 class DatasetCreate(BaseModel):
     project_id: str = DEFAULT_PROJECT_ID
@@ -729,7 +760,9 @@ class AdvancedParameterSpec(BaseModel):
 
     key: str
     label: str
-    type: Literal["int", "float", "bool", "select", "multiselect", "text"]
+    # "code" is "text" that renders as a mono textarea rather than a single
+    # line — added in phase 17 for custom-layer node bodies.
+    type: Literal["int", "float", "bool", "select", "multiselect", "text", "code"]
     default: Any = None
     min: float | None = None
     max: float | None = None
@@ -1209,3 +1242,152 @@ class ChatRequest(BaseModel):
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     max_tokens: int | None = Field(default=None, ge=1, le=32768)
+
+
+# --- Phase 17: model architecture studio -----------------------------------
+
+
+class ArchitectureNode(BaseModel):
+    """One node on the canvas.
+
+    `params` is intentionally open-ended: values are validated and coerced
+    against the node's `NodeSpec.params` (reused `AdvancedParameterSpec`s) at
+    parse time, so a stored graph survives a catalog that later adds a param.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    type: str = Field(min_length=1, max_length=64)
+    label: str | None = None
+    position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ArchitectureEdge(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    source: str
+    target: str
+    # Reserved for multi-port nodes (attention query/key/value). Single-port
+    # nodes leave these at "out"/"in".
+    source_port: str = "out"
+    target_port: str = "in"
+
+
+class ArchitectureGraph(BaseModel):
+    schema_version: int = 1
+    nodes: list[ArchitectureNode] = Field(default_factory=list)
+    edges: list[ArchitectureEdge] = Field(default_factory=list)
+    # Hyperparameter defaults the studio prefills into the training form.
+    training_defaults: dict[str, Any] = Field(default_factory=dict)
+
+
+class Architecture(BaseModel):
+    id: str
+    project_id: str | None = None
+    name: str
+    description: str | None = None
+    task_type: TaskType = _DEFAULT_TASK_TYPE
+    framework: Literal["keras"] = "keras"
+    version: int = 1
+    graph: ArchitectureGraph = Field(default_factory=ArchitectureGraph)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ArchitectureSummary(BaseModel):
+    """List-view projection. Omits `graph`, which is large and unused in lists."""
+
+    id: str
+    project_id: str | None = None
+    name: str
+    description: str | None = None
+    task_type: TaskType = _DEFAULT_TASK_TYPE
+    framework: Literal["keras"] = "keras"
+    version: int
+    node_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class ArchitectureCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = None
+    project_id: str | None = None
+    task_type: TaskType = _DEFAULT_TASK_TYPE
+    # Start from a starter graph instead of an empty canvas.
+    template_id: str | None = None
+    graph: ArchitectureGraph | None = None
+
+
+class ArchitectureUpdate(BaseModel):
+    """Save payload. `version` is the version the client last read.
+
+    A mismatch means another session saved in between, and the service returns
+    409 rather than silently overwriting.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+    task_type: TaskType | None = None
+    graph: ArchitectureGraph | None = None
+    version: int | None = None
+
+
+class NodePortSpec(BaseModel):
+    key: str
+    label: str
+
+
+class NodeSpec(BaseModel):
+    """Palette definition for one node type.
+
+    `params` reuses `AdvancedParameterSpec` so the node inspector is the same
+    generic field renderer the training form already uses — a new node type
+    gets its UI without frontend changes.
+    """
+
+    type: str
+    name: str
+    category: str
+    description: str
+    params: list[AdvancedParameterSpec] = Field(default_factory=list)
+    inputs: list[NodePortSpec] = Field(default_factory=list)
+    outputs: list[NodePortSpec] = Field(default_factory=list)
+    min_inputs: int = 1
+    # -1 means unbounded (merge nodes).
+    max_inputs: int = 1
+    # Task types this node is offered for; empty means every task type.
+    task_types: list[TaskType] = Field(default_factory=list)
+
+
+class ArchitectureIssue(BaseModel):
+    severity: Literal["error", "warning"]
+    message: str
+    node_id: str | None = None
+    edge_id: str | None = None
+
+
+class ArchitectureValidation(BaseModel):
+    """Result of the fast analytic pass. No TensorFlow involved."""
+
+    ok: bool
+    issues: list[ArchitectureIssue] = Field(default_factory=list)
+    # Per-node output shape, excluding the batch dimension. `None` entries are
+    # dimensions the analytic pass cannot resolve without building the model.
+    node_shapes: dict[str, list[int | None] | None] = Field(default_factory=dict)
+    total_params_estimate: int | None = None
+    layer_count: int = 0
+
+
+class ArchitectureTemplate(BaseModel):
+    id: str
+    name: str
+    description: str
+    task_type: TaskType
+    graph: ArchitectureGraph
+
+
+class ArchitectureCode(BaseModel):
+    architecture_id: str
+    filename: str
+    code: str
+    framework: Literal["keras", "torch"] = "keras"

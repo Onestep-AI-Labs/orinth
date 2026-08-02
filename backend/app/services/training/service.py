@@ -16,7 +16,13 @@ from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.defaults import DEFAULT_LABELS, DEFAULT_PROJECT_ID, DEFAULT_TASK_TYPE
 from app.core.storage import Storage
+from app.db.models import Architecture as ArchitectureRow
 from app.db.models import TrainingJob
+from app.ml.architecture.emit_keras import MODULE_FILENAME, EmitError, emit_module
+from app.ml.architecture.graph import build_graph
+from app.ml.architecture.lm_catalog import LM_FAMILY
+from app.ml.architecture.shapes import infer_shapes
+from app.ml.architecture.train_catalog import ARCHITECTURE_FAMILY, ARCHITECTURE_ID_KEY
 from app.ml.llm.catalog import (
     LLM_HF_CUSTOM_ID,
     LLM_INSTALL_HINT,
@@ -37,6 +43,7 @@ from app.ml.vision.keras_classification.catalog import (
 )
 from app.ml.vision.yolo.catalog import ULTRALYTICS_OPTIONS_BY_ID
 from app.schemas import (
+    ArchitectureGraph,
     LlmModelInfo,
     ModelAssetPrepareRequest,
     ModelAssetStatus,
@@ -90,6 +97,15 @@ class TrainingService:
                 f"Training option {payload.model_option_id} does not support {payload.task_type}. "
                 f"Supported tasks: {supported}"
             )
+        if option.family in {ARCHITECTURE_FAMILY, LM_FAMILY}:
+            architecture_id = architecture_id_from(payload.model_dump())
+            if not architecture_id:
+                raise ValueError(
+                    "Pick an architecture to train. Start from the studio's Train button, "
+                    "or choose one in the Architecture field."
+                )
+            if db.get(ArchitectureRow, architecture_id) is None:
+                raise ValueError(f"Architecture not found: {architecture_id}")
         parameters = payload.model_dump()
         parameters["model_family"] = option.family
         job = TrainingJob(
@@ -525,7 +541,7 @@ class TrainingService:
         run_dir = self.storage.training_runs / job.id
         run_dir.mkdir(parents=True, exist_ok=True)
         log_path = run_dir / "train.log"
-        command = self._command_for_job(job, run_dir)
+        command = self._command_for_job(job, run_dir, db)
 
         artifacts = dict(job.artifacts or {})
         artifacts.update({"run_dir": str(run_dir), "log": str(log_path), "command": command})
@@ -718,7 +734,17 @@ class TrainingService:
             return ref
         return llm_model_id(option_id)
 
-    def _command_for_job(self, job: TrainingJob, run_dir: Path) -> list[str]:
+    def _command_for_job(
+        self, job: TrainingJob, run_dir: Path, db: Session | None = None
+    ) -> list[str]:
+        """Build the subprocess command for a job.
+
+        `db` is optional because only the architecture family needs to read a
+        row to build its command; every other family builds purely from the
+        job's own parameters, and requiring a session would couple them to the
+        database for no reason.
+        """
+
         params = job.parameters
         if job.model_family == LLM_SFT_FAMILY:
             dataset_id = params.get("dataset_id")
@@ -867,6 +893,10 @@ class TrainingService:
             if params.get("device"):
                 command.extend(["--device", str(params["device"])])
             return command
+        if job.model_family in {ARCHITECTURE_FAMILY, LM_FAMILY}:
+            if db is None:
+                raise ValueError("Training a visual architecture needs a database session")
+            return self._architecture_command(job, run_dir, db)
         if job.model_family == "keras_classification":
             dataset_id = params.get("dataset_id", "reference_yolo")
             dataset_root = self.settings.datasets_path / "dental dataset_yolov11_format"
@@ -920,6 +950,110 @@ class TrainingService:
             "--epochs",
             str(params["epochs"]),
         ]
+
+    def _architecture_command(
+        self, job: TrainingJob, run_dir: Path, db: Session
+    ) -> list[str]:
+        """Emit the graph's Keras module into the run dir, then train it.
+
+        The module is written per run rather than referenced, so a job is
+        pinned to the graph as it stood when the run started — editing the
+        architecture mid-run cannot change what is training.
+        """
+
+        params = job.parameters or {}
+        architecture_id = architecture_id_from(params)
+        row = db.get(ArchitectureRow, architecture_id) if architecture_id else None
+        if row is None:
+            raise ValueError(
+                "This run has no architecture attached. Open the studio and start training from there."
+            )
+
+        hyperparameters = params.get("hyperparameters") or {}
+        is_language_model = job.model_family == LM_FAMILY
+
+        dataset_id = params.get("dataset_id", "reference_yolo")
+        dataset_root = self.settings.datasets_path / "dental dataset_yolov11_format"
+        labels = list(DEFAULT_LABELS)
+        if self.dataset_service is not None:
+            dataset_root = self.dataset_service.dataset_root(dataset_id)
+            dataset = self.dataset_service.summary(dataset_id)
+            labels = list(dataset.labels or labels)
+            preprocess = (dataset.metadata or {}).get("preprocess") or {}
+            if isinstance(preprocess, dict) and preprocess.get("enabled"):
+                dataset_root = self.dataset_service.prepared_training_root(
+                    dataset_id, run_dir / "prepared_dataset"
+                )
+
+        # The head's width comes from the vocabulary for a language model and
+        # from the label set for a classifier. The runner passes the real value
+        # to `build_model`; this only sizes the emitted default and lets shape
+        # inference resolve before the subprocess starts.
+        width = (
+            int(hyperparameters.get("vocab_size", 2000))
+            if is_language_model
+            else max(len(labels), 2)
+        )
+        module_path = run_dir / MODULE_FILENAME
+        module_path.write_text(self._render_architecture(row, width), encoding="utf-8")
+
+        runner = (
+            "app.training.runners.architecture_lm_train"
+            if is_language_model
+            else "app.training.runners.architecture_train"
+        )
+        return [
+            sys.executable,
+            "-m",
+            runner,
+            "--run-dir",
+            str(run_dir),
+            "--dataset-root",
+            str(dataset_root),
+            "--model-file",
+            str(module_path),
+            "--epochs",
+            str(params["epochs"]),
+            "--batch-size",
+            str(params["batch_size"]),
+            "--optimizer",
+            str(params.get("optimizer", "adamw" if is_language_model else "adam")),
+            "--learning-rate",
+            str(params.get("learning_rate", 0.001)),
+            "--advanced",
+            json.dumps(
+                {
+                    key: value
+                    for key, value in hyperparameters.items()
+                    if key != ARCHITECTURE_ID_KEY
+                }
+            ),
+        ]
+
+    def _render_architecture(self, row: ArchitectureRow, num_classes: int) -> str:
+        graph = ArchitectureGraph.model_validate(row.graph or {})
+        resolved = build_graph(graph)
+        shapes, _params, shape_issues = infer_shapes(resolved, num_classes)
+        blocking = [
+            issue.message
+            for issue in (*resolved.issues, *shape_issues)
+            if issue.severity == "error"
+        ]
+        if blocking:
+            raise ValueError(
+                "This architecture still has errors: " + "; ".join(blocking)
+            )
+        try:
+            return emit_module(
+                resolved,
+                shapes,
+                architecture_name=row.name,
+                architecture_id=row.id,
+                version=row.version,
+                default_num_classes=num_classes,
+            )
+        except EmitError as error:
+            raise ValueError(str(error)) from error
 
     def _run_process(
         self,
@@ -1114,9 +1248,33 @@ class TrainingService:
                 else option_id
             )
             labels = []
-        elif job.model_family == "keras_classification":
+        elif job.model_family == LM_FAMILY:
             stable_model = model_dir / "best_model.keras"
             shutil.copy2(best_model, stable_model)
+            # The vocabulary is not recoverable from the weights, so the
+            # tokenizer travels with them or the model is unusable.
+            for sidecar in [
+                "tokenizer.json",
+                MODULE_FILENAME,
+                "metrics.json",
+                "sample_generations.json",
+            ]:
+                source_sidecar = run_dir / sidecar
+                if source_sidecar.exists():
+                    shutil.copy2(source_sidecar, model_dir / sidecar)
+            paths = {"model": stable_model, "tokenizer": model_dir / "tokenizer.json"}
+            family = LM_FAMILY
+        elif job.model_family in {"keras_classification", ARCHITECTURE_FAMILY}:
+            stable_model = model_dir / "best_model.keras"
+            shutil.copy2(best_model, stable_model)
+            # A graph-built model registers as a plain Keras classifier: the
+            # artifact is an ordinary `.keras` file, so testing, inference, and
+            # export need no knowledge that a canvas produced it. The source
+            # graph is recorded in metadata for provenance.
+            for sidecar in [MODULE_FILENAME, "metrics.json", "validation_predictions.json"]:
+                source_sidecar = run_dir / sidecar
+                if source_sidecar.exists():
+                    shutil.copy2(source_sidecar, model_dir / sidecar)
             paths = {"model": stable_model}
             family = "keras_classification"
         elif job.model_family in {
@@ -1209,6 +1367,18 @@ class TrainingService:
             except ValueError:
                 continue
         return urls
+
+
+def architecture_id_from(params: dict[str, Any]) -> str:
+    """The architecture a graph job trains, from the open-ended hyperparameters.
+
+    Phase 13 left `hyperparameters` open exactly so routing values like this
+    need no `TrainingJobCreate` field. A top-level key is also accepted so a
+    hand-built payload behaves the way people expect.
+    """
+
+    hyperparameters = params.get("hyperparameters") or {}
+    return str(hyperparameters.get(ARCHITECTURE_ID_KEY) or params.get(ARCHITECTURE_ID_KEY) or "")
 
 
 def ultralytics_initial_weights(option_id: str, settings: Settings) -> str:

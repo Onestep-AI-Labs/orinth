@@ -35,4 +35,6 @@ Use a spec when:
 - `phase-13-advanced-training-settings.md`
 - `phase-14-llm-finetuning.md`
 - `phase-15-llm-serving-and-export.md`
+- `phase-16-guided-tours.md`
+- `phase-17-model-architecture-studio.md`
 - `SPEC_TEMPLATE.md`

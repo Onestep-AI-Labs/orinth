@@ -4,6 +4,219 @@
  */
 
 export interface paths {
+    "/api/architectures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Architectures */
+        get: operations["list_architectures_api_architectures_get"];
+        put?: never;
+        /** Create Architecture */
+        post: operations["create_architecture_api_architectures_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Architecture */
+        post: operations["import_architecture_api_architectures_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/node-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Node Catalog */
+        get: operations["list_node_catalog_api_architectures_node_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/node-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Node Categories
+         * @description Palette category order, so the frontend does not hardcode a second copy.
+         */
+        get: operations["list_node_categories_api_architectures_node_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Templates */
+        get: operations["list_templates_api_architectures_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Architecture
+         * @description Analytic validation of an unsaved canvas. Stateless and fast — no TensorFlow.
+         */
+        post: operations["validate_architecture_api_architectures_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/{architecture_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Architecture */
+        get: operations["get_architecture_api_architectures__architecture_id__get"];
+        /** Update Architecture */
+        put: operations["update_architecture_api_architectures__architecture_id__put"];
+        post?: never;
+        /** Delete Architecture */
+        delete: operations["delete_architecture_api_architectures__architecture_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/{architecture_id}/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Architecture Code */
+        get: operations["architecture_code_api_architectures__architecture_id__code_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/{architecture_id}/code/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Architecture Code */
+        get: operations["download_architecture_code_api_architectures__architecture_id__code_download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/{architecture_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate Architecture */
+        post: operations["duplicate_architecture_api_architectures__architecture_id__duplicate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/{architecture_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Architecture */
+        get: operations["export_architecture_api_architectures__architecture_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/architectures/{architecture_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate Saved Architecture */
+        post: operations["validate_saved_architecture_api_architectures__architecture_id__validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets": {
         parameters: {
             query?: never;
@@ -1530,7 +1743,318 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "int" | "float" | "bool" | "select" | "multiselect" | "text";
+            type: "int" | "float" | "bool" | "select" | "multiselect" | "text" | "code";
+        };
+        /** Architecture */
+        Architecture: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Description
+             * @default null
+             */
+            description: string | null;
+            /**
+             * Framework
+             * @default keras
+             * @constant
+             */
+            framework: "keras";
+            /** @default null */
+            graph: components["schemas"]["ArchitectureGraph"];
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Project Id
+             * @default null
+             */
+            project_id: string | null;
+            /**
+             * Task Type
+             * @default segmentation
+             * @enum {string}
+             */
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /** ArchitectureCode */
+        ArchitectureCode: {
+            /** Architecture Id */
+            architecture_id: string;
+            /** Code */
+            code: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Framework
+             * @default keras
+             * @enum {string}
+             */
+            framework: "keras" | "torch";
+        };
+        /** ArchitectureCreate */
+        ArchitectureCreate: {
+            /**
+             * Description
+             * @default null
+             */
+            description: string | null;
+            /** @default null */
+            graph: components["schemas"]["ArchitectureGraph"] | null;
+            /** Name */
+            name: string;
+            /**
+             * Project Id
+             * @default null
+             */
+            project_id: string | null;
+            /**
+             * Task Type
+             * @default segmentation
+             * @enum {string}
+             */
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
+            /**
+             * Template Id
+             * @default null
+             */
+            template_id: string | null;
+        };
+        /** ArchitectureEdge */
+        ArchitectureEdge: {
+            /** Id */
+            id: string;
+            /** Source */
+            source: string;
+            /**
+             * Source Port
+             * @default out
+             */
+            source_port: string;
+            /** Target */
+            target: string;
+            /**
+             * Target Port
+             * @default in
+             */
+            target_port: string;
+        };
+        /** ArchitectureGraph */
+        ArchitectureGraph: {
+            /**
+             * Edges
+             * @default null
+             */
+            edges: components["schemas"]["ArchitectureEdge"][];
+            /**
+             * Nodes
+             * @default null
+             */
+            nodes: components["schemas"]["ArchitectureNode"][];
+            /**
+             * Schema Version
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * Training Defaults
+             * @default null
+             */
+            training_defaults: {
+                [key: string]: unknown;
+            };
+        };
+        /** ArchitectureIssue */
+        ArchitectureIssue: {
+            /**
+             * Edge Id
+             * @default null
+             */
+            edge_id: string | null;
+            /** Message */
+            message: string;
+            /**
+             * Node Id
+             * @default null
+             */
+            node_id: string | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning";
+        };
+        /**
+         * ArchitectureNode
+         * @description One node on the canvas.
+         *
+         *     `params` is intentionally open-ended: values are validated and coerced
+         *     against the node's `NodeSpec.params` (reused `AdvancedParameterSpec`s) at
+         *     parse time, so a stored graph survives a catalog that later adds a param.
+         */
+        ArchitectureNode: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default null
+             */
+            label: string | null;
+            /**
+             * Params
+             * @default null
+             */
+            params: {
+                [key: string]: unknown;
+            };
+            /**
+             * Position
+             * @default null
+             */
+            position: {
+                [key: string]: number;
+            };
+            /** Type */
+            type: string;
+        };
+        /**
+         * ArchitectureSummary
+         * @description List-view projection. Omits `graph`, which is large and unused in lists.
+         */
+        ArchitectureSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Description
+             * @default null
+             */
+            description: string | null;
+            /**
+             * Framework
+             * @default keras
+             * @constant
+             */
+            framework: "keras";
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Node Count
+             * @default 0
+             */
+            node_count: number;
+            /**
+             * Project Id
+             * @default null
+             */
+            project_id: string | null;
+            /**
+             * Task Type
+             * @default segmentation
+             * @enum {string}
+             */
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /** ArchitectureTemplate */
+        ArchitectureTemplate: {
+            /** Description */
+            description: string;
+            graph: components["schemas"]["ArchitectureGraph"];
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Task Type
+             * @enum {string}
+             */
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
+        };
+        /**
+         * ArchitectureUpdate
+         * @description Save payload. `version` is the version the client last read.
+         *
+         *     A mismatch means another session saved in between, and the service returns
+         *     409 rather than silently overwriting.
+         */
+        ArchitectureUpdate: {
+            /**
+             * Description
+             * @default null
+             */
+            description: string | null;
+            /** @default null */
+            graph: components["schemas"]["ArchitectureGraph"] | null;
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+            /**
+             * Task Type
+             * @default null
+             */
+            task_type: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling") | null;
+            /**
+             * Version
+             * @default null
+             */
+            version: number | null;
+        };
+        /**
+         * ArchitectureValidation
+         * @description Result of the fast analytic pass. No TensorFlow involved.
+         */
+        ArchitectureValidation: {
+            /**
+             * Issues
+             * @default null
+             */
+            issues: components["schemas"]["ArchitectureIssue"][];
+            /**
+             * Layer Count
+             * @default 0
+             */
+            layer_count: number;
+            /**
+             * Node Shapes
+             * @default null
+             */
+            node_shapes: {
+                [key: string]: (number | null)[] | null;
+            };
+            /** Ok */
+            ok: boolean;
+            /**
+             * Total Params Estimate
+             * @default null
+             */
+            total_params_estimate: number | null;
         };
         /** Body_add_recipe_sources_api_recipes__recipe_id__sources_post */
         Body_add_recipe_sources_api_recipes__recipe_id__sources_post: {
@@ -1616,6 +2140,16 @@ export interface components {
              * @default null
              */
             text_content: string | null;
+        };
+        /** Body_import_architecture_api_architectures_import_post */
+        Body_import_architecture_api_architectures_import_post: {
+            /** File */
+            file: string;
+            /**
+             * Project Id
+             * @default null
+             */
+            project_id: string | null;
         };
         /** Body_upload_dataset_item_api_datasets__dataset_id__items_post */
         Body_upload_dataset_item_api_datasets__dataset_id__items_post: {
@@ -1920,7 +2454,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
         };
         /** DatasetEdaSummary */
         DatasetEdaSummary: {
@@ -2090,7 +2624,7 @@ export interface components {
              * @default llm_finetune
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
         };
         /** DatasetHubImportResponse */
         DatasetHubImportResponse: {
@@ -2243,7 +2777,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
         };
         /** DatasetItemBatchUploadResponse */
         DatasetItemBatchUploadResponse: {
@@ -2804,7 +3338,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
         };
         /** DatasetUpdate */
         DatasetUpdate: {
@@ -2996,7 +3530,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
         };
         /** EvaluationJobBatchCreate */
         EvaluationJobBatchCreate: {
@@ -3729,7 +4263,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
             /**
              * Training Job Id
              * @default null
@@ -3897,6 +4431,61 @@ export interface components {
              */
             task: "text_classification";
         };
+        /** NodePortSpec */
+        NodePortSpec: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * NodeSpec
+         * @description Palette definition for one node type.
+         *
+         *     `params` reuses `AdvancedParameterSpec` so the node inspector is the same
+         *     generic field renderer the training form already uses — a new node type
+         *     gets its UI without frontend changes.
+         */
+        NodeSpec: {
+            /** Category */
+            category: string;
+            /** Description */
+            description: string;
+            /**
+             * Inputs
+             * @default null
+             */
+            inputs: components["schemas"]["NodePortSpec"][];
+            /**
+             * Max Inputs
+             * @default 1
+             */
+            max_inputs: number;
+            /**
+             * Min Inputs
+             * @default 1
+             */
+            min_inputs: number;
+            /** Name */
+            name: string;
+            /**
+             * Outputs
+             * @default null
+             */
+            outputs: components["schemas"]["NodePortSpec"][];
+            /**
+             * Params
+             * @default null
+             */
+            params: components["schemas"]["AdvancedParameterSpec"][];
+            /**
+             * Task Types
+             * @default null
+             */
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling")[];
+            /** Type */
+            type: string;
+        };
         /** OpenRouterModel */
         OpenRouterModel: {
             /** Id */
@@ -3973,7 +4562,7 @@ export interface components {
              * Task Types
              * @default null
              */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[];
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling")[];
         };
         /** ProjectStats */
         ProjectStats: {
@@ -4047,7 +4636,7 @@ export interface components {
              * Task Types
              * @default null
              */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[];
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling")[];
             /**
              * Updated At
              * Format: date-time
@@ -4082,7 +4671,7 @@ export interface components {
              * Task Types
              * @default null
              */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[] | null;
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling")[] | null;
         };
         /** RecipeCommitRequest */
         RecipeCommitRequest: {
@@ -4648,7 +5237,7 @@ export interface components {
              * @default segmentation
              * @enum {string}
              */
-            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune";
+            task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
             /**
              * Workers
              * @default 0
@@ -4757,7 +5346,7 @@ export interface components {
              */
             source: "local" | "ultralytics" | "keras_applications" | "huggingface";
             /** Task Types */
-            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune")[];
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling")[];
         };
         /** ValidationError */
         ValidationError: {
@@ -4824,6 +5413,481 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_architectures_api_architectures_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                task_type?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_architecture_api_architectures_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchitectureCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Architecture"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_architecture_api_architectures_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_architecture_api_architectures_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Architecture"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_node_catalog_api_architectures_node_catalog_get: {
+        parameters: {
+            query?: {
+                task_type?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeSpec"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_node_categories_api_architectures_node_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    list_templates_api_architectures_templates_get: {
+        parameters: {
+            query?: {
+                task_type?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureTemplate"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_architecture_api_architectures_validate_post: {
+        parameters: {
+            query?: {
+                num_classes?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchitectureGraph"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureValidation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_architecture_api_architectures__architecture_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Architecture"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_architecture_api_architectures__architecture_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchitectureUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Architecture"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_architecture_api_architectures__architecture_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    architecture_code_api_architectures__architecture_id__code_get: {
+        parameters: {
+            query?: {
+                num_classes?: number;
+                framework?: string;
+            };
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureCode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_architecture_code_api_architectures__architecture_id__code_download_get: {
+        parameters: {
+            query?: {
+                num_classes?: number;
+                framework?: string;
+            };
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    duplicate_architecture_api_architectures__architecture_id__duplicate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Architecture"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_architecture_api_architectures__architecture_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_saved_architecture_api_architectures__architecture_id__validate_post: {
+        parameters: {
+            query?: {
+                num_classes?: number | null;
+            };
+            header?: never;
+            path: {
+                architecture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureValidation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_datasets_api_datasets_get: {
         parameters: {
             query?: {

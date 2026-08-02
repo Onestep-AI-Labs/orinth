@@ -140,10 +140,15 @@ def test_settings_routes_save_hf_token_to_temp_env(
     env_path = tmp_path / ".env"
 
     def build_settings(token: str | None = None) -> Settings:
+        # Every credential this test asserts on is stated explicitly: `Settings`
+        # reads the developer's real `.env`, so anything left implicit makes the
+        # test pass or fail on what happens to be configured locally.
         return make_settings(
             DATABASE_URL=f"sqlite:///{tmp_path / 'settings.db'}",
             HF_TOKEN="",
             HUGGINGFACE_HUB_TOKEN=token or "",
+            OPENROUTER_API_KEY=None,
+            OPENROUTER_MODEL=None,
         )
 
     service = SettingsService(build_settings(), env_path=env_path)

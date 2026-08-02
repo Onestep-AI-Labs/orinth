@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routers import (
+    architectures,
     datasets,
     health,
     inference,
@@ -17,6 +18,7 @@ router = APIRouter()
 
 router.include_router(health.router)
 router.include_router(models.router)
+router.include_router(architectures.router)
 router.include_router(projects.router)
 router.include_router(datasets.router)
 router.include_router(recipes.router)

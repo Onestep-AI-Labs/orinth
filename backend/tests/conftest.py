@@ -70,3 +70,31 @@ def db_session(settings: Settings) -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+@pytest.fixture
+def build_generated():
+    """Write, import, and build a generated architecture module.
+
+    Lives here rather than in a test module because two suites need it and
+    `tests/` is not an importable package — a `from tests.x import y` fails
+    under pytest's prepend import mode.
+    """
+
+    import importlib.util
+    import sys
+
+    def _build(code: str, tmp_path: Path, module_name: str, num_classes: int):
+        path = tmp_path / f"{module_name}.py"
+        path.write_text(code, encoding="utf-8")
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+            return module.build_model(num_classes=num_classes)
+        finally:
+            sys.modules.pop(module_name, None)
+
+    return _build

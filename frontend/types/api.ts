@@ -12,7 +12,8 @@ export type TaskType =
   | "text_classification"
   | "summarization"
   | "question_answering"
-  | "llm_finetune";
+  | "llm_finetune"
+  | "language_modeling";
 export type DatasetFormat =
   | "yolo"
   | "coco"
@@ -32,6 +33,15 @@ export type DatasetSplitFilter = "all" | SplitKey;
 export type ProjectSummary = components["schemas"]["ProjectSummary"];
 export type ProjectStats = components["schemas"]["ProjectStats"];
 export type ModelInfo = components["schemas"]["ModelInfo"];
+export type Architecture = components["schemas"]["Architecture"];
+export type ArchitectureSummary = components["schemas"]["ArchitectureSummary"];
+export type ArchitectureGraph = components["schemas"]["ArchitectureGraph"];
+export type ArchitectureNode = components["schemas"]["ArchitectureNode"];
+export type ArchitectureEdge = components["schemas"]["ArchitectureEdge"];
+export type ArchitectureIssue = components["schemas"]["ArchitectureIssue"];
+export type ArchitectureValidation = components["schemas"]["ArchitectureValidation"];
+export type ArchitectureTemplate = components["schemas"]["ArchitectureTemplate"];
+export type NodeSpec = components["schemas"]["NodeSpec"];
 export type Detection = components["schemas"]["Detection"];
 export type InferenceResult = components["schemas"]["InferenceResult"];
 export type JobProgress = components["schemas"]["JobProgress"];

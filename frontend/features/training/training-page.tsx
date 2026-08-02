@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Activity, Cpu, Database, Lock, Play, SlidersHorizontal, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -12,10 +12,18 @@ import { allowedTaskTypesForProject, compactNumber, formatBytes, isLlmTask, isNl
 import { Badge, Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, TableSkeleton, TaskSelect, useConfirmationDialog } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
 
+// Phase 17: the architecture studio's Train button deep-links here with the
+// graph to train. The id rides the open-ended `hyperparameters` dict, matching
+// how the backend reads it — see `app/ml/architecture/train_catalog.py`.
+const ARCHITECTURE_OPTION_ID = "architecture_graph";
+
 export function TrainingPage() {
   const { projectId, project } = useProject();
+  const searchParams = useSearchParams();
+  const linkedArchitectureId = searchParams.get("architecture_id") ?? "";
   const [taskType, setTaskType] = useState<TaskType>("classification");
   const [modelOptionId, setModelOptionId] = useState("");
+  const [architectureId, setArchitectureId] = useState("");
   const [modelName, setModelName] = useState("");
   const [customHfId, setCustomHfId] = useState("");
   const [datasetId, setDatasetId] = useState("");
@@ -69,6 +77,16 @@ export function TrainingPage() {
   });
   const options = useMemo(() => optionsQuery.data ?? [], [optionsQuery.data]);
   const option = options.find((item) => item.id === modelOptionId);
+  const isArchitectureOption = modelOptionId === ARCHITECTURE_OPTION_ID;
+  const architecturesQuery = useQuery({
+    queryKey: ["architectures", projectId],
+    queryFn: () => api.architectures(projectId),
+    enabled: isArchitectureOption
+  });
+  const architectures = architecturesQuery.data ?? [];
+  // Starting a graph run without a graph fails server-side; block it here
+  // so the user sees why before submitting.
+  const architectureMissing = isArchitectureOption && !architectureId;
   const taskOptions = useMemo(() => allowedTaskTypesForProject(project), [project]);
   const nlp = isNlpTask(taskType);
   const llm = isLlmTask(taskType);
@@ -125,6 +143,15 @@ export function TrainingPage() {
       setTaskType(taskOptions[0] ?? "classification");
     }
   }, [taskOptions, taskType]);
+
+  useEffect(() => {
+    // Arriving from the studio picks the option for the user: they already
+    // chose the architecture, so making them find it again is friction.
+    if (!linkedArchitectureId) return;
+    setArchitectureId(linkedArchitectureId);
+    setTaskType("classification");
+    setModelOptionId(ARCHITECTURE_OPTION_ID);
+  }, [linkedArchitectureId]);
 
   useEffect(() => {
     // Clear a model that this task does not offer, but never pick one. The
@@ -207,6 +234,7 @@ export function TrainingPage() {
     // Fine-tuning method is chosen via its own prominent select, not the
     // advanced accordion; it rides the same hyperparameters dict.
     if (llm) hyperparameters.finetune_method = finetuneMethod;
+    if (selectedOption.id === ARCHITECTURE_OPTION_ID) hyperparameters.architecture_id = architectureId;
     await createMutation.mutateAsync({
       project_id: projectId,
       task_type: taskType,
@@ -306,6 +334,36 @@ export function TrainingPage() {
             </Field>
           </div>
           {option && <p className="form-caption">{option.description}</p>}
+          {isArchitectureOption && (
+            <Field
+              label="Architecture"
+              hint={architectures.length === 0 ? "none saved yet" : "from the studio"}
+            >
+              {architectures.length === 0 ? (
+                <EmptyState
+                  label="No saved architectures"
+                  description="Build one on the canvas first, then come back to train it."
+                  action={
+                    <ButtonLink variant="secondary" href="/models/architectures">
+                      Open the studio
+                    </ButtonLink>
+                  }
+                />
+              ) : (
+                <select
+                  value={architectureId}
+                  onChange={(event) => setArchitectureId(event.target.value)}
+                >
+                  <option value="">Choose an architecture…</option>
+                  {architectures.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} — v{item.version}, {item.node_count} nodes
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          )}
           {customHf && (
             <Field label="Hugging Face model id" hint="Transformers checkpoint">
               <input
@@ -417,7 +475,7 @@ export function TrainingPage() {
                   variant="primary"
                   className="flex-1"
                   onClick={runTraining}
-                  disabled={createMutation.isPending || !option?.runnable || !datasetId || customHfMissing}
+                  disabled={createMutation.isPending || !option?.runnable || !datasetId || customHfMissing || architectureMissing}
                 >
                   <Play size={17} /> Start training
                 </Button>

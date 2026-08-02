@@ -6332,3 +6332,1227 @@ td {
 .tour-launch svg {
   color: var(--color-accent);
 }
+
+/* The accessible-hidden pattern: removed from view but still focusable and
+   readable by assistive tech. Used for file inputs driven by a styled Button. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Architecture studio (phase 17)
+
+   A node canvas inside the working app. React Flow ships only its structural
+   `base.css`; every visible surface below is styled from platform tokens, so
+   the canvas reads as the same instrument as the rest of the shell. Resting
+   nodes are border-first per DESIGN.md §5 — the only elevations here are the
+   sanctioned --ring-accent on selection and --shadow-overlay on the floating
+   canvas controls.
+   ========================================================================== */
+
+.models-tabs a {
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-ink-subtle);
+  text-decoration: none;
+}
+
+.models-tabs a.segmented-active {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-subtle);
+}
+
+/* --- list ---------------------------------------------------------------- */
+
+.arch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.arch-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arch-card-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-decoration: none;
+  letter-spacing: var(--display-tracking);
+}
+
+.arch-card-name:hover {
+  color: var(--color-accent);
+}
+
+.arch-card-desc {
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+}
+
+.arch-card-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.arch-card-meta dt {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-card-meta dd {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+/* --- template picker ----------------------------------------------------- */
+
+.arch-template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.arch-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.arch-template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.arch-template-card:hover:not(:disabled) {
+  border-color: var(--color-line-strong);
+}
+
+.arch-template-blank {
+  background: var(--color-surface-2);
+  border-style: dashed;
+}
+
+.arch-template-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.arch-template-desc {
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+}
+
+/* --- studio shell -------------------------------------------------------- */
+
+.arch-studio {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Fill the content area: a node canvas is useless in a short box. */
+  height: calc(100vh - 112px);
+  min-height: 620px;
+}
+
+/* Fullscreen lifts the studio out of the shell entirely — the canvas is the
+   whole task, and the sidebar is not useful while wiring a graph. */
+.arch-studio-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  height: 100vh;
+  margin: 0;
+  padding: 16px;
+  background: var(--color-canvas);
+  overflow: hidden;
+}
+
+.arch-studio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.arch-studio-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.arch-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+  text-decoration: none;
+}
+
+.arch-back:hover {
+  color: var(--color-accent);
+}
+
+.arch-name-input {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 2px 6px;
+  margin-left: -6px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+  color: var(--color-ink);
+  width: 100%;
+}
+
+.arch-name-input:hover {
+  border-color: var(--color-line);
+}
+
+.arch-name-input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-studio-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--color-ink-subtle);
+}
+
+.arch-studio-stats strong {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-classes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.arch-classes input {
+  width: 72px;
+}
+
+.arch-studio-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.arch-studio-grid {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr) 320px;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.arch-studio-grid.arch-no-palette {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.arch-studio-grid.arch-no-inspector {
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+
+.arch-studio-grid.arch-no-palette.arch-no-inspector {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.arch-view-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+@media (max-width: 1200px) {
+  /* Narrow viewports get the palette and canvas; the inspector is reachable
+     from the header toggle, which then overlays. */
+  .arch-studio-grid,
+  .arch-studio-grid.arch-no-palette {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+
+  .arch-studio-grid .arch-inspector {
+    display: none;
+  }
+}
+
+/* --- palette ------------------------------------------------------------- */
+
+.arch-palette,
+.arch-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
+.arch-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink-subtle);
+}
+
+.arch-palette-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.84rem;
+  color: var(--color-ink);
+}
+
+.arch-palette-search input:focus {
+  outline: none;
+}
+
+.arch-palette-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.arch-palette-empty {
+  padding: 16px 8px;
+  font-size: 0.82rem;
+  color: var(--color-ink-subtle);
+}
+
+.arch-palette-group {
+  margin-bottom: 12px;
+}
+
+.arch-palette-label {
+  padding: 4px 8px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-palette-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: grab;
+}
+
+.arch-palette-item:hover:not(:disabled) {
+  background: var(--color-wash);
+  border-color: var(--color-line);
+}
+
+.arch-palette-item:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.arch-palette-item-name {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.arch-palette-item-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.72rem;
+  color: var(--color-ink-subtle);
+}
+
+/* --- canvas -------------------------------------------------------------- */
+
+.arch-canvas {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-2);
+}
+
+.arch-canvas .react-flow__background-pattern {
+  color: var(--color-line-strong);
+}
+
+.arch-canvas .react-flow__edge-path {
+  stroke: var(--color-line-input);
+  stroke-width: 1.5;
+}
+
+.arch-canvas .react-flow__edge.selected .react-flow__edge-path,
+.arch-canvas .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-accent);
+}
+
+.arch-canvas .react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+}
+
+/* Floating controls sit over content, so the overlay elevation applies. */
+.arch-canvas .react-flow__controls,
+.arch-canvas .react-flow__minimap {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+.arch-canvas .react-flow__controls-button {
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+  fill: var(--color-ink-muted);
+  width: 26px;
+  height: 26px;
+}
+
+.arch-canvas .react-flow__controls-button:hover {
+  background: var(--color-wash);
+}
+
+.arch-canvas .react-flow__minimap-mask {
+  fill: oklch(var(--shadow-ink) / 0.06);
+}
+
+.arch-canvas .react-flow__minimap-node {
+  fill: var(--color-line-strong);
+}
+
+.arch-canvas .react-flow__attribution {
+  background: transparent;
+  font-size: 0.62rem;
+}
+
+.arch-canvas .react-flow__attribution a {
+  color: var(--color-ink-subtle);
+}
+
+/* --- node ---------------------------------------------------------------- */
+
+.arch-node {
+  min-width: 168px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.arch-node:hover {
+  border-color: var(--color-line-strong);
+}
+
+/* --ring-accent alone is ~1.5:1, so selection also sets the border at full
+   opacity (DESIGN.md §5). */
+.arch-node-selected,
+.arch-node-selected:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.arch-node-error,
+.arch-node-error:hover {
+  border-color: var(--color-danger);
+}
+
+.arch-node-warning,
+.arch-node-warning:hover {
+  border-color: var(--color-warn);
+}
+
+.arch-node-category {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-node-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.arch-node-flag-error {
+  color: var(--color-danger-strong);
+  flex-shrink: 0;
+}
+
+.arch-node-flag-warn {
+  color: var(--color-warn-strong);
+  flex-shrink: 0;
+}
+
+.arch-node-shape {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-canvas .arch-handle {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--color-line-input);
+  background: var(--color-surface);
+}
+
+.arch-canvas .arch-handle:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+
+/* --- inspector ----------------------------------------------------------- */
+
+.arch-inspector-head {
+  padding: 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-inspector-eyebrow {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-title {
+  margin-top: 2px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+  color: var(--color-ink);
+}
+
+.arch-inspector-desc {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+}
+
+.arch-inspector-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-inspector-fact-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-fact-value {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.arch-inspector-issues {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.arch-inspector-group {
+  display: grid;
+  gap: 8px;
+}
+
+.arch-inspector-hint {
+  padding: 16px;
+  font-size: 0.82rem;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+/* --- issues + code drawer ------------------------------------------------ */
+
+.arch-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  padding: 12px;
+  max-height: 340px;
+  min-height: 132px;
+}
+
+/* Collapsed, the drawer keeps only its tab row, handing the height back to
+   the canvas. */
+.arch-drawer-collapsed {
+  min-height: 0;
+  max-height: none;
+  flex: 0 0 auto;
+  gap: 0;
+}
+
+.arch-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arch-drawer-chevron {
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arch-drawer-chevron-up {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-drawer-chevron {
+    transition: none;
+  }
+}
+
+.arch-drawer-tabs {
+  align-self: flex-start;
+}
+
+.arch-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.arch-drawer-clean {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: var(--color-success-strong);
+}
+
+.arch-issue-list {
+  display: grid;
+  gap: 6px;
+}
+
+.arch-issue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+}
+
+.arch-issue-error {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+.arch-issue-warning {
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+}
+
+.arch-issue-node {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-muted);
+}
+
+.arch-issue-node:hover {
+  color: var(--color-accent);
+}
+
+.arch-code {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.arch-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.arch-code-name {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+}
+
+.arch-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arch-code-body {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.arch-code-error {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+  font-size: 0.82rem;
+}
+
+.arch-load-error {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+/* Source-code field for `code`-typed catalog params (phase 17 custom layers). */
+.code-field {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  tab-size: 4;
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+/* --- architecture studio: interaction and density (phase 17 revision) ----- */
+
+/* Draggable pane edges. The hit area is wider than the visible line so the
+   handle is grabbable without becoming a thick divider. */
+.arch-resize {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-pill);
+}
+
+.arch-resize::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  transition: background 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arch-resize-x {
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.arch-resize-x::after {
+  width: 2px;
+  height: 44px;
+}
+
+.arch-resize-y {
+  cursor: row-resize;
+  touch-action: none;
+  height: 6px;
+}
+
+.arch-resize-y::after {
+  height: 2px;
+  width: 44px;
+}
+
+.arch-resize:hover::after,
+.arch-resize:focus-visible::after,
+.arch-resize-active::after {
+  background: var(--color-accent);
+}
+
+.arch-resize:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-resize::after {
+    transition: none;
+  }
+}
+
+/* Category colour strip. The --label ramp is the sanctioned categorical
+   exception (DESIGN.md §2) and stays inside the node, never in chrome. */
+.arch-node {
+  position: relative;
+  overflow: hidden;
+}
+
+.arch-node-stripe {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+}
+
+.arch-node-category {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.arch-palette-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.arch-palette-label,
+.arch-inspector-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arch-palette-item-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* React Flow's selection box, drawn in the accent rather than its default. */
+.arch-canvas .react-flow__selection {
+  border: 1px solid var(--color-accent);
+  background: oklch(var(--accent) / 0.08);
+}
+
+/* --- IDE-style code field ------------------------------------------------ */
+
+.code-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.code-editor-frame {
+  display: flex;
+  min-height: 0;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.code-editor-frame:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.code-editor-gutter {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  border-right: 1px solid var(--color-line);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--color-ink-subtle);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.code-editor-line {
+  padding: 0 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-line-flagged {
+  color: var(--color-danger-strong);
+  background: var(--color-danger-tint);
+}
+
+/* The highlighted layer and the textarea are stacked and must share one font
+   metric exactly, or the caret drifts from the glyphs beneath it. */
+.code-editor-surface {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.code-editor-highlight,
+.code-editor-input {
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  tab-size: 4;
+  white-space: pre;
+  word-break: normal;
+}
+
+.code-editor-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.code-editor-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-ink);
+  overflow: auto;
+}
+
+.code-editor-input:focus {
+  outline: none;
+}
+
+.code-editor-input::selection {
+  background: var(--color-accent-tint-strong);
+}
+
+.code-editor-findings {
+  display: grid;
+  gap: 4px;
+}
+
+.code-finding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+}
+
+.code-finding-error {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+.code-finding-warning {
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+}
+
+.code-finding-line {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+/* --- code panel framework toggle ----------------------------------------- */
+
+.arch-code-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.arch-framework-toggle button {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+}
+
+/* --- list search and pagination ------------------------------------------ */
+
+.arch-list-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arch-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 380px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-subtle);
+}
+
+.arch-search:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.arch-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.85rem;
+  color: var(--color-ink);
+}
+
+.arch-search input:focus {
+  outline: none;
+}
+
+.arch-search-compact {
+  max-width: 240px;
+  padding: 6px 10px;
+}
+
+.arch-list-count {
+  font-size: 0.78rem;
+  color: var(--color-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.arch-pagination-status {
+  font-size: 0.82rem;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-template-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- canvas tools, group frames, branch edges (phase 17 revision 2) ------- */
+
+.arch-tool-active {
+  background: var(--color-accent-tint) !important;
+  border-color: var(--color-accent) !important;
+  color: var(--color-accent-strong) !important;
+}
+
+.arch-canvas-move .react-flow__pane {
+  cursor: grab;
+}
+
+.arch-canvas-move .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.arch-canvas-select .react-flow__pane {
+  cursor: crosshair;
+}
+
+/* A branch edge is a curve, so a fan-out reads as two paths rather than one.
+   It also sits above chain edges so a residual is never hidden behind them. */
+.arch-canvas .arch-edge-branch .react-flow__edge-path {
+  stroke: var(--color-ink-subtle);
+  stroke-width: 1.75;
+}
+
+.arch-canvas .arch-edge-branch:hover .react-flow__edge-path,
+.arch-canvas .arch-edge-branch.selected .react-flow__edge-path {
+  stroke: var(--color-accent);
+}
+
+/* --- group frames --------------------------------------------------------- */
+
+.arch-group {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed;
+  border-radius: var(--radius-xl);
+  padding: 8px 10px;
+}
+
+.arch-group-selected {
+  border-style: solid;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arch-group-title,
+.arch-group-title-input {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.arch-group-title-input {
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-line-input);
+  min-width: 0;
+  flex: 1;
+}
+
+.arch-group-title-input:focus {
+  outline: none;
+  border-bottom-color: var(--color-accent);
+}
+
+.arch-group-swatch,
+.arch-group-tint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.arch-group-palette {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 5px 6px;
+  width: fit-content;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.arch-canvas .arch-group-line {
+  border-color: var(--color-accent);
+}
+
+.arch-canvas .arch-group-handle {
+  border: 1px solid var(--color-accent);
+  background: var(--color-surface);
+  border-radius: 2px;
+}

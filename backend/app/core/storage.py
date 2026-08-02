@@ -20,6 +20,9 @@ class Storage:
         self.dataset_versions = self.root / "dataset_versions"
         self.recipes = self.root / "recipes"
         self.previews = self.root / "previews"
+        # Phase 17: one directory per architecture holding a JSON snapshot of
+        # every save, so a graph can be recovered after a bad edit.
+        self.architectures = self.root / "architectures"
         self.model_assets = self.root / "model_assets"
         self.model_downloads = self.model_assets / "downloads"
         self.registry_file = self.root / "model_registry.json"
@@ -46,6 +49,7 @@ class Storage:
             self.dataset_versions,
             self.recipes,
             self.previews,
+            self.architectures,
             self.model_assets,
             self.model_downloads,
             self.tools,
