@@ -11,6 +11,7 @@ import {
   Repeat,
   Ruler,
   ShieldCheck,
+  Shuffle,
   Sparkles
 } from "lucide-react";
 import { labelColor, labelFill } from "@/features/platform/utils";
@@ -24,13 +25,16 @@ import { labelColor, labelFill } from "@/features/platform/utils";
  * which is exactly what that ramp is for, and it stays confined to the node's
  * header tint, its stripe, and the palette dot.
  *
- * Twelve categories over an eight-colour ramp means some share a hue. The
+ * Thirteen categories over an eight-colour ramp means some share a hue. The
  * repeats are chosen to be semantically honest rather than merely spaced:
  * Transformer primitives share LLM blocks' violet because one composes into the
  * other, and Backbone shares Convolution's green for the same reason.
  */
 const CATEGORY_VISUALS: Record<string, { icon: typeof Blocks; label: number }> = {
   "Input & Output": { icon: LogIn, label: 0 },
+  // Shares Regularization's hue because that is what augmentation is — the
+  // same job done to the input instead of to the activations.
+  Augmentation: { icon: Shuffle, label: 3 },
   "Vision blocks": { icon: Layers, label: 3 },
   "LLM blocks": { icon: Boxes, label: 5 },
   Core: { icon: Blocks, label: 1 },

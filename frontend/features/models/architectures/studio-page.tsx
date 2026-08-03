@@ -659,16 +659,27 @@ function Studio({ architectureId }: { architectureId: string }) {
     const doomed = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
     if (selectedId) doomed.add(selectedId);
     const doomedGroups = new Set(selectedGroupIds);
-    if (doomed.size === 0 && doomedGroups.size === 0) return;
+    // A selected wire is deleted here too: `deleteKeyCode` is off, so React
+    // Flow never removes one on its own and a lone edge selection would
+    // otherwise be undeletable by any means but the edge context menu.
+    const doomedEdges = new Set(
+      edges.filter((edge) => edge.selected).map((edge) => edge.id)
+    );
+    if (doomed.size === 0 && doomedGroups.size === 0 && doomedEdges.size === 0) return;
     commit();
     setNodes((current) => current.filter((node) => !doomed.has(node.id)));
     setEdges((current) =>
-      current.filter((edge) => !doomed.has(edge.source) && !doomed.has(edge.target))
+      current.filter(
+        (edge) =>
+          !doomedEdges.has(edge.id) &&
+          !doomed.has(edge.source) &&
+          !doomed.has(edge.target)
+      )
     );
     setGroups((current) => current.filter((group) => !doomedGroups.has(group.id)));
     setSelectedId("");
     setSelectedGroupIds([]);
-  }, [nodes, selectedId, selectedGroupIds, commit]);
+  }, [nodes, edges, selectedId, selectedGroupIds, commit]);
 
   const cutSelection = useCallback(() => {
     if (!copySelection()) return;
@@ -812,6 +823,9 @@ function Studio({ architectureId }: { architectureId: string }) {
   // --- context menu --------------------------------------------------------
 
   const selectionCount = nodes.filter((node) => node.selected).length + selectedGroupIds.length;
+  // Edges are deletable but not copyable — a wire without its endpoints is not
+  // a thing that can be pasted — so they gate Delete only, not the clipboard.
+  const selectedEdgeCount = edges.filter((edge) => edge.selected).length;
   const canPaste = clipboardRef.current !== null;
 
   const openMenu = useCallback(
@@ -887,7 +901,7 @@ function Studio({ architectureId }: { architectureId: string }) {
             shortcut: "Del",
             icon: <Trash2 size={14} />,
             danger: true,
-            disabled: !hasSelection,
+            disabled: !hasSelection && selectedEdgeCount === 0,
             onSelect: deleteSelection
           }
         ]
@@ -896,6 +910,7 @@ function Studio({ architectureId }: { architectureId: string }) {
     [
       screenToFlowPosition,
       selectionCount,
+      selectedEdgeCount,
       canPaste,
       cutSelection,
       copySelection,
@@ -1151,7 +1166,19 @@ function Studio({ architectureId }: { architectureId: string }) {
               }
               openMenu(event);
             }}
-            onEdgeContextMenu={(event, edge) =>
+            onEdgeContextMenu={(event, edge) => {
+              // Right-clicking a wire acts on that wire, so it becomes the
+              // selection first — the menu then matches what is highlighted.
+              setEdges((current) =>
+                current.map((item) => ({ ...item, selected: item.id === edge.id }))
+              );
+              setNodes((current) =>
+                current.some((node) => node.selected)
+                  ? current.map((node) => ({ ...node, selected: false }))
+                  : current
+              );
+              setSelectedId("");
+              setSelectedGroupIds([]);
               openMenu(event, [
                 {
                   label: "Delete connection",
@@ -1163,8 +1190,8 @@ function Studio({ architectureId }: { architectureId: string }) {
                   }
                 },
                 { kind: "separator" }
-              ])
-            }
+              ]);
+            }}
             fitView
             proOptions={{ hideAttribution: false }}
             // Delete is handled by the studio's own key handler so it can take

@@ -25,6 +25,14 @@ class KerasClassificationPredictor(Predictor):
             raise FileNotFoundError(f"Keras model not found: {model_path}")
         import tensorflow as tf  # noqa: PLC0415
 
+        from app.ml.architecture.runtime import ensure_registered  # noqa: PLC0415
+
+        # A model from the architecture studio can contain the studio's own
+        # layers (SqueezeExcite, PatchEmbedding, RMSNorm, …). They only exist
+        # in Keras's registry once their definitions have run, and nothing in
+        # this process had run them, so those models failed to load. Harmless
+        # for a transfer-learning model, which uses no custom layer.
+        ensure_registered()
         self.model = tf.keras.models.load_model(model_path, compile=False)
         self.labels = labels
         self.input_size = self._declared_input_size() or (image_size, image_size)

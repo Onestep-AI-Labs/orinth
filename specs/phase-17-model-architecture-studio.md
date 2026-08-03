@@ -2,10 +2,90 @@
 
 ## Status
 
-**Implemented — all five stages, plus a second emitter.** Compose a graph (65 node types, 38 starter
+**Implemented — all five stages, plus a second emitter.** Compose a graph (69 node types, 38 starter
 templates), validate it, save it, read and download the generated Python as **either TensorFlow or
 PyTorch**, and train it: image and text classifiers into the model registry, and from-scratch
 transformers on next-token prediction with sample generation.
+
+### Revision 10: a selected connector could not be deleted
+
+`deleteKeyCode` is `null` so the studio's own key handler can take group
+frames — which React Flow does not own — with the selection. But
+`deleteSelection` only ever gathered nodes and groups, so nothing removed a
+selected edge: `Delete` was a no-op on a wire, and the context menu's generic
+**Delete** was disabled because `selectionCount` did not count edges either.
+The only way to remove a connector was the edge context menu's **Delete
+connection**. `deleteSelection` now collects selected edge ids alongside the
+nodes and groups, and a right-click on a wire selects it first, so the menu
+acts on what is highlighted.
+
+**A clicked wire also came out grey, not blue** — and it was a cascade tie, not
+a colour choice. React Flow gives a focusable edge `tabIndex=0`, so clicking one
+focuses it, and `base.css` carries
+
+```css
+.react-flow__edge.selectable:focus .react-flow__edge-path { stroke: var(--xy-edge-stroke-selected, #555); }
+```
+
+at specificity `(0,4,0)` — exactly equal to `platform.css`'s
+`.arch-canvas .react-flow__edge.selected .react-flow__edge-path`. `base.css` is
+imported from the studio *client component*, so it loads after the global sheet
+and wins the tie. Only `stroke` was overridden, which is why the selected wire
+still thickened to 3.5px: it rendered as a *thick grey* line. Hover stayed
+correct throughout because `base.css` styles no hover state, which is what made
+the bug look like "hover works, selection doesn't".
+
+The fix feeds React Flow's own theming hook — `--xy-edge-stroke-selected` set on
+`.arch-canvas` — so its rule paints the accent rather than being fought, and the
+studio's own rules carry `.selectable` to sit one class above the vendor rule.
+The stroke also moved from `--color-accent-strong` (`#1e40af`, meant for accent
+*text* on a tint) to `--color-accent` (`#2563eb`), the solid canvas blue. The
+surface-coloured casing stays.
+
+### Revision 9: graph models could not be reloaded, and augmentation reached the canvas
+
+A graph-built model trained to completion and then failed every downstream use.
+Two independent causes, both in what the emitter wrote rather than in training:
+
+- **`Activation` was given a lambda.** `inverted_residual` emitted
+  `Activation(lambda t: tf.clip_by_value(t, 0.0, 6.0))` for relu6 and an
+  inline hard-swish. Keras saves a lambda as marshalled bytecode, so
+  `load_model` raised "Could not interpret activation function identifier"
+  against a base64 blob, and testing and inference were unreachable for every
+  MobileNet graph. Keras ships `relu6` and `hard_silu` as named activations;
+  both now emit by name. The classic FFN's `Lambda(gelu)` went the same way.
+- **Custom layers were never registered in the serving process.** `SqueezeExcite`,
+  `PatchEmbedding`, `RMSNorm` and the rest are resolved by name at load time
+  from a registry populated by *running* their definitions. Training does that
+  by importing `generated_model.py`; nothing did it in the API process, so
+  MobileNetV3 and ViT graphs failed with "Could not locate class". The
+  generated file cannot be the fix — [Custom code and trust](#custom-code-and-trust)
+  forbids the FastAPI process executing it. `ml/architecture/runtime.py`
+  instead executes the same helper *source strings* the emitter writes, which
+  are repository code with no user content, and the predictor calls it before
+  `load_model`. Executing the strings rather than restating the classes keeps
+  one definition: a second copy would drift from the trainer's the first time a
+  block was fixed, and a model would then be rebuilt with the wrong layer.
+
+Both are invisible to any test that only builds a model, which is why training
+never caught them. `test_architecture_families` now saves and reloads every
+vision block and compares outputs.
+
+**Augmentation nodes** (`random_flip`, `random_rotation`, `random_zoom`,
+`random_contrast`) close the gap this exposed: a from-scratch graph had no
+regularization at all, while the transfer-learning runner had four
+augmentation toggles. They are layers rather than training-form knobs so the
+graph stays the single source of truth — a run is reproducible from the canvas,
+and the augmentation travels through export and import. All four are active
+only under `training=True`, so a saved model still serves deterministically.
+
+Note that from-scratch and transfer learning are not the same experiment and
+augmentation does not make them one: on 1770 images the hand-built MobileNetV2
+reached 0.53 validation accuracy at 435 ms/step against the frozen ImageNet
+backbone's 0.81 at 63 ms/step, because the first trains 2.26M parameters and
+the second trains 7,686. The `pretrained_backbone` node already emits a model
+identical to `keras_classification_train`'s, and remains the answer when the
+goal is accuracy rather than studying the architecture.
 
 ### Revision 8: group frames were unmovable, and the drag never followed the pointer
 
@@ -214,9 +294,9 @@ for the same reason.
 - **Drag affordances are visible at rest.** Pane dividers and frame edges show a
   hairline grip in `--line-strong` that promotes to the accent and lengthens on
   hover, so a resizable edge is discoverable without first hovering it.
-- **A selected edge carries a surface-coloured casing** behind the stroke, so it
-  reads against the dot grid, a group frame's pastel wash, or a node it passes
-  behind — which one stroke colour cannot do alone.
+- **A selected edge is the solid accent blue with a surface-coloured casing**
+  behind the stroke, so it reads against the dot grid, a group frame's pastel
+  wash, or a node it passes behind — which one stroke colour cannot do alone.
 - **Explanatory prose is two tiers, not five sizes.** Card, preset, and inspector
   descriptions share one size, colour, leading, and gap; the clamped one-liner in
   a palette row is the deliberate denser tier.
@@ -274,7 +354,8 @@ exactly, so promotion, testing, and serving go through the existing `KerasTextCl
   rest of the selection, the title renames on double-click, and colour, exact size, and position moved
   into a `GroupInspector` in the right rail — a colour palette floating over the canvas covered the
   nodes the frame was describing.
-- **Selection is visible.** Edges gain an 18px interaction width and thicken to 3.5px when selected;
+- **Selection is visible.** Edges gain an 18px interaction width and turn solid accent blue at 3.5px
+  when selected (see [Revision 10](#revision-10-a-selected-connector-could-not-be-deleted));
   connectors went from 9px to 14px, above the threshold where hitting one is aim rather than intent.
 - **The canvas gets the space.** Narrower default rails, a shorter drawer, a taller studio, one scroll
   region covering the inspector header, palette entries with room between them, a palette filter that
@@ -648,7 +729,7 @@ In:
 
 - A versioned graph IR (JSON) as the single source of truth for an architecture.
 - A server-declared node catalog covering core, convolutional, normalization, recurrent, merge,
-  attention/transformer, and pretrained-backbone nodes.
+  attention/transformer, augmentation, and pretrained-backbone nodes.
 - Analytic validation and shape inference (no TensorFlow import), plus an authoritative subprocess
   compile check that builds the real model.
 - Keras code generation: a standalone `generated_model.py` exposing `build_model(...)`.

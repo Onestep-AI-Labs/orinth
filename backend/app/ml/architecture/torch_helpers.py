@@ -726,3 +726,109 @@ VIT_HELPER = '''class ViTEncoder(nn.Module):
             x = x + attend(h, h, h, need_weights=False)[0]
             x = x + mlp(mlp_norm(x))
         return x'''
+
+
+# --- augmentation ------------------------------------------------------------
+
+# Keras applies augmentation as layers and switches them off by the `training`
+# flag; torch's equivalents live in `torchvision.transforms`, which belongs to
+# the DataLoader rather than the module. Translating the nodes as `nn.Module`s
+# keeps the exported model the same model — augmentation inside `forward`,
+# skipped in `eval()` — and implementing them on plain torch ops means the
+# generated file still needs nothing but `torch`.
+#
+# `grid_sample` with `padding_mode="reflection"` is what matches Keras's
+# default `fill_mode="reflect"` for the geometric two.
+
+AUGMENT_AFFINE_HELPER = '''def affine_batch(x, matrices):
+    """Resample NCHW images by per-sample 2x3 affine matrices."""
+
+    grid = F.affine_grid(matrices, list(x.shape), align_corners=False)
+    return F.grid_sample(x, grid, mode="bilinear", padding_mode="reflection", align_corners=False)'''
+
+
+RANDOM_FLIP_HELPER = '''class RandomFlip(nn.Module):
+    """Mirror each image independently while training."""
+
+    def __init__(self, mode="horizontal"):
+        super().__init__()
+        self.mode = mode
+
+    def forward(self, x):
+        if not self.training:
+            return x
+        if self.mode in ("horizontal", "horizontal_and_vertical"):
+            keep = torch.rand(x.shape[0], device=x.device) < 0.5
+            x = torch.where(keep[:, None, None, None], x.flip(-1), x)
+        if self.mode in ("vertical", "horizontal_and_vertical"):
+            keep = torch.rand(x.shape[0], device=x.device) < 0.5
+            x = torch.where(keep[:, None, None, None], x.flip(-2), x)
+        return x'''
+
+
+RANDOM_ROTATION_HELPER = '''class RandomRotation(nn.Module):
+    """Rotate each image by a random angle while training.
+
+    `factor` is a fraction of a full turn, matching the Keras layer: 0.1 draws
+    the angle uniformly from ±36°.
+    """
+
+    def __init__(self, factor=0.1):
+        super().__init__()
+        self.factor = factor
+
+    def forward(self, x):
+        if not self.training or not self.factor:
+            return x
+        batch = x.shape[0]
+        turns = (torch.rand(batch, device=x.device) * 2.0 - 1.0) * self.factor
+        angles = turns * 2.0 * math.pi
+        cos, sin = torch.cos(angles), torch.sin(angles)
+        matrices = torch.zeros(batch, 2, 3, device=x.device, dtype=x.dtype)
+        matrices[:, 0, 0], matrices[:, 0, 1] = cos, -sin
+        matrices[:, 1, 0], matrices[:, 1, 1] = sin, cos
+        return affine_batch(x, matrices)'''
+
+
+RANDOM_ZOOM_HELPER = '''class RandomZoom(nn.Module):
+    """Zoom each image by a random factor while training.
+
+    Follows the Keras layer's sign convention: a positive draw zooms *out*, so
+    the sampling grid grows. One factor drives both axes, keeping the zoom
+    isotropic.
+    """
+
+    def __init__(self, factor=0.1):
+        super().__init__()
+        self.factor = factor
+
+    def forward(self, x):
+        if not self.training or not self.factor:
+            return x
+        batch = x.shape[0]
+        scale = 1.0 + (torch.rand(batch, device=x.device) * 2.0 - 1.0) * self.factor
+        matrices = torch.zeros(batch, 2, 3, device=x.device, dtype=x.dtype)
+        matrices[:, 0, 0] = scale
+        matrices[:, 1, 1] = scale
+        return affine_batch(x, matrices)'''
+
+
+RANDOM_CONTRAST_HELPER = '''class RandomContrast(nn.Module):
+    """Scale each image's contrast about its own mean while training.
+
+    The multiplier is drawn from [1 - factor, 1 + factor]. The result is
+    clamped to [0, 1] because the image pipeline feeds normalized floats.
+    """
+
+    def __init__(self, factor=0.1):
+        super().__init__()
+        self.factor = factor
+
+    def forward(self, x):
+        if not self.training or not self.factor:
+            return x
+        batch = x.shape[0]
+        strength = 1.0 + (torch.rand(batch, device=x.device) * 2.0 - 1.0) * self.factor
+        strength = strength[:, None, None, None].to(x.dtype)
+        mean = x.mean(dim=(1, 2, 3), keepdim=True)
+        return torch.clamp((x - mean) * strength + mean, 0.0, 1.0)'''

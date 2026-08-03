@@ -7,8 +7,10 @@ advanced values, so no schema or endpoint changes.
 The advanced set is the Keras classification set minus the knobs the graph now
 owns — `dropout` and `unfreeze_layers` are nodes and node params, not
 hyperparameters, and offering them here would let a form value silently
-contradict the canvas. Augmentation is likewise absent: it belongs on the
-canvas once augmentation nodes land.
+contradict the canvas. Augmentation is absent for the same reason, and now for
+a stronger one: the augmentation nodes have landed (`random_flip`,
+`random_rotation`, `random_zoom`, `random_contrast`), so it is expressed on the
+canvas where the rest of the model lives.
 """
 
 from app.ml.common.advanced import OPTIMIZATION, REGULARIZATION, RUNTIME, number, select, toggle

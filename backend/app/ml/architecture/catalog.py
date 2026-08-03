@@ -38,6 +38,7 @@ from app.schemas import AdvancedParameterSpec, NodePortSpec, NodeSpec, TaskType
 
 # Palette categories, in display order.
 IO = "Input & Output"
+AUGMENTATION = "Augmentation"
 VISION_BLOCK = "Vision blocks"
 LLM_BLOCK = "LLM blocks"
 CORE = "Core"
@@ -52,6 +53,9 @@ CUSTOM = "Custom"
 
 CATEGORY_ORDER = [
     IO,
+    # Directly after Input, which is where these belong on the canvas and the
+    # only place they do anything: they read the raw image.
+    AUGMENTATION,
     VISION_BLOCK,
     LLM_BLOCK,
     CORE,
@@ -623,6 +627,90 @@ _SPEC_LIST: list[NodeSpec] = [
         ],
         min_inputs=2,
         max_inputs=-1,
+    ),
+    # --- Augmentation ------------------------------------------------------
+    # These are layers, not a training-form toggle, because the graph is the
+    # single source of truth for what the model is: a run is reproducible from
+    # the canvas alone, and the augmentation travels with an export or import
+    # instead of living in a hyperparameter dict beside it.
+    #
+    # All four are active only while training. Keras drives that off the
+    # `training` flag it already threads through `fit`, so a saved model
+    # evaluates and serves deterministically with no bypass wiring — the same
+    # reason they are safe to leave in the graph at inference time.
+    _spec(
+        "random_flip",
+        "RandomFlip",
+        AUGMENTATION,
+        "Mirrors the image at random while training. Identity at inference.",
+        params=[
+            select(
+                "mode",
+                "Mode",
+                options=["horizontal", "vertical", "horizontal_and_vertical"],
+                default="horizontal",
+                group=LAYER,
+                help="Horizontal suits most photographs; vertical rarely does.",
+            )
+        ],
+        task_types=["classification", "object_detection", "segmentation"],
+    ),
+    _spec(
+        "random_rotation",
+        "RandomRotation",
+        AUGMENTATION,
+        "Rotates the image at random while training. Identity at inference.",
+        params=[
+            number(
+                "factor",
+                "Factor",
+                default=0.1,
+                group=LAYER,
+                minimum=0.0,
+                maximum=1.0,
+                step=0.05,
+                help="Fraction of a full turn, so 0.1 is ±36°.",
+            )
+        ],
+        task_types=["classification", "object_detection", "segmentation"],
+    ),
+    _spec(
+        "random_zoom",
+        "RandomZoom",
+        AUGMENTATION,
+        "Zooms the image in or out at random while training. Identity at inference.",
+        params=[
+            number(
+                "factor",
+                "Factor",
+                default=0.1,
+                group=LAYER,
+                minimum=0.0,
+                maximum=1.0,
+                step=0.05,
+                help="Fraction of the height/width, so 0.1 is ±10%.",
+            )
+        ],
+        task_types=["classification", "object_detection", "segmentation"],
+    ),
+    _spec(
+        "random_contrast",
+        "RandomContrast",
+        AUGMENTATION,
+        "Varies image contrast at random while training. Identity at inference.",
+        params=[
+            number(
+                "factor",
+                "Factor",
+                default=0.1,
+                group=LAYER,
+                minimum=0.0,
+                maximum=1.0,
+                step=0.05,
+                help="Contrast is scaled by a factor drawn from [1-f, 1+f].",
+            )
+        ],
+        task_types=["classification", "object_detection", "segmentation"],
     ),
     # --- Regularization ----------------------------------------------------
     _spec(

@@ -39,6 +39,7 @@ from app.ml.architecture.graph import OUTPUT_TYPE, ResolvedGraph, ResolvedNode, 
 from app.ml.architecture.shapes import Shape
 from app.ml.architecture.torch_helpers import (
     ATTENTION_MASK_HELPER,
+    AUGMENT_AFFINE_HELPER,
     CONVNEXT_HELPER,
     DENSE_BLOCK_HELPER,
     FAMILY_ATTENTION_HELPER,
@@ -48,6 +49,10 @@ from app.ml.architecture.torch_helpers import (
     LATENT_ATTENTION_HELPER,
     LAYER_SCALE_HELPER,
     PATCH_EMBEDDING_HELPER,
+    RANDOM_CONTRAST_HELPER,
+    RANDOM_FLIP_HELPER,
+    RANDOM_ROTATION_HELPER,
+    RANDOM_ZOOM_HELPER,
     RESNET_HELPER,
     SPARSE_MOE_HELPER,
     SQUEEZE_EXCITE_HELPER,
@@ -181,6 +186,8 @@ def emit_torch_module(
         [
             *_header(architecture_name, architecture_id, version),
             "",
+            "import math",
+            "",
             "import torch",
             "from torch import nn",
             "import torch.nn.functional as F",
@@ -237,6 +244,10 @@ def _header(architecture_name: str, architecture_id: str, version: int) -> list[
 # about an unexpected keyword argument rather than a name clash.
 RESERVED_CLASS_NAMES = frozenset(
     {
+        "RandomFlip",
+        "RandomRotation",
+        "RandomZoom",
+        "RandomContrast",
         "RotaryEmbedding",
         "PositionalEmbedding",
         "SwiGLU",
@@ -781,6 +792,22 @@ TORCH_EMITTERS: dict[str, Emitter] = {
     "average": _merge("mean"),
     "subtract": _merge("sub"),
     "concatenate": _merge("cat"),
+    "random_flip": lambda ctx: (
+        f"RandomFlip({_lit(str(ctx.params['mode']))})",
+        f"self.{ctx.name}({ctx.first})",
+    ),
+    "random_rotation": lambda ctx: (
+        f"RandomRotation({_lit(float(ctx.params['factor']))})",
+        f"self.{ctx.name}({ctx.first})",
+    ),
+    "random_zoom": lambda ctx: (
+        f"RandomZoom({_lit(float(ctx.params['factor']))})",
+        f"self.{ctx.name}({ctx.first})",
+    ),
+    "random_contrast": lambda ctx: (
+        f"RandomContrast({_lit(float(ctx.params['factor']))})",
+        f"self.{ctx.name}({ctx.first})",
+    ),
     "dropout": lambda ctx: (
         f"nn.Dropout({_lit(float(ctx.params['rate']))})",
         f"self.{ctx.name}({ctx.first})",
@@ -1055,6 +1082,11 @@ TORCH_HELPER_SOURCE: dict[str, str] = {
     "positional": POSITIONAL_HELPER,
     "swiglu": SWIGLU_HELPER,
     "gated_ffn": GATED_FFN_HELPER,
+    "augment_affine": AUGMENT_AFFINE_HELPER,
+    "random_flip": RANDOM_FLIP_HELPER,
+    "random_rotation": RANDOM_ROTATION_HELPER,
+    "random_zoom": RANDOM_ZOOM_HELPER,
+    "random_contrast": RANDOM_CONTRAST_HELPER,
     "squeeze_excite": SQUEEZE_EXCITE_HELPER,
     "patch_embedding": PATCH_EMBEDDING_HELPER,
     "layer_scale": LAYER_SCALE_HELPER,
@@ -1077,6 +1109,12 @@ TORCH_HELPER_SOURCE: dict[str, str] = {
 }
 # Emission order, so a helper never references one defined below it.
 TORCH_HELPER_ORDER = [
+    # `augment_affine` precedes the two layers that call it.
+    "augment_affine",
+    "random_flip",
+    "random_rotation",
+    "random_zoom",
+    "random_contrast",
     "rope",
     "rope_apply",
     "attention_mask",
@@ -1114,6 +1152,11 @@ TORCH_HELPER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "grouped_query_attention": ("gqa",),
     "moe_feed_forward": ("swiglu", "moe"),
     "transformer_block": ("swiglu", "gqa", "moe", "stack"),
+    "random_flip": ("random_flip",),
+    # Rotation and zoom both resample through the shared affine helper.
+    "random_rotation": ("augment_affine", "random_rotation"),
+    "random_zoom": ("augment_affine", "random_zoom"),
+    "random_contrast": ("random_contrast",),
     "squeeze_excite": ("squeeze_excite",),
     "patch_embedding": ("patch_embedding",),
     "geglu": ("gated_ffn",),

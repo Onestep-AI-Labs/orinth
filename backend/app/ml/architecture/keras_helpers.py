@@ -60,7 +60,8 @@ CAUSAL_MASK_HELPER = '''def attention_mask(length, causal, sliding_window, dtype
     return mask'''
 
 
-FAMILY_ATTENTION_HELPER = '''class FamilyAttention(tf.keras.layers.Layer):
+FAMILY_ATTENTION_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class FamilyAttention(tf.keras.layers.Layer):
     """Multi-head or grouped-query attention, with rotary position applied inside.
 
     Covers what the Llama, Qwen, Mistral and Gemma families all do to the same
@@ -153,7 +154,8 @@ FAMILY_ATTENTION_HELPER = '''class FamilyAttention(tf.keras.layers.Layer):
         }'''
 
 
-LATENT_ATTENTION_HELPER = '''class LatentAttention(tf.keras.layers.Layer):
+LATENT_ATTENTION_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class LatentAttention(tf.keras.layers.Layer):
     """Multi-head latent attention (MLA), as DeepSeek V2/V3 and Kimi K2 use it.
 
     Standard attention caches one key and one value vector per head per token.
@@ -273,7 +275,8 @@ LATENT_ATTENTION_HELPER = '''class LatentAttention(tf.keras.layers.Layer):
         }'''
 
 
-GATED_FFN_HELPER = '''class GatedFeedForward(tf.keras.layers.Layer):
+GATED_FFN_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class GatedFeedForward(tf.keras.layers.Layer):
     """`down(act(gate(x)) * up(x))` — SwiGLU when act is SiLU, GeGLU when GELU.
 
     Three bias-free matrices, which is what every published implementation of
@@ -309,7 +312,8 @@ GATED_FFN_HELPER = '''class GatedFeedForward(tf.keras.layers.Layer):
         }'''
 
 
-SPARSE_MOE_HELPER = '''class SparseMoE(tf.keras.layers.Layer):
+SPARSE_MOE_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class SparseMoE(tf.keras.layers.Layer):
     """Routed feed-forward, in both routing styles the open models use.
 
     - `softmax` (Mixtral): softmax over every expert, take the top-k, then
@@ -462,7 +466,9 @@ _LLM_BLOCK_FFN_GATED = '''        feed_forward = GatedFeedForward(
 _LLM_BLOCK_FFN_CLASSIC = '''        feed_forward = tf.keras.Sequential(
             [
                 tf.keras.layers.Dense(ffn_dim, use_bias=use_bias),
-                tf.keras.layers.Lambda(lambda t: tf.nn.gelu(t, approximate=True)),
+                # Named, not a Lambda: a lambda here saves as bytecode that
+                # `load_model` cannot rebuild.
+                tf.keras.layers.Activation("gelu"),
                 tf.keras.layers.Dropout(dropout),
                 tf.keras.layers.Dense(int(x.shape[-1]), use_bias=use_bias),
             ],
@@ -615,7 +621,8 @@ _LLM_BLOCK_SIGNATURE = '''def llm_block(
 
 # --- vision helpers ---------------------------------------------------------
 
-SQUEEZE_EXCITE_HELPER = '''class SqueezeExcite(tf.keras.layers.Layer):
+SQUEEZE_EXCITE_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class SqueezeExcite(tf.keras.layers.Layer):
     """Recalibrate channels by their global importance (Hu et al. 2017).
 
     Average each feature map to one number, learn a gate from that vector, and
@@ -649,7 +656,8 @@ SQUEEZE_EXCITE_HELPER = '''class SqueezeExcite(tf.keras.layers.Layer):
         return {**super().get_config(), "ratio": self.ratio, "gate": self.gate}'''
 
 
-PATCH_EMBEDDING_HELPER = '''class PatchEmbedding(tf.keras.layers.Layer):
+PATCH_EMBEDDING_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class PatchEmbedding(tf.keras.layers.Layer):
     """Cut an image into non-overlapping patches and project each to a vector.
 
     Implemented as a convolution whose kernel equals its stride, which is
@@ -704,7 +712,8 @@ PATCH_EMBEDDING_HELPER = '''class PatchEmbedding(tf.keras.layers.Layer):
         }'''
 
 
-LAYER_SCALE_HELPER = '''class LayerScale(tf.keras.layers.Layer):
+LAYER_SCALE_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class LayerScale(tf.keras.layers.Layer):
     """A learned per-channel multiplier on a residual branch.
 
     Initialised near zero so a fresh block is almost the identity, which is what
@@ -797,14 +806,13 @@ INVERTED_RESIDUAL_HELPER = '''def inverted_residual(x, *, filters, expand_ratio=
     """
 
     def act(value, layer_name):
+        # Named Keras activations, never lambdas. A lambda passed to Activation
+        # is saved as marshalled bytecode that `load_model` refuses to rebuild,
+        # so a graph that trained fine failed every reload with "Could not
+        # interpret activation function identifier" — testing and inference
+        # were unreachable for any MobileNet graph. Keras ships both of these.
         if activation == "hardswish":
-            return tf.keras.layers.Activation(
-                lambda t: t * tf.clip_by_value(t + 3.0, 0.0, 6.0) / 6.0, name=layer_name
-            )(value)
-        if activation == "relu6":
-            return tf.keras.layers.Activation(
-                lambda t: tf.clip_by_value(t, 0.0, 6.0), name=layer_name
-            )(value)
+            return tf.keras.layers.Activation("hard_silu", name=layer_name)(value)
         return tf.keras.layers.Activation(activation, name=layer_name)(value)
 
     for index in range(blocks):

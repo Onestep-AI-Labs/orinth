@@ -449,3 +449,164 @@ def test_vision_templates_reproduce_their_published_size(template_id, published)
     scaled = estimate - (width * 10 + 10) + (width * 1000 + 1000)
 
     assert abs(scaled - published) / published < 0.03, (template_id, scaled, published)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("block_type", VISION_TYPES)
+def test_vision_blocks_survive_a_save_and_reload(block_type):
+    """A block must reload from `.keras`, not merely build.
+
+    Training only ever calls `build_model`, so a block that emits something
+    Keras can build but cannot deserialize trains to completion and then fails
+    every downstream use of the result. That is what an `Activation(lambda …)`
+    did: Keras saved the lambda as marshalled bytecode and `load_model` raised
+    "Could not interpret activation function identifier", leaving testing and
+    inference unreachable for every MobileNet graph while training looked fine.
+
+    Reloading and comparing outputs is the assertion that covers the whole
+    class — any unnamed activation, bare `Lambda`, or unregistered custom layer
+    fails here rather than in a user's testing run.
+    """
+
+    import numpy as np
+    import tensorflow as tf
+
+    if block_type == "vit_block":
+        graph = ArchitectureGraph(
+            nodes=[
+                node("input", "input", shape="32,32,3"),
+                node("patches", "patch_embedding", patch_size=8, embed_dim=64),
+                node("block", "vit_block", **SMALL_VISION_OVERRIDES[block_type]),
+                node("pool", "global_avg_pool1d"),
+                node("head", "dense", units_from_dataset=True, activation="softmax"),
+                node("output", "output"),
+            ],
+            edges=chain("input", "patches", "block", "pool", "head", "output"),
+        )
+    else:
+        graph = image_graph(block_type, **SMALL_VISION_OVERRIDES[block_type])
+
+    resolved, shapes, _estimate, issues = resolve(graph)
+    assert not errors(issues), errors(issues)
+    module = load(
+        emit_module(resolved, shapes, architecture_name=block_type, default_num_classes=4),
+        "generated_model.py",
+    )
+    model = module.build_model(4)
+
+    path = pathlib.Path(tempfile.mkdtemp()) / "model.keras"
+    model.save(path)
+    reloaded = tf.keras.models.load_model(path)
+
+    sample = np.random.default_rng(0).random((1, *model.input_shape[1:])).astype("float32")
+    assert np.allclose(model.predict(sample, verbose=0), reloaded.predict(sample, verbose=0))
+
+
+# --- augmentation ------------------------------------------------------------
+
+AUGMENTATION_NODES = [
+    ("random_flip", {"mode": "horizontal"}),
+    ("random_rotation", {"factor": 0.1}),
+    ("random_zoom", {"factor": 0.1}),
+    ("random_contrast", {"factor": 0.1}),
+]
+
+
+def augmented_graph(node_type: str, **params) -> ArchitectureGraph:
+    return ArchitectureGraph(
+        nodes=[
+            node("input", "input", shape="32,32,3"),
+            node("aug", node_type, **params),
+            node("conv", "conv2d", filters=8, kernel_size=3, activation="relu"),
+            node("gap", "global_avg_pool2d"),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("output", "output"),
+        ],
+        edges=chain("input", "aug", "conv", "gap", "head", "output"),
+    )
+
+
+@pytest.mark.parametrize(("node_type", "params"), AUGMENTATION_NODES)
+def test_augmentation_preserves_shape_and_adds_no_parameters(node_type, params):
+    """Augmentation resamples pixels; it must not change the tensor or the size."""
+
+    _resolved, shapes, with_aug, issues = resolve(augmented_graph(node_type, **params))
+    assert not errors(issues), errors(issues)
+    assert shapes["aug"] == shapes["input"] == [32, 32, 3]
+
+    plain = ArchitectureGraph(
+        nodes=[
+            node("input", "input", shape="32,32,3"),
+            node("conv", "conv2d", filters=8, kernel_size=3, activation="relu"),
+            node("gap", "global_avg_pool2d"),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("output", "output"),
+        ],
+        edges=chain("input", "conv", "gap", "head", "output"),
+    )
+    assert with_aug == resolve(plain)[2]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(("node_type", "params"), AUGMENTATION_NODES)
+def test_augmentation_is_training_only_in_both_frameworks(node_type, params):
+    """The layer must perturb during training and be the identity at inference.
+
+    This is the property that lets augmentation live in the graph rather than in
+    the training form: a saved model that augmented at inference would return a
+    different answer every time it was asked, and testing would be unrepeatable.
+    """
+
+    import numpy as np
+    import torch
+
+    resolved, shapes, _estimate, issues = resolve(augmented_graph(node_type, **params))
+    assert not errors(issues), errors(issues)
+
+    keras_model = load(
+        emit_module(resolved, shapes, architecture_name=node_type, default_num_classes=4),
+        "generated_model.py",
+    ).build_model(4)
+    sample = np.random.default_rng(0).random((4, 32, 32, 3)).astype("float32")
+    settled = keras_model(sample, training=False).numpy()
+    assert np.allclose(settled, keras_model(sample, training=False).numpy())
+    assert not np.allclose(settled, keras_model(sample, training=True).numpy())
+
+    torch_module = load(
+        emit_torch_module(resolved, shapes, architecture_name=node_type, default_num_classes=4),
+        "generated_model_torch.py",
+    )
+    net = torch_module.build_model(4)
+    # NCHW on the torch side, against the same spatial size.
+    batch = torch.rand(4, 3, 32, 32)
+    net.eval()
+    quiet = net(batch)
+    assert torch.allclose(quiet, net(batch))
+    net.train()
+    assert not torch.allclose(quiet, net(batch))
+
+
+def test_every_torch_helper_class_is_a_reserved_model_name():
+    """A helper class name must never be available as the model's class name.
+
+    `emit_torch` defines the helpers and the model in one module, so an
+    architecture named after a helper emits two classes with the same name and
+    the model silently shadows the helper — `RandomContrast(0.1)` then calls
+    the model's own constructor and recurses until the stack runs out. The
+    guard already exists; this asserts nobody adds a helper without joining it.
+    """
+
+    import re
+
+    from app.ml.architecture.emit_torch import (
+        RESERVED_CLASS_NAMES,
+        TORCH_HELPER_SOURCE,
+    )
+
+    defined = {
+        match.group(1)
+        for source in TORCH_HELPER_SOURCE.values()
+        for match in re.finditer(r"^class ([A-Za-z_]\w*)\(", source, re.MULTILINE)
+    }
+    assert defined, "no helper classes found — has TORCH_HELPER_SOURCE changed shape?"
+    assert defined <= set(RESERVED_CLASS_NAMES), defined - set(RESERVED_CLASS_NAMES)

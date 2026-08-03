@@ -696,6 +696,12 @@ SHAPE_RULES: dict[str, Callable[[ResolvedNode, list[Shape], int | None], Shape]]
         "average": _merge,
         "subtract": _merge,
         "concatenate": _concatenate,
+        # Augmentation resamples pixels; it never changes the image's shape,
+        # and it carries no weights so PARAM_RULES leaves it at zero.
+        "random_flip": _identity,
+        "random_rotation": _identity,
+        "random_zoom": _identity,
+        "random_contrast": _identity,
         "dropout": _identity,
         "spatial_dropout2d": _identity,
         "gaussian_noise": _identity,

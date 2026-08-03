@@ -236,7 +236,8 @@ BACKBONE_HELPER = '''def apply_backbone(backbone, inputs, *, trainable: bool):
     backbone.trainable = trainable
     return backbone(inputs) if trainable else backbone(inputs, training=False)'''
 
-RMS_NORM_HELPER = '''class RMSNorm(tf.keras.layers.Layer):
+RMS_NORM_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class RMSNorm(tf.keras.layers.Layer):
     """Root-mean-square normalization: LayerNorm without the mean subtraction."""
 
     def __init__(self, epsilon=1e-6, **kwargs):
@@ -256,7 +257,8 @@ RMS_NORM_HELPER = '''class RMSNorm(tf.keras.layers.Layer):
     def get_config(self):
         return {**super().get_config(), "epsilon": self.epsilon}'''
 
-ROPE_HELPER = '''class RotaryEmbedding(tf.keras.layers.Layer):
+ROPE_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class RotaryEmbedding(tf.keras.layers.Layer):
     """Rotary position embedding.
 
     Rotates feature pairs by an angle proportional to position, so attention
@@ -285,7 +287,8 @@ ROPE_HELPER = '''class RotaryEmbedding(tf.keras.layers.Layer):
     def get_config(self):
         return {**super().get_config(), "base": self.base}'''
 
-SWIGLU_HELPER = '''class SwiGLU(tf.keras.layers.Layer):
+SWIGLU_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class SwiGLU(tf.keras.layers.Layer):
     """Gated feed-forward block: silu(gate(x)) * up(x), projected back down."""
 
     def __init__(self, hidden_dim, dropout=0.0, **kwargs):
@@ -312,7 +315,8 @@ SWIGLU_HELPER = '''class SwiGLU(tf.keras.layers.Layer):
             "dropout": self.dropout_rate,
         }'''
 
-POSITIONAL_HELPER = '''class PositionalEmbedding(tf.keras.layers.Layer):
+POSITIONAL_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class PositionalEmbedding(tf.keras.layers.Layer):
     """Learned absolute position vectors added to the incoming sequence."""
 
     def __init__(self, max_length, **kwargs):
@@ -334,7 +338,8 @@ POSITIONAL_HELPER = '''class PositionalEmbedding(tf.keras.layers.Layer):
     def get_config(self):
         return {**super().get_config(), "max_length": self.max_length}'''
 
-GQA_HELPER = '''class GroupedQueryAttention(tf.keras.layers.Layer):
+GQA_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class GroupedQueryAttention(tf.keras.layers.Layer):
     """Attention with fewer key/value heads than query heads.
 
     Query heads are split into groups that share one K/V head, which shrinks
@@ -418,7 +423,8 @@ GQA_HELPER = '''class GroupedQueryAttention(tf.keras.layers.Layer):
             "sliding_window": self.sliding_window,
         }'''
 
-MOE_HELPER = '''class MixtureOfExperts(tf.keras.layers.Layer):
+MOE_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class MixtureOfExperts(tf.keras.layers.Layer):
     """Sparse feed-forward: a router sends each token to its top-k experts.
 
     Total parameters grow with the expert count while the cost per token grows
@@ -480,7 +486,8 @@ MOE_HELPER = '''class MixtureOfExperts(tf.keras.layers.Layer):
             "shared_experts": self.shared_experts,
         }'''
 
-TIED_HEAD_HELPER = '''class TiedLMHead(tf.keras.layers.Layer):
+TIED_HEAD_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class TiedLMHead(tf.keras.layers.Layer):
     """Vocabulary projection that reuses the input embedding table.
 
     Weight tying: instead of learning a second `[width, vocab]` matrix, project
@@ -512,7 +519,8 @@ TIED_HEAD_HELPER = '''class TiedLMHead(tf.keras.layers.Layer):
     def get_config(self):
         return {**super().get_config(), "vocab_size": self.vocab_size, "softcap": self.softcap}'''
 
-SOFTCAP_HELPER = '''class SoftcappedDense(tf.keras.layers.Layer):
+SOFTCAP_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class SoftcappedDense(tf.keras.layers.Layer):
     """Vocabulary projection whose logits are bounded by tanh.
 
     `tanh(logit / cap) * cap` keeps the output distribution from saturating,
@@ -744,6 +752,41 @@ def _identity_layer(layer: str, **kwargs: Any) -> Callable[[EmitContext], str]:
         return _layer(layer, name=ctx.name, applied_to=ctx.first, **values)
 
     return emit
+
+
+def _emit_random_zoom(ctx: EmitContext) -> str:
+    """RandomZoom's first argument is `height_factor`, not `factor`.
+
+    Passing `width_factor=None` is what makes the zoom isotropic — Keras then
+    reuses the height factor, so the image scales without changing its aspect
+    ratio. Naming the canvas param `factor` keeps it consistent with the other
+    three augmentation nodes.
+    """
+
+    return _layer(
+        "RandomZoom",
+        name=ctx.name,
+        applied_to=ctx.first,
+        height_factor=float(ctx.params["factor"]),
+    )
+
+
+def _emit_random_contrast(ctx: EmitContext) -> str:
+    """RandomContrast needs the pipeline's value range stated.
+
+    Its default is `(0, 255)`, but `keras_common.image_datasets` divides by 255
+    before batching, so the tensors reaching this layer are floats in [0, 1].
+    Left at the default the layer's clip is a no-op against the wrong scale;
+    stating the real range is what makes the augmentation match the data.
+    """
+
+    return _layer(
+        "RandomContrast",
+        name=ctx.name,
+        applied_to=ctx.first,
+        factor=float(ctx.params["factor"]),
+        value_range=(0.0, 1.0),
+    )
 
 
 # --- emitters --------------------------------------------------------------
@@ -1366,6 +1409,10 @@ EMITTERS: dict[str, Callable[[EmitContext], str]] = {
     "average": _emit_merge("Average"),
     "subtract": _emit_merge("Subtract"),
     "concatenate": _emit_merge("Concatenate"),
+    "random_flip": _identity_layer("RandomFlip", mode=None),
+    "random_rotation": _identity_layer("RandomRotation", factor=None),
+    "random_zoom": _emit_random_zoom,
+    "random_contrast": _emit_random_contrast,
     "dropout": _identity_layer("Dropout", rate=None),
     "spatial_dropout2d": _identity_layer("SpatialDropout2D", rate=None),
     "gaussian_noise": _identity_layer("GaussianNoise", stddev=None),
