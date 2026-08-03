@@ -4,12 +4,19 @@ import type { ArchFlowNode } from "./graph-state";
 /**
  * Layered left-to-right layout, mirroring `backend/app/ml/architecture/layout.py`.
  *
- * Column is the longest path from any source; row is the median row of a
- * node's predecessors, nudged down to avoid overlap. Deterministic, so
- * pressing Tidy twice never moves anything the second time.
+ * Three rules, applied in order:
+ *
+ * 1. Column is the longest path from any source.
+ * 2. Siblings fan out symmetrically around their shared parent, so an Inception
+ *    module's branches straddle the stem rather than hanging off its bottom.
+ * 3. An edge that skips more than one column — a residual shortcut, a U-Net skip
+ *    — pushes the nodes it goes around off the main row, so the shortcut can be
+ *    drawn straight. Without this a residual block lays out as one line with the
+ *    skip hidden underneath the layers it is supposed to route around.
  *
  * Reimplemented here rather than round-tripping to the backend because Tidy
- * should feel instant and operates purely on canvas state.
+ * should feel instant. The two must stay in step: if they disagree, pressing
+ * Tidy on a freshly opened template moves every node.
  */
 
 const COLUMN_PITCH = 240;
@@ -23,9 +30,11 @@ export function autoLayout(nodes: ArchFlowNode[], edges: Edge[]): ArchFlowNode[]
   const ids = nodes.map((node) => node.id);
   const known = new Set(ids);
   const incoming = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const outgoing = new Map<string, string[]>(ids.map((id) => [id, []]));
   for (const edge of edges) {
     if (!known.has(edge.source) || !known.has(edge.target) || edge.source === edge.target) continue;
     incoming.get(edge.target)?.push(edge.source);
+    outgoing.get(edge.source)?.push(edge.target);
   }
 
   // Longest-path layering, relaxed iteratively. Capped at one pass per node so
@@ -46,39 +55,42 @@ export function autoLayout(nodes: ArchFlowNode[], edges: Edge[]): ArchFlowNode[]
     if (!changed) break;
   }
 
+  const offsets = bypassOffsets(ordered, incoming, outgoing, layer);
+
   const byLayer = new Map<number, string[]>();
-  for (const id of [...ids].sort((a, b) => (layer.get(a) ?? 0) - (layer.get(b) ?? 0) || a.localeCompare(b))) {
+  for (const id of [...ids].sort(
+    (a, b) => (layer.get(a) ?? 0) - (layer.get(b) ?? 0) || a.localeCompare(b)
+  )) {
     const column = layer.get(id) ?? 0;
     byLayer.set(column, [...(byLayer.get(column) ?? []), id]);
   }
 
-  // Rows: place each node near the median of its predecessors. Siblings of one
-  // parent fan out symmetrically around it, so a branch looks like a branch
-  // rather than a column of nodes hanging off the bottom of the parent.
+  // `base` ignores the bypass offsets so they never compound down a chain: a
+  // five-layer detour is one row off the main line, not five.
+  const base = new Map<string, number>();
   const row = new Map<string, number>();
   for (const column of [...byLayer.keys()].sort((a, b) => a - b)) {
     const taken = new Set<number>();
-    const inColumn = byLayer.get(column) ?? [];
-
-    // Group this column by parent so siblings can be centred together.
     const siblings = new Map<string, string[]>();
-    for (const id of inColumn) {
+    for (const id of byLayer.get(column) ?? []) {
       const key = (incoming.get(id) ?? []).slice().sort().join("|");
       siblings.set(key, [...(siblings.get(key) ?? []), id]);
     }
 
     for (const [, group] of siblings) {
       const parents = (incoming.get(group[0]) ?? [])
-        .map((source) => row.get(source))
+        .map((source) => base.get(source))
         .filter((value): value is number => value !== undefined);
       const centre = parents.length > 0 ? median(parents) : 0;
       // Odd counts sit one dead centre; even counts straddle it.
-      const offset = (group.length - 1) / 2;
+      const spread = (group.length - 1) / 2;
       group.forEach((id, index) => {
-        let slot = Math.round(centre + index - offset);
+        const offset = offsets.get(id) ?? 0;
+        let slot = Math.round(centre + index - spread) + offset;
         while (taken.has(slot)) slot += 1;
         taken.add(slot);
         row.set(id, slot);
+        base.set(id, slot - offset);
       });
     }
   }
@@ -95,6 +107,71 @@ export function autoLayout(nodes: ArchFlowNode[], edges: Edge[]): ArchFlowNode[]
       y: ORIGIN_Y + ((row.get(node.id) ?? 0) - lift) * ROW_PITCH
     }
   }));
+}
+
+/**
+ * How far off the main row each node sits because something skips past it.
+ *
+ * Overlapping spans stack, so two nested skips do not land on top of each
+ * other; the widest is placed first so an outer shortcut claims row 1.
+ */
+function bypassOffsets(
+  ids: string[],
+  incoming: Map<string, string[]>,
+  outgoing: Map<string, string[]>,
+  layer: Map<string, number>
+): Map<string, number> {
+  const spans: { start: number; end: number; source: string; target: string }[] = [];
+  for (const source of ids) {
+    for (const target of [...(outgoing.get(source) ?? [])].sort()) {
+      const start = layer.get(source) ?? 0;
+      const end = layer.get(target) ?? 0;
+      if (end - start > 1) spans.push({ start, end, source, target });
+    }
+  }
+  const offsets = new Map<string, number>();
+  if (spans.length === 0) return offsets;
+
+  spans.sort((a, b) => a.start - a.end - (b.start - b.end) || a.start - b.start || a.source.localeCompare(b.source));
+  const claimed: { start: number; end: number; depth: number }[] = [];
+  for (const span of spans) {
+    const depth =
+      1 + claimed.filter((other) => other.start < span.end && span.start < other.end).length;
+    claimed.push({ start: span.start, end: span.end, depth });
+    for (const id of between(span.source, span.target, incoming, outgoing, layer)) {
+      offsets.set(id, Math.max(offsets.get(id) ?? 0, depth));
+    }
+  }
+  return offsets;
+}
+
+/** Nodes strictly inside a span: reachable from `source` and reaching `target`. */
+function between(
+  source: string,
+  target: string,
+  incoming: Map<string, string[]>,
+  outgoing: Map<string, string[]>,
+  layer: Map<string, number>
+): Set<string> {
+  const limit = layer.get(target) ?? 0;
+  const forward = new Set<string>();
+  const forwardStack = [...(outgoing.get(source) ?? [])];
+  while (forwardStack.length > 0) {
+    const id = forwardStack.pop() as string;
+    if (forward.has(id) || (layer.get(id) ?? 0) >= limit) continue;
+    forward.add(id);
+    forwardStack.push(...(outgoing.get(id) ?? []));
+  }
+
+  const inside = new Set<string>();
+  const backStack = [...(incoming.get(target) ?? [])];
+  while (backStack.length > 0) {
+    const id = backStack.pop() as string;
+    if (inside.has(id) || !forward.has(id)) continue;
+    inside.add(id);
+    backStack.push(...(incoming.get(id) ?? []));
+  }
+  return inside;
 }
 
 function median(values: number[]): number {

@@ -13,17 +13,22 @@ import {
   ButtonLink,
   CardGridSkeleton,
   EmptyState,
+  Field,
   IconButton,
   MutationError,
   PageHeader,
+  TaskSelect,
   useConfirmationDialog
 } from "@/features/platform/ui";
-import { formatDatasetTask } from "@/features/platform/utils";
+import { allowedTaskTypesForProject, formatDatasetTask } from "@/features/platform/utils";
 import type { TaskType } from "@/types/api";
 import { ModelsTabs } from "../models-tabs";
 
 // Enough to fill a wide grid twice over without becoming a wall of cards.
 const PAGE_SIZE = 12;
+// The picker sits inside a panel above the list, so it pages sooner: eight
+// presets plus the pinned blank card is three rows on a wide screen.
+const TEMPLATE_PAGE_SIZE = 8;
 
 export function ArchitecturesPage() {
   const router = useRouter();
@@ -34,6 +39,13 @@ export function ArchitecturesPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [templateSearch, setTemplateSearch] = useState("");
+  const [templatePage, setTemplatePage] = useState(1);
+  // The task a blank canvas is created for. Null means "whatever the project
+  // works in" — the auto-detected default — until the user picks something.
+  const [task, setTask] = useState<TaskType | null>(null);
+  // Opt-in narrowing. Off by default: hiding presets by task is what made the
+  // NLP and LLM ones invisible.
+  const [onlyTask, setOnlyTask] = useState(false);
 
   const architecturesQuery = useQuery({
     queryKey: ["architectures", projectId],
@@ -97,18 +109,58 @@ export function ArchitecturesPage() {
     currentPage * PAGE_SIZE
   );
 
+  const projectTasks = allowedTaskTypesForProject(project);
+
+  /**
+   * Tasks the studio can build, which is not the same set as the project's.
+   *
+   * `language_modeling` is the reason: it exists for architectures composed
+   * here and no project declares it, so gating the picker on the project's
+   * tasks made all seventeen LLM presets — GPT-2, Llama, Qwen, DeepSeek, Kimi —
+   * unreachable in every project. The project's tasks lead the list because
+   * they are the likely intent; the rest stay selectable.
+   */
+  const studioTasks = useMemo(() => {
+    const fromPresets = (templatesQuery.data ?? []).map(
+      (template) => template.task_type as TaskType
+    );
+    return [...new Set<TaskType>([...projectTasks, ...fromPresets])];
+  }, [templatesQuery.data, projectTasks.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedTask: TaskType = task ?? projectTasks[0] ?? "classification";
+
+  /**
+   * Presets are sorted by the selected task, never hidden by it.
+   *
+   * Filtering them was the bug: a preset is the fastest way to learn what the
+   * canvas can express, and a vision project that could not reach BERT could
+   * not discover that the studio builds text models at all. `onlyTask` is an
+   * opt-in narrowing for when the list is genuinely in the way.
+   */
+  const allTemplates = useMemo(() => {
+    const entries = [...(templatesQuery.data ?? [])];
+    if (onlyTask) return entries.filter((template) => template.task_type === selectedTask);
+    return entries.sort((a, b) => {
+      const rank = (task_type: string) => (task_type === selectedTask ? 0 : 1);
+      return rank(a.task_type) - rank(b.task_type);
+    });
+  }, [templatesQuery.data, onlyTask, selectedTask]);
+
   const templates = useMemo(() => {
     const query = templateSearch.trim().toLowerCase();
-    const entries = templatesQuery.data ?? [];
-    if (!query) return entries;
-    return entries.filter((template) =>
+    if (!query) return allTemplates;
+    return allTemplates.filter((template) =>
       `${template.name} ${template.description} ${template.task_type}`
         .toLowerCase()
         .includes(query)
     );
-  }, [templatesQuery.data, templateSearch]);
-
-  const defaultTask = (project?.task_types?.[0] ?? "classification") as TaskType;
+  }, [allTemplates, templateSearch]);
+  const templatePageCount = Math.max(1, Math.ceil(templates.length / TEMPLATE_PAGE_SIZE));
+  const currentTemplatePage = Math.min(templatePage, templatePageCount);
+  const templatePageItems = templates.slice(
+    (currentTemplatePage - 1) * TEMPLATE_PAGE_SIZE,
+    currentTemplatePage * TEMPLATE_PAGE_SIZE
+  );
 
   return (
     <div className="space-y-5">
@@ -155,7 +207,16 @@ export function ArchitecturesPage() {
       {creating && (
         <section className="panel arch-template-picker">
           <div className="arch-template-head">
-            <p className="panel-title">Start from</p>
+            <div className="arch-template-head-title">
+              <p className="panel-title">Start from</p>
+              {allTemplates.length > 0 && (
+                <p className="arch-list-count">
+                  {templates.length === allTemplates.length
+                    ? `${allTemplates.length} preset${allTemplates.length === 1 ? "" : "s"}`
+                    : `${templates.length} of ${allTemplates.length}`}
+                </p>
+              )}
+            </div>
             <div className="arch-template-head-actions">
               <div className="arch-search arch-search-compact">
                 <Search size={15} aria-hidden />
@@ -164,7 +225,10 @@ export function ArchitecturesPage() {
                   value={templateSearch}
                   placeholder="Search presets"
                   aria-label="Search presets"
-                  onChange={(event) => setTemplateSearch(event.target.value)}
+                  onChange={(event) => {
+                    setTemplateSearch(event.target.value);
+                    setTemplatePage(1);
+                  }}
                 />
               </div>
               <Button variant="ghost" size="sm" onClick={() => setCreating(false)}>
@@ -172,21 +236,52 @@ export function ArchitecturesPage() {
               </Button>
             </div>
           </div>
+
+          {/* A preset already knows its task, so choosing one is the
+              auto-detecting path. This picker is what a blank canvas needs —
+              the task decides which nodes the palette offers and which training
+              runner the Train button can reach — and it doubles as the preset
+              filter. */}
+          <div className="arch-template-task">
+            <Field label="Task" hint="Sets the blank canvas and sorts presets">
+              <TaskSelect
+                value={selectedTask}
+                options={studioTasks}
+                onChange={(next) => {
+                  setTask(next);
+                  setTemplatePage(1);
+                }}
+              />
+            </Field>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={onlyTask}
+              onClick={() => {
+                setOnlyTask((value) => !value);
+                setTemplatePage(1);
+              }}
+            >
+              {onlyTask ? "Show every preset" : `Only ${formatDatasetTask(selectedTask)}`}
+            </Button>
+          </div>
+
           <div className="arch-template-grid">
             <button
               type="button"
               className="arch-template-card arch-template-blank"
               disabled={createMutation.isPending}
               onClick={() =>
-                createMutation.mutate({ name: "Untitled architecture", taskType: defaultTask })
+                createMutation.mutate({ name: "Untitled architecture", taskType: selectedTask })
               }
             >
               <p className="arch-template-name">Blank canvas</p>
               <p className="arch-template-desc">
                 Start with nothing and wire it up from the palette.
               </p>
+              <Badge tone="neutral">{formatDatasetTask(selectedTask)}</Badge>
             </button>
-            {templates.map((template) => (
+            {templatePageItems.map((template) => (
               <button
                 key={template.id}
                 type="button"
@@ -206,6 +301,29 @@ export function ArchitecturesPage() {
               </button>
             ))}
           </div>
+          {templatePageCount > 1 && (
+            <nav className="arch-pagination arch-template-pagination" aria-label="Preset pages">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentTemplatePage <= 1}
+                onClick={() => setTemplatePage(currentTemplatePage - 1)}
+              >
+                <ChevronLeft size={15} aria-hidden /> Previous
+              </Button>
+              <p className="arch-pagination-status">
+                Page {currentTemplatePage} of {templatePageCount}
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentTemplatePage >= templatePageCount}
+                onClick={() => setTemplatePage(currentTemplatePage + 1)}
+              >
+                Next <ChevronRight size={15} aria-hidden />
+              </Button>
+            </nav>
+          )}
         </section>
       )}
 

@@ -18,7 +18,35 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from app.ml.architecture.blocks import (
+    LLM_BLOCK_BOOL_PARAMS,
+    LLM_BLOCK_DEFAULTS,
+    LLM_BLOCK_FLOAT_PARAMS,
+    LLM_BLOCK_INT_PARAMS,
+    LLM_BLOCK_TEXT_PARAMS,
+    LLM_FAMILIES,
+    is_llm_block,
+    llm_block_structures,
+)
 from app.ml.architecture.graph import OUTPUT_TYPE, ResolvedGraph, ResolvedNode, parse_shape
+from app.ml.architecture.keras_helpers import (
+    CAUSAL_MASK_HELPER,
+    CONVNEXT_HELPER,
+    DENSE_BLOCK_HELPER,
+    FAMILY_ATTENTION_HELPER,
+    GATED_FFN_HELPER,
+    INCEPTION_HELPER,
+    INVERTED_RESIDUAL_HELPER,
+    LATENT_ATTENTION_HELPER,
+    LAYER_SCALE_HELPER,
+    PATCH_EMBEDDING_HELPER,
+    RESNET_HELPER,
+    ROPE_APPLY_HELPER,
+    SPARSE_MOE_HELPER,
+    SQUEEZE_EXCITE_HELPER,
+    VIT_HELPER,
+    llm_block_source,
+)
 from app.ml.architecture.shapes import Shape
 
 MODULE_FILENAME = "generated_model.py"
@@ -131,6 +159,11 @@ def emit_module(
     for node_id in resolved.order:
         node = resolved.nodes[node_id]
         required.update(HELPER_DEPENDENCIES.get(node.type, ()))
+        # A family block's helpers follow its parameters, not its name: a Gemma
+        # module should not carry DeepSeek's latent attention, and a GPT-2 one
+        # should not carry rotary helpers it never calls.
+        if is_llm_block(node.type):
+            required.update(llm_block_structures(node.params))
         # The LM head needs a helper only when tying or softcapping is on, so
         # a plain head keeps the generated file free of both.
         if node.type == "lm_head":
@@ -140,8 +173,13 @@ def emit_module(
                 required.add("softcap")
     helpers: list[str] = []
     for helper in HELPER_ORDER:
-        if helper in required:
-            helpers.extend([HELPER_SOURCE[helper], "", ""])
+        if helper not in required:
+            continue
+        # `llm_block` is assembled rather than looked up: its branches are
+        # pruned to the structures this graph reaches, so it never calls a
+        # helper class the module has not defined.
+        source = llm_block_source(required) if helper == "llm_block" else HELPER_SOURCE[helper]
+        helpers.extend([source, "", ""])
     helpers.extend(_custom_definitions(resolved))
     return "\n".join(
         [
@@ -576,6 +614,10 @@ TRANSFORMER_BLOCK_HELPER = '''def transformer_block(
     return x'''
 
 # Node type -> the helpers its generated code depends on, in emission order.
+# Family blocks are absent here: their helpers depend on how they are configured
+# rather than on which family they are, so `emit_module` asks
+# `blocks.llm_block_structures` per node. Two blocks that reach the same
+# structure still emit one copy of the class.
 HELPER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "pretrained_backbone": ("backbone",),
     "rms_norm": ("rms_norm",),
@@ -585,32 +627,77 @@ HELPER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "transformer_block": ("rms_norm", "swiglu", "gqa", "moe", "transformer_block"),
     "grouped_query_attention": ("rms_norm", "gqa"),
     "moe_feed_forward": ("swiglu", "moe"),
+    # new primitives
+    "squeeze_excite": ("squeeze_excite",),
+    "patch_embedding": ("patch_embedding",),
+    "geglu": ("gated_ffn",),
+    "mla_attention": ("rms_norm", "rope_apply", "attention_mask", "latent_attention"),
+    # vision blocks
+    "resnet_block": ("resnet",),
+    "inverted_residual_block": ("squeeze_excite", "inverted_residual"),
+    "dense_block": ("dense_block",),
+    "inception_block": ("inception",),
+    "convnext_block": ("layer_scale", "convnext"),
+    "vit_block": ("vit",),
 }
 
 HELPER_SOURCE: dict[str, str] = {
     "backbone": BACKBONE_HELPER,
     "rms_norm": RMS_NORM_HELPER,
     "rope": ROPE_HELPER,
+    "rope_apply": ROPE_APPLY_HELPER,
+    "attention_mask": CAUSAL_MASK_HELPER,
     "swiglu": SWIGLU_HELPER,
+    "gated_ffn": GATED_FFN_HELPER,
     "positional": POSITIONAL_HELPER,
     "gqa": GQA_HELPER,
+    "family_attention": FAMILY_ATTENTION_HELPER,
+    "latent_attention": LATENT_ATTENTION_HELPER,
     "moe": MOE_HELPER,
+    "sparse_moe": SPARSE_MOE_HELPER,
     "tied_head": TIED_HEAD_HELPER,
     "softcap": SOFTCAP_HELPER,
     "transformer_block": TRANSFORMER_BLOCK_HELPER,
+    # `llm_block` is built by `llm_block_source` from the required set rather
+    # than looked up here; the key still appears in HELPER_ORDER for position.
+    "squeeze_excite": SQUEEZE_EXCITE_HELPER,
+    "patch_embedding": PATCH_EMBEDDING_HELPER,
+    "layer_scale": LAYER_SCALE_HELPER,
+    "resnet": RESNET_HELPER,
+    "inverted_residual": INVERTED_RESIDUAL_HELPER,
+    "dense_block": DENSE_BLOCK_HELPER,
+    "inception": INCEPTION_HELPER,
+    "convnext": CONVNEXT_HELPER,
+    "vit": VIT_HELPER,
 }
 # Emission order, so a helper never references one defined below it.
 HELPER_ORDER = [
     "backbone",
     "rms_norm",
     "rope",
+    "rope_apply",
+    "attention_mask",
     "swiglu",
+    "gated_ffn",
     "positional",
+    "squeeze_excite",
+    "patch_embedding",
+    "layer_scale",
     "gqa",
+    "family_attention",
+    "latent_attention",
     "moe",
+    "sparse_moe",
     "tied_head",
     "softcap",
     "transformer_block",
+    "llm_block",
+    "resnet",
+    "inverted_residual",
+    "dense_block",
+    "inception",
+    "convnext",
+    "vit",
 ]
 
 
@@ -940,7 +1027,10 @@ def _emit_lm_head(ctx: EmitContext) -> str:
         )
     if softcap:
         return f"SoftcappedDense({vocab}, {_lit(softcap)}, name={_lit(ctx.name)})({ctx.first})"
-    return f"tf.keras.layers.Dense({vocab}, name={_lit(ctx.name)})({ctx.first})"
+    # Bias-free, as every published causal LM head is: the softmax that follows
+    # is shift-invariant, so a per-token bias buys nothing and costs one
+    # parameter per vocabulary entry.
+    return f"tf.keras.layers.Dense({vocab}, use_bias=False, name={_lit(ctx.name)})({ctx.first})"
 
 
 def _embedding_variable(ctx: EmitContext) -> str:
@@ -1021,7 +1111,216 @@ def _custom_definitions(resolved: ResolvedGraph) -> list[str]:
     return blocks
 
 
+# --- new primitives ---------------------------------------------------------
+
+
+def _emit_depthwise_conv(ctx: EmitContext) -> str:
+    strides = int(ctx.params["strides"])
+    return _layer(
+        "DepthwiseConv2D",
+        int(ctx.params["kernel_size"]),
+        strides=strides if strides != 1 else None,
+        padding=ctx.params["padding"],
+        depth_multiplier=int(ctx.params["depth_multiplier"]) or None,
+        activation=_activation_or_none(ctx.params["activation"]),
+        name=ctx.name,
+        applied_to=ctx.first,
+    )
+
+
+def _emit_squeeze_excite(ctx: EmitContext) -> str:
+    return (
+        f"SqueezeExcite({int(ctx.params['ratio'])}, gate={_lit(ctx.params['gate'])}, "
+        f"name={_lit(ctx.name)})({ctx.first})"
+    )
+
+
+def _emit_patch_embedding(ctx: EmitContext) -> str:
+    return (
+        f"PatchEmbedding({int(ctx.params['patch_size'])}, {int(ctx.params['embed_dim'])}, "
+        f"class_token={_lit(bool(ctx.params['class_token']))}, name={_lit(ctx.name)})({ctx.first})"
+    )
+
+
+def _emit_geglu(ctx: EmitContext) -> str:
+    return (
+        f"GatedFeedForward({int(ctx.params['hidden_dim'])}, \"gelu\", "
+        f"{_lit(float(ctx.params['dropout']))}, name={_lit(ctx.name)})({ctx.first})"
+    )
+
+
+def _emit_mla(ctx: EmitContext) -> str:
+    constructor = _call(
+        "LatentAttention",
+        [
+            str(int(ctx.params["num_heads"])),
+            str(int(ctx.params["kv_lora_rank"])),
+            str(int(ctx.params["qk_nope_head_dim"])),
+            str(int(ctx.params["qk_rope_head_dim"])),
+            str(int(ctx.params["v_head_dim"])),
+        ],
+        {
+            "q_lora_rank": int(ctx.params["q_lora_rank"]),
+            "rope_theta": float(ctx.params["rope_theta"]),
+            "causal": bool(ctx.params["causal"]),
+            "dropout": float(ctx.params["dropout"]),
+            "name": ctx.name,
+        },
+    )
+    return f"{constructor}({ctx.first})"
+
+
+# --- vision blocks ----------------------------------------------------------
+
+
+def _emit_resnet_block(ctx: EmitContext) -> str:
+    return _call(
+        "resnet_stage",
+        [ctx.first],
+        {
+            "filters": int(ctx.params["filters"]),
+            "blocks": int(ctx.params["blocks"]),
+            "stride": int(ctx.params["stride"]),
+            "variant": str(ctx.params["variant"]),
+            "expansion": int(ctx.params["expansion"]),
+            "name": ctx.name,
+        },
+    )
+
+
+def _emit_inverted_residual(ctx: EmitContext) -> str:
+    return _call(
+        "inverted_residual",
+        [ctx.first],
+        {
+            "filters": int(ctx.params["filters"]),
+            "expand_ratio": int(ctx.params["expand_ratio"]),
+            "kernel_size": int(ctx.params["kernel_size"]),
+            "stride": int(ctx.params["stride"]),
+            "use_se": bool(ctx.params["use_se"]),
+            "se_ratio": int(ctx.params["se_ratio"]),
+            "activation": str(ctx.params["activation"]),
+            "blocks": int(ctx.params["blocks"]),
+            "name": ctx.name,
+        },
+    )
+
+
+def _emit_dense_block(ctx: EmitContext) -> str:
+    return _call(
+        "dense_block",
+        [ctx.first],
+        {
+            "growth_rate": int(ctx.params["growth_rate"]),
+            "layers": int(ctx.params["layers"]),
+            "bottleneck_ratio": int(ctx.params["bottleneck_ratio"]),
+            "name": ctx.name,
+        },
+    )
+
+
+def _emit_inception_block(ctx: EmitContext) -> str:
+    return _call(
+        "inception_module",
+        [ctx.first],
+        {
+            "filters_1x1": int(ctx.params["filters_1x1"]),
+            "reduce_3x3": int(ctx.params["reduce_3x3"]),
+            "filters_3x3": int(ctx.params["filters_3x3"]),
+            "reduce_5x5": int(ctx.params["reduce_5x5"]),
+            "filters_5x5": int(ctx.params["filters_5x5"]),
+            "filters_pool": int(ctx.params["filters_pool"]),
+            "name": ctx.name,
+        },
+    )
+
+
+def _emit_convnext_block(ctx: EmitContext) -> str:
+    return _call(
+        "convnext_stage",
+        [ctx.first],
+        {
+            "filters": int(ctx.params["filters"]),
+            "blocks": int(ctx.params["blocks"]),
+            "kernel_size": int(ctx.params["kernel_size"]),
+            "expand_ratio": int(ctx.params["expand_ratio"]),
+            "layer_scale": float(ctx.params["layer_scale"]),
+            "name": ctx.name,
+        },
+    )
+
+
+def _emit_vit_block(ctx: EmitContext) -> str:
+    return _call(
+        "vit_encoder",
+        [ctx.first],
+        {
+            "layers": int(ctx.params["layers"]),
+            "num_heads": int(ctx.params["num_heads"]),
+            "head_dim": int(ctx.params["head_dim"]),
+            "mlp_dim": int(ctx.params["mlp_dim"]),
+            "dropout": float(ctx.params["dropout"]),
+            "name": ctx.name,
+        },
+    )
+
+
+# --- named LLM family blocks ------------------------------------------------
+
+# Every parameter is written out in full, even where it equals `llm_block`'s own
+# default: the generated file is the record of what the architecture is, and a
+# reader should not have to open the helper to learn whether a block uses
+# QK-norm. The int/float/bool/text split lives in `blocks.py` so the torch
+# emitter renders each parameter the same way.
+
+
+def _emit_llm_block(ctx: EmitContext) -> str:
+    def value(key: str) -> Any:
+        return ctx.params.get(key, LLM_BLOCK_DEFAULTS[key])
+
+    kwargs: dict[str, Any] = {}
+    for key in LLM_BLOCK_INT_PARAMS:
+        kwargs[key] = int(value(key) or 0)
+    for key in LLM_BLOCK_FLOAT_PARAMS:
+        kwargs[key] = float(value(key) or 0.0)
+    for key in LLM_BLOCK_BOOL_PARAMS:
+        kwargs[key] = bool(value(key))
+    for key in LLM_BLOCK_TEXT_PARAMS:
+        kwargs[key] = str(value(key))
+    kwargs["name"] = ctx.name
+    return _call("llm_block", [ctx.first], kwargs)
+
+
+def _call(function: str, positional: list[str], kwargs: dict[str, Any]) -> str:
+    """`function(a, b, key=value, ...)` with every value rendered as a literal.
+
+    Positional arguments arrive pre-rendered (they are usually variable names);
+    keyword values are literals. A `None` keyword is dropped so the helper's own
+    default applies.
+    """
+
+    rendered = list(positional)
+    rendered += [f"{key}={_lit(item)}" for key, item in kwargs.items() if item is not None]
+    return f"{function}({', '.join(rendered)})"
+
+
+def _activation_or_none(value: Any) -> Any:
+    return None if str(value) == "linear" else value
+
+
 EMITTERS: dict[str, Callable[[EmitContext], str]] = {
+    "depthwise_conv2d": _emit_depthwise_conv,
+    "squeeze_excite": _emit_squeeze_excite,
+    "patch_embedding": _emit_patch_embedding,
+    "geglu": _emit_geglu,
+    "mla_attention": _emit_mla,
+    "resnet_block": _emit_resnet_block,
+    "inverted_residual_block": _emit_inverted_residual,
+    "dense_block": _emit_dense_block,
+    "inception_block": _emit_inception_block,
+    "convnext_block": _emit_convnext_block,
+    "vit_block": _emit_vit_block,
+    **{family.type: _emit_llm_block for family in LLM_FAMILIES},
     "input": _emit_input,
     # `emit_module` short-circuits Output nodes before reaching this table —
     # they alias their input rather than emitting a layer. The entry exists so

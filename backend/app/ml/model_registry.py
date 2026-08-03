@@ -242,7 +242,15 @@ class ModelRegistry:
                 spec.paths.get("model"),
                 spec.labels or ["answer"],
             )
-        if spec.family in {"nlp_keras_cnn", "nlp_keras_lstm", "nlp_keras_bilstm"}:
+        # A studio-built text classifier is an ordinary Keras model beside a
+        # tokenizer, so it serves through the same predictor as the stock NLP
+        # families — the graph that produced it is provenance, not behaviour.
+        if spec.family in {
+            "nlp_keras_cnn",
+            "nlp_keras_lstm",
+            "nlp_keras_bilstm",
+            "architecture_text",
+        }:
             return KerasTextClassificationPredictor(
                 spec.paths["model"],
                 spec.labels or ["positive", "negative", "neutral"],

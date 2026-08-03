@@ -15,10 +15,17 @@ from __future__ import annotations
 
 import csv
 import json
+import random
 from pathlib import Path
 from typing import Any
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+# How many decoded images the tf.data shuffle holds. It cannot be the dataset
+# size: the buffer holds fully decoded tensors, and 1770 images at 224² would be
+# a gigabyte. Mixing is guaranteed by permuting the file list first (see
+# `image_datasets`); this buffer only varies the order between epochs.
+SHUFFLE_BUFFER = 512
 
 
 def load_labels(dataset_root: Path) -> list[str]:
@@ -61,10 +68,32 @@ def image_datasets(
     num_labels: int,
     tf,
 ):
-    """`(train_ds, valid_ds)` of batched, prefetched `(image, one-hot)` pairs."""
+    """`(train_ds, valid_ds)` of batched, prefetched `(image, one-hot)` pairs.
+
+    The training file list is permuted here, before tf.data sees it, and that is
+    not a nicety.
+
+    `load_split` walks the split directory in sorted filename order, and every
+    dataset the platform writes names files by class — so the list arrives in
+    perfect class order: 282 cardboard, then 351 glass, then 287 metal, and so
+    on. A tf.data `shuffle` only mixes within its buffer, and the buffer holds
+    decoded images so it cannot be the size of the dataset. With a 512-image
+    buffer over a class-ordered list of 1770, every batch in an epoch contained
+    at most two classes. The model chased whichever class was streaming past,
+    training loss *climbed* through the epoch as the distribution moved under
+    it, and validation accuracy sat at chance.
+
+    Permuting the list costs nothing — it is a list of paths — and it is exact
+    rather than approximate. The buffered shuffle stays on top of it so the
+    order still differs between epochs. Determinism is preserved: the runners
+    call `keras.utils.set_random_seed`, which seeds Python's `random`.
+    """
 
     import numpy as np
     from PIL import Image
+
+    train_items = list(train_items)
+    random.shuffle(train_items)
 
     def generator(items):
         for image_path, class_id in items:
@@ -77,22 +106,27 @@ def image_datasets(
         tf.TensorSpec(shape=(image_size, image_size, 3), dtype=tf.float32),
         tf.TensorSpec(shape=(num_labels,), dtype=tf.float32),
     )
-    train_ds = (
-        tf.data.Dataset.from_generator(
-            lambda: generator(train_items), output_signature=output_signature
+
+    def batches(items: list[tuple[Path, int]]) -> int:
+        return max(1, -(-len(items) // max(batch_size, 1)))
+
+    def pipeline(items: list[tuple[Path, int]], *, shuffle: bool):
+        dataset = tf.data.Dataset.from_generator(
+            lambda: generator(items), output_signature=output_signature
         )
-        .shuffle(min(len(train_items), 512))
-        .batch(batch_size)
-        .prefetch(tf.data.AUTOTUNE)
-    )
-    valid_ds = (
-        tf.data.Dataset.from_generator(
-            lambda: generator(valid_items), output_signature=output_signature
+        if shuffle:
+            dataset = dataset.shuffle(min(len(items), SHUFFLE_BUFFER))
+        # A generator dataset has unknown cardinality, so Keras counts steps as
+        # it goes: the first epoch renders as "1/Unknown" and every run ends on
+        # a spurious "your input ran out of data" warning. The item count is
+        # known here, so state it and the progress bar reads normally.
+        return (
+            dataset.batch(batch_size)
+            .apply(tf.data.experimental.assert_cardinality(batches(items)))
+            .prefetch(tf.data.AUTOTUNE)
         )
-        .batch(batch_size)
-        .prefetch(tf.data.AUTOTUNE)
-    )
-    return train_ds, valid_ds
+
+    return pipeline(train_items, shuffle=True), pipeline(valid_items, shuffle=False)
 
 
 def optimizer_for(name: str, learning_rate, tf):

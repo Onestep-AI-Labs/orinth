@@ -34,6 +34,18 @@ export type StoredGroup = {
   y: number;
   width: number;
   height: number;
+  /**
+   * The title's own placement and styling.
+   *
+   * Optional because a graph saved before the title became a movable text box
+   * has none of them, and an architecture must always reopen. `titleTint` of
+   * `-1` means neutral ink; anything else indexes `GROUP_TINTS`, so a title is
+   * a token colour like everything else rather than a stored literal.
+   */
+  titleX?: number;
+  titleY?: number;
+  titleSize?: number;
+  titleTint?: number;
 };
 
 /**
@@ -104,7 +116,9 @@ function placeholderSpec(type: string): NodeSpec {
     outputs: [{ key: "out", label: "Out" }],
     min_inputs: 0,
     max_inputs: -1,
-    task_types: []
+    task_types: [],
+    kind: "layer",
+    source: ""
   };
 }
 
@@ -133,6 +147,22 @@ export function nextNodeId(type: string, existing: Iterable<string>): string {
 
 export function edgeId(source: string, target: string): string {
   return `e_${source}_${target}`;
+}
+
+/**
+ * How many layers a block node stands for, or 0 if it is not a stack.
+ *
+ * Blocks name their repeat count differently — a transformer stack calls it
+ * `layers`, a ResNet stage `blocks` — because each matches the vocabulary of the
+ * paper it comes from. The canvas needs one number regardless.
+ */
+export function blockRepeat(data: ArchNodeData): number {
+  if (data.spec.kind !== "block") return 0;
+  for (const key of ["layers", "blocks"]) {
+    const value = data.params[key];
+    if (typeof value === "number" && value > 0) return value;
+  }
+  return 0;
 }
 
 /** `(224, 224, 3)`, or a dash when the analytic pass could not resolve it. */

@@ -3287,6 +3287,119 @@ button.task-choice {
   position: relative;
 }
 
+/* --- number combo: a number field with a menu of common values ------------ */
+
+.number-combo {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  min-height: 40px;
+}
+
+.number-combo:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+/* The field owns the border, so the input inside drops its own. */
+.number-combo-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.number-combo-input:focus {
+  outline: none;
+}
+
+/* Hide the native spinners: the menu is the coarse control, so a second one
+   crowding the same 40px would be two affordances for one job. */
+.number-combo-input::-webkit-outer-spin-button,
+.number-combo-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.number-combo-input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.number-combo-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  border: 0;
+  border-left: 1px solid var(--color-line);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent;
+  color: var(--color-ink-subtle);
+  cursor: pointer;
+}
+
+.number-combo-trigger:hover:not(:disabled) {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+.number-combo-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.number-combo-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.number-combo-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.number-combo-option:hover {
+  background: var(--color-wash);
+}
+
+.number-combo-option-active {
+  color: var(--color-accent-strong);
+}
+
+.number-combo-option:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
 .task-select-trigger {
   display: flex;
   align-items: center;
@@ -6400,8 +6513,16 @@ td {
   color: var(--color-accent);
 }
 
+/* Explanatory prose, tier 1: the sentence under a title, wherever it appears —
+   an architecture card, a preset card, the inspector header. One size, one
+   colour, one leading, one gap from the thing it explains. These had drifted to
+   five sizes and three colours across the studio, which reads as five different
+   kinds of text rather than one. Tier 2 is `.arch-palette-item-desc`, the
+   denser one-line variant inside compact rows. */
 .arch-card-desc {
-  font-size: 0.85rem;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.5;
   color: var(--color-ink-muted);
 }
 
@@ -6476,8 +6597,11 @@ td {
   color: var(--color-ink);
 }
 
+/* Tier 1 — see `.arch-card-desc`. */
 .arch-template-desc {
+  margin-top: 4px;
   font-size: 0.8rem;
+  line-height: 1.5;
   color: var(--color-ink-muted);
 }
 
@@ -6486,10 +6610,12 @@ td {
 .arch-studio {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  /* Fill the content area: a node canvas is useless in a short box. */
-  height: calc(100vh - 112px);
-  min-height: 620px;
+  gap: 10px;
+  /* Fill the content area: a node canvas is useless in a short box. The canvas
+     is the work surface here, so the studio takes the viewport and the rails
+     and drawer around it start at their smallest useful size. */
+  height: calc(100vh - 88px);
+  min-height: 680px;
 }
 
 /* Fullscreen lifts the studio out of the shell entirely — the canvas is the
@@ -6596,18 +6722,18 @@ td {
 
 .arch-studio-grid {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) 320px;
+  grid-template-columns: 208px minmax(0, 1fr) 288px;
   gap: 12px;
   flex: 1;
   min-height: 0;
 }
 
 .arch-studio-grid.arch-no-palette {
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 288px;
 }
 
 .arch-studio-grid.arch-no-inspector {
-  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-columns: 208px minmax(0, 1fr);
 }
 
 .arch-studio-grid.arch-no-palette.arch-no-inspector {
@@ -6624,12 +6750,28 @@ td {
   background: var(--color-surface-2);
 }
 
+/* An icon button in a toolbar is a target for its glyph, not for its label
+   box. The shared primitive is sized for a text-height row with 14px of side
+   padding; here that spends the width on empty space and leaves a 16px icon
+   looking incidental. These are square, tight, and carry a larger glyph. */
+.arch-view-controls .icon-button,
+.arch-drawer-head .icon-button {
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+}
+
+.arch-view-controls .icon-button:disabled {
+  color: var(--color-ink-subtle);
+  opacity: 0.5;
+}
+
 @media (max-width: 1200px) {
   /* Narrow viewports get the palette and canvas; the inspector is reachable
      from the header toggle, which then overlays. */
   .arch-studio-grid,
   .arch-studio-grid.arch-no-palette {
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: 188px minmax(0, 1fr);
   }
 
   .arch-studio-grid .arch-inspector {
@@ -6647,6 +6789,10 @@ td {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background: var(--color-surface);
+  /* The rail is user-resizable, so its contents adapt to the rail's own width
+     rather than the viewport's — a 900px window with a wide palette and a
+     1600px one with a narrow palette need opposite treatments. */
+  container-type: inline-size;
 }
 
 .arch-palette-search {
@@ -6677,18 +6823,26 @@ td {
   padding: 8px;
 }
 
+/* Empty and hint states share tier 1's size and leading at the subtle weight,
+   and the 16px padding the panels use. */
 .arch-palette-empty {
-  padding: 16px 8px;
-  font-size: 0.82rem;
+  padding: 16px;
+  font-size: 0.8rem;
+  line-height: 1.5;
   color: var(--color-ink-subtle);
 }
 
+/* Entries are two lines of text in a hairline box. Without a gap between them
+   the list reads as one striped block and the boundary between "Conv2D" and
+   the description above it is ambiguous. */
 .arch-palette-group {
-  margin-bottom: 12px;
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
 }
 
 .arch-palette-label {
-  padding: 4px 8px;
+  padding: 4px 8px 2px;
   font-size: 0.65rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -6700,7 +6854,7 @@ td {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 7px 8px;
+  padding: 8px 10px;
   border: 1px solid transparent;
   border-radius: var(--radius);
   background: transparent;
@@ -6725,12 +6879,18 @@ td {
   color: var(--color-ink);
 }
 
+/* Explanatory prose, tier 2: one clamped line inside a dense row. Smaller and
+   quieter than tier 1 on purpose — it is scanned, not read — but it shares
+   tier 1's leading so a wrapped palette and an unwrapped one sit on the same
+   rhythm. */
 .arch-palette-item-desc {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 0.72rem;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  line-height: 1.5;
   color: var(--color-ink-subtle);
 }
 
@@ -6750,17 +6910,33 @@ td {
 
 .arch-canvas .react-flow__edge-path {
   stroke: var(--color-line-input);
-  stroke-width: 1.5;
+  stroke-width: 2;
 }
 
-.arch-canvas .react-flow__edge.selected .react-flow__edge-path,
+/* A selected wire has to be findable in a forty-node graph, so selection
+   changes weight as well as hue — colour alone at 2px is easy to lose against
+   the dot grid. Hover gets the colour but not the extra weight, so the two
+   states stay distinguishable. */
 .arch-canvas .react-flow__edge:hover .react-flow__edge-path {
   stroke: var(--color-accent);
 }
 
+/* Selection uses the strong accent and a surface-coloured casing drawn behind
+   the stroke. The casing is what makes the line read against *any* background
+   it crosses — the dot grid, a group frame's pastel wash, or a node it passes
+   behind — which a single stroke colour cannot do on its own. */
+.arch-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--color-accent-strong);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  filter:
+    drop-shadow(0 0 1.5px var(--color-surface))
+    drop-shadow(0 0 3px var(--color-surface));
+}
+
 .arch-canvas .react-flow__connectionline .react-flow__connection-path {
   stroke: var(--color-accent);
-  stroke-width: 1.5;
+  stroke-width: 2;
 }
 
 /* Floating controls sit over content, so the overlay elevation applies. */
@@ -6773,13 +6949,16 @@ td {
   overflow: hidden;
 }
 
+/* Zoom and fit are hit as often as the tools, so they match their size rather
+   than shrinking a 16px glyph into a 26px box. */
 .arch-canvas .react-flow__controls-button {
   border: 0;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface);
   fill: var(--color-ink-muted);
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
+  padding: 7px;
 }
 
 .arch-canvas .react-flow__controls-button:hover {
@@ -6806,7 +6985,7 @@ td {
 /* --- node ---------------------------------------------------------------- */
 
 .arch-node {
-  min-width: 168px;
+  min-width: 176px;
   padding: 10px 12px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
@@ -6871,19 +7050,40 @@ td {
   font-variant-numeric: tabular-nums;
 }
 
+/* Connectors are drag targets first and decoration second. At 9px they were
+   below the ~13px a pointer reliably hits, which made starting a wire a matter
+   of aim rather than intent. */
 .arch-canvas .arch-handle {
-  width: 9px;
-  height: 9px;
-  border: 1px solid var(--color-line-input);
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-line-strong);
   background: var(--color-surface);
 }
 
-.arch-canvas .arch-handle:hover {
+.arch-canvas .arch-handle:hover,
+.arch-canvas .arch-handle.connectingfrom,
+.arch-canvas .arch-handle.connectingto {
   border-color: var(--color-accent);
   background: var(--color-accent-tint);
 }
 
+.arch-node-selected .arch-handle {
+  border-color: var(--color-accent);
+}
+
 /* --- inspector ----------------------------------------------------------- */
+
+/* The whole rail scrolls, header included. A block's description plus its
+   source line can be taller than the settings below it, and pinning them meant
+   the fields scrolled inside a sliver of the panel. Only the action footer
+   stays put, because Remove has to be reachable without a scroll. */
+.arch-inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
 
 .arch-inspector-head {
   padding: 16px;
@@ -6906,9 +7106,11 @@ td {
   color: var(--color-ink);
 }
 
+/* Tier 1 — see `.arch-card-desc`. */
 .arch-inspector-desc {
   margin-top: 4px;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
   color: var(--color-ink-muted);
 }
 
@@ -6945,7 +7147,6 @@ td {
 
 .arch-inspector-body {
   flex: 1;
-  overflow-y: auto;
   padding: 16px;
   display: grid;
   gap: 16px;
@@ -6957,9 +7158,11 @@ td {
   gap: 8px;
 }
 
+/* See `.arch-palette-empty` — same tier, same padding. */
 .arch-inspector-hint {
   padding: 16px;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
   color: var(--color-ink-subtle);
 }
 
@@ -7144,14 +7347,21 @@ td {
   border-radius: var(--radius-pill);
 }
 
+/* The grip is visible at rest, not only on hover: a divider that reveals itself
+   only once the pointer is already on it is a control you have to know about
+   before you can find it. At rest it is a hairline in the same `--line-strong`
+   the panels are built from; hover and drag promote it to the accent. */
 .arch-resize::after {
   content: "";
   position: absolute;
   inset: 0;
   margin: auto;
   border-radius: var(--radius-pill);
-  background: transparent;
-  transition: background 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--color-line-strong);
+  transition:
+    background 140ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 140ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .arch-resize-x {
@@ -7161,7 +7371,7 @@ td {
 
 .arch-resize-x::after {
   width: 2px;
-  height: 44px;
+  height: 36px;
 }
 
 .arch-resize-y {
@@ -7172,13 +7382,25 @@ td {
 
 .arch-resize-y::after {
   height: 2px;
-  width: 44px;
+  width: 36px;
 }
 
 .arch-resize:hover::after,
 .arch-resize:focus-visible::after,
 .arch-resize-active::after {
   background: var(--color-accent);
+}
+
+/* Grabbing it lengthens the grip, which is the confirmation that the drag took
+   — the pane itself may not move if you are already at a min or max. */
+.arch-resize-x:hover::after,
+.arch-resize-x.arch-resize-active::after {
+  height: 64px;
+}
+
+.arch-resize-y:hover::after,
+.arch-resize-y.arch-resize-active::after {
+  width: 64px;
 }
 
 .arch-resize:focus-visible {
@@ -7192,23 +7414,99 @@ td {
   }
 }
 
-/* Category colour strip. The --label ramp is the sanctioned categorical
-   exception (DESIGN.md §2) and stays inside the node, never in chrome. */
+/* Frame edges get the same grip vocabulary as the pane dividers, so "this can
+   be dragged to resize" looks the same everywhere in the studio. NodeResizer
+   draws one line per side and one handle per corner. */
+.arch-canvas .arch-group-line {
+  border-color: var(--color-accent);
+  border-width: 2px;
+}
+
+.arch-canvas .arch-group-line:hover {
+  border-color: var(--color-accent-strong);
+}
+
+/* Corner grips are the only way to resize on both axes at once, so they are
+   sized to be grabbed rather than to be discreet. */
+.arch-canvas .arch-group-handle {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--color-accent);
+  background: var(--color-surface);
+  border-radius: 3px;
+}
+
+.arch-canvas .arch-group-handle:hover {
+  background: var(--color-accent);
+}
+
+/* Category colour. The --label ramp is the sanctioned categorical exception
+   (DESIGN.md §2) and stays inside the node — header tint, left edge, and the
+   palette dot — never in chrome. Tints come from `categoryTint`, which wraps
+   `labelFill`; a hex alpha suffix on `labelColor` would be invalid (§8). */
 .arch-node {
   position: relative;
   overflow: hidden;
+  padding: 0 0 10px;
 }
 
-.arch-node-stripe {
+.arch-node::before {
+  content: "";
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
+  background: var(--arch-node-accent, var(--color-line-strong));
+}
+
+.arch-node-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 12px 5px 14px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-node-name,
+.arch-node-shape {
+  padding-inline: 12px 12px;
+  padding-inline-start: 14px;
+}
+
+.arch-node-name {
+  margin-top: 8px;
 }
 
 .arch-node-category {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+.arch-node-repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* A block stands for N layers, so it is drawn as a short stack of cards. The
+   offset sheet behind it is the only affordance that survives at the zoom
+   levels a forty-node graph is actually read at. */
+.arch-node-block {
+  overflow: visible;
+}
+
+.arch-node-stack {
+  position: absolute;
+  inset: 5px -5px -5px 5px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  z-index: -1;
 }
 
 .arch-palette-dot {
@@ -7446,12 +7744,150 @@ td {
   gap: 8px;
 }
 
+.arch-template-head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.arch-template-pagination {
+  margin-top: 12px;
+}
+
+/* Task picker above the preset grid. The field takes the readable width of a
+   form control rather than the panel's, so the button beside it stays adjacent
+   instead of drifting to the far edge. */
+.arch-template-task {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 12px 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-template-task .field {
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .arch-template-task {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 /* --- canvas tools, group frames, branch edges (phase 17 revision 2) ------- */
 
-.arch-tool-active {
-  background: var(--color-accent-tint) !important;
-  border-color: var(--color-accent) !important;
-  color: var(--color-accent-strong) !important;
+/* Tools sit on the canvas rather than in the page header: they act on what is
+   under the pointer, and switching between select and pan is the most repeated
+   motion in a node editor. */
+.arch-canvas .arch-canvas-tools {
+  display: flex;
+  gap: 6px;
+  margin: 10px;
+}
+
+.arch-tool-group {
+  display: flex;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.arch-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.arch-tool + .arch-tool {
+  border-left: 1px solid var(--color-line);
+}
+
+.arch-tool:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+.arch-tool:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-tool-active,
+.arch-tool-active:hover {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
+/* The palette's Blocks / Layers split. The rail is resizable down to 160px, so
+   the three segments have to survive a width that cannot fit them at their
+   natural size: they share the row equally, shed the padding first, and drop
+   the count last. */
+.arch-palette-filter {
+  display: flex;
+  margin: 0 10px 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.arch-palette-filter button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 4px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arch-palette-filter .segmented-count {
+  margin-left: 4px;
+  font-size: 0.72rem;
+}
+
+@container (max-width: 190px) {
+  .arch-palette-filter .segmented-count {
+    display: none;
+  }
+}
+
+.arch-palette-item-block {
+  border-color: var(--color-line-strong);
+}
+
+.arch-palette-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-kind {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-pill);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+}
+
+.arch-inspector-source {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-ink-subtle);
 }
 
 .arch-canvas-move .react-flow__pane {
@@ -7470,22 +7906,30 @@ td {
    It also sits above chain edges so a residual is never hidden behind them. */
 .arch-canvas .arch-edge-branch .react-flow__edge-path {
   stroke: var(--color-ink-subtle);
-  stroke-width: 1.75;
+  stroke-width: 2.25;
 }
 
-.arch-canvas .arch-edge-branch:hover .react-flow__edge-path,
-.arch-canvas .arch-edge-branch.selected .react-flow__edge-path {
+.arch-canvas .arch-edge-branch:hover .react-flow__edge-path {
   stroke: var(--color-accent);
+}
+
+.arch-canvas .arch-edge-branch.selected .react-flow__edge-path {
+  stroke: var(--color-accent-strong);
+  stroke-width: 4;
 }
 
 /* --- group frames --------------------------------------------------------- */
 
 .arch-group {
+  /* The containing block for the title, which is absolutely placed from its
+     stored offset. No padding: an absolutely positioned child resolves against
+     the padding box, so any padding here would silently shift every stored
+     title coordinate. */
+  position: relative;
   width: 100%;
   height: 100%;
   border: 1px dashed;
   border-radius: var(--radius-xl);
-  padding: 8px 10px;
 }
 
 .arch-group-selected {
@@ -7493,66 +7937,188 @@ td {
   box-shadow: var(--ring-accent);
 }
 
-.arch-group-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
+/* The title is placed inside the frame rather than pinned to its corner, so it
+   is absolutely positioned from the `titleX`/`titleY` the drag writes. Font
+   size comes from the node data, so no size is set here. */
 .arch-group-title,
 .arch-group-title-input {
-  border: 0;
+  position: absolute;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   background: transparent;
-  padding: 0;
-  font-size: 0.72rem;
+  padding: 1px 4px;
+  margin: -1px -4px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arch-group-title {
+  cursor: move;
+}
+
+.arch-group-title:hover {
+  border-color: var(--color-line-strong);
+}
+
+/* Selected, the title reads as its own object — which is the point of making
+   it draggable and separately styleable. */
+.arch-group-title-active,
+.arch-group-title-active:hover {
+  border-color: var(--color-accent);
+  border-style: dashed;
+  background: var(--color-surface);
+}
+
+.arch-group-title:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
 }
 
 .arch-group-title-input {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
   color: var(--color-ink);
-  border-bottom: 1px solid var(--color-line-input);
-  min-width: 0;
-  flex: 1;
+  min-width: 80px;
+  cursor: text;
 }
 
 .arch-group-title-input:focus {
   outline: none;
-  border-bottom-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
 }
 
-.arch-group-swatch,
+/* Live preview in the inspector, so font size and colour are judged together
+   rather than by reading two numbers. Capped: the size ramp reaches banner
+   sizes meant to be read at a zoomed-out canvas, and a 144px preview would
+   push the frame colour and size controls out of the rail. */
+.arch-group-title-preview {
+  font-size: min(var(--title-preview-size, 12px), 40px);
+  padding: 8px 10px;
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Colour swatches, now in the inspector rather than floating over the canvas. */
+.arch-group-tints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .arch-group-tint {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border: 0;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
   color: var(--color-surface);
   flex-shrink: 0;
+  cursor: pointer;
 }
 
-.arch-group-palette {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-  padding: 5px 6px;
-  width: fit-content;
+.arch-group-tint-active {
+  border-color: var(--color-ink);
+}
+
+/* "Default ink" reads as a swatch of the body colour rather than a hue. */
+.arch-group-tint-ink {
+  background: var(--color-ink);
+  border-color: var(--color-line-strong);
+}
+
+.arch-group-tint:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+/* --- canvas context menu -------------------------------------------------- */
+
+.arch-context-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 216px;
+  padding: 5px;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-overlay);
 }
 
-.arch-canvas .arch-group-line {
-  border-color: var(--color-accent);
+.arch-context-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  font-size: 0.82rem;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
 }
 
-.arch-canvas .arch-group-handle {
-  border: 1px solid var(--color-accent);
-  background: var(--color-surface);
-  border-radius: 2px;
+.arch-context-item:hover:not(:disabled) {
+  background: var(--color-wash);
+}
+
+.arch-context-item:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-context-item:disabled {
+  color: var(--color-ink-subtle);
+  cursor: default;
+}
+
+.arch-context-item-danger:not(:disabled) {
+  color: var(--color-danger-strong);
+}
+
+.arch-context-item-danger:hover:not(:disabled) {
+  background: var(--color-danger-tint);
+}
+
+.arch-context-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink-subtle);
+}
+
+.arch-context-item-danger:not(:disabled) .arch-context-icon {
+  color: inherit;
+}
+
+.arch-context-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.arch-context-shortcut {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-context-separator {
+  height: 1px;
+  margin: 4px 6px;
+  border: 0;
+  background: var(--color-line);
 }

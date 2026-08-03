@@ -12,6 +12,7 @@ runner and promotes into the registry through the same branch.
 
 import argparse
 import importlib.util
+import json
 import math
 from pathlib import Path
 from typing import Any
@@ -117,10 +118,22 @@ def main() -> None:
         args.epochs,
         tf,
     )
+    # The loss has to match what the head actually emits. A graph whose final
+    # Dense is left on the catalog's default `linear` activation returns logits;
+    # compiling probability cross-entropy over those does not raise, it just
+    # renormalises clipped values and parks the run at chance forever.
+    from_logits = not emits_probabilities(model)
+    if from_logits:
+        print(
+            "Output layer has no softmax activation; compiling the loss with "
+            "from_logits=True. Set the head's activation to softmax on the canvas "
+            "to make the graph self-describing."
+        )
     model.compile(
         optimizer=optimizer_for(args.optimizer, learning_rate, tf),
         loss=tf.keras.losses.CategoricalCrossentropy(
-            label_smoothing=float(advanced.get("label_smoothing", 0.0))
+            from_logits=from_logits,
+            label_smoothing=float(advanced.get("label_smoothing", 0.0)),
         ),
         metrics=["accuracy"],
     )
@@ -129,12 +142,31 @@ def main() -> None:
         train_ds,
         validation_data=valid_ds,
         epochs=args.epochs,
+        # The pipeline already shuffles; Keras warns if asked to shuffle a
+        # tf.data.Dataset it cannot reorder.
+        shuffle=False,
         callbacks=standard_callbacks(run_dir, advanced, tf),
         class_weight=class_weights(train_items, len(labels))
         if advanced.get("class_weighting")
         else None,
     )
     model.save(run_dir / "last_model.keras")
+    # The graph's Input node, not the training form, decided this resolution.
+    # Recording it is what lets testing and inference resize an image the way
+    # training did; without it the registry keeps the form's value and every
+    # prediction fails on a shape mismatch.
+    (run_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "artifact_type": "keras_classifier",
+                "model_kind": "architecture_graph",
+                "labels": labels,
+                "image_size": image_size,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     write_evaluation(
         run_dir,
         model,
@@ -144,6 +176,20 @@ def main() -> None:
         {key: float(values[-1]) for key, values in history.history.items() if values},
     )
     print(f"Architecture training finished. Results saved to: {run_dir}")
+
+
+def emits_probabilities(model) -> bool:
+    """Whether the model's last layer already normalises its output.
+
+    Read off the built model rather than the graph so it also covers a standalone
+    Activation node or a custom layer as the head. Anything unreadable is treated
+    as probabilities, which keeps the previous behaviour for exotic heads.
+    """
+
+    activation = getattr(model.layers[-1], "activation", None)
+    if activation is None:
+        return True
+    return getattr(activation, "__name__", "") in {"softmax", "sigmoid"}
 
 
 def input_edge(model) -> int:

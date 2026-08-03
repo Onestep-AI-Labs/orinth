@@ -115,6 +115,9 @@ def main() -> None:
         train_ds,
         validation_data=valid_ds,
         epochs=args.epochs,
+        # The pipeline already shuffles; Keras warns if asked to shuffle a
+        # tf.data.Dataset it cannot reorder.
+        shuffle=False,
         callbacks=standard_callbacks(run_dir, advanced, tf),
         class_weight=class_weights(train_items, len(labels))
         if advanced.get("class_weighting")

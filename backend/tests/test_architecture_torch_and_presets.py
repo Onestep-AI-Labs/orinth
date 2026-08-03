@@ -31,24 +31,26 @@ def errors(issues):
 # --- LLM presets -----------------------------------------------------------
 
 
-# Published parameter counts for the configurations these presets reproduce.
-# A preset that drifts from its namesake's size is a preset that lies.
+# Published parameter counts for the configurations these presets reproduce,
+# each derived from the model's own `config.json`. A preset that drifts from its
+# namesake's size is a preset that lies — and since every preset is now built
+# from its family's own block node, these also check that the block's structure
+# is right, not only its arithmetic. A GQA model counted as MHA, an MLA model
+# counted as GQA, or a bias on a projection that has none all show up here.
 EXPECTED_SIZES = {
-    "llm_1b": 1_498_987_776,
-    "llm_3b": 3_607_654_656,
-    "llm_7b": 7_243_140_352,
-    "llm_13b": 13_018_026_240,
-    "llm_70b": 70_560_552_192,
-    "llm_moe_8x7b": 46_711_541_248,
-    # Named configurations, read from published config defaults. These land
-    # within a percent of the sizes their model cards advertise, which is the
-    # check that the architecture — not just the layer count — is right.
-    "qwen3_0_6b": 596_393_984,
-    "qwen3_8b": 8_192_288_128,
-    "qwen3_30b_a3b": 30_554_644_864,
-    "gemma4_sparse": 16_322_753_520,
-    "gemma4_dense": 2_940_637_440,
-    "deepseek_moe": 721_219_916_288,
+    "gpt2_124m": 124_439_808,
+    "llama3_1b": 1_235_814_400,
+    "qwen3_0_6b": 596_049_920,
+    "llama3_3b": 3_212_749_824,
+    "gemma3_4b": 3_880_263_168,
+    "mistral_7b": 7_248_023_552,
+    "llama3_8b": 8_030_261_248,
+    "qwen3_8b": 8_190_735_360,
+    "qwen3_30b_a3b": 30_532_122_624,
+    "mixtral_8x7b": 46_702_792_704,
+    "llama3_70b": 70_553_706_496,
+    "deepseek_v3": 671_026_419_200,
+    "kimi_k2": 1_026_408_232_448,
 }
 
 
@@ -60,6 +62,22 @@ def test_llm_presets_report_their_published_parameter_count(preset_id, expected)
 
     assert not errors(issues)
     assert params == expected
+
+
+def test_each_preset_is_built_from_its_own_familys_block():
+    """The complaint this replaced: every LLM preset was the same six nodes.
+
+    A Qwen preset now carries a `qwen3_block` and a DeepSeek preset a
+    `deepseek_block`, so the two generate structurally different code rather
+    than one generic transformer wearing two parameter counts.
+    """
+
+    for preset in PRESETS:
+        types = {graph_node.type for graph_node in TEMPLATES[preset.id].graph.nodes}
+        assert preset.block_type in types, preset.id
+
+    families = {preset.block_type for preset in PRESETS}
+    assert len(families) >= 6, sorted(families)
 
 
 def test_no_preset_is_silently_clamped_by_a_catalog_maximum():
@@ -84,109 +102,146 @@ def test_every_preset_is_registered_as_a_language_modeling_template():
 # --- architecture features, not just sizes ---------------------------------
 
 
+def block_of(preset_id: str):
+    preset = PRESETS_BY_ID[preset_id]
+    return next(
+        graph_node
+        for graph_node in TEMPLATES[preset_id].graph.nodes
+        if graph_node.type == preset.block_type
+    )
+
+
 @pytest.mark.parametrize(
-    ("preset_id", "flag"),
+    ("preset_id", "key", "expected"),
     [
-        ("qwen3_8b", "qk_norm"),
-        ("qwen3_0_6b", "qk_norm"),
-        ("qwen3_30b_a3b", "qk_norm"),
-        ("gemma4_sparse", "sliding_window"),
-        ("gemma4_dense", "sliding_window"),
+        # Qwen3 normalizes each query and key head vector before the dot product.
+        ("qwen3_8b", "qk_norm", True),
+        ("qwen3_0_6b", "qk_norm", True),
+        ("qwen3_30b_a3b", "qk_norm", True),
+        # Gemma 3 normalizes four times a layer, not two.
+        ("gemma3_4b", "norm_placement", "sandwich"),
+        ("gemma3_4b", "ffn", "geglu"),
+        ("gemma3_4b", "global_every", 6),
+        # Mistral's window; Mixtral's router.
+        ("mistral_7b", "sliding_window", 4096),
+        ("mixtral_8x7b", "ffn", "moe"),
+        ("mixtral_8x7b", "router", "softmax"),
+        # DeepSeek and Kimi both compress attention and score experts with a
+        # sigmoid plus a learned selection bias.
+        ("deepseek_v3", "attention", "mla"),
+        ("deepseek_v3", "router", "sigmoid_bias"),
+        ("kimi_k2", "attention", "mla"),
+        ("kimi_k2", "num_experts", 384),
+        # GPT-2 and BERT predate rotary and carry projection biases.
+        ("gpt2_124m", "rope_theta", 0.0),
+        ("gpt2_124m", "use_bias", True),
     ],
 )
-def test_named_presets_carry_their_familys_signature_feature(preset_id, flag):
+def test_named_presets_carry_their_familys_signature_feature(preset_id, key, expected):
     """A preset that only matches a parameter count is a generic transformer.
 
-    Qwen3's QK-norm and Gemma 4's sliding-window attention are what make those
-    models what they are, so the graph has to actually switch them on.
+    Qwen3's QK-norm, Gemma's sandwich norms, Mistral's window and DeepSeek's
+    latent attention are what make those models what they are, so the graph has
+    to actually carry them.
     """
 
-    graph = TEMPLATES[preset_id].graph
-    block = next(node for node in graph.nodes if node.type == "transformer_block")
-
-    assert block.params[flag]
-
-
-def test_gemma_presets_tie_embeddings_and_softcap_logits():
-    for preset_id in ("gemma4_sparse", "gemma4_dense"):
-        head = next(
-            node for node in TEMPLATES[preset_id].graph.nodes if node.type == "lm_head"
-        )
-        assert head.params["tie_embeddings"]
-        assert head.params["logit_softcap"] > 0
-
-
-def test_gemma_alternates_local_and_global_attention_layers():
-    block = next(
-        node for node in TEMPLATES["gemma4_sparse"].graph.nodes
-        if node.type == "transformer_block"
-    )
-
-    assert block.params["sliding_window"] == 512
-    assert block.params["global_every"] == 6
-
-
-def test_deepseek_preset_uses_a_shared_expert_alongside_routed_ones():
-    block = next(
-        node for node in TEMPLATES["deepseek_moe"].graph.nodes
-        if node.type == "transformer_block"
-    )
-
-    assert block.params["shared_experts"] == 1
-    assert block.params["num_experts"] == 256
-    assert block.params["experts_per_token"] == 8
+    assert block_of(preset_id).params[key] == expected
 
 
 def test_gemma_head_dimension_is_decoupled_from_the_residual_width():
     """Gemma sets head_dim independently of width / heads.
 
-    Its 8 heads of 256 total 2048, against a 2304-wide residual stream — and
-    deriving head_dim as width / heads would give 288, a different model. The
+    Its 8 heads of 256 total 2048 against a 2560-wide residual stream — and
+    deriving head_dim as width / heads would give 320, a different model. The
     preset therefore states it, and this asserts the decoupling survived.
     """
 
-    graph = TEMPLATES["gemma4_sparse"].graph
-    block = next(node for node in graph.nodes if node.type == "transformer_block")
-    embedding = next(node for node in graph.nodes if node.type == "embedding")
+    block = block_of("gemma3_4b")
+    embedding = next(
+        graph_node for graph_node in TEMPLATES["gemma3_4b"].graph.nodes
+        if graph_node.type == "embedding"
+    )
 
     width = embedding.params["output_dim"]
-    assert block.params["key_dim"] == 256
-    assert block.params["num_heads"] * block.params["key_dim"] != width
-    assert block.params["key_dim"] != width // block.params["num_heads"]
+    assert block.params["head_dim"] == 256
+    assert block.params["num_heads"] * block.params["head_dim"] != width
+    assert block.params["head_dim"] != width // block.params["num_heads"]
 
 
 def test_tying_embeddings_removes_the_head_projection_from_the_count():
-    tied = resolve(TEMPLATES["gemma4_dense"].graph, 262144)[2]
+    vocab, width = 262208, 2560
+    tied = resolve(TEMPLATES["gemma3_4b"].graph, vocab)[2]
 
-    graph = TEMPLATES["gemma4_dense"].graph.model_copy(deep=True)
+    graph = TEMPLATES["gemma3_4b"].graph.model_copy(deep=True)
     for graph_node in graph.nodes:
         if graph_node.type == "lm_head":
             graph_node.params["tie_embeddings"] = False
-    untied = resolve(graph, 262144)[2]
+    untied = resolve(graph, vocab)[2]
 
-    # A 262k vocabulary at width 2304 is ~604M parameters not spent twice.
-    assert untied - tied == 262144 * 2304 + 262144
+    # A 262k vocabulary at width 2560 is 671M parameters not spent twice.
+    assert untied - tied == vocab * width
 
 
 def test_qk_norm_adds_two_scale_vectors_per_attention():
     graph = TEMPLATES["qwen3_8b"].graph.model_copy(deep=True)
     with_norm = resolve(graph, 151936)[2]
     for graph_node in graph.nodes:
-        if graph_node.type == "transformer_block":
+        if graph_node.type == "qwen3_block":
             graph_node.params["qk_norm"] = False
     without = resolve(graph, 151936)[2]
 
-    block = next(n for n in graph.nodes if n.type == "transformer_block")
-    assert with_norm - without == block.params["layers"] * 2 * block.params["key_dim"]
+    block = block_of("qwen3_8b")
+    assert with_norm - without == block.params["layers"] * 2 * block.params["head_dim"]
+
+
+def test_latent_attention_is_smaller_than_the_grouped_query_it_replaces():
+    """MLA's point: reconstruct K and V from one latent instead of caching them.
+
+    DeepSeek's 128 heads at full width would be an enormous attention block; the
+    low-rank bottleneck is what makes 61 layers of it affordable, and the
+    estimate has to show that rather than counting it as ordinary attention.
+    """
+
+    graph = TEMPLATES["deepseek_v3"].graph.model_copy(deep=True)
+    latent = resolve(graph, 129280)[2]
+    for graph_node in graph.nodes:
+        if graph_node.type == "deepseek_block":
+            graph_node.params["attention"] = "gqa"
+            graph_node.params["num_kv_heads"] = graph_node.params["num_heads"]
+            graph_node.params["head_dim"] = 128
+    grouped = resolve(graph, 129280)[2]
+
+    assert latent < grouped
 
 
 def test_sparse_presets_hold_more_parameters_than_their_dense_twin():
     """The MoE trade: same width and depth, far more total capacity."""
 
-    dense = resolve(TEMPLATES["llm_7b"].graph, PRESETS_BY_ID["llm_7b"].vocab)[2]
-    sparse = resolve(TEMPLATES["llm_moe_8x7b"].graph, PRESETS_BY_ID["llm_moe_8x7b"].vocab)[2]
+    dense = resolve(TEMPLATES["mistral_7b"].graph, PRESETS_BY_ID["mistral_7b"].vocab)[2]
+    sparse = resolve(TEMPLATES["mixtral_8x7b"].graph, PRESETS_BY_ID["mixtral_8x7b"].vocab)[2]
 
     assert sparse > dense * 5
+
+
+def test_deepseek_keeps_its_leading_layers_dense():
+    """`first_k_dense_replace`: the first three feed-forwards are not routed."""
+
+    block = block_of("deepseek_v3")
+    assert block.params["dense_layers"] == 3
+    assert block.params["shared_experts"] == 1
+    assert block.params["num_experts"] == 256
+    assert block.params["experts_per_token"] == 8
+
+    graph = TEMPLATES["deepseek_v3"].graph.model_copy(deep=True)
+    with_dense = resolve(graph, 129280)[2]
+    for graph_node in graph.nodes:
+        if graph_node.type == "deepseek_block":
+            graph_node.params["dense_layers"] = 0
+    all_sparse = resolve(graph, 129280)[2]
+
+    # Three routed layers cost far more than three dense ones, so removing the
+    # dense prefix has to grow the model.
+    assert all_sparse > with_dense
 
 
 # --- grouped-query attention ------------------------------------------------
@@ -330,6 +385,37 @@ def test_torch_export_names_its_channel_order_in_the_header():
     """NCHW versus the canvas's NHWC is the one thing that will trip a user."""
 
     assert "(batch, channels, height, width)" in render_torch(TEMPLATES["small_cnn"].graph)
+
+
+@pytest.mark.parametrize(
+    ("keras_momentum", "torch_momentum"),
+    [(0.9, 0.1), (0.99, 0.01), (0.5, 0.5)],
+)
+def test_batch_norm_momentum_is_converted_between_the_frameworks(keras_momentum, torch_momentum):
+    """The two libraries mean opposite things by `momentum`.
+
+    Keras keeps `momentum` of the *old* running statistic; torch takes
+    `momentum` of the *new* batch statistic. Emitting the number unchanged — or,
+    as this did before, dropping it and hardcoding torch's default — produces
+    two modules that train identically and infer differently.
+    """
+
+    graph = ArchitectureGraph(
+        nodes=[
+            node("in", "input", shape="8,8,3"),
+            node("bn", "batch_norm", momentum=keras_momentum, epsilon=0.002),
+            node("gap", "global_avg_pool2d"),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("out", "output"),
+        ],
+        edges=[*chain("in", "bn", "gap", "head", "out")],
+    )
+
+    code = render_torch(graph)
+
+    assert f"momentum={torch_momentum:g}" in code
+    # Epsilon was hardcoded to 1e-3 as well, so a value set on the canvas was lost.
+    assert "eps=0.002" in code
 
 
 def test_torch_helpers_are_emitted_only_when_used():

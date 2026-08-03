@@ -1,16 +1,30 @@
 """Layered auto-layout for graphs that arrive without positions.
 
 Imported architectures and starter templates have structure but no canvas
-coordinates. This assigns them: longest-path layering for the column, median
-of predecessor rows for the row. Pure and deterministic — the same graph
-always lays out identically, so an import/export round trip is stable.
+coordinates. This assigns them: longest-path layering for the column, and a row
+that makes the graph's shape visible rather than merely legal.
 
-No dependency: a general graph-drawing library would be far more than this
-needs, and the layouts it produces for a mostly-linear model graph are not
-better than a layered pass.
+Three rules, in the order they are applied:
+
+1. **Longest path** sets the column.
+2. **Siblings fan out symmetrically** around their shared parent, so an
+   Inception module's four branches straddle the stem rather than hanging off
+   the bottom of it.
+3. **A bypass pushes the path it bypasses off the main row.** An edge that skips
+   more than one column — a residual shortcut, a U-Net skip — is drawn straight
+   while the layers it goes around bow away from it. Without this a residual
+   block lays out as a single line with the skip edge hidden underneath the
+   nodes it is supposed to be routing around, which is a picture of the wrong
+   architecture.
+
+Pure and deterministic, so an import/export round trip is stable, and
+mirrored by `frontend/features/models/architectures/auto-layout.ts` so the
+studio's Tidy produces the same arrangement the template shipped with.
 """
 
 from __future__ import annotations
+
+import math
 
 from app.schemas import ArchitectureGraph, ArchitectureNode
 
@@ -33,7 +47,8 @@ def auto_layout(graph: ArchitectureGraph) -> ArchitectureGraph:
         outgoing[edge.source].append(edge.target)
 
     layers = _layer_of(nodes, incoming, outgoing)
-    rows = _rows(nodes, incoming, layers)
+    rows = _rows(nodes, incoming, outgoing, layers)
+    lift = min(rows.values()) if rows else 0.0
     positioned = [
         ArchitectureNode(
             id=node.id,
@@ -41,7 +56,7 @@ def auto_layout(graph: ArchitectureGraph) -> ArchitectureGraph:
             label=node.label,
             position={
                 "x": ORIGIN_X + layers[node.id] * COLUMN_PITCH,
-                "y": ORIGIN_Y + rows[node.id] * ROW_PITCH,
+                "y": ORIGIN_Y + (rows[node.id] - lift) * ROW_PITCH,
             },
             params=node.params,
         )
@@ -79,29 +94,124 @@ def _layer_of(
     return layers
 
 
+def _bypass_offsets(
+    nodes: dict[str, ArchitectureNode],
+    incoming: dict[str, list[str]],
+    outgoing: dict[str, list[str]],
+    layers: dict[str, int],
+) -> dict[str, int]:
+    """How far off the main row each node sits because something skips past it.
+
+    For every edge spanning more than one column, the nodes it skips over are
+    pushed away by one row so the shortcut can be drawn as a straight line
+    between them. Overlapping spans stack, so two nested skips do not land on
+    top of each other.
+    """
+
+    spans: list[tuple[int, int, str, str]] = []
+    for source in sorted(nodes):
+        for target in sorted(outgoing[source]):
+            if layers[target] - layers[source] > 1:
+                spans.append((layers[source], layers[target], source, target))
+    if not spans:
+        return {}
+
+    offsets: dict[str, int] = {}
+    # Widest span first, so an outer skip claims row 1 and a nested one row 2 —
+    # the arrangement a reader expects from a diagram of nested blocks.
+    claimed: list[tuple[int, int, int]] = []
+    for start, end, source, target in sorted(
+        spans, key=lambda span: (span[0] - span[1], span[0], span[2])
+    ):
+        depth = 1 + sum(
+            1 for other_start, other_end, _ in claimed if other_start < end and start < other_end
+        )
+        claimed.append((start, end, depth))
+        for node_id in _between(source, target, incoming, outgoing, layers):
+            offsets[node_id] = max(offsets.get(node_id, 0), depth)
+    return offsets
+
+
+def _between(
+    source: str,
+    target: str,
+    incoming: dict[str, list[str]],
+    outgoing: dict[str, list[str]],
+    layers: dict[str, int],
+) -> set[str]:
+    """Nodes strictly inside the span: reachable from `source` and reaching `target`."""
+
+    forward: set[str] = set()
+    stack = list(outgoing[source])
+    while stack:
+        node_id = stack.pop()
+        if node_id in forward or layers[node_id] >= layers[target]:
+            continue
+        forward.add(node_id)
+        stack.extend(outgoing[node_id])
+
+    inside: set[str] = set()
+    stack = list(incoming[target])
+    while stack:
+        node_id = stack.pop()
+        if node_id in inside or node_id not in forward:
+            continue
+        inside.add(node_id)
+        stack.extend(incoming[node_id])
+    return inside
+
+
 def _rows(
     nodes: dict[str, ArchitectureNode],
     incoming: dict[str, list[str]],
+    outgoing: dict[str, list[str]],
     layers: dict[str, int],
 ) -> dict[str, float]:
-    """Place each node near the median row of its predecessors, avoiding overlap."""
+    """Place each node near its predecessors, fanning siblings and skips apart."""
+
+    offsets = _bypass_offsets(nodes, incoming, outgoing, layers)
 
     by_layer: dict[int, list[str]] = {}
     for node_id in sorted(nodes, key=lambda key: (layers[key], key)):
         by_layer.setdefault(layers[node_id], []).append(node_id)
 
+    # `base` ignores the bypass offsets so they never compound down a chain: a
+    # five-layer detour is one row off the main line, not five.
+    base: dict[str, float] = {}
     rows: dict[str, float] = {}
     for layer in sorted(by_layer):
         taken: set[float] = set()
+        # Group by shared parent set so siblings can be centred together.
+        siblings: dict[str, list[str]] = {}
         for node_id in by_layer[layer]:
-            sources = [rows[source] for source in incoming[node_id] if source in rows]
-            preferred = _median(sources) if sources else 0.0
-            row = round(preferred)
-            while float(row) in taken:
-                row += 1
-            taken.add(float(row))
-            rows[node_id] = float(row)
+            key = "|".join(sorted(incoming[node_id]))
+            siblings.setdefault(key, []).append(node_id)
+
+        for group in siblings.values():
+            sources = [base[source] for source in incoming[group[0]] if source in base]
+            centre = _median(sources) if sources else 0.0
+            # Odd counts sit one dead centre; even counts straddle it.
+            spread = (len(group) - 1) / 2
+            for index, node_id in enumerate(group):
+                row = _round_half_up(centre + index - spread) + offsets.get(node_id, 0)
+                while row in taken:
+                    row += 1
+                taken.add(row)
+                rows[node_id] = row
+                base[node_id] = row - offsets.get(node_id, 0)
     return rows
+
+
+def _round_half_up(value: float) -> float:
+    """Round .5 away from zero's neighbour, matching JavaScript's `Math.round`.
+
+    Python's built-in `round` breaks ties to even, so four siblings straddling a
+    parent land on rows -2, 0, 1, 2 instead of -1, 0, 1, 2. The frontend's Tidy
+    is JavaScript; the two layouts have to agree or pressing Tidy on a freshly
+    opened template moves every node.
+    """
+
+    return math.floor(value + 0.5)
 
 
 def _median(values: list[float]) -> float:

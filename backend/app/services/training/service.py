@@ -22,7 +22,11 @@ from app.ml.architecture.emit_keras import MODULE_FILENAME, EmitError, emit_modu
 from app.ml.architecture.graph import build_graph
 from app.ml.architecture.lm_catalog import LM_FAMILY
 from app.ml.architecture.shapes import infer_shapes
-from app.ml.architecture.train_catalog import ARCHITECTURE_FAMILY, ARCHITECTURE_ID_KEY
+from app.ml.architecture.train_catalog import (
+    ARCHITECTURE_FAMILY,
+    ARCHITECTURE_ID_KEY,
+    TEXT_FAMILY,
+)
 from app.ml.llm.catalog import (
     LLM_HF_CUSTOM_ID,
     LLM_INSTALL_HINT,
@@ -97,7 +101,7 @@ class TrainingService:
                 f"Training option {payload.model_option_id} does not support {payload.task_type}. "
                 f"Supported tasks: {supported}"
             )
-        if option.family in {ARCHITECTURE_FAMILY, LM_FAMILY}:
+        if option.family in {ARCHITECTURE_FAMILY, LM_FAMILY, TEXT_FAMILY}:
             architecture_id = architecture_id_from(payload.model_dump())
             if not architecture_id:
                 raise ValueError(
@@ -647,6 +651,7 @@ class TrainingService:
             "hf_bert_text_classification",
             "hf_bert_question_answering",
             "hf_bart_summarization",
+            TEXT_FAMILY,
         }:
             raise ValueError("Only runnable training artifacts can be promoted")
         if job.promoted_model_id:
@@ -893,7 +898,7 @@ class TrainingService:
             if params.get("device"):
                 command.extend(["--device", str(params["device"])])
             return command
-        if job.model_family in {ARCHITECTURE_FAMILY, LM_FAMILY}:
+        if job.model_family in {ARCHITECTURE_FAMILY, LM_FAMILY, TEXT_FAMILY}:
             if db is None:
                 raise ValueError("Training a visual architecture needs a database session")
             return self._architecture_command(job, run_dir, db)
@@ -971,6 +976,7 @@ class TrainingService:
 
         hyperparameters = params.get("hyperparameters") or {}
         is_language_model = job.model_family == LM_FAMILY
+        is_text_classifier = job.model_family == TEXT_FAMILY
 
         dataset_id = params.get("dataset_id", "reference_yolo")
         dataset_root = self.settings.datasets_path / "dental dataset_yolov11_format"
@@ -997,11 +1003,12 @@ class TrainingService:
         module_path = run_dir / MODULE_FILENAME
         module_path.write_text(self._render_architecture(row, width), encoding="utf-8")
 
-        runner = (
-            "app.training.runners.architecture_lm_train"
-            if is_language_model
-            else "app.training.runners.architecture_train"
-        )
+        if is_language_model:
+            runner = "app.training.runners.architecture_lm_train"
+        elif is_text_classifier:
+            runner = "app.training.runners.architecture_text_train"
+        else:
+            runner = "app.training.runners.architecture_train"
         return [
             sys.executable,
             "-m",
@@ -1277,6 +1284,23 @@ class TrainingService:
                     shutil.copy2(source_sidecar, model_dir / sidecar)
             paths = {"model": stable_model}
             family = "keras_classification"
+        elif job.model_family == TEXT_FAMILY:
+            stable_model = model_dir / "best_model.keras"
+            shutil.copy2(best_model, stable_model)
+            # The tokenizer and the sequence length in `metadata.json` are not
+            # recoverable from the weights, so both travel with them.
+            for sidecar in [
+                "tokenizer.json",
+                "metadata.json",
+                MODULE_FILENAME,
+                "metrics.json",
+                "validation_predictions.json",
+            ]:
+                source_sidecar = run_dir / sidecar
+                if source_sidecar.exists():
+                    shutil.copy2(source_sidecar, model_dir / sidecar)
+            paths = {"model": stable_model}
+            family = TEXT_FAMILY
         elif job.model_family in {
             "nlp_text_classification",
             "nlp_summarization",
@@ -1329,7 +1353,12 @@ class TrainingService:
             "task_type": params.get("task_type", DEFAULT_TASK_TYPE),
             "model_family": job.model_family,
             "training_job_id": job.id,
-            "image_size": params.get("image_size"),
+            # The form's `image_size` is what a transfer-learning run builds its
+            # backbone at, but a graph run takes its resolution from the Input
+            # node and ignores the form — so recording the form value there
+            # describes a model that was never trained. The runner writes the
+            # real one into its own metadata; prefer it when present.
+            "image_size": runner_metadata.get("image_size", params.get("image_size")),
             "run_dir": str(run_dir),
         }
         metadata["name"] = display_name

@@ -6,6 +6,15 @@ from app.schemas import Detection, InferenceParameters
 
 
 class KerasTextClassificationPredictor(Predictor):
+    """Runs a saved Keras text classifier on one string.
+
+    The sequence length is read off the model, with the recorded `max_length` as
+    a fallback. Same reasoning as the image classifier: an architecture-studio
+    model takes its length from the graph's Input node rather than from the
+    training form, so metadata and model can disagree — and only one of them is
+    what the weights were actually built for.
+    """
+
     def __init__(self, model_path: Path, labels: list[str] | None = None) -> None:
         if not model_path.exists():
             raise FileNotFoundError(f"Keras NLP model not found: {model_path}")
@@ -16,10 +25,20 @@ class KerasTextClassificationPredictor(Predictor):
         self.model = tf.keras.models.load_model(model_path, compile=False)
         self.metadata = _read_json(self.model_dir / "metadata.json")
         self.labels = labels or self.metadata.get("labels") or ["positive", "negative", "neutral"]
-        self.max_length = int(self.metadata.get("max_length") or 160)
+        self.max_length = self._declared_sequence_length() or int(
+            self.metadata.get("max_length") or 160
+        )
         tokenizer_json = (self.model_dir / "tokenizer.json").read_text(encoding="utf-8")
         self.tokenizer = tf.keras.preprocessing.text.tokenizer_from_json(tokenizer_json)
         self.pad_sequences = tf.keras.preprocessing.sequence.pad_sequences
+
+    def _declared_sequence_length(self) -> int | None:
+        """Tokens per example the model was built for, or None if it is flexible."""
+
+        shape = getattr(self.model, "input_shape", None)
+        if not isinstance(shape, tuple) or len(shape) != 2:
+            return None
+        return shape[1] if isinstance(shape[1], int) else None
 
     def predict(self, image_path: Path, parameters: InferenceParameters) -> list[Detection]:
         return []

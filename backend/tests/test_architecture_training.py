@@ -19,6 +19,8 @@ from app.ml.architecture.train_catalog import (
     ARCHITECTURE_FAMILY,
     ARCHITECTURE_ID_KEY,
     ARCHITECTURE_OPTION_ID,
+    TEXT_FAMILY,
+    TEXT_OPTION_ID,
 )
 from app.ml.model_registry import ModelRegistry
 from app.ml.training_catalog import training_model_options
@@ -92,6 +94,34 @@ def test_the_option_is_not_offered_for_unsupported_tasks():
     options = {option.id for option in training_model_options("summarization")}
 
     assert ARCHITECTURE_OPTION_ID not in options
+    assert TEXT_OPTION_ID not in options
+
+
+def test_a_text_option_is_offered_for_text_classification():
+    """The studio ships BERT and transformer text-classifier presets, so the
+    training form has to offer a runner that can train them."""
+
+    options = {option.id: option for option in training_model_options("text_classification")}
+
+    assert TEXT_OPTION_ID in options
+    assert options[TEXT_OPTION_ID].runnable
+    assert options[TEXT_OPTION_ID].family == TEXT_FAMILY
+    # The image option must not leak into a text task; its pipeline batches JPEGs.
+    assert ARCHITECTURE_OPTION_ID not in options
+
+
+def test_a_text_job_routes_to_the_text_runner(service: TrainingService, db, tmp_path: Path):
+    architecture_id = seed_architecture(db, "transformer_text_classifier", "Text graph")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    job = make_job(architecture_id)
+    job.model_family = TEXT_FAMILY
+
+    command = service._command_for_job(job, run_dir, db)
+
+    assert "app.training.runners.architecture_text_train" in command
+    assert "app.training.runners.architecture_train" not in command
+    assert (run_dir / MODULE_FILENAME).exists()
 
 
 @pytest.mark.parametrize(
@@ -302,3 +332,81 @@ def test_a_graph_built_model_trains_and_writes_the_registry_artifacts(tmp_path: 
     assert metrics["classes"] == labels
     assert "val_accuracy_final" in metrics
     assert (run_dir / "validation_predictions.json").exists()
+
+
+@pytest.mark.slow
+def test_a_graph_built_text_classifier_trains_and_writes_its_artifacts(tmp_path: Path):
+    """The text sibling: the sequence length and vocabulary come off the graph.
+
+    The tokenizer must be capped by the Embedding node's table size, or an
+    out-of-range id crashes the first batch — which is the one failure a text
+    graph cannot survive.
+    """
+
+    from app.ml.architecture.emit_keras import emit_module
+    from app.ml.architecture.graph import build_graph
+    from app.ml.architecture.shapes import infer_shapes
+    from app.training.runners import architecture_text_train
+
+    dataset_root = tmp_path / "dataset"
+    labels = ["spam", "ham"]
+    (dataset_root / "manifest.json").parent.mkdir(parents=True)
+    (dataset_root / "manifest.json").write_text(json.dumps({"labels": labels}), encoding="utf-8")
+    for split in ("train", "valid"):
+        texts = dataset_root / split / "texts"
+        annotations = dataset_root / split / "annotations"
+        texts.mkdir(parents=True)
+        annotations.mkdir(parents=True)
+        for index in range(4):
+            (texts / f"doc_{index}.txt").write_text(
+                "buy now cheap offer" if index % 2 == 0 else "meeting notes for monday",
+                encoding="utf-8",
+            )
+            (annotations / f"doc_{index}.json").write_text(
+                json.dumps({"annotations": [{"kind": "classification", "class_id": index % 2}]}),
+                encoding="utf-8",
+            )
+
+    graph = TEMPLATES["transformer_text_classifier"].graph
+    resolved = build_graph(graph)
+    shapes, _params, _issues = infer_shapes(resolved, len(labels))
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    module_path = run_dir / MODULE_FILENAME
+    module_path.write_text(
+        emit_module(
+            resolved,
+            shapes,
+            architecture_name="Text classifier",
+            default_num_classes=len(labels),
+        ),
+        encoding="utf-8",
+    )
+
+    import sys
+
+    argv = sys.argv
+    sys.argv = [
+        "architecture_text_train",
+        "--run-dir", str(run_dir),
+        "--dataset-root", str(dataset_root),
+        "--model-file", str(module_path),
+        "--epochs", "1",
+        "--batch-size", "2",
+        "--learning-rate", "0.001",
+        "--advanced", json.dumps({"seed": 1}),
+    ]
+    try:
+        architecture_text_train.main()
+    finally:
+        sys.argv = argv
+
+    assert (run_dir / "best_model.keras").exists()
+    assert (run_dir / "tokenizer.json").exists()
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["classes"] == labels
+    # The predictor reads both of these back to tokenize an incoming string the
+    # same way the training run did.
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["max_length"] == 128
+    assert metadata["vocab_size"] == 20000

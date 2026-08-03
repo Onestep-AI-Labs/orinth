@@ -1357,6 +1357,14 @@ class NodeSpec(BaseModel):
     max_inputs: int = 1
     # Task types this node is offered for; empty means every task type.
     task_types: list[TaskType] = Field(default_factory=list)
+    # "layer" is one operation; "block" is a named multi-layer structure that
+    # expands into many (a ResNet stage, a Qwen3 decoder block). The palette
+    # separates them because they answer different questions — "what op do I
+    # need next" versus "what architecture am I building".
+    kind: Literal["layer", "block"] = "layer"
+    # For a block, the published config or paper its defaults were read from.
+    # Shown in the inspector so a number on the canvas is traceable.
+    source: str = ""
 
 
 class ArchitectureIssue(BaseModel):

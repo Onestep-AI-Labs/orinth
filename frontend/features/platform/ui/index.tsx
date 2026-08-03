@@ -10,6 +10,7 @@ export { Badge, Button, ButtonLink, IconButton, badgeVariants, buttonVariants } 
 export type { BadgeProps, ButtonLinkProps, ButtonProps, IconButtonProps } from "./primitives";
 export { cn } from "./cn";
 export { TaskSelect } from "./task-select";
+export { NumberCombo } from "./number-combo";
 
 export type ConfirmationTone = "danger" | "warning";
 export type ConfirmationDialogOptions = {

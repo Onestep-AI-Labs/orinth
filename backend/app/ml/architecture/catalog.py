@@ -14,12 +14,32 @@ one key set, which is what keeps a node from being addable but unbuildable.
 
 from typing import Any
 
+from app.ml.architecture.blocks import (
+    GEGLU,
+    GELU,
+    GQA,
+    LLM_BLOCK_DEFAULTS,
+    LLM_FAMILIES,
+    MHA,
+    MLA,
+    MOE,
+    POST,
+    PRE,
+    ROUTER_SIGMOID_BIAS,
+    ROUTER_SOFTMAX,
+    SANDWICH,
+    SWIGLU,
+    VISION_BLOCKS,
+    BlockFamily,
+)
 from app.ml.common.advanced import code, number, select, toggle
 from app.ml.vision.keras_classification.catalog import KERAS_APPLICATION_OPTIONS
 from app.schemas import AdvancedParameterSpec, NodePortSpec, NodeSpec, TaskType
 
 # Palette categories, in display order.
 IO = "Input & Output"
+VISION_BLOCK = "Vision blocks"
+LLM_BLOCK = "LLM blocks"
 CORE = "Core"
 CONVOLUTION = "Convolution"
 NORMALIZATION = "Normalization"
@@ -32,6 +52,8 @@ CUSTOM = "Custom"
 
 CATEGORY_ORDER = [
     IO,
+    VISION_BLOCK,
+    LLM_BLOCK,
     CORE,
     CONVOLUTION,
     NORMALIZATION,
@@ -48,6 +70,11 @@ SHAPE = "Shape"
 LAYER = "Layer"
 CODE = "Code"
 STACK = "Stack"
+ATTENTION = "Attention"
+LATENT_ATTENTION = "Latent attention"
+FEED_FORWARD = "Feed-forward"
+EXPERTS = "Experts"
+NORM = "Normalization"
 REGULARIZATION_GROUP = "Regularization"
 
 ACTIVATIONS = ["linear", "relu", "gelu", "swish", "tanh", "sigmoid", "softmax", "elu", "selu"]
@@ -98,6 +125,8 @@ def _spec(
     inputs: list[str] | None = None,
     outputs: list[str] | None = None,
     task_types: list[TaskType] | None = None,
+    kind: str = "layer",
+    source: str = "",
 ) -> NodeSpec:
     return NodeSpec(
         type=node_type,
@@ -110,10 +139,208 @@ def _spec(
         min_inputs=min_inputs,
         max_inputs=max_inputs,
         task_types=task_types or [],
+        kind=kind,  # type: ignore[arg-type]
+        source=source,
+    )
+
+
+def _llm_block_params(defaults: dict[str, Any]) -> list[AdvancedParameterSpec]:
+    """The one parameter set every named LLM block shares.
+
+    A family node differs from its siblings only in these values, which is the
+    point: switching `ffn` from swiglu to moe genuinely turns a Mistral block
+    into a Mixtral one, and the generated code follows.
+    """
+
+    def value(key: str) -> Any:
+        return defaults.get(key, LLM_BLOCK_DEFAULTS[key])
+
+    return [
+        number(
+            "layers", "Layers", default=value("layers"), group=STACK,
+            minimum=1, maximum=256, integer=True,
+            help="How many of these blocks to stack. Each gets its own weights.",
+        ),
+        select(
+            "attention", "Attention", options=[MHA, GQA, MLA], default=value("attention"),
+            group=ATTENTION,
+            help=(
+                "mha shares nothing; gqa gives several query heads one key/value head; "
+                "mla compresses key/value through a low-rank latent, which is DeepSeek's."
+            ),
+        ),
+        number("num_heads", "Query heads", default=value("num_heads"), group=ATTENTION, minimum=1, maximum=256, integer=True),
+        number(
+            "num_kv_heads", "Key/value heads", default=value("num_kv_heads"), group=ATTENTION,
+            minimum=0, maximum=256, integer=True,
+            help="0 matches the query head count. Ignored when attention is mla.",
+        ),
+        number(
+            "head_dim", "Head dim", default=value("head_dim"), group=ATTENTION,
+            minimum=1, maximum=4096, integer=True,
+            help="Stated rather than derived: Gemma 3 runs 8 heads of 256 against a 2560-wide stream.",
+        ),
+        toggle(
+            "qk_norm", "QK-norm", default=value("qk_norm"), group=ATTENTION,
+            help="RMSNorm over each query and key head vector before the dot product. Qwen3 and Gemma 3.",
+        ),
+        number(
+            "query_scale", "Query pre-attention scalar", default=value("query_scale"), group=ATTENTION,
+            minimum=0, maximum=8192, integer=True,
+            help="Divide scores by sqrt of this instead of the head dim. 0 uses the head dim. Gemma 3 states 256.",
+        ),
+        number(
+            "rope_theta", "RoPE theta", default=value("rope_theta"), group=ATTENTION,
+            minimum=0.0, maximum=10_000_000.0, step=10000.0,
+            help="Rotary base, applied to queries and keys inside attention. 0 disables rotary entirely — use a Positional embedding node instead, as GPT-2 and BERT do.",
+        ),
+        number(
+            "sliding_window", "Sliding window", default=value("sliding_window"), group=ATTENTION,
+            minimum=0, maximum=1_000_000, integer=True,
+            help="Each token attends only this far back. 0 is full attention.",
+        ),
+        number(
+            "global_every", "Global layer every", default=value("global_every"), group=ATTENTION,
+            minimum=0, maximum=64, integer=True,
+            help="With a window set, every Nth layer attends globally instead. Gemma 3 uses 6.",
+        ),
+        toggle("causal", "Causal mask", default=value("causal"), group=ATTENTION),
+        toggle(
+            "use_bias", "Projection biases", default=value("use_bias"), group=ATTENTION,
+            help="GPT-2 and BERT carry a bias on every projection. Every RoPE-era model dropped them — Llama, Qwen, Mistral, Gemma and DeepSeek all set attention_bias false.",
+        ),
+        number(
+            "q_lora_rank", "Query LoRA rank", default=value("q_lora_rank"), group=LATENT_ATTENTION,
+            minimum=0, maximum=16384, integer=True,
+            help="MLA only. 0 projects queries directly; DeepSeek and Kimi both compress through 1536.",
+        ),
+        number(
+            "kv_lora_rank", "Key/value LoRA rank", default=value("kv_lora_rank"), group=LATENT_ATTENTION,
+            minimum=1, maximum=16384, integer=True,
+            help="MLA only. The width of the latent the KV cache actually stores.",
+        ),
+        number("qk_rope_head_dim", "RoPE head dim", default=value("qk_rope_head_dim"), group=LATENT_ATTENTION, minimum=0, maximum=1024, integer=True),
+        number("qk_nope_head_dim", "Non-RoPE head dim", default=value("qk_nope_head_dim"), group=LATENT_ATTENTION, minimum=1, maximum=1024, integer=True),
+        number("v_head_dim", "Value head dim", default=value("v_head_dim"), group=LATENT_ATTENTION, minimum=1, maximum=1024, integer=True),
+        select(
+            "ffn", "Feed-forward", options=[SWIGLU, GEGLU, GELU, MOE], default=value("ffn"),
+            group=FEED_FORWARD,
+            help="swiglu is Llama/Qwen/Mistral; geglu is Gemma; gelu is the classic two-layer MLP; moe routes to experts.",
+        ),
+        number("ffn_dim", "Feed-forward dim", default=value("ffn_dim"), group=FEED_FORWARD, minimum=1, maximum=1_000_000, integer=True, help="For an MoE block this is one expert's hidden width."),
+        number("num_experts", "Routed experts", default=value("num_experts"), group=EXPERTS, minimum=1, maximum=2048, integer=True),
+        number("experts_per_token", "Active per token", default=value("experts_per_token"), group=EXPERTS, minimum=1, maximum=64, integer=True),
+        number(
+            "shared_experts", "Shared experts", default=value("shared_experts"), group=EXPERTS,
+            minimum=0, maximum=16, integer=True,
+            help="Always-on, unrouted. DeepSeek and Kimi both use 1, so the routed experts can specialize.",
+        ),
+        number(
+            "dense_layers", "Leading dense layers", default=value("dense_layers"), group=EXPERTS,
+            minimum=0, maximum=64, integer=True,
+            help="The first N layers keep a plain feed-forward instead of a router — DeepSeek's first_k_dense_replace.",
+        ),
+        number("dense_ffn_dim", "Dense feed-forward dim", default=value("dense_ffn_dim"), group=EXPERTS, minimum=1, maximum=1_000_000, integer=True, help="Width of the feed-forward in those leading dense layers."),
+        select(
+            "router", "Router", options=[ROUTER_SOFTMAX, ROUTER_SIGMOID_BIAS], default=value("router"),
+            group=EXPERTS,
+            help=(
+                "softmax scores all experts, takes the top-k, renormalizes (Mixtral). "
+                "sigmoid_bias scores each expert independently and adds a learned selection "
+                "bias that never enters the gate value — DeepSeek's aux-loss-free balancing."
+            ),
+        ),
+        number("routed_scaling", "Routed scaling factor", default=value("routed_scaling"), group=EXPERTS, minimum=0.1, maximum=16.0, step=0.001, help="Multiplies the routed experts' summed output. DeepSeek 2.5, Kimi 2.827."),
+        select("norm", "Normalization", options=["rms", "layer"], default=value("norm"), group=NORM),
+        select(
+            "norm_placement", "Norm placement", options=[PRE, SANDWICH, POST], default=value("norm_placement"),
+            group=NORM,
+            help=(
+                "pre normalizes before each sub-layer; sandwich also normalizes the "
+                "sub-layer's output before the residual adds, which is Gemma's four norms "
+                "per layer; post is the original 2017 arrangement, still used by BERT."
+            ),
+        ),
+        number("dropout", "Dropout", default=value("dropout"), group=REGULARIZATION_GROUP, minimum=0.0, maximum=0.9, step=0.05),
+    ]
+
+
+def _llm_block_spec(family: BlockFamily) -> NodeSpec:
+    return _spec(
+        family.type,
+        family.name,
+        LLM_BLOCK,
+        family.description,
+        params=_llm_block_params(family.defaults),
+        kind="block",
+        source=family.source,
+        task_types=["language_modeling", "text_classification"],
+    )
+
+
+_VISION_BLOCK_PARAMS: dict[str, list[AdvancedParameterSpec]] = {
+    "resnet_block": [
+        select("variant", "Variant", options=["basic", "bottleneck"], default="basic", group=LAYER, help="basic is two 3×3s (ResNet-18/34); bottleneck is 1×1 → 3×3 → 1×1 with a 4× expansion (ResNet-50 and up)."),
+        number("filters", "Base filters", default=64, group=LAYER, minimum=1, maximum=4096, integer=True),
+        number("blocks", "Blocks", default=2, group=STACK, minimum=1, maximum=64, integer=True),
+        number("stride", "First-block stride", default=1, group=LAYER, minimum=1, maximum=4, integer=True, help="2 halves the feature map at the start of the stage, which is how ResNet changes resolution."),
+        number("expansion", "Bottleneck expansion", default=4, group=LAYER, minimum=1, maximum=8, integer=True),
+    ],
+    "inverted_residual_block": [
+        number("filters", "Output filters", default=32, group=LAYER, minimum=1, maximum=4096, integer=True),
+        number("expand_ratio", "Expansion ratio", default=6, group=LAYER, minimum=1, maximum=12, integer=True, help="1 skips the expansion convolution entirely, which is what MobileNetV2's first block does."),
+        number("kernel_size", "Depthwise kernel", default=3, group=LAYER, minimum=1, maximum=9, integer=True),
+        number("stride", "Stride", default=1, group=LAYER, minimum=1, maximum=4, integer=True),
+        toggle("use_se", "Squeeze-excite", default=False, group=LAYER, help="On for MobileNetV3 and EfficientNet; off for MobileNetV2."),
+        number("se_ratio", "Squeeze ratio", default=4, group=LAYER, minimum=1, maximum=32, integer=True),
+        select("activation", "Activation", options=["relu6", "relu", "hardswish", "swish"], default="relu6", group=LAYER),
+        number("blocks", "Blocks", default=1, group=STACK, minimum=1, maximum=32, integer=True),
+    ],
+    "dense_block": [
+        number("growth_rate", "Growth rate", default=32, group=LAYER, minimum=1, maximum=512, integer=True, help="Channels each layer contributes to the running concatenation."),
+        number("layers", "Layers", default=6, group=STACK, minimum=1, maximum=64, integer=True),
+        number("bottleneck_ratio", "Bottleneck ratio", default=4, group=LAYER, minimum=1, maximum=8, integer=True),
+    ],
+    "inception_block": [
+        number("filters_1x1", "1×1 path", default=64, group=LAYER, minimum=1, maximum=2048, integer=True),
+        number("reduce_3x3", "3×3 reduction", default=96, group=LAYER, minimum=1, maximum=2048, integer=True),
+        number("filters_3x3", "3×3 path", default=128, group=LAYER, minimum=1, maximum=2048, integer=True),
+        number("reduce_5x5", "5×5 reduction", default=16, group=LAYER, minimum=1, maximum=2048, integer=True),
+        number("filters_5x5", "5×5 path", default=32, group=LAYER, minimum=1, maximum=2048, integer=True),
+        number("filters_pool", "Pool path", default=32, group=LAYER, minimum=1, maximum=2048, integer=True),
+    ],
+    "convnext_block": [
+        number("filters", "Channels", default=96, group=LAYER, minimum=1, maximum=4096, integer=True),
+        number("blocks", "Blocks", default=3, group=STACK, minimum=1, maximum=64, integer=True),
+        number("kernel_size", "Depthwise kernel", default=7, group=LAYER, minimum=1, maximum=15, integer=True),
+        number("expand_ratio", "Pointwise expansion", default=4, group=LAYER, minimum=1, maximum=8, integer=True),
+        number("layer_scale", "Layer scale init", default=1e-6, group=LAYER, minimum=0.0, maximum=1.0, step=1e-6, help="Initial value of the learned per-channel scale on the residual branch. 0 disables it."),
+    ],
+    "vit_block": [
+        number("layers", "Layers", default=12, group=STACK, minimum=1, maximum=64, integer=True),
+        number("num_heads", "Heads", default=12, group=ATTENTION, minimum=1, maximum=64, integer=True),
+        number("head_dim", "Head dim", default=64, group=ATTENTION, minimum=1, maximum=1024, integer=True),
+        number("mlp_dim", "MLP dim", default=3072, group=FEED_FORWARD, minimum=1, maximum=65536, integer=True),
+        number("dropout", "Dropout", default=0.0, group=REGULARIZATION_GROUP, minimum=0.0, maximum=0.9, step=0.05),
+    ],
+}
+
+
+def _vision_block_spec(block: BlockFamily) -> NodeSpec:
+    return _spec(
+        block.type,
+        block.name,
+        VISION_BLOCK,
+        block.description,
+        params=_VISION_BLOCK_PARAMS[block.type],
+        kind="block",
+        source=block.source,
     )
 
 
 _SPEC_LIST: list[NodeSpec] = [
+    *(_vision_block_spec(block) for block in VISION_BLOCKS),
+    *(_llm_block_spec(family) for family in LLM_FAMILIES),
     # --- Input & Output ----------------------------------------------------
     _spec(
         "input",
@@ -268,6 +495,29 @@ _SPEC_LIST: list[NodeSpec] = [
         ],
     ),
     _spec(
+        "depthwise_conv2d",
+        "DepthwiseConv2D",
+        CONVOLUTION,
+        "One filter per input channel, with no mixing between them. The first half of a separable convolution, and the core of every mobile architecture.",
+        params=[
+            number("kernel_size", "Kernel size", default=3, group=LAYER, minimum=1, maximum=31, integer=True),
+            number("strides", "Strides", default=1, group=LAYER, minimum=1, maximum=8, integer=True),
+            select("padding", "Padding", options=PADDINGS, default="same", group=LAYER),
+            number("depth_multiplier", "Depth multiplier", default=1, group=LAYER, minimum=1, maximum=16, integer=True, help="Filters per input channel. 1 keeps the channel count unchanged."),
+            activation_param(),
+        ],
+    ),
+    _spec(
+        "squeeze_excite",
+        "Squeeze-and-excite",
+        CONVOLUTION,
+        "Pools each feature map to one number, learns a gate from those, and rescales the channels. Adds almost no parameters and is in EfficientNet, MobileNetV3, and SENet.",
+        params=[
+            number("ratio", "Squeeze ratio", default=4, group=LAYER, minimum=1, maximum=64, integer=True, help="The bottleneck is channels ÷ ratio wide."),
+            select("gate", "Gate activation", options=["sigmoid", "hardsigmoid"], default="sigmoid", group=LAYER, help="MobileNetV3 uses hardsigmoid; SENet and EfficientNet use sigmoid."),
+        ],
+    ),
+    _spec(
         "global_avg_pool2d",
         "GlobalAvgPool2D",
         CONVOLUTION,
@@ -300,7 +550,17 @@ _SPEC_LIST: list[NodeSpec] = [
         NORMALIZATION,
         "Normalizes across the batch. Standard between a convolution and its activation.",
         params=[
-            number("momentum", "Momentum", default=0.99, group=LAYER, minimum=0.0, maximum=1.0, step=0.01),
+            number(
+                "momentum", "Momentum", default=0.9, group=LAYER,
+                minimum=0.0, maximum=1.0, step=0.01,
+                help=(
+                    "How much of the old running mean/variance to keep per step. These "
+                    "statistics are used at inference but not during training, so a value "
+                    "too close to 1 makes a model that trains well and validates at chance. "
+                    "Keras defaults to 0.99, which assumes thousands of steps per epoch; "
+                    "0.9 matches PyTorch's default and converges on datasets this size."
+                ),
+            ),
             number("epsilon", "Epsilon", default=0.001, group=LAYER, minimum=1e-7, maximum=0.1, step=1e-4),
         ],
     ),
@@ -405,6 +665,44 @@ _SPEC_LIST: list[NodeSpec] = [
     # --- Backbone ----------------------------------------------------------
     # --- Transformer -------------------------------------------------------
     _spec(
+        "patch_embedding",
+        "Patch embedding",
+        TRANSFORMER,
+        "Cuts an image into non-overlapping squares and projects each to a vector, turning (H, W, C) into a token sequence. This is how a Vision Transformer reads pixels.",
+        params=[
+            number("patch_size", "Patch size", default=16, group=LAYER, minimum=1, maximum=64, integer=True),
+            number("embed_dim", "Embedding size", default=768, group=LAYER, minimum=1, maximum=16384, integer=True),
+            toggle("class_token", "Prepend class token", default=False, group=LAYER, help="Adds one learned token whose final state is the image representation. ViT classifies from it; later models pool instead."),
+        ],
+    ),
+    _spec(
+        "geglu",
+        "GeGLU feed-forward",
+        TRANSFORMER,
+        "Gated feed-forward with a GELU gate rather than SwiGLU's SiLU. Gemma's MLP.",
+        params=[
+            number("hidden_dim", "Hidden dim", default=256, group=LAYER, minimum=1, maximum=1_000_000, integer=True),
+            number("dropout", "Dropout", default=0.0, group=REGULARIZATION_GROUP, minimum=0.0, maximum=0.9, step=0.05),
+        ],
+    ),
+    _spec(
+        "mla_attention",
+        "Multi-head latent attention",
+        TRANSFORMER,
+        "DeepSeek's attention: keys and values are compressed through a shared low-rank latent, so the cache stores one narrow vector per token instead of every head's K and V.",
+        params=[
+            number("num_heads", "Heads", default=16, group=ATTENTION, minimum=1, maximum=256, integer=True),
+            number("q_lora_rank", "Query LoRA rank", default=0, group=LATENT_ATTENTION, minimum=0, maximum=16384, integer=True, help="0 projects queries directly from the residual stream. DeepSeek compresses through 1536."),
+            number("kv_lora_rank", "Key/value LoRA rank", default=512, group=LATENT_ATTENTION, minimum=1, maximum=16384, integer=True, help="The width of the latent the KV cache holds — the whole point of the design."),
+            number("qk_rope_head_dim", "RoPE head dim", default=64, group=LATENT_ATTENTION, minimum=0, maximum=1024, integer=True, help="The part of each head that carries rotary position. Shared across heads on the key side."),
+            number("qk_nope_head_dim", "Non-RoPE head dim", default=128, group=LATENT_ATTENTION, minimum=1, maximum=1024, integer=True),
+            number("v_head_dim", "Value head dim", default=128, group=LATENT_ATTENTION, minimum=1, maximum=1024, integer=True),
+            number("rope_theta", "RoPE theta", default=10000.0, group=ATTENTION, minimum=0.0, maximum=10_000_000.0, step=10000.0),
+            toggle("causal", "Causal mask", default=True, group=ATTENTION),
+            number("dropout", "Attention dropout", default=0.0, group=REGULARIZATION_GROUP, minimum=0.0, maximum=0.9, step=0.05),
+        ],
+    ),
+    _spec(
         "positional_embedding",
         "Positional embedding",
         TRANSFORMER,
@@ -466,9 +764,10 @@ _SPEC_LIST: list[NodeSpec] = [
     ),
     _spec(
         "transformer_block",
-        "Transformer block",
-        TRANSFORMER,
-        "A complete pre-norm block — norm, attention, residual, norm, feed-forward, residual — stackable N deep.",
+        "Generic transformer block",
+        LLM_BLOCK,
+        "A complete pre-norm block — norm, attention, residual, norm, feed-forward, residual — stackable N deep. Start from a named family block instead when you want a specific model's structure.",
+        kind="block",
         params=[
             number("layers", "Repeat", default=4, group=STACK, minimum=1, maximum=256, integer=True, help="Emits this many identical blocks in sequence, each with its own weights."),
             number("num_heads", "Heads", default=4, group=LAYER, minimum=1, maximum=256, integer=True),

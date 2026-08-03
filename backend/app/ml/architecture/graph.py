@@ -119,6 +119,8 @@ def build_graph(graph: ArchitectureGraph) -> ResolvedGraph:
     # cannot block saving or training an otherwise-complete model.
     contributing = _nodes_reaching_outputs(resolved)
     _check_arity(resolved, contributing)
+    _check_classifier_head(resolved, contributing)
+    _check_batch_norm_momentum(resolved, contributing)
     resolved.order = _topological_order(resolved, contributing)
     _assign_var_names(resolved)
     return resolved
@@ -193,6 +195,107 @@ def _check_arity(resolved: ResolvedGraph, contributing: set[str]) -> None:
                     ),
                 )
             )
+
+
+def _check_classifier_head(resolved: ResolvedGraph, contributing: set[str]) -> None:
+    """Warn about the two head mistakes that only surface once training starts.
+
+    Both are invisible on the canvas — the graph compiles, the shapes resolve,
+    `model.summary()` looks right — and both are fatal to a run:
+
+    * A fixed `units` head is sized for one dataset. The image runner refuses
+      the run outright when the count does not match the label set, so a graph
+      built from a blank canvas fails at launch rather than at edit time.
+    * The runner compiles categorical cross-entropy over probabilities. A head
+      left on the catalog's default `linear` activation hands it raw logits,
+      which Keras clips and renormalises instead of rejecting: the run starts,
+      the loss parks at ln(num_classes), and accuracy never leaves chance.
+
+    Only the layer feeding the Output node is checked, so an intermediate Dense
+    inside the model is left alone.
+    """
+
+    if len(resolved.output_ids) != 1:
+        return
+    output = resolved.nodes[resolved.output_ids[0]]
+    heads = [
+        resolved.nodes[node_id]
+        for node_id in output.inputs
+        if node_id in contributing and resolved.nodes[node_id].type == "dense"
+    ]
+    for head in heads:
+        if not head.params.get("units_from_dataset"):
+            resolved.issues.append(
+                ArchitectureIssue(
+                    severity="warning",
+                    node_id=head.id,
+                    message=(
+                        f"Output head is fixed at {head.params.get('units')} units. Turn on "
+                        '"Units = dataset class count" so it matches whatever dataset you '
+                        "train on — image training refuses a run whose head and label set "
+                        "disagree."
+                    ),
+                )
+            )
+        if head.params.get("activation") != "softmax":
+            resolved.issues.append(
+                ArchitectureIssue(
+                    severity="warning",
+                    node_id=head.id,
+                    message=(
+                        f"Output head activation is {head.params.get('activation')!r}. Training "
+                        "compiles categorical cross-entropy over probabilities, so set it to "
+                        "softmax — logits here train at chance without erroring."
+                    ),
+                )
+            )
+
+
+# Above this, BatchNorm's running statistics need more steps than a run on a
+# few hundred images will ever take. Keras defaults to 0.99, which assumes
+# thousands of steps per epoch.
+_SLOW_BATCH_NORM_MOMENTUM = 0.95
+
+
+def _check_batch_norm_momentum(resolved: ResolvedGraph, contributing: set[str]) -> None:
+    """Warn when BatchNorm's running statistics will not converge in time.
+
+    The failure this catches is the most confusing one the studio can produce,
+    because nothing about it looks like a defect: training loss falls, training
+    accuracy climbs past 0.7, and validation sits flat at exactly 1/num_classes
+    with a loss of ln(num_classes) forever.
+
+    BatchNorm normalises with *batch* statistics while training and with running
+    averages at inference. Those averages move by `1 - momentum` per step, so at
+    0.99 they need thousands of steps. A 210-image dataset at batch 32 is seven
+    steps an epoch, and after eleven epochs the averages are less than halfway
+    from their initial mean 0 / variance 1 — so at inference the network is
+    normalised by numbers that describe nothing, and its output collapses.
+
+    A warning rather than an error: the graph is valid, and on a large dataset
+    0.99 is the right choice. Saved graphs carry an explicit momentum, so
+    lowering the catalog default cannot reach them — this can.
+    """
+
+    for node_id in sorted(contributing):
+        node = resolved.nodes[node_id]
+        if node.type != "batch_norm":
+            continue
+        momentum = node.params.get("momentum")
+        if not isinstance(momentum, (int, float)) or momentum <= _SLOW_BATCH_NORM_MOMENTUM:
+            continue
+        resolved.issues.append(
+            ArchitectureIssue(
+                severity="warning",
+                node_id=node.id,
+                message=(
+                    f"Momentum {momentum:g} needs thousands of training steps before this "
+                    "layer's running statistics are usable. On a small dataset the run "
+                    "trains normally and validates at chance. Use 0.9 unless the dataset "
+                    "is large."
+                ),
+            )
+        )
 
 
 def _classify_terminals(resolved: ResolvedGraph) -> None:

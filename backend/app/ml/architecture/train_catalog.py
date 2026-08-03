@@ -17,6 +17,12 @@ from app.schemas import AdvancedParameterSpec
 
 ARCHITECTURE_FAMILY = "architecture_graph"
 ARCHITECTURE_OPTION_ID = "architecture_graph"
+# The same graph contract over a labelled text corpus. A separate family
+# because the dataset pipelines share nothing: one batches images, the other
+# tokenizes and pads strings. The catalog entry is otherwise identical, so a
+# text graph is trained with the same knobs an image graph is.
+TEXT_FAMILY = "architecture_text"
+TEXT_OPTION_ID = "architecture_text"
 # Which graph to train rides under this key inside `hyperparameters`.
 ARCHITECTURE_ID_KEY = "architecture_id"
 
@@ -77,5 +83,21 @@ def architecture_training_options() -> list[TrainingModelDefinition]:
             ),
             defaults={"epochs": 15, "batch_size": 32, "optimizer": "adam", "learning_rate": 0.001},
             advanced_parameters=ARCHITECTURE_ADVANCED_PARAMETERS,
-        )
+        ),
+        TrainingModelDefinition(
+            id=TEXT_OPTION_ID,
+            name="Visual architecture (text classifier)",
+            family=TEXT_FAMILY,
+            task_types=["text_classification"],
+            source="local",
+            runnable=True,
+            needs_download=False,
+            description=(
+                "Train a text model you composed in the architecture studio. "
+                "Sequence length comes from the graph's Input node and the vocabulary "
+                "from its Embedding node."
+            ),
+            defaults={"epochs": 15, "batch_size": 32, "optimizer": "adam", "learning_rate": 0.001},
+            advanced_parameters=ARCHITECTURE_ADVANCED_PARAMETERS,
+        ),
     ]

@@ -15,12 +15,25 @@ import type { TaskType, TrainingJob } from "@/types/api";
 // Phase 17: the architecture studio's Train button deep-links here with the
 // graph to train. The id rides the open-ended `hyperparameters` dict, matching
 // how the backend reads it — see `app/ml/architecture/train_catalog.py`.
-const ARCHITECTURE_OPTION_ID = "architecture_graph";
+//
+// Every option that trains a studio graph belongs here, one per dataset
+// pipeline: images, labelled text, and a text corpus. Matching only the image
+// option meant picking "Visual architecture (text classifier)" showed no
+// Architecture field at all, so there was nothing to attach the graph to and
+// the run was rejected server-side.
+// One option per dataset pipeline: images, labelled text, and a text corpus.
+const ARCHITECTURE_OPTION_BY_TASK: Partial<Record<TaskType, string>> = {
+  classification: "architecture_graph",
+  text_classification: "architecture_text",
+  language_modeling: "architecture_lm"
+};
+const ARCHITECTURE_OPTION_IDS = new Set(Object.values(ARCHITECTURE_OPTION_BY_TASK));
 
 export function TrainingPage() {
   const { projectId, project } = useProject();
   const searchParams = useSearchParams();
   const linkedArchitectureId = searchParams.get("architecture_id") ?? "";
+  const linkedTaskType = searchParams.get("task_type") ?? "";
   const [taskType, setTaskType] = useState<TaskType>("classification");
   const [modelOptionId, setModelOptionId] = useState("");
   const [architectureId, setArchitectureId] = useState("");
@@ -77,13 +90,19 @@ export function TrainingPage() {
   });
   const options = useMemo(() => optionsQuery.data ?? [], [optionsQuery.data]);
   const option = options.find((item) => item.id === modelOptionId);
-  const isArchitectureOption = modelOptionId === ARCHITECTURE_OPTION_ID;
+  const isArchitectureOption = ARCHITECTURE_OPTION_IDS.has(modelOptionId);
   const architecturesQuery = useQuery({
     queryKey: ["architectures", projectId],
     queryFn: () => api.architectures(projectId),
     enabled: isArchitectureOption
   });
-  const architectures = architecturesQuery.data ?? [];
+  // Only graphs built for this task. An image graph cannot train under the text
+  // runner and vice versa — the runners disagree on what a batch even is — so
+  // offering the mismatched ones is offering a run that cannot start.
+  const architectures = useMemo(
+    () => (architecturesQuery.data ?? []).filter((item) => item.task_type === taskType),
+    [architecturesQuery.data, taskType]
+  );
   // Starting a graph run without a graph fails server-side; block it here
   // so the user sees why before submitting.
   const architectureMissing = isArchitectureOption && !architectureId;
@@ -145,13 +164,16 @@ export function TrainingPage() {
   }, [taskOptions, taskType]);
 
   useEffect(() => {
-    // Arriving from the studio picks the option for the user: they already
-    // chose the architecture, so making them find it again is friction.
+    // Arriving from the studio picks the task and option for the user: they
+    // already chose the architecture, so making them find it again is friction.
+    // The task comes from the link rather than being assumed — hardcoding
+    // "classification" here sent every text graph to the image runner.
     if (!linkedArchitectureId) return;
     setArchitectureId(linkedArchitectureId);
-    setTaskType("classification");
-    setModelOptionId(ARCHITECTURE_OPTION_ID);
-  }, [linkedArchitectureId]);
+    const task = (linkedTaskType || "classification") as TaskType;
+    setTaskType(task);
+    setModelOptionId(ARCHITECTURE_OPTION_BY_TASK[task] ?? "architecture_graph");
+  }, [linkedArchitectureId, linkedTaskType]);
 
   useEffect(() => {
     // Clear a model that this task does not offer, but never pick one. The
@@ -234,7 +256,9 @@ export function TrainingPage() {
     // Fine-tuning method is chosen via its own prominent select, not the
     // advanced accordion; it rides the same hyperparameters dict.
     if (llm) hyperparameters.finetune_method = finetuneMethod;
-    if (selectedOption.id === ARCHITECTURE_OPTION_ID) hyperparameters.architecture_id = architectureId;
+    if (ARCHITECTURE_OPTION_IDS.has(selectedOption.id)) {
+      hyperparameters.architecture_id = architectureId;
+    }
     await createMutation.mutateAsync({
       project_id: projectId,
       task_type: taskType,

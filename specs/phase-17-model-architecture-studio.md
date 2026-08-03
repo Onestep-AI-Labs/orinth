@@ -2,10 +2,387 @@
 
 ## Status
 
-**Implemented — all five stages, plus a second emitter.** Compose a graph (45 node types, 20 starter
+**Implemented — all five stages, plus a second emitter.** Compose a graph (65 node types, 38 starter
 templates), validate it, save it, read and download the generated Python as **either TensorFlow or
 PyTorch**, and train it: image and text classifiers into the model registry, and from-scratch
 transformers on next-token prediction with sample generation.
+
+### Revision 8: group frames were unmovable, and the drag never followed the pointer
+
+Two of Revision 5's frame fixes were built on wrong readings of React Flow, and
+together they left a frame that could not be moved at all once it had been
+resized. Verified against `@xyflow/react` 12.11.2 / `@xyflow/system` 0.0.79
+rather than from the type signatures.
+
+**A resize drag never ended, so it swallowed everything after it.** `XYResizer`
+emits two shapes: during the drag `{ resizing: true, setAttributes, dimensions }`,
+and on release `{ resizing: false, dimensions }` — **no `setAttributes`**.
+`resizePhase` tested `setAttributes` on both edges, so it never returned `"end"`,
+`resizingRef` latched open after the first resize, and every later change to that
+frame — position, size, selection — was pushed into the pending buffer and never
+applied. The phase now keys on `resizing` being a boolean, which is the only
+field both edges share, and `"end"` wins over `"start"` in a batch carrying both
+so a drag cannot latch. `isResize` keys on the same field, so the end change
+commits its size instead of being mistaken for a measurement.
+
+**"React Flow moves the frame's DOM from its own store" is false for a
+controlled flow.** `triggerNodeChanges` only applies changes to the store when
+`hasDefaultNodes` — that is, when `nodes` was *not* passed as a prop. The studio
+passes it, so nothing moves until state feeds back, and Revision 5's buffering
+meant the rectangle stayed put for the whole drag and jumped on release. The
+buffer is gone; group changes apply immediately, exactly as the model nodes'
+already do. `resizingRef` survives for its one honest job: one undo step per drag.
+
+**The real stutter was `measured`, not the re-render.** `adoptUserNodes` copies
+`measured` from the node object it is handed, and `parseHandles` drops
+`handleBounds` for any node without one. The group nodes are rebuilt from
+`groups` on every change and carried neither, so each pointer event blanked both,
+forcing a ResizeObserver re-observation and a store-wide re-render — and left
+`XYResizer` reading `node.measured.width ?? 0` at the start of the next drag.
+Group nodes now carry `measured` alongside `width`/`height`, which is what makes
+model nodes drag smoothly (`applyNodeChanges` writes it back onto them). The
+`onNodesChange` id set moved to a ref for the same reason: `groups` changes on
+every pointer event, and re-registering the handler mid-drag is not free.
+
+`setAttributes` is in fact always `true` here, because `NodeResizer` never passes
+a `resizeDirection` and `XYResizer` already reports the untouched axis at its
+previous value. The axis check stays in `resizedTo` as a guard for a
+direction-locked resizer, not as the fix Revision 5 claimed it was.
+
+**Title sizes run the full ramp** — 8 through 144px in word-processor steps,
+fine at the small end and coarse at the top. A frame title is set against the
+canvas zoom rather than against body copy, so a banner over a whole stage is a
+real case. The inspector preview caps at 40px in CSS: the rail is a few hundred
+pixels wide, and a 144px preview would push the colour and size controls off it.
+
+### Revision 7: predictors read the model, not the metadata
+
+Testing and inference both failed on every studio-trained model:
+
+```
+Input 0 with name 'x_input_1' of layer 'small_cnn' is incompatible with the layer:
+expected shape=(None, 64, 64, 3), found shape=(1, 512, 512, 3)
+```
+
+`KerasClassificationPredictor` resized to `spec.artifacts["image_size"]`, which
+`_register_training_model` copied from the training form. For a transfer-learning
+run those two agree by construction — the backbone is *built* at the form's
+`image_size`. A graph run takes its resolution from the Input node and ignores
+the form entirely, so a 64×64 graph was registered as 512 and every prediction
+died on the shape.
+
+The fix inverts the authority. A saved model states what it accepts and
+physically cannot accept anything else, so the predictor derives its geometry
+from `model.input_shape` and keeps the recorded value only as a fallback for a
+fully convolutional model that declares none. This repairs **already-registered
+models without re-training them**, which matters because the broken ones are
+already in the registry. `KerasTextClassificationPredictor` gets the same
+treatment for sequence length, since a text graph has the identical mismatch.
+
+Two supporting changes so the metadata stops lying as well: `architecture_train`
+writes the resolution it actually trained at into `metadata.json`, and
+`_register_training_model` prefers the runner's value over the form's. Neither
+is load-bearing — the predictor no longer trusts either — but a registry that
+records a resolution the model never had is a trap for the next reader.
+
+### Revision 6: BatchNorm statistics, the emitter disagreement, and text routing
+
+**The flat validation curve was BatchNorm, not the data.** A run on the 210-image
+sample dataset reached 0.79 training accuracy while validation sat at exactly
+0.1667 — 10 of 60, one class — with val loss pinned at 1.7919, which is `ln(6)`.
+The model was emitting a uniform distribution on every validation sample.
+
+BatchNorm normalises with *batch* statistics while training and with running
+averages at inference, and those averages move by `1 - momentum` per step. Keras
+defaults to `momentum=0.99`, which assumes thousands of steps per epoch; 210
+images at batch 32 is seven. After eleven epochs the averages were less than
+halfway from their initial mean 0 / variance 1, so at inference the network was
+normalised by numbers describing nothing and its output collapsed.
+
+Proven by holding everything else fixed — same seed, same data, same graph, only
+momentum changed:
+
+| BN momentum | train acc | train loss | val acc | val loss | classes predicted on valid |
+| --- | --- | --- | --- | --- | --- |
+| 0.99 | 0.4714 | 1.3798 | 0.3167 | 1.7724 | 3 of 6 |
+| 0.9 | 0.4714 | 1.3798 | **0.5333** | **1.3944** | 6 of 6 |
+
+Training is bit-identical; only inference differs. Three changes follow:
+
+- The catalog default drops to **0.9**, which is what PyTorch's `momentum=0.1`
+  means and is right for datasets at this scale.
+- `graph._check_batch_norm_momentum` warns above 0.95. A graph saved from the
+  studio bakes in every param, so lowering the default cannot reach existing
+  architectures — this can.
+- The `momentum` help text explains the train/inference split, because the
+  symptom looks like a data bug and never like a normalisation setting.
+
+Measured on the sample dataset afterwards, validation tracks training instead of
+flatlining: val accuracy 0.167 → 0.42, val loss 1.795 → 1.46.
+
+**The PyTorch emitter was describing a different model.** `_norm("BatchNorm2d",
+"eps=1e-3")` never read `ctx.params`: momentum and epsilon set on the canvas
+applied in the Keras module and were silently dropped from the PyTorch one. The
+conventions are also inverted — Keras `momentum` is the fraction of the *old*
+statistic kept, torch's is the fraction of the *new* one taken, so Keras 0.9 and
+torch 0.1 are the same layer. `_batch_norm` now reads both params and converts,
+and a parametrised test pins the mapping. This is the same rule the spec already
+states for the LLM blocks: two emitters that disagree are describing two
+different models.
+
+**Text architectures could not be trained from the form.** `training-page.tsx`
+matched a single hardcoded option id, `"architecture_graph"`, so selecting
+"Visual architecture (text classifier)" rendered no Architecture field at all and
+sent no `architecture_id`. The studio's Train button compounded it by hardcoding
+`setTaskType("classification")`, routing every graph — text or not — to the image
+runner. The option ids are now a task→id map, the Train link carries the
+architecture's `task_type`, and the Architecture dropdown filters to graphs
+matching the selected task, since an image graph cannot start under the text
+runner.
+
+**Frame resizing is uncontrolled during the drag.** ~~React Flow already moves
+the frame's DOM from its own store as the pointer moves~~ — false for a
+controlled `nodes` prop, and this buffering is what made the frame unmovable.
+Reverted in Revision 8.
+
+### Revision 5: the shuffle bug, preset visibility, and frame editing
+
+**Every image classification run in the platform was training on class-ordered
+batches.** Not a studio bug — `keras_common.image_datasets` is shared with
+`keras_classification_train`, so this affected transfer-learning runs too.
+
+`load_split` walks the split directory in sorted filename order and every dataset
+the platform writes names files by class, so the item list arrives in perfect
+class order — for the trash dataset, 282 cardboard, then 351 glass, then 287
+metal, then 416 paper, then 338 plastic, then 96 trash. The tf.data `shuffle`
+only mixes within its buffer, and that buffer holds *decoded images*, so it
+cannot be dataset-sized. With 512 images over a class-ordered 1770, batch
+composition tracked position in the stream rather than the dataset. The model
+chased whichever class was streaming past: training loss climbed *through* each
+epoch (1.17 → 1.85 in epoch 1 on the reproduction) and validation accuracy sat
+at 0.087 for six classes.
+
+Fixed by permuting the file list in Python before tf.data sees it — exact rather
+than approximate, and free, because it is a list of paths. The buffered shuffle
+stays on top for per-epoch variation. Determinism holds: the runners call
+`keras.utils.set_random_seed`, which seeds Python's `random`. Measured on the
+same graph and dataset afterwards, training loss falls monotonically
+(1.62 → 1.06 over 25 epochs) and validation accuracy climbs 0.20 → 0.53.
+`test_keras_common.py` asserts batch composition directly and fails without the
+permutation.
+
+**NLP and LLM presets were unreachable.** Revision 4's task picker filtered the
+preset grid and drew its options from the project's `task_types`. But
+`language_modeling` exists for architectures composed in the studio and no
+project declares it, so all seventeen LLM presets — GPT-2, Llama, Qwen, Mixtral,
+DeepSeek, Kimi — were invisible in every project, and the four text-classifier
+presets were invisible in any vision project. The picker now offers every task
+the studio can build (project tasks first), and the selected task **sorts** the
+preset grid rather than filtering it; narrowing is an explicit opt-in. A preset
+is the fastest way to learn what the canvas can express, so hiding one is
+expensive in a way that showing an extra row is not.
+
+**Group frames were resizing on the wrong axes.** ~~`setAttributes` is the axis
+name for an edge drag, and falsy for React Flow's post-mount measurement.~~
+Neither holds in 12.11: `NodeResizer` passes no `resizeDirection`, so
+`setAttributes` is always `true`, and the resizer's end change omits it
+entirely. Corrected in Revision 8; the axis rule survives only as a guard.
+
+**Resizing lagged the pointer because frames were part of the model.** Group
+geometry rode in `toGraph`'s `training_defaults`, so `groups` was a dependency of
+the graph memo: nudging a decorative rectangle rebuilt every node and edge in the
+IR and re-armed shape validation, once per pointer event. Frames are now kept out
+of `graph` entirely and merged back in at save time, which is the only moment
+their geometry has to travel anywhere. The React Flow `nodes` array is memoized
+for the same reason.
+
+### UI revision 5
+
+- **The group title is its own text box** — click to select, drag to place
+  anywhere inside the frame (clamped to it), double-click to retype. Size and
+  colour are set in the inspector; `titleTint` of `-1` means neutral ink and
+  anything else indexes `GROUP_TINTS`, so a title stays a token colour. All four
+  fields are optional on `StoredGroup` so an architecture saved earlier still
+  opens.
+- **Position X/Y left the inspector.** A frame is placed by dragging it; typing
+  coordinates for an annotation is a control nobody reaches for, and it took the
+  room the title controls needed.
+- **Font size is an editable dropdown** (`NumberCombo`, a new shared primitive):
+  a menu of common sizes for the usual case, a number field for the value the
+  layout actually wants. Native `<input list>` was rejected — no control over the
+  popup, different in every browser, and no affordance that a list exists.
+- **Drag affordances are visible at rest.** Pane dividers and frame edges show a
+  hairline grip in `--line-strong` that promotes to the accent and lengthens on
+  hover, so a resizable edge is discoverable without first hovering it.
+- **A selected edge carries a surface-coloured casing** behind the stroke, so it
+  reads against the dot grid, a group frame's pastel wash, or a node it passes
+  behind — which one stroke colour cannot do alone.
+- **Explanatory prose is two tiers, not five sizes.** Card, preset, and inspector
+  descriptions share one size, colour, leading, and gap; the clamped one-liner in
+  a palette row is the deliberate denser tier.
+
+### Revision 4: the head trap, text training, and editor conventions
+
+**The bug this revision exists for.** A VGG-16 built from a blank canvas failed to train, while the
+VGG-16 preset trained but never left chance accuracy. Two silent head defects, neither visible on the
+canvas:
+
+- `dense.units_from_dataset` **defaults off**, so a hand-built head emits a fixed width. The image
+  runner refuses a run whose head and label set disagree, which is a launch-time failure with no hint
+  on the graph that produced it.
+- `dense.activation` **defaults to `linear`**, so a hand-built head emits logits. The runner compiled
+  `CategoricalCrossentropy` over probabilities, which does not raise on logits — Keras clips and
+  renormalises them. The run starts, the loss parks at `ln(num_classes)`, and accuracy never moves.
+  This is what "trains but a bit issue" was.
+
+Fixed on both sides. `graph._check_classifier_head` warns on the layer feeding the Output node for
+each case, so the mistake is on the canvas before training is attempted; an intermediate Dense is not
+checked. Both image and text runners now read the built model's last-layer activation and compile
+with `from_logits=True` when it is not already normalised, so an existing graph trains correctly
+rather than merely being diagnosed.
+
+**Image batching states its cardinality.** `keras_common.image_datasets` builds from a generator,
+whose length Keras cannot know: the first epoch rendered as `1/Unknown` and every run ended on a
+spurious "your input ran out of data" warning. The item count is known at construction, so
+`assert_cardinality` now states it, and `fit` passes `shuffle=False` because the pipeline already
+shuffles.
+
+**Text classification is trainable from the canvas.** The studio shipped `bert_classifier` and
+`transformer_text_classifier` presets that no training option could run — the catalog covered only
+`classification` and `language_modeling`. New family `architecture_text` (`TEXT_OPTION_ID`) with
+runner `architecture_text_train`: the sequence length comes from the Input node and the vocabulary
+from the Embedding node, the same "the graph owns the shape" rule the image runner follows for
+resolution. Capping the tokenizer at the embedding table size is a correctness requirement, not a
+nicety — an out-of-range id crashes the first batch. Artifacts match `nlp/keras.py`'s text classifier
+exactly, so promotion, testing, and serving go through the existing `KerasTextClassificationPredictor`.
+
+### UI revision 4: editor conventions
+
+- **Undo and redo** (`use-history.ts`), snapshot-based over `{nodes, edges, groups}`. Snapshots are
+  taken *before* a change and at drag/resize start, which is what makes granularity match intent: a
+  forty-event drag is one undo step. `⌘Z` / `⌘⇧Z` / `⌘Y`, plus toolbar buttons.
+- **Cut, copy, paste, duplicate, select all** (`clipboard.ts`) over the whole selection, group frames
+  included. Payloads ride `text/plain` behind a marker string rather than a custom MIME type, so a
+  copy survives a round trip through another tab; an in-app clipboard backs the context menu, which
+  has no `ClipboardEvent` to read from. Pasting re-ids nodes around what is already on the canvas and
+  rewrites internal edges onto the new ids, so a pasted block arrives wired. An edge with one endpoint
+  outside the selection is dropped rather than left dangling.
+- **A right-click menu** on the pane, nodes, edges, and frames, carrying the same commands with their
+  accelerators printed. Right-clicking outside the selection selects that thing first.
+- **Group frames are first-class.** Selection is tracked (it previously was not, so `NodeResizer`
+  never appeared and frames could not be resized at all), `Delete`/`Backspace` removes them with the
+  rest of the selection, the title renames on double-click, and colour, exact size, and position moved
+  into a `GroupInspector` in the right rail — a colour palette floating over the canvas covered the
+  nodes the frame was describing.
+- **Selection is visible.** Edges gain an 18px interaction width and thicken to 3.5px when selected;
+  connectors went from 9px to 14px, above the threshold where hitting one is aim rather than intent.
+- **The canvas gets the space.** Narrower default rails, a shorter drawer, a taller studio, one scroll
+  region covering the inspector header, palette entries with room between them, a palette filter that
+  survives a 160px rail (container query), and toolbar icons enlarged by removing padding rather than
+  adding width.
+- **Creating an architecture picks its task.** A preset carries its own, so choosing one auto-detects;
+  the blank canvas gets a `TaskSelect` that also filters the preset grid, with an escape hatch to show
+  every task.
+
+### Revision 3: named blocks, not one generic transformer
+
+The complaint this answers: every LLM preset was the same six nodes with different numbers, so a Qwen
+graph and a DeepSeek graph were indistinguishable on the canvas and generated near-identical code.
+They are not the same architecture, and the studio now says so.
+
+**Fifteen named block node types**, each a palette entry in its own right with defaults read from the
+model's published `config.json` or paper, recorded in `NodeSpec.source` and shown in the inspector.
+They live in `app/ml/architecture/blocks.py`, the single registry `catalog`, `shapes`, `emit_keras`
+and `emit_torch` all consume.
+
+| Family | What makes it that family |
+| --- | --- |
+| `llama_block` | Pre-norm RMSNorm, GQA, rotary applied inside attention, SwiGLU |
+| `qwen3_block` | + QK-norm over each query/key head vector |
+| `mistral_block` | Sliding-window attention (4096) |
+| `mixtral_block` | Sparse MoE: softmax over all experts → top-2 → renormalize |
+| `gemma3_block` | Four norms a layer (sandwich), GeGLU, 5:1 local-to-global, `query_pre_attn_scalar` |
+| `deepseek_block` | Multi-head latent attention, shared + 256 routed experts, sigmoid routing with a selection bias, first 3 layers dense |
+| `kimi_block` | The same at 64 heads and 384 experts, one dense layer |
+| `gpt2_block` | Pre-LayerNorm, full MHA, projection biases, no rotary |
+| `bert_block` | Bidirectional, post-norm |
+| `resnet_block` | Basic or bottleneck stage with a projection shortcut |
+| `inverted_residual_block` | MobileNetV2's MBConv, optional SE and hard-swish |
+| `dense_block` | DenseNet-BC concatenating growth |
+| `inception_block` | Four parallel receptive fields |
+| `convnext_block` | 7×7 depthwise, LayerNorm, 4× pointwise, LayerScale |
+| `vit_block` | Pre-LN encoder over a patch sequence |
+
+Plus five new primitives: `depthwise_conv2d`, `squeeze_excite`, `patch_embedding`, `geglu`,
+`mla_attention`.
+
+**Every preset now reproduces its published parameter count exactly**, and a test asserts it — which
+is a check on the *structure*, not just the arithmetic, because a GQA model counted as MHA or an MLA
+model counted as GQA lands somewhere else entirely:
+
+| Preset | Parameters | Preset | Parameters |
+| --- | --- | --- | --- |
+| GPT-2 124M | 124,439,808 | Qwen3 8B | 8,190,735,360 |
+| Llama 3.2 1B | 1,235,814,400 | Qwen3 30B-A3B | 30,532,122,624 |
+| Qwen3 0.6B | 596,049,920 | Mixtral 8×7B | 46,702,792,704 |
+| Llama 3.2 3B | 3,212,749,824 | Llama 3 70B | 70,553,706,496 |
+| Gemma 3 4B (text) | 3,880,263,168 | DeepSeek V3 | 671,026,419,200 |
+| Mistral 7B | 7,248,023,552 | Kimi K2 | 1,026,408,232,448 |
+| Llama 3 8B | 8,030,261,248 | | |
+
+Getting there required fixing three fidelity bugs the old generic block carried, each of which had
+been quietly inflating every preset:
+
+- **Rotary was applied to the token embeddings**, via a `rotary_embedding` node between the embedding
+  and the block. No model does that — rotary is a property of the query·key dot product, and rotating
+  the residual stream instead is a different and worse model. The family blocks apply it inside
+  attention, and preset graphs no longer carry a separate RoPE node.
+- **Attention and feed-forward projections carried biases.** Every RoPE-era config ships
+  `attention_bias: false`; GPT-2 and BERT are the exceptions, and now the only ones with `use_bias`
+  on. This alone was 4.9M parameters on Mistral 7B.
+- **The LM head carried a bias.** The softmax that follows is shift-invariant, so no published head
+  has one; at a 262k vocabulary it is not a rounding error.
+
+**Both emitters generate only what the architecture reaches.** `blocks.llm_block_structures` reads a
+block's parameters and returns the structures it uses; the block's own source is assembled from that
+set. A Gemma module contains no mixture-of-experts branch and no `LatentAttention`; a DeepSeek module
+contains no `FamilyAttention`; a GPT-2 module has neither RMSNorm nor a gated feed-forward. A dead
+branch would not merely be untidy — the helper classes are emitted on the same basis, so it would
+call a class the file never defines.
+
+**Verified by building, not by reading.** `test_architecture_families.py` builds every block under
+real TensorFlow *and* real PyTorch and asserts the analytic estimate equals both `count_params()` and
+torch's parameter total. Two emitters that disagree are describing two different models. The
+comparison excludes `num_batches_tracked`, a torch-only counter with no Keras counterpart, and
+includes BatchNorm's running statistics, which Keras counts as non-trainable weights.
+
+**Thirteen new templates**, at their published sizes (each within 3% of the paper's ImageNet figure,
+the difference being the class count): ResNet-18, ResNet-50, VGG-16, GoogLeNet, MobileNetV2,
+MobileNetV3, DenseNet-121, ConvNeXt-Tiny, ViT-B/16, U-Net, a squeeze-excite CNN, a BERT-base
+classifier, and a hand-wired mixture-of-experts layer.
+
+### UI revision 3
+
+- **Layout draws branches as branches.** An edge spanning more than one column — a residual shortcut,
+  a U-Net skip — now pushes the layers it goes around onto their own row, so the shortcut can be drawn
+  straight. The Residual block template used to lay out as a single line with the skip edge hidden
+  underneath the convolutions it was supposed to be routing around, which is a picture of the wrong
+  architecture. Nested skips stack rather than overlap. `layout.py` and `auto-layout.ts` implement
+  the same three rules, and `_round_half_up` exists because Python's `round` breaks ties to even while
+  JavaScript's rounds half up — a one-row disagreement that made Tidy move every node in a freshly
+  opened template.
+- **The palette separates blocks from layers**, with a three-way filter and counts. "Which operation
+  comes next" and "which architecture am I building" are different questions, and sixty-five flat
+  entries answer neither.
+- **Node headers carry a pastel category wash**, and a block is drawn with a stacked edge and a `×N`
+  badge for the layers it expands into. `categoryColorVar` was returning `var(--label-N)` — the raw
+  oklch triple, not a colour — so every node stripe had been painting nothing at all. It now goes
+  through `labelColor`, and tints through `labelFill` per `DESIGN.md` §8.
+- **Tools moved onto the canvas** (React Flow `Panel`, top-left): select, move, frame-selection, tidy,
+  fit — with `V`/`H`/`G`/`T`/`F` shortcuts that stand down while a field has focus. They act on what is
+  under the pointer, so a round trip to the page header was the most repeated wasted motion in the
+  editor. Group frames gained a remove control, and adding one with nodes selected frames them.
+- **The minimap colours nodes by category**, so it reads as the canvas rather than as grey dots.
 
 ### Revision 2: real model architectures, not just parameter counts
 
@@ -94,7 +471,8 @@ lie; the descriptions name the gap instead.
 - **Category icons and colours** from the `--label` data-visualization ramp — the sanctioned
   categorical exception in `DESIGN.md` §2, confined to the node stripe and palette dot.
 - **List search and pagination** (12 per page, client-side over the graph-less summaries), and a
-  search over the now-20 starter templates.
+  search plus pagination over the starter presets in the "Start from" picker (8 per page, with the
+  blank-canvas card pinned to every page and a `n of total` count beside the panel title).
 
 ### Bugs fixed in this revision
 
@@ -347,7 +725,10 @@ cannot drift from what codegen consumes.
 - `frontend/app/(platform)/models/architectures/[architectureId]/page.tsx` — studio, thin entrypoint.
 - `frontend/features/models/architectures/` — `architectures-page.tsx`, `studio-page.tsx`,
   `node-palette.tsx`, `node-inspector.tsx`, `canvas-nodes.tsx`, `code-panel.tsx`, `import-dialog.tsx`,
-  `auto-layout.ts`, `graph-client.ts`.
+  `auto-layout.ts`, `graph-client.ts`. Revision 4 adds `use-history.ts` (undo stack), `clipboard.ts`
+  (selection payloads, re-id on paste), `context-menu.tsx`, and `group-inspector.tsx`; revision 5
+  adds `group-changes.ts` (the group-frame equivalent of `applyNodeChanges`, kept pure so the
+  resize-axis rules are testable) and the shared `features/platform/ui/number-combo.tsx`.
 - `frontend/lib/api/architectures.ts`, re-exported from `frontend/lib/api/index.ts` so
   `import { api } from "@/lib/api"` keeps working.
 - The Models page header gains a segmented control, `Catalog | Architectures`. The sidebar keeps one
@@ -356,6 +737,14 @@ cannot drift from what codegen consumes.
 
 ### Backend modules
 
+- `backend/app/ml/architecture/blocks.py` — the named block registry. One entry per family with the
+  defaults its published config states and the `source` they were read from, plus
+  `llm_block_structures`, which maps a block's parameters to the code structures it reaches. Consumed
+  by `catalog`, `shapes`, and both emitters, so a family cannot mean one thing in the palette and
+  another in the generated file.
+- `backend/app/ml/architecture/keras_helpers.py` / `torch_helpers.py` — the generated layer source for
+  those blocks, kept out of the emitters because it is reference implementation meant to be read in
+  the file a user downloads.
 - `backend/app/ml/architecture/catalog.py` — node specs, grouped by category.
 - `backend/app/ml/architecture/graph.py` — IR dataclasses, parse, topological sort, cycle detection.
 - `backend/app/ml/architecture/shapes.py` — pure-Python analytic shape inference. No TF import.
@@ -365,10 +754,16 @@ cannot drift from what codegen consumes.
 - `backend/app/services/architectures.py` — CRUD, snapshots, compile orchestration; singleton wired in
   `backend/app/container.py`.
 - `backend/app/training/runners/architecture_compile.py` — subprocess build check.
-- `backend/app/training/runners/architecture_train.py` — training runner.
+- `backend/app/training/runners/architecture_train.py` — image training runner.
+- `backend/app/training/runners/architecture_text_train.py` — text-classification training runner
+  (revision 4). Shares the generated module and the `build_model(num_classes=...)` contract with the
+  image runner; the dataset pipeline in front of it is `nlp/common.py`'s, and the artifacts it writes
+  match `nlp/keras.py`'s so promotion and serving need no new branch beyond the family name.
 - `backend/app/training/runners/keras_common.py` — dataset loading, metrics, callbacks, and CSV
   normalization extracted from `keras_classification_train.py` and shared by both runners. The existing
-  runner keeps its current behavior and CLI; this is a refactor, not a rewrite.
+  runner keeps its current behavior and CLI; this is a refactor, not a rewrite. `image_datasets`
+  permutes the training file list before building the pipeline (revision 5) and declares the
+  resulting cardinality (revision 4); both matter to every image runner, not just the studio's.
 
 ### Storage and DB
 
@@ -455,15 +850,21 @@ passes the dataset's label count.
 
 ## Node Catalog
 
+Every `NodeSpec` carries `kind: "layer" | "block"`. A layer is one operation; a block is a named
+multi-layer structure that expands into many, and carries a `source` naming the config or paper its
+defaults were read from.
+
 | Category | Nodes |
 | --- | --- |
 | I/O | Input, Output |
+| Vision blocks | ResNet stage, Inverted residual (MBConv), DenseNet block, Inception module, ConvNeXt block, ViT encoder block |
+| LLM blocks | Llama, Qwen3, Mistral, Mixtral, Gemma 3, DeepSeek V3, Kimi K2, GPT-2, BERT, and the generic transformer block |
 | Core | Dense, Activation, Dropout, Flatten, Reshape, Permute |
-| Convolution | Conv1D, Conv2D, SeparableConv2D, Conv2DTranspose, MaxPool2D, AvgPool2D, GlobalAvgPool2D, GlobalMaxPool2D, UpSampling2D, ZeroPadding2D |
+| Convolution | Conv1D, Conv2D, SeparableConv2D, DepthwiseConv2D, Conv2DTranspose, MaxPool2D, AvgPool2D, GlobalAvgPool2D, GlobalMaxPool2D, UpSampling2D, ZeroPadding2D, Squeeze-and-excite |
 | Normalization | BatchNormalization, LayerNormalization, GroupNormalization, RMSNorm |
 | Recurrent | LSTM, GRU, Bidirectional |
 | Merge | Add, Concatenate, Multiply, Subtract, Average |
-| Transformer | Embedding, PositionalEmbedding, RotaryPositionalEmbedding, MultiHeadAttention (with `causal` flag), FeedForward, SwiGLU, CausalMask, LMHead |
+| Transformer | Embedding, PositionalEmbedding, RotaryPositionalEmbedding, MultiHeadAttention (with `causal` flag), GroupedQueryAttention, MultiHeadLatentAttention, FeedForward, SwiGLU, GeGLU, MixtureOfExperts, PatchEmbedding, LMHead, GlobalAvgPool1D |
 | Regularization | SpatialDropout2D, GaussianNoise, ActivityRegularization |
 | Backbone | PretrainedBackbone — wraps `tf.keras.applications.*` with `include_top=False`, reusing `KERAS_APPLICATION_OPTIONS`, so a graph can start from transfer learning |
 | Structure | Group (subgraph with a `repeat` count) |

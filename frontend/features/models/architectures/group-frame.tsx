@@ -1,8 +1,7 @@
 "use client";
 
-import { memo, useState } from "react";
-import { NodeResizer, type NodeProps } from "@xyflow/react";
-import { Check, Palette } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
+import { NodeResizer, useStore, type NodeProps } from "@xyflow/react";
 import type { Node } from "@xyflow/react";
 import { labelColor, labelFill } from "@/features/platform/utils";
 
@@ -10,6 +9,11 @@ export type GroupData = {
   title: string;
   /** Index into `GROUP_TINTS`, not a colour literal. */
   tint: number;
+  titleX: number;
+  titleY: number;
+  titleSize: number;
+  /** Index into `GROUP_TINTS`, or -1 for neutral ink. */
+  titleTint: number;
 };
 
 export type GroupFlowNode = Node<GroupData, "group">;
@@ -40,12 +44,43 @@ export const GROUP_TINTS = [
   edge: labelColor(index)
 }));
 
+/** Where a title sits and how big it is before anyone moves or resizes it. */
+export const TITLE_DEFAULTS = { x: 12, y: 10, size: 12 };
+export const TITLE_SIZE_RANGE = { min: 8, max: 144 };
+/**
+ * Menu presets for the title size. Any value in range can still be typed.
+ *
+ * The word-processor ramp rather than a handful of round numbers: a frame's
+ * title is set against the canvas zoom, not against body copy, so the useful
+ * range runs from a caption on a small frame to a banner over a whole stage.
+ * Fine steps at the small end where a point matters, coarse at the top where it
+ * does not; the menu scrolls, so length costs nothing.
+ */
+export const TITLE_SIZE_PRESETS = [
+  8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 96, 128, 144
+];
+/** `titleTint` sentinel for "use the body ink colour rather than a hue". */
+export const TITLE_TINT_INK = -1;
+
+/** The resolved colour for a title, given its own tint and the frame's. */
+export function titleColorFor(titleTint: number, frameTint: number): string {
+  if (titleTint === TITLE_TINT_INK) return "var(--color-ink)";
+  const index = titleTint >= 0 ? titleTint : frameTint;
+  return GROUP_TINTS[index % GROUP_TINTS.length].edge;
+}
+
 /**
  * A titled, resizable frame drawn behind nodes.
  *
  * Purely an annotation — it holds no tensors, emits no code, and never joins
  * the graph. Its whole job is letting someone say "this region is the encoder"
  * on a canvas that would otherwise be forty anonymous boxes.
+ *
+ * The title is its own text box: click to select it, drag to place it anywhere
+ * in the frame, double-click to retype it. Size and colour live in the right
+ * rail. A label pinned to the top-left corner is the wrong default for a frame
+ * that might be wrapping a column of nodes, and floating a colour palette over
+ * the canvas covered the very nodes the frame was describing.
  */
 export const GroupFrame = memo(function GroupFrame({
   id,
@@ -53,80 +88,123 @@ export const GroupFrame = memo(function GroupFrame({
   selected
 }: NodeProps<GroupFlowNode>) {
   const [editing, setEditing] = useState(false);
-  const [picking, setPicking] = useState(false);
+  const [titleActive, setTitleActive] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Screen pixels are flow units multiplied by the zoom, so a drag has to be
+  // divided by it or the title races the pointer at any zoom but 100%.
+  const zoom = useStore((state) => state.transform[2]);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+
   const tint = GROUP_TINTS[data.tint % GROUP_TINTS.length];
+
+  useEffect(() => {
+    if (!editing) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editing]);
+
+  // Deselecting the frame drops the title's selection with it, so a stray
+  // outline is never left behind on an unselected frame.
+  useEffect(() => {
+    if (!selected) {
+      setTitleActive(false);
+      setEditing(false);
+    }
+  }, [selected]);
+
+  function startTitleDrag(event: React.PointerEvent<HTMLElement>) {
+    if (editing || event.button !== 0) return;
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const originX = data.titleX;
+    const originY = data.titleY;
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+
+    const move = (moveEvent: PointerEvent) => {
+      window.dispatchEvent(
+        new CustomEvent("arch-group-title-move", {
+          detail: {
+            id,
+            titleX: originX + (moveEvent.clientX - startX) / zoomRef.current,
+            titleY: originY + (moveEvent.clientY - startY) / zoomRef.current
+          }
+        })
+      );
+    };
+    const stop = () => {
+      target.releasePointerCapture?.(event.pointerId);
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", stop);
+      target.removeEventListener("pointercancel", stop);
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", stop);
+    target.addEventListener("pointercancel", stop);
+  }
+
+  const titleStyle: React.CSSProperties = {
+    left: data.titleX,
+    top: data.titleY,
+    fontSize: data.titleSize,
+    color: titleColorFor(data.titleTint, data.tint)
+  };
 
   return (
     <div
       className={`arch-group${selected ? " arch-group-selected" : ""}`}
       style={{ background: tint.fill, borderColor: tint.edge }}
     >
-      <NodeResizer minWidth={160} minHeight={120} isVisible={selected} lineClassName="arch-group-line" handleClassName="arch-group-handle" />
-      <div className="arch-group-head">
-        {editing ? (
-          <input
-            className="arch-group-title-input"
-            autoFocus
-            value={data.title}
-            aria-label="Group title"
-            onChange={(event) => {
-              // React Flow node data is replaced, not mutated, so the studio
-              // owns the update through this custom event.
-              window.dispatchEvent(
-                new CustomEvent("arch-group-title", {
-                  detail: { id, title: event.target.value }
-                })
-              );
-            }}
-            onBlur={() => setEditing(false)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === "Escape") setEditing(false);
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="arch-group-title"
-            style={{ color: tint.edge }}
-            onClick={() => setEditing(true)}
-            title="Rename this group"
-          >
-            {data.title || "Untitled group"}
-          </button>
-        )}
+      <NodeResizer
+        minWidth={160}
+        minHeight={120}
+        isVisible={selected}
+        lineClassName="arch-group-line"
+        handleClassName="arch-group-handle"
+      />
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="arch-group-title-input nodrag nopan"
+          style={titleStyle}
+          value={data.title}
+          aria-label="Group title"
+          onChange={(event) => {
+            // React Flow node data is replaced, not mutated, so the studio
+            // owns the update through this custom event.
+            window.dispatchEvent(
+              new CustomEvent("arch-group-title", {
+                detail: { id, title: event.target.value }
+              })
+            );
+          }}
+          onBlur={() => setEditing(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === "Escape") setEditing(false);
+            // Backspace inside the field must edit text, not delete the frame.
+            event.stopPropagation();
+          }}
+        />
+      ) : (
         <button
           type="button"
-          className="arch-group-swatch"
-          aria-label="Change the group colour"
-          style={{ background: tint.edge }}
-          onClick={() => setPicking((value) => !value)}
+          className={`arch-group-title nodrag nopan${titleActive ? " arch-group-title-active" : ""}`}
+          style={titleStyle}
+          title="Drag to move · double-click to rename"
+          onPointerDown={startTitleDrag}
+          onClick={(event) => {
+            event.stopPropagation();
+            setTitleActive(true);
+          }}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            setEditing(true);
+          }}
         >
-          <Palette size={11} aria-hidden />
+          {data.title || "Untitled group"}
         </button>
-      </div>
-      {picking && (
-        <div className="arch-group-palette" role="listbox" aria-label="Group colour">
-          {GROUP_TINTS.map((option, index) => (
-            <button
-              key={option.name}
-              type="button"
-              role="option"
-              aria-selected={index === data.tint}
-              aria-label={option.name}
-              title={option.name}
-              className="arch-group-tint"
-              style={{ background: option.edge }}
-              onClick={() => {
-                window.dispatchEvent(
-                  new CustomEvent("arch-group-tint", { detail: { id, tint: index } })
-                );
-                setPicking(false);
-              }}
-            >
-              {index === data.tint && <Check size={11} aria-hidden />}
-            </button>
-          ))}
-        </div>
       )}
     </div>
   );

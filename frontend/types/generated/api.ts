@@ -4457,6 +4457,12 @@ export interface components {
              */
             inputs: components["schemas"]["NodePortSpec"][];
             /**
+             * Kind
+             * @default layer
+             * @enum {string}
+             */
+            kind: "layer" | "block";
+            /**
              * Max Inputs
              * @default 1
              */
@@ -4478,6 +4484,11 @@ export interface components {
              * @default null
              */
             params: components["schemas"]["AdvancedParameterSpec"][];
+            /**
+             * Source
+             * @default
+             */
+            source: string;
             /**
              * Task Types
              * @default null

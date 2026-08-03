@@ -208,6 +208,115 @@ def test_multiple_output_nodes_are_rejected():
     assert any("more than one Output node" in message for message in messages(resolved))
 
 
+def test_fixed_width_head_is_warned_about_but_still_compiles():
+    """The blank-canvas failure: a head sized by hand instead of by the dataset.
+
+    `units_from_dataset` defaults off, so a hand-built classifier emits a fixed
+    width and the image runner refuses the run when it disagrees with the label
+    set. That has to surface on the canvas, not thirty seconds into training —
+    but as a warning, because the graph itself is perfectly valid.
+    """
+
+    graph = linear_graph()
+
+    resolved = build_graph(graph)
+
+    assert resolved.ok
+    assert any("Units = dataset class count" in message for message in messages(resolved))
+    assert all(
+        issue.severity == "warning"
+        for issue in resolved.issues
+        if "dataset class count" in issue.message
+    )
+
+
+def test_logits_head_is_warned_about():
+    """The second silent killer: the catalog's default `linear` activation.
+
+    Probability cross-entropy over logits does not raise; it clips, renormalises,
+    and parks the run at chance forever.
+    """
+
+    graph = linear_graph()
+    graph.nodes[2] = node("head", "dense", units_from_dataset=True, activation="linear")
+
+    resolved = build_graph(graph)
+
+    assert resolved.ok
+    assert any("softmax" in message for message in messages(resolved))
+
+
+def test_a_correct_head_draws_no_warning():
+    graph = linear_graph()
+    graph.nodes[2] = node("head", "dense", units_from_dataset=True, activation="softmax")
+
+    resolved = build_graph(graph)
+
+    assert resolved.issues == []
+
+
+def test_an_intermediate_dense_is_not_treated_as_the_head():
+    """Only the layer feeding Output is checked; a hidden Dense is left alone."""
+
+    graph = ArchitectureGraph(
+        nodes=[
+            node("in", "input", shape="8,8,3"),
+            node("gap", "global_avg_pool2d"),
+            node("hidden", "dense", units=64, activation="relu"),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("out", "output"),
+        ],
+        edges=[edge("in", "gap"), edge("gap", "hidden"), edge("hidden", "head"), edge("head", "out")],
+    )
+
+    resolved = build_graph(graph)
+
+    assert resolved.issues == []
+
+
+def batch_norm_graph(momentum: float) -> ArchitectureGraph:
+    return ArchitectureGraph(
+        nodes=[
+            node("in", "input", shape="8,8,3"),
+            node("bn", "batch_norm", momentum=momentum),
+            node("gap", "global_avg_pool2d"),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("out", "output"),
+        ],
+        edges=[edge("in", "bn"), edge("bn", "gap"), edge("gap", "head"), edge("head", "out")],
+    )
+
+
+def test_slow_batch_norm_momentum_is_warned_about():
+    """The most confusing failure the studio can produce.
+
+    BatchNorm normalises with batch statistics while training and with running
+    averages at inference, and those averages move by `1 - momentum` per step.
+    At Keras's 0.99 default on a few hundred images the run trains normally and
+    validates at exactly chance, with nothing on the canvas to suggest why.
+    """
+
+    resolved = build_graph(batch_norm_graph(0.99))
+
+    assert resolved.ok  # valid graph, just a bad number for this scale
+    assert any("running statistics" in message for message in messages(resolved))
+
+
+def test_the_default_batch_norm_momentum_draws_no_warning():
+    assert build_graph(batch_norm_graph(0.9)).issues == []
+
+
+def test_batch_norm_inside_an_unreachable_branch_is_not_warned_about():
+    """Consistent with arity: only what reaches the Output node is checked."""
+
+    graph = batch_norm_graph(0.9)
+    graph.nodes.append(node("stray", "batch_norm", momentum=0.99))
+
+    warnings = [issue for issue in build_graph(graph).issues if "running statistics" in issue.message]
+
+    assert warnings == []
+
+
 def test_empty_canvas_is_reported_plainly():
     resolved = build_graph(ArchitectureGraph())
 

@@ -24,9 +24,39 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from app.ml.architecture.blocks import (
+    LLM_BLOCK_BOOL_PARAMS,
+    LLM_BLOCK_DEFAULTS,
+    LLM_BLOCK_FLOAT_PARAMS,
+    LLM_BLOCK_INT_PARAMS,
+    LLM_BLOCK_TEXT_PARAMS,
+    LLM_FAMILIES,
+    is_llm_block,
+    llm_block_structures,
+)
 from app.ml.architecture.emit_keras import EmitError, _identifier, _lit
 from app.ml.architecture.graph import OUTPUT_TYPE, ResolvedGraph, ResolvedNode, parse_shape
 from app.ml.architecture.shapes import Shape
+from app.ml.architecture.torch_helpers import (
+    ATTENTION_MASK_HELPER,
+    CONVNEXT_HELPER,
+    DENSE_BLOCK_HELPER,
+    FAMILY_ATTENTION_HELPER,
+    GATED_FFN_HELPER,
+    INCEPTION_HELPER,
+    INVERTED_RESIDUAL_HELPER,
+    LATENT_ATTENTION_HELPER,
+    LAYER_SCALE_HELPER,
+    PATCH_EMBEDDING_HELPER,
+    RESNET_HELPER,
+    SPARSE_MOE_HELPER,
+    SQUEEZE_EXCITE_HELPER,
+    VIT_HELPER,
+    llm_block_source,
+)
+from app.ml.architecture.torch_helpers import (
+    ROPE_APPLY_HELPER as ROPE_APPLY_HELPER_TORCH,
+)
 
 TORCH_MODULE_FILENAME = "generated_model_torch.py"
 
@@ -113,6 +143,15 @@ def emit_torch_module(
             embedding_vars=embedding_vars,
         )
         helpers.update(TORCH_HELPER_DEPENDENCIES.get(node.type, ()))
+        # As on the Keras side: a family block's helpers follow its parameters,
+        # so the two frameworks emit the same set of structures.
+        if is_llm_block(node.type):
+            # The set carries structural markers as well as helper keys —
+            # `rms_norm`, `layer_norm`, `classic_ffn` — which `llm_block_source`
+            # reads and `TORCH_HELPER_ORDER` simply does not contain, so they
+            # steer the generated block without emitting anything of their own.
+            # (torch's `nn.RMSNorm` is built in; Keras needs the helper class.)
+            helpers.update(llm_block_structures(node.params))
         if node.type == "lm_head":
             if node.params.get("tie_embeddings"):
                 helpers.add("tied_head")
@@ -129,7 +168,14 @@ def emit_torch_module(
         raise EmitError("The graph needs a connected Input node and Output node.")
 
     arguments = ", ".join(resolved.nodes[node_id].var_name for node_id in input_ids)
-    helper_source = [TORCH_HELPER_SOURCE[key] for key in TORCH_HELPER_ORDER if key in helpers]
+    # `llm_block` is assembled rather than looked up: its branches are pruned to
+    # the structures this graph reaches, so it never constructs a helper class
+    # the module has not defined.
+    helper_source = [
+        llm_block_source(helpers) if key == "llm_block" else TORCH_HELPER_SOURCE[key]
+        for key in TORCH_HELPER_ORDER
+        if key in helpers
+    ]
 
     return "\n".join(
         [
@@ -185,9 +231,42 @@ def _header(architecture_name: str, architecture_id: str, version: int) -> list[
     ]
 
 
+# Class names the generated helpers occupy. An architecture called "ResNet
+# stage" or "Dense block" would otherwise produce a module class that shadows
+# the helper it is trying to call, and the failure is a confusing TypeError
+# about an unexpected keyword argument rather than a name clash.
+RESERVED_CLASS_NAMES = frozenset(
+    {
+        "RotaryEmbedding",
+        "PositionalEmbedding",
+        "SwiGLU",
+        "GatedFeedForward",
+        "SqueezeExcite",
+        "PatchEmbedding",
+        "LayerScale",
+        "GroupedQueryAttention",
+        "FamilyAttention",
+        "LatentAttention",
+        "MixtureOfExperts",
+        "SparseMoE",
+        "TiedLMHead",
+        "SoftcappedLinear",
+        "TransformerStack",
+        "LlmBlockStack",
+        "ResNetStage",
+        "InvertedResidual",
+        "DenseBlock",
+        "InceptionModule",
+        "ConvNeXtStage",
+        "ViTEncoder",
+    }
+)
+
+
 def _class_name(text: str) -> str:
     slug = _identifier(text) or "model"
-    return "".join(part.capitalize() for part in slug.split("_")) or "Model"
+    name = "".join(part.capitalize() for part in slug.split("_")) or "Model"
+    return f"{name}Model" if name in RESERVED_CLASS_NAMES else name
 
 
 # --- emitters ---------------------------------------------------------------
@@ -289,6 +368,28 @@ def _norm(module: str, argument: str = "") -> Emitter:
         return f"nn.{module}({ctx.width()}{extra})", f"self.{ctx.name}({ctx.first})"
 
     return emit
+
+
+def _batch_norm(ctx: TorchContext) -> tuple[str, str]:
+    """BatchNorm2d, with the node's momentum and epsilon actually applied.
+
+    Both were hardcoded before — `eps=1e-3` and torch's default momentum — so a
+    momentum set on the canvas took effect in the Keras module and was silently
+    dropped from the PyTorch one. Two emitters that disagree are describing two
+    different models.
+
+    The conventions are also inverted, which makes a naive hand-off worse than
+    no hand-off at all. Keras `momentum` is the fraction of the *old* running
+    statistic to keep; torch `momentum` is the fraction of the *new* batch
+    statistic to take. Keras 0.9 and torch 0.1 are the same model.
+    """
+
+    keras_momentum = float(ctx.params["momentum"])
+    epsilon = float(ctx.params["epsilon"])
+    return (
+        f"nn.BatchNorm2d({ctx.width()}, eps={epsilon!r}, momentum={1.0 - keras_momentum:.6g})",
+        f"self.{ctx.name}({ctx.first})",
+    )
 
 
 def _recurrent(module: str) -> Emitter:
@@ -427,7 +528,9 @@ def _lm_head(ctx: TorchContext) -> tuple[str, str]:
             f"SoftcappedLinear({ctx.width()}, {vocab}, {_lit(softcap)})",
             f"self.{ctx.name}({ctx.first})",
         )
-    return f"nn.Linear({ctx.width()}, {vocab})", f"self.{ctx.name}({ctx.first})"
+    # Bias-free, matching every published causal LM head — the softmax that
+    # follows is shift-invariant, so the bias buys nothing.
+    return f"nn.Linear({ctx.width()}, {vocab}, bias=False)", f"self.{ctx.name}({ctx.first})"
 
 
 def _reshape(ctx: TorchContext) -> tuple[str, str]:
@@ -452,7 +555,194 @@ def _custom_function(ctx: TorchContext) -> tuple[str, str]:
     return "", f"(lambda x: {expression})({ctx.first})"
 
 
+# --- new primitives ---------------------------------------------------------
+
+
+def _depthwise_conv(ctx: TorchContext) -> tuple[str, str]:
+    channels = ctx.width()
+    kernel = int(ctx.params["kernel_size"])
+    stride = int(ctx.params["strides"])
+    multiplier = int(ctx.params["depth_multiplier"])
+    padding = kernel // 2 if str(ctx.params["padding"]) == "same" else 0
+    construction = (
+        f"nn.Conv2d({channels}, {channels * multiplier}, {kernel}, stride={stride}, "
+        f"padding={padding}, groups={channels})"
+    )
+    return construction, _activation_expression(
+        ctx.params["activation"], f"self.{ctx.name}({ctx.first})"
+    )
+
+
+def _squeeze_excite(ctx: TorchContext) -> tuple[str, str]:
+    construction = (
+        f"SqueezeExcite({ctx.width()}, {int(ctx.params['ratio'])}, "
+        f"gate={_lit(str(ctx.params['gate']))})"
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _patch_embedding(ctx: TorchContext) -> tuple[str, str]:
+    construction = (
+        f"PatchEmbedding({ctx.width()}, {int(ctx.params['patch_size'])}, "
+        f"{int(ctx.params['embed_dim'])}, class_token={_lit(bool(ctx.params['class_token']))})"
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _geglu(ctx: TorchContext) -> tuple[str, str]:
+    construction = (
+        f"GatedFeedForward({ctx.width()}, {int(ctx.params['hidden_dim'])}, \"gelu\", "
+        f"{_lit(float(ctx.params['dropout']))})"
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _latent_attention(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "LatentAttention",
+        [
+            ctx.width(),
+            int(ctx.params["num_heads"]),
+            int(ctx.params["kv_lora_rank"]),
+            int(ctx.params["qk_nope_head_dim"]),
+            int(ctx.params["qk_rope_head_dim"]),
+            int(ctx.params["v_head_dim"]),
+        ],
+        {
+            "q_lora_rank": int(ctx.params["q_lora_rank"]),
+            "rope_theta": float(ctx.params["rope_theta"]),
+            "causal": bool(ctx.params["causal"]),
+            "dropout": float(ctx.params["dropout"]),
+        },
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+# --- vision blocks ----------------------------------------------------------
+
+
+def _resnet_block(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "ResNetStage",
+        [ctx.width(), int(ctx.params["filters"]), int(ctx.params["blocks"])],
+        {
+            "stride": int(ctx.params["stride"]),
+            "variant": str(ctx.params["variant"]),
+            "expansion": int(ctx.params["expansion"]),
+        },
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _inverted_residual(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "InvertedResidual",
+        [ctx.width(), int(ctx.params["filters"])],
+        {
+            "expand_ratio": int(ctx.params["expand_ratio"]),
+            "kernel_size": int(ctx.params["kernel_size"]),
+            "stride": int(ctx.params["stride"]),
+            "use_se": bool(ctx.params["use_se"]),
+            "se_ratio": int(ctx.params["se_ratio"]),
+            "activation": str(ctx.params["activation"]),
+            "blocks": int(ctx.params["blocks"]),
+        },
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _dense_block(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "DenseBlock",
+        [ctx.width(), int(ctx.params["growth_rate"]), int(ctx.params["layers"])],
+        {"bottleneck_ratio": int(ctx.params["bottleneck_ratio"])},
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _inception_block(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "InceptionModule",
+        [
+            ctx.width(),
+            int(ctx.params["filters_1x1"]),
+            int(ctx.params["reduce_3x3"]),
+            int(ctx.params["filters_3x3"]),
+            int(ctx.params["reduce_5x5"]),
+            int(ctx.params["filters_5x5"]),
+            int(ctx.params["filters_pool"]),
+        ],
+        {},
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _convnext_block(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "ConvNeXtStage",
+        [ctx.width(), int(ctx.params["filters"]), int(ctx.params["blocks"])],
+        {
+            "kernel_size": int(ctx.params["kernel_size"]),
+            "expand_ratio": int(ctx.params["expand_ratio"]),
+            "layer_scale": float(ctx.params["layer_scale"]),
+        },
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _vit_block(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "ViTEncoder",
+        [
+            ctx.width(),
+            int(ctx.params["layers"]),
+            int(ctx.params["num_heads"]),
+            int(ctx.params["head_dim"]),
+            int(ctx.params["mlp_dim"]),
+        ],
+        {"dropout": float(ctx.params["dropout"])},
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+# --- named LLM family blocks ------------------------------------------------
+
+
+def _llm_block(ctx: TorchContext) -> tuple[str, str]:
+    def value(key: str) -> Any:
+        return ctx.params.get(key, LLM_BLOCK_DEFAULTS[key])
+
+    kwargs: dict[str, Any] = {}
+    for key in LLM_BLOCK_INT_PARAMS:
+        kwargs[key] = int(value(key) or 0)
+    for key in LLM_BLOCK_FLOAT_PARAMS:
+        kwargs[key] = float(value(key) or 0.0)
+    for key in LLM_BLOCK_BOOL_PARAMS:
+        kwargs[key] = bool(value(key))
+    for key in LLM_BLOCK_TEXT_PARAMS:
+        kwargs[key] = str(value(key))
+    return _construct("LlmBlockStack", [ctx.width()], kwargs), f"self.{ctx.name}({ctx.first})"
+
+
+def _construct(class_name: str, positional: list[Any], kwargs: dict[str, Any]) -> str:
+    rendered = [str(item) for item in positional]
+    rendered += [f"{key}={_lit(item)}" for key, item in kwargs.items()]
+    return f"{class_name}({', '.join(rendered)})"
+
+
 TORCH_EMITTERS: dict[str, Emitter] = {
+    "depthwise_conv2d": _depthwise_conv,
+    "squeeze_excite": _squeeze_excite,
+    "patch_embedding": _patch_embedding,
+    "geglu": _geglu,
+    "mla_attention": _latent_attention,
+    "resnet_block": _resnet_block,
+    "inverted_residual_block": _inverted_residual,
+    "dense_block": _dense_block,
+    "inception_block": _inception_block,
+    "convnext_block": _convnext_block,
+    "vit_block": _vit_block,
+    **{family.type: _llm_block for family in LLM_FAMILIES},
     "input": _input,
     "output": lambda ctx: ("", ctx.first),
     "dense": _dense,
@@ -477,7 +767,7 @@ TORCH_EMITTERS: dict[str, Emitter] = {
         "",
         f"F.pad({ctx.first}, ({int(ctx.params['padding'])},) * 4)",
     ),
-    "batch_norm": _norm("BatchNorm2d", "eps=1e-3"),
+    "batch_norm": _batch_norm,
     "layer_norm": _norm("LayerNorm"),
     "group_norm": lambda ctx: (
         f"nn.GroupNorm({int(ctx.params['groups'])}, {ctx.width()})",
@@ -760,25 +1050,63 @@ SOFTCAP_HELPER = '''class SoftcappedLinear(nn.Module):
 
 TORCH_HELPER_SOURCE: dict[str, str] = {
     "rope": ROPE_HELPER,
+    "rope_apply": ROPE_APPLY_HELPER_TORCH,
+    "attention_mask": ATTENTION_MASK_HELPER,
     "positional": POSITIONAL_HELPER,
     "swiglu": SWIGLU_HELPER,
+    "gated_ffn": GATED_FFN_HELPER,
+    "squeeze_excite": SQUEEZE_EXCITE_HELPER,
+    "patch_embedding": PATCH_EMBEDDING_HELPER,
+    "layer_scale": LAYER_SCALE_HELPER,
     "gqa": GQA_HELPER,
+    "family_attention": FAMILY_ATTENTION_HELPER,
+    "latent_attention": LATENT_ATTENTION_HELPER,
     "moe": MOE_HELPER,
+    "sparse_moe": SPARSE_MOE_HELPER,
     "stack": TRANSFORMER_STACK_HELPER,
+    # `llm_block` is built by `llm_block_source` from the required set rather
+    # than looked up here; the key still appears in TORCH_HELPER_ORDER.
     "tied_head": TIED_HEAD_HELPER,
     "softcap": SOFTCAP_HELPER,
+    "resnet": RESNET_HELPER,
+    "inverted_residual": INVERTED_RESIDUAL_HELPER,
+    "dense_block": DENSE_BLOCK_HELPER,
+    "inception": INCEPTION_HELPER,
+    "convnext": CONVNEXT_HELPER,
+    "vit": VIT_HELPER,
 }
+# Emission order, so a helper never references one defined below it.
 TORCH_HELPER_ORDER = [
     "rope",
+    "rope_apply",
+    "attention_mask",
     "positional",
     "swiglu",
+    "gated_ffn",
+    "squeeze_excite",
+    "patch_embedding",
+    "layer_scale",
     "gqa",
+    "family_attention",
+    "latent_attention",
     "moe",
+    "sparse_moe",
     "tied_head",
     "softcap",
     "stack",
+    "llm_block",
+    "resnet",
+    "inverted_residual",
+    "dense_block",
+    "inception",
+    "convnext",
+    "vit",
 ]
 
+# Family blocks are absent here: their helpers depend on how they are
+# configured, so `emit_torch_module` asks `blocks.llm_block_structures` per node
+# — the same function the Keras emitter uses, so the two files carry the same
+# structures.
 TORCH_HELPER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "rotary_embedding": ("rope",),
     "positional_embedding": ("positional",),
@@ -786,4 +1114,14 @@ TORCH_HELPER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "grouped_query_attention": ("gqa",),
     "moe_feed_forward": ("swiglu", "moe"),
     "transformer_block": ("swiglu", "gqa", "moe", "stack"),
+    "squeeze_excite": ("squeeze_excite",),
+    "patch_embedding": ("patch_embedding",),
+    "geglu": ("gated_ffn",),
+    "mla_attention": ("rope_apply", "attention_mask", "latent_attention"),
+    "resnet_block": ("resnet",),
+    "inverted_residual_block": ("squeeze_excite", "inverted_residual"),
+    "dense_block": ("dense_block",),
+    "inception_block": ("inception",),
+    "convnext_block": ("layer_scale", "convnext"),
+    "vit_block": ("vit",),
 }

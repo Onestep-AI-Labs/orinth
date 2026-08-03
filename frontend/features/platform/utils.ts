@@ -103,6 +103,7 @@ export function taskDescription(task: TaskType): string {
   if (task === "summarization") return "Source text with reference summary";
   if (task === "question_answering") return "Context with question-answer pairs";
   if (task === "llm_finetune") return "Instruction or chat SFT records";
+  if (task === "language_modeling") return "Plain text corpus for next-token prediction";
   return "Task metadata";
 }
 
