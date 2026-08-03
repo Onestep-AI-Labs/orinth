@@ -141,7 +141,7 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 | Component | Variants | Notes |
 |---|---|---|
 | `Button` | `primary` · `secondary` · `ghost` · `danger` × `sm` `md` | `primary` is the **near-black `--ink` fill** with `--shadow-subtle`, not the accent — one per view region. `ButtonLink` is the same style over `next/link` |
-| `IconButton` | `danger?` | Always has `aria-label` |
+| `IconButton` | `danger?` | Always has `aria-label`. Square 40px, zero padding — the glyph is the whole target |
 | `Badge` | tone: `neutral` `ok` `warn` `fail` `info` | Always the `-tint` background + `-strong` text pair; never the base hue (see §9) |
 | `.panel` (class) | — | `--surface`, hairline `--line`, `--radius-xl`, **no shadow**. Applied as a raw class in ~26 places; a `Panel` primitive may be added later |
 | `EmptyState` | with `action` | Every empty state names the next step and links to it |
@@ -151,6 +151,21 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 | Skeletons | `PageSkeleton` `CardGridSkeleton` `TableSkeleton` `InlineSpinner` | See loading contract |
 | `MultiSelect` / `TaskSelect` | — | Custom dropdowns: the closed trigger reads as a `<select>`, the open `--shadow-overlay` panel as a listbox. `MultiSelect` is checkbox multi-select; `TaskSelect` is single-select with Vision / NLP / LLM tabs + a search field (see §8) |
 | `PlatformTour` / `.tour-launch` | — | Guided tours (react-joyride) in `@/features/platform/tour`. The launcher is a pill that **floats over the working app**, so it carries `--shadow-overlay` (a control over content, not a resting surface) with a `--line-strong` border and an accent icon. Tooltip colors resolve from tokens via `oklch(var(--…))`. Route-aware and mounted once in the shell; see `specs/phase-16-guided-tours.md` |
+
+### Glyph scale — the control owns its icon size
+
+**A lucide `size` prop passed at a call site is advisory; the control's CSS is authoritative.** Call sites across the app pass 12–18px for the same action, so the same button read at a different weight on each page and a 14px glyph inside a 40px target looked incidental beside its own label. `platform.css` overrides the `width`/`height` presentation attributes lucide emits, so every existing call site keeps working unchanged:
+
+| Context | Glyph |
+|---|---|
+| `Button` / `ButtonLink` (40px, `md`) | 18px |
+| `.button-sm` (34px) | 16px |
+| `IconButton` (40px square) | 20px |
+| `.arch-view-controls` / `.arch-drawer-head` / `.arch-card-actions` icon buttons (32–34px) | 18px |
+| `.nav-link` | 19px |
+| `.option-menu` row, `.project-back-link` | 17px |
+
+An icon button sitting beside a `sm` button matches that button's height rather than standing 6px taller — the icon supports the labelled action, so it must not out-weigh it.
 
 ## 8. Patterns
 
@@ -167,6 +182,8 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 **Data visualization:** class colors come from `labelColor(index)`; translucent annotation overlays come from `labelFill(index, percent)`. **Never append a hex alpha suffix to `labelColor`** — it returns a `var()` reference, not a hex literal, so `` `${labelColor(i)}33` `` yields an invalid color and paints the overlay opaque black over the image beneath it. SVG `stroke`/`fill` must be set via `style={{ … }}`, not as presentation attributes — `var()` does not resolve in those.
 
 **Task selection (tabbed, searchable `TaskSelect`):** every operational task dropdown — training, testing, inference, and LLM serving — uses the shared `TaskSelect` primitive instead of a raw `<select>`. It takes the project's allowed task types and splits them across Vision / NLP / LLM **tabs** (the shared `.segmented-control`, shown only when the project spans more than one domain), so the grouping mirrors the project-creation `TaskTypePicker`. A sticky panel head pairs the tabs with a **search field** (`.task-select-search`, `Search` icon) that filters across *all* domains at once — while a query is active the results ignore the tab and regroup under uppercase domain micro-labels (`.task-select-group-label`), and Enter picks the first match. Each option is an icon + name + one-line description row; the active option carries the `--accent-tint` background with `--accent-strong` name and a `Check`, and the closed trigger shows the selection's icon, name, and a `.task-select-domain-tag`. Panel elevation is the sanctioned `--shadow-overlay`; close on click-outside/Escape matches `MultiSelect`. No new tokens, no shell change.
+
+**Card titles in a grid column:** a card title is an identifier and is often long, so `.model-card-copy strong` clamps to **two** lines (`-webkit-line-clamp: 2` + `overflow-wrap: anywhere`) rather than ellipsing at one, and its description clamps to two below it — the name survives, the card heights stay even, and an unbroken family id has somewhere to break. This only holds if every ancestor between the clamp and its track carries `min-width: 0`: a link or button wrapping the title is a grid item whose automatic minimum size is the *un-wrapped* min-content width, so without it the title escapes its `minmax(0, 1fr)` column and runs under the status badge. `.badge` is `white-space: nowrap` for the same reason — a pill is one token, and a wrapping one steals width from the title beside it.
 
 **Dataset catalog sections (phase 10):** provenance groups (Project / Imported from HuggingFace / Shared samples) are hairline-separated blocks with an uppercase micro-label header (`.section-microlabel`), rendered only when non-empty. No new tokens.
 

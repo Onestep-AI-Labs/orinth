@@ -231,6 +231,12 @@ not a bar indicator. */
   text-transform: uppercase;
 }
 
+.project-back-link > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+}
+
 .project-sidebar-top {
   display: flex;
   align-items: center;
@@ -364,6 +370,14 @@ not a bar indicator. */
 
 .nav-link span {
   flex: 1;
+}
+
+/* In the collapsed rail the glyph is the only label the link has, so it is
+   sized as the target rather than as an ornament beside text. */
+.nav-link > svg {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
 }
 
 .nav-link-icon-only {
@@ -562,6 +576,13 @@ not a bar indicator. */
   text-align: left;
 }
 
+.option-menu button > svg,
+.option-menu a > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+}
+
 .option-menu button:hover,
 .option-menu a:hover {
   background: var(--color-surface-2);
@@ -680,12 +701,37 @@ not a bar indicator. */
   gap: 3px;
 }
 
-.project-card-title strong,
-.model-card-copy strong {
+.project-card-title strong {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A model name is the card's identifier and is often long ("Extractive
+   Summarization", "test vis mobilenet v2"), so it gets two lines before it
+   truncates rather than being cut at the first. `overflow-wrap: anywhere`
+   covers unbroken family ids, which have no space to break at and would
+   otherwise push out under the status badge. */
+.model-card-copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* The description must clamp against the column,
+   not against its own content width. Two lines keeps card heights even. */
+.model-card-copy span {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .project-card-description {
@@ -716,6 +762,11 @@ not a bar indicator. */
   border-radius: var(--radius-pill);
   background: oklch(var(--surface) / 0.76);
   color: var(--color-accent-strong);
+}
+
+.model-card-icon > svg {
+  width: 19px;
+  height: 19px;
 }
 
 .card-menu {
@@ -829,7 +880,11 @@ not a bar indicator. */
   font-size: 12px;
 }
 
+/* The link is a grid item, so its automatic minimum size is the min-content
+   width of the un-wrapped name. Without `min-width: 0` the title escapes its
+   1fr column and runs under the status badge instead of clamping. */
 .model-card-title-link {
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
@@ -3746,7 +3801,8 @@ button.task-choice {
 }
 
 .icon-button {
-  width: 38px;
+  width: 40px;
+  padding: 0;
   border-color: var(--color-line);
   background: var(--color-surface);
   color: var(--color-ink-muted);
@@ -3768,6 +3824,34 @@ button.task-choice {
 .icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+/* Glyph size belongs to the control, not the call site. Buttons across the app
+   pass their own lucide `size` spanning 12–18px, so the same action reads at a
+   different weight on each page, and a 14px glyph inside a 40px target looks
+   incidental next to its own label. The control sets it once: 18px on the 40px
+   button, 16px on the 34px small variant, and 20px in an icon button, where the
+   glyph is the entire target and carries the whole meaning. Overriding the
+   width/height presentation attributes lucide emits keeps every call site
+   working unchanged. */
+.primary-button > svg,
+.secondary-button > svg,
+.ghost-button > svg,
+.danger-button > svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+.button-sm > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button > svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
 }
 
 .image-frame {
@@ -4757,6 +4841,9 @@ tr:last-child td {
   font-weight: 500;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  /* A pill is a single token. Wrapping one breaks the shape, and in a card
+     header it lets the label steal width from the title beside it. */
+  white-space: nowrap;
 }
 
 .badge-ok {
@@ -6555,6 +6642,19 @@ td {
   margin-top: auto;
 }
 
+/* The row leads with a small "Open studio" button, so the icon buttons beside
+   it match that height instead of standing 6px taller than the action they
+   support. Square, so the glyph keeps its 18px weight. */
+.arch-card-actions .icon-button {
+  min-height: 34px;
+  width: 34px;
+}
+
+.arch-card-actions .icon-button > svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* --- template picker ----------------------------------------------------- */
 
 .arch-template-head {
@@ -6761,6 +6861,12 @@ td {
   padding: 0;
 }
 
+.arch-view-controls .icon-button > svg,
+.arch-drawer-head .icon-button > svg {
+  width: 18px;
+  height: 18px;
+}
+
 .arch-view-controls .icon-button:disabled {
   color: var(--color-ink-subtle);
   opacity: 0.5;
@@ -6902,6 +7008,17 @@ td {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background: var(--color-surface-2);
+
+  /* React Flow's own theming hook, set rather than overridden. Its
+     `.react-flow__edge.selectable:focus .react-flow__edge-path` rule ties this
+     file's selected-edge rule on specificity (0,4,0), and `base.css` is
+     imported from the studio client component so it lands last and wins the
+     tie — a clicked wire (click focuses it: edges carry `tabIndex=0`) came out
+     #555 while hover, which base.css does not style, stayed accent. Feeding
+     the variable makes base.css paint the colour we want instead of fighting
+     a rule that outranks us by load order. */
+  --xy-edge-stroke: var(--color-line-input);
+  --xy-edge-stroke-selected: var(--color-accent);
 }
 
 .arch-canvas .react-flow__background-pattern {
@@ -6915,18 +7032,22 @@ td {
 
 /* A selected wire has to be findable in a forty-node graph, so selection
    changes weight as well as hue — colour alone at 2px is easy to lose against
-   the dot grid. Hover gets the colour but not the extra weight, so the two
-   states stay distinguishable. */
+   the dot grid. Hover previews the accent at the resting weight, so hover and
+   selection stay distinguishable. */
 .arch-canvas .react-flow__edge:hover .react-flow__edge-path {
   stroke: var(--color-accent);
 }
 
-/* Selection uses the strong accent and a surface-coloured casing drawn behind
-   the stroke. The casing is what makes the line read against *any* background
-   it crosses — the dot grid, a group frame's pastel wash, or a node it passes
-   behind — which a single stroke colour cannot do on its own. */
-.arch-canvas .react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--color-accent-strong);
+/* Selection is the solid accent blue plus a surface-coloured casing drawn
+   behind the stroke. The casing is what makes the line read against *any*
+   background it crosses — the dot grid, a group frame's pastel wash, or a node
+   it passes behind — which a single stroke colour cannot do on its own.
+   `.selectable` is carried here only to outrank base.css's focus rule, which
+   would otherwise tie this one and win on load order. */
+.arch-canvas .react-flow__edge.selectable.selected .react-flow__edge-path,
+.arch-canvas .react-flow__edge.selectable:focus .react-flow__edge-path,
+.arch-canvas .react-flow__edge.selectable:focus-visible .react-flow__edge-path {
+  stroke: var(--color-accent);
   stroke-width: 3.5;
   stroke-linecap: round;
   filter:
@@ -7913,8 +8034,10 @@ td {
   stroke: var(--color-accent);
 }
 
-.arch-canvas .arch-edge-branch.selected .react-flow__edge-path {
-  stroke: var(--color-accent-strong);
+.arch-canvas .arch-edge-branch.selectable.selected .react-flow__edge-path,
+.arch-canvas .arch-edge-branch.selectable:focus .react-flow__edge-path,
+.arch-canvas .arch-edge-branch.selectable:focus-visible .react-flow__edge-path {
+  stroke: var(--color-accent);
   stroke-width: 4;
 }
 
