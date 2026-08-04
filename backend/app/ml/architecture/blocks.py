@@ -538,17 +538,6 @@ VISION_BLOCKS: list[BlockFamily] = [
 VISION_BLOCKS_BY_TYPE: dict[str, BlockFamily] = {block.type: block for block in VISION_BLOCKS}
 
 
-def is_vision_block(node_type: str) -> bool:
-    return node_type in VISION_BLOCKS_BY_TYPE
-
-
-def block_source(node_type: str) -> str:
-    """The published reference a block's defaults were read from."""
-
-    family = LLM_FAMILIES_BY_TYPE.get(node_type) or VISION_BLOCKS_BY_TYPE.get(node_type)
-    return family.source if family else ""
-
-
 BLOCK_TYPES: frozenset[str] = frozenset(
     {*LLM_FAMILIES_BY_TYPE, *VISION_BLOCKS_BY_TYPE, "transformer_block"}
 )

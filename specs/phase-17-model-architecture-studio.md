@@ -7,6 +7,29 @@ templates), validate it, save it, read and download the generated Python as **ei
 PyTorch**, and train it: image and text classifiers into the model registry, and from-scratch
 transformers on next-token prediction with sample generation.
 
+### Revision 11: the canvas tool never changed the cursor
+
+`platform.css` carried the cursor affordance for both canvas tools —
+`grab`/`grabbing` on the pane under `.arch-canvas-move`, `crosshair` under
+`.arch-canvas-select` — but the wrapper only ever rendered the bare
+`arch-canvas` class, so neither rule could match. The tool buttons changed
+`selectionOnDrag` and `panOnDrag` correctly, so the *behaviour* switched while
+the pointer kept saying "select" in both modes, which is the one signal that
+tells you which tool is live before you drag. The wrapper now renders
+`arch-canvas arch-canvas-${tool}`.
+
+Also removed two unused helpers in `blocks.py`, `is_vision_block` and
+`block_source`; `VISION_BLOCKS_BY_TYPE` and `BlockFamily.source` are still read
+by the catalog.
+
+**`test_augmentation_is_training_only_in_both_frameworks` was flaky**, on both
+the Keras and the Torch side. It asserted that one training-mode draw differs
+from the settled inference output, but `random_flip` mirrors each image
+independently with p=0.5, so a 4-image batch comes back untouched once every 16
+draws and the layer looks broken while behaving exactly as specified. The
+assertion now takes the property over 8 draws — still "training perturbs,
+inference is the identity", without the 6% false failure.
+
 ### Revision 10: a selected connector could not be deleted
 
 `deleteKeyCode` is `null` so the studio's own key handler can take group

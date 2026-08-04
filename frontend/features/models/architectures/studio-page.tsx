@@ -1109,7 +1109,7 @@ function Studio({ architectureId }: { architectureId: string }) {
         )}
 
         <div
-          className="arch-canvas"
+          className={`arch-canvas arch-canvas-${tool}`}
           onPointerMove={(event) => {
             pointerRef.current = screenToFlowPosition({ x: event.clientX, y: event.clientY });
           }}

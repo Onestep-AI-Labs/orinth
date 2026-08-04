@@ -555,10 +555,17 @@ def test_augmentation_is_training_only_in_both_frameworks(node_type, params):
     This is the property that lets augmentation live in the graph rather than in
     the training form: a saved model that augmented at inference would return a
     different answer every time it was asked, and testing would be unrepeatable.
+
+    Perturbation is asserted over several draws rather than one. `random_flip`
+    mirrors each image independently with p=0.5, so a 4-image batch comes back
+    untouched once every 16 draws — a single-draw assertion fails that often for
+    a layer that is behaving exactly as specified.
     """
 
     import numpy as np
     import torch
+
+    draws = 8
 
     resolved, shapes, _estimate, issues = resolve(augmented_graph(node_type, **params))
     assert not errors(issues), errors(issues)
@@ -570,7 +577,10 @@ def test_augmentation_is_training_only_in_both_frameworks(node_type, params):
     sample = np.random.default_rng(0).random((4, 32, 32, 3)).astype("float32")
     settled = keras_model(sample, training=False).numpy()
     assert np.allclose(settled, keras_model(sample, training=False).numpy())
-    assert not np.allclose(settled, keras_model(sample, training=True).numpy())
+    assert any(
+        not np.allclose(settled, keras_model(sample, training=True).numpy())
+        for _ in range(draws)
+    ), f"{node_type} never perturbed in {draws} training-mode draws (keras)"
 
     torch_module = load(
         emit_torch_module(resolved, shapes, architecture_name=node_type, default_num_classes=4),
@@ -583,7 +593,9 @@ def test_augmentation_is_training_only_in_both_frameworks(node_type, params):
     quiet = net(batch)
     assert torch.allclose(quiet, net(batch))
     net.train()
-    assert not torch.allclose(quiet, net(batch))
+    assert any(
+        not torch.allclose(quiet, net(batch)) for _ in range(draws)
+    ), f"{node_type} never perturbed in {draws} training-mode draws (torch)"
 
 
 def test_every_torch_helper_class_is_a_reserved_model_name():
