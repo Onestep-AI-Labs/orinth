@@ -22,6 +22,28 @@ declare global {
   }
 }
 
+declare module "react" {
+  // `webkitdirectory` is a real, widely supported input attribute that React's
+  // types do not carry.
+  interface InputHTMLAttributes<T> {
+    webkitdirectory?: string;
+  }
+}
+
+const IMAGE_SUFFIXES = [".jpg", ".jpeg", ".png", ".bmp", ".webp", ".avif"];
+const TEXT_SUFFIXES = [".txt", ".csv", ".jsonl"];
+
+/// Directory picks are matched on extension as well as MIME type: files read
+/// out of a folder often arrive with an empty `type`, and filtering on MIME
+/// alone silently drops the entire selection.
+function isAcceptedFile(file: File, nlp: boolean): boolean {
+  const suffixes = nlp ? TEXT_SUFFIXES : IMAGE_SUFFIXES;
+  const name = file.name.toLowerCase();
+  if (suffixes.some((suffix) => name.endsWith(suffix))) return true;
+  return nlp ? false : file.type.startsWith("image/");
+}
+
+
 export function UploadDropCard({
   files,
   setFiles,
@@ -42,17 +64,21 @@ export function UploadDropCard({
   errors: Array<Record<string, string>>;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [folderError, setFolderError] = useState("");
   const nlp = isNlpTask(dataset.task_type);
 
-  function addFiles(fileList: FileList | null) {
+  function addFiles(fileList: FileList | null, fromFolder = false) {
     if (!fileList) return;
-    const acceptedFiles = Array.from(fileList).filter((file) =>
-      nlp ? [".txt", ".csv", ".jsonl"].some((suffix) => file.name.toLowerCase().endsWith(suffix)) : file.type.startsWith("image/")
-    );
+    const acceptedFiles = Array.from(fileList).filter((file) => isAcceptedFile(file, nlp));
     setFiles(acceptedFiles);
-    if (acceptedFiles.length > 0) setUploadDialogOpen(true);
+    if (acceptedFiles.length > 0) {
+      setFolderError("");
+      setUploadDialogOpen(true);
+    } else if (fromFolder && fileList.length > 0) {
+      setFolderError(`No supported ${nlp ? "text" : "image"} files were found in that folder.`);
+    }
   }
 
   async function collectDirectoryImages(directory: FileSystemDirectoryHandleLike): Promise<File[]> {
@@ -63,29 +89,44 @@ export function UploadDropCard({
         continue;
       }
       const file = await entry.getFile();
-      if (nlp ? [".txt", ".csv", ".jsonl"].some((suffix) => file.name.toLowerCase().endsWith(suffix)) : file.type.startsWith("image/")) {
+      if (isAcceptedFile(file, nlp)) {
         acceptedFiles.push(file);
       }
     }
     return acceptedFiles;
   }
 
+  /// Two ways to read a folder, tried in order of quality.
+  ///
+  /// `showDirectoryPicker` (File System Access API) is Chromium-only. WebKit
+  /// and Firefox never implement it, and neither does the desktop app's
+  /// WKWebView — which is why this used to dead-end in "not supported in this
+  /// browser". The `webkitdirectory` input is the long-standing standard those
+  /// engines do support, so it is the fallback.
+  ///
+  /// The fallback is not feature-detected. `webkitdirectory` is not uniformly
+  /// visible on `HTMLInputElement.prototype`, so a strict check can report
+  /// "unsupported" on an engine where the picker works. An engine that ignores
+  /// the attribute simply opens its ordinary file picker, which still lets the
+  /// user select the folder's contents — strictly better than refusing.
   async function selectFolder() {
     setFolderError("");
-    if (!window.showDirectoryPicker) {
-      setFolderError(`Folder selection is not supported in this browser. Select files or drag ${nlp ? "text" : "image"} files instead.`);
+
+    if (window.showDirectoryPicker) {
+      try {
+        const directory = await window.showDirectoryPicker();
+        const acceptedFiles = await collectDirectoryImages(directory);
+        setFiles(acceptedFiles);
+        if (acceptedFiles.length > 0) setUploadDialogOpen(true);
+        else setFolderError(`No supported ${nlp ? "text" : "image"} files were found in that folder.`);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setFolderError(error instanceof Error ? error.message : "Could not read the selected folder.");
+      }
       return;
     }
-    try {
-      const directory = await window.showDirectoryPicker();
-      const acceptedFiles = await collectDirectoryImages(directory);
-      setFiles(acceptedFiles);
-      if (acceptedFiles.length > 0) setUploadDialogOpen(true);
-      if (acceptedFiles.length === 0) setFolderError(`No supported ${nlp ? "text" : "image"} files were found in that folder.`);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setFolderError(error instanceof Error ? error.message : "Could not read the selected folder.");
-    }
+
+    folderInputRef.current?.click();
   }
 
   function uploadSelectedFiles() {
@@ -109,6 +150,17 @@ export function UploadDropCard({
         multiple
         accept={nlp ? ".txt,.csv,.jsonl,text/plain,text/csv,application/jsonl" : "image/png,image/jpeg,image/jpg,image/webp,image/bmp,image/avif"}
         onChange={(event) => addFiles(event.target.files)}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        hidden
+        multiple
+        // No `accept` filter: WebKit applies it per-file when a directory is
+        // chosen, which can leave the picker with nothing selectable. The
+        // selection is filtered in `addFiles` instead.
+        webkitdirectory=""
+        onChange={(event) => addFiles(event.target.files, true)}
       />
       <div className="upload-drop-main">
         <div className="upload-icon">
