@@ -1,3 +1,5 @@
+from app.ml.architecture.lm_catalog import lm_training_options
+from app.ml.architecture.train_catalog import architecture_training_options
 from app.ml.common.catalog import TrainingModelDefinition
 from app.ml.llm.catalog import llm_training_options
 from app.ml.nlp.baseline.catalog import baseline_nlp_training_options
@@ -37,6 +39,8 @@ def training_model_definitions() -> list[TrainingModelDefinition]:
     definitions.extend(huggingface_training_options())
     definitions.extend(baseline_nlp_training_options())
     definitions.extend(llm_training_options())
+    definitions.extend(architecture_training_options())
+    definitions.extend(lm_training_options())
     return definitions
 
 

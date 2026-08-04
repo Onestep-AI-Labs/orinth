@@ -12,8 +12,10 @@ from typing import Any
 from app.schemas import AdvancedParameterSpec
 
 # The group micro-headers the training form renders, in display order. The
-# first four are LLM-specific (phase 14); the frontend GROUP_ORDER list in
-# `features/training/advanced-settings.tsx` mirrors this ordering.
+# first four are LLM-specific (phase 14) and `Generation` is phase 17; the
+# frontend GROUP_ORDER list in `features/training/advanced-settings.tsx`
+# mirrors this ordering, and `test_advanced_training.py` asserts every catalog
+# spec uses one of these names.
 METHOD = "Method"
 LORA = "LoRA"
 QUANTIZATION = "Quantization"
@@ -21,6 +23,9 @@ SEQUENCE = "Sequence"
 OPTIMIZATION = "Optimization"
 AUGMENTATION = "Augmentation"
 REGULARIZATION = "Regularization"
+# Phase 17: sampling settings for a from-scratch language model. Not Runtime —
+# they change what the model produces, not how the run executes.
+GENERATION = "Generation"
 RUNTIME = "Runtime"
 
 
@@ -74,6 +79,16 @@ def select(
         options=list(options),
         help=help,
         group=group,
+    )
+
+
+def code(
+    key: str, label: str, *, default: str, group: str, help: str | None = None
+) -> AdvancedParameterSpec:
+    """A multi-line source-code field, rendered as a mono textarea."""
+
+    return AdvancedParameterSpec(
+        key=key, label=label, type="code", default=default, help=help, group=group
     )
 
 

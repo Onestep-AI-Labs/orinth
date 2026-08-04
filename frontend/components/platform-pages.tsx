@@ -1,3 +1,5 @@
+export { ArchitecturesPage } from "@/features/models/architectures/architectures-page";
+export { ArchitectureStudioPage } from "@/features/models/architectures/studio-page";
 export { ChatPage } from "@/features/inference/chat/chat-page";
 export { DatasetPage } from "@/features/datasets/dataset-page";
 export { InferencePage } from "@/features/inference/inference-page";

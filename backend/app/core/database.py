@@ -6,7 +6,6 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config as AlembicConfig
 from alembic.runtime.migration import MigrationContext
-from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -46,6 +45,7 @@ def _alembic_config(target_settings: Settings) -> AlembicConfig:
 
 def init_db() -> None:
     from app.db.models import (  # noqa: F401
+        Architecture,
         EvaluationJob,
         InferenceJob,
         InferenceRun,
@@ -64,19 +64,25 @@ def _stamp_or_upgrade(
 
     A database created by the pre-Alembic `create_all` + hand-patch path has
     tables but no `alembic_version` table. If its schema actually matches the
-    baseline migration, it is stamped at the baseline revision (not literally
-    re-run) before upgrading to head, in case newer migrations have been
-    added since. A brand-new (empty) database, or one that already has an
-    `alembic_version` table, just upgrades straight to head.
+    current ORM metadata, it is stamped (not literally re-run) and then
+    upgraded, which is a no-op. A brand-new (empty) database, or one that
+    already has an `alembic_version` table, just upgrades straight to head.
 
-    Stamping is only safe when the live schema truly matches the baseline —
-    an older pre-Alembic database may predate columns or tables the baseline
-    expects (e.g. a `project_id` column, or the `projects` table). Stamping
-    such a database would mark it "up to date" while `command.upgrade` then
-    no-ops, silently leaving it missing objects the app assumes exist. Guard
-    against that by diffing the live schema against the ORM metadata first
-    and refusing to stamp on a mismatch, so the failure is a loud, actionable
-    error at startup instead of a `sqlite3.OperationalError` on first use.
+    Stamping is only safe when the live schema truly matches — an older
+    pre-Alembic database may predate columns or tables the ORM expects (e.g. a
+    `project_id` column, or the `projects` table). Stamping such a database
+    would mark it "up to date" while `command.upgrade` then no-ops, silently
+    leaving it missing objects the app assumes exist. Guard against that by
+    diffing the live schema against the ORM metadata first and refusing to
+    stamp on a mismatch, so the failure is a loud, actionable error at startup
+    instead of a `sqlite3.OperationalError` on first use.
+
+    The stamp goes at `head`, not at the baseline revision. An empty diff
+    means the live schema equals the current ORM metadata, which is head by
+    definition — stamping at baseline would then replay every migration since
+    baseline against tables that already exist. That was invisible while
+    baseline *was* head; it stopped being true with the first migration added
+    after the baseline.
     """
 
     alembic_cfg = _alembic_config(target_settings)
@@ -92,17 +98,14 @@ def _stamp_or_upgrade(
             raise RuntimeError(
                 "Found an existing database with application tables but no "
                 "Alembic version tracking, and its schema does not match the "
-                "expected baseline (differences: "
+                "expected schema (differences: "
                 f"{diff!r}). This looks like a database created by an older "
                 "schema version. Back it up, then either migrate it by hand "
-                "to match the baseline in backend/migrations/versions/, or "
+                "to match the migrations in backend/migrations/versions/, or "
                 "delete it so init_db() can recreate it from scratch."
             )
 
-        script_dir = ScriptDirectory.from_config(alembic_cfg)
-        baseline_revisions = script_dir.get_bases()
-        baseline_revision = baseline_revisions[0] if baseline_revisions else "head"
-        command.stamp(alembic_cfg, baseline_revision)
+        command.stamp(alembic_cfg, "head")
 
     command.upgrade(alembic_cfg, "head")
 

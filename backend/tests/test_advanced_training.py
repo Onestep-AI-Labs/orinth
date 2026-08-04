@@ -40,6 +40,7 @@ def test_advanced_specs_group_into_the_documented_headers():
         "Optimization",
         "Augmentation",
         "Regularization",
+        "Generation",
         "Runtime",
     }
     for option in training_model_options():

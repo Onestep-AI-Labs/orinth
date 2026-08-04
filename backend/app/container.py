@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from app.core.config import get_settings
 from app.core.storage import Storage
 from app.ml.model_registry import ModelRegistry
+from app.services.architectures import ArchitectureService
 from app.services.dataset_hub import DatasetHubService
 from app.services.datasets import DatasetService
 from app.services.evaluation import EvaluationService
@@ -27,6 +28,9 @@ inference_service = InferenceService(storage, registry)
 model_upload_service = ModelUploadService(settings, storage, registry)
 evaluation_service = EvaluationService(settings, storage, registry, dataset_service)
 training_service = TrainingService(settings, storage, registry, dataset_service)
+# Phase 17: graph CRUD and validation only. The model build runs in a
+# subprocess, so this service never imports TensorFlow.
+architecture_service = ArchitectureService(settings, storage)
 
 # One executor per job domain, dispatching training/evaluation/inference
 # jobs off the request-serving path. Kept small by default so long-running
@@ -75,5 +79,6 @@ def refresh_settings() -> None:
     recipe_service.settings = settings
     evaluation_service.settings = settings
     training_service.settings = settings
+    architecture_service.settings = settings
     export_service.settings = settings
     serving_service.settings = settings

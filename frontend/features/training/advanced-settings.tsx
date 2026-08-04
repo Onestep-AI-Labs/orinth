@@ -8,7 +8,7 @@ import type { AdvancedParameterSpec } from "@/types/api";
 // The group micro-headers render in this order; anything unrecognised trails.
 // Mirrors the constants in `backend/app/ml/common/advanced.py` — the first
 // three groups are LLM-specific (phase 14).
-const GROUP_ORDER = ["Method", "LoRA", "Quantization", "Sequence", "Optimization", "Augmentation", "Regularization", "Runtime"];
+const GROUP_ORDER = ["Method", "LoRA", "Quantization", "Sequence", "Optimization", "Augmentation", "Regularization", "Generation", "Runtime"];
 
 export type AdvancedValues = Record<string, unknown>;
 
@@ -114,7 +114,13 @@ function isDefault(spec: AdvancedParameterSpec, value: unknown): boolean {
   return value === spec.default;
 }
 
-function AdvancedField({
+/**
+ * One catalog-driven field. Exported because the architecture studio's node
+ * inspector (phase 17) renders `NodeSpec.params` — the same
+ * `AdvancedParameterSpec` type — so a new node type gets its inspector UI
+ * without a second field renderer.
+ */
+export function AdvancedField({
   spec,
   value,
   onChange
@@ -130,6 +136,23 @@ function AdvancedField({
         <span>{spec.label}</span>
         {spec.help ? <span className="field-hint advanced-help">{spec.help}</span> : null}
       </label>
+    );
+  }
+
+  if (spec.type === "code") {
+    // Source code needs room and a mono face; a single-line input makes even a
+    // short layer body unreadable.
+    const lines = String(value ?? "").split("\n").length;
+    return (
+      <Field label={spec.label} hint={spec.help ?? undefined}>
+        <textarea
+          className="code-field"
+          value={String(value ?? "")}
+          spellCheck={false}
+          rows={Math.min(Math.max(lines + 1, 3), 24)}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </Field>
     );
   }
 

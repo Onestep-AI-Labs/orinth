@@ -241,8 +241,11 @@ def test_llm_auth_error_flips_run_to_rules(make_settings, monkeypatch):
     assert any("rejected" in w.lower() for w in final.warnings)
 
 
-def test_llm_mode_without_key_rejected(settings: Settings):
-    service, _ = make_service(settings)
+def test_llm_mode_without_key_rejected(make_settings):
+    # `Settings` reads the developer's real `.env`, so this test has to state
+    # its own precondition — otherwise it passes vacuously on a machine with a
+    # key configured and fails only in CI.
+    service, _ = make_service(make_settings(OPENROUTER_API_KEY=None))
     recipe_id = seed_recipe(service, "Passage.")
     with pytest.raises(Exception) as exc:
         service.generate(recipe_id, RecipeGenerateRequest(mode="llm"))

@@ -231,6 +231,12 @@ not a bar indicator. */
   text-transform: uppercase;
 }
 
+.project-back-link > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+}
+
 .project-sidebar-top {
   display: flex;
   align-items: center;
@@ -364,6 +370,14 @@ not a bar indicator. */
 
 .nav-link span {
   flex: 1;
+}
+
+/* In the collapsed rail the glyph is the only label the link has, so it is
+   sized as the target rather than as an ornament beside text. */
+.nav-link > svg {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
 }
 
 .nav-link-icon-only {
@@ -562,6 +576,13 @@ not a bar indicator. */
   text-align: left;
 }
 
+.option-menu button > svg,
+.option-menu a > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+}
+
 .option-menu button:hover,
 .option-menu a:hover {
   background: var(--color-surface-2);
@@ -680,12 +701,37 @@ not a bar indicator. */
   gap: 3px;
 }
 
-.project-card-title strong,
-.model-card-copy strong {
+.project-card-title strong {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A model name is the card's identifier and is often long ("Extractive
+   Summarization", "test vis mobilenet v2"), so it gets two lines before it
+   truncates rather than being cut at the first. `overflow-wrap: anywhere`
+   covers unbroken family ids, which have no space to break at and would
+   otherwise push out under the status badge. */
+.model-card-copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* The description must clamp against the column,
+   not against its own content width. Two lines keeps card heights even. */
+.model-card-copy span {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .project-card-description {
@@ -716,6 +762,11 @@ not a bar indicator. */
   border-radius: var(--radius-pill);
   background: oklch(var(--surface) / 0.76);
   color: var(--color-accent-strong);
+}
+
+.model-card-icon > svg {
+  width: 19px;
+  height: 19px;
 }
 
 .card-menu {
@@ -829,7 +880,11 @@ not a bar indicator. */
   font-size: 12px;
 }
 
+/* The link is a grid item, so its automatic minimum size is the min-content
+   width of the un-wrapped name. Without `min-width: 0` the title escapes its
+   1fr column and runs under the status badge instead of clamping. */
 .model-card-title-link {
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
@@ -3287,6 +3342,119 @@ button.task-choice {
   position: relative;
 }
 
+/* --- number combo: a number field with a menu of common values ------------ */
+
+.number-combo {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  min-height: 40px;
+}
+
+.number-combo:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+/* The field owns the border, so the input inside drops its own. */
+.number-combo-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.number-combo-input:focus {
+  outline: none;
+}
+
+/* Hide the native spinners: the menu is the coarse control, so a second one
+   crowding the same 40px would be two affordances for one job. */
+.number-combo-input::-webkit-outer-spin-button,
+.number-combo-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.number-combo-input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.number-combo-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  border: 0;
+  border-left: 1px solid var(--color-line);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent;
+  color: var(--color-ink-subtle);
+  cursor: pointer;
+}
+
+.number-combo-trigger:hover:not(:disabled) {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+.number-combo-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.number-combo-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.number-combo-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.number-combo-option:hover {
+  background: var(--color-wash);
+}
+
+.number-combo-option-active {
+  color: var(--color-accent-strong);
+}
+
+.number-combo-option:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
 .task-select-trigger {
   display: flex;
   align-items: center;
@@ -3633,7 +3801,8 @@ button.task-choice {
 }
 
 .icon-button {
-  width: 38px;
+  width: 40px;
+  padding: 0;
   border-color: var(--color-line);
   background: var(--color-surface);
   color: var(--color-ink-muted);
@@ -3655,6 +3824,34 @@ button.task-choice {
 .icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+/* Glyph size belongs to the control, not the call site. Buttons across the app
+   pass their own lucide `size` spanning 12–18px, so the same action reads at a
+   different weight on each page, and a 14px glyph inside a 40px target looks
+   incidental next to its own label. The control sets it once: 18px on the 40px
+   button, 16px on the 34px small variant, and 20px in an icon button, where the
+   glyph is the entire target and carries the whole meaning. Overriding the
+   width/height presentation attributes lucide emits keeps every call site
+   working unchanged. */
+.primary-button > svg,
+.secondary-button > svg,
+.ghost-button > svg,
+.danger-button > svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+.button-sm > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button > svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
 }
 
 .image-frame {
@@ -4644,6 +4841,9 @@ tr:last-child td {
   font-weight: 500;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  /* A pill is a single token. Wrapping one breaks the shape, and in a card
+     header it lets the label steal width from the title beside it. */
+  white-space: nowrap;
 }
 
 .badge-ok {
@@ -6331,4 +6531,1717 @@ td {
 }
 .tour-launch svg {
   color: var(--color-accent);
+}
+
+/* The accessible-hidden pattern: removed from view but still focusable and
+   readable by assistive tech. Used for file inputs driven by a styled Button. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Architecture studio (phase 17)
+
+   A node canvas inside the working app. React Flow ships only its structural
+   `base.css`; every visible surface below is styled from platform tokens, so
+   the canvas reads as the same instrument as the rest of the shell. Resting
+   nodes are border-first per DESIGN.md §5 — the only elevations here are the
+   sanctioned --ring-accent on selection and --shadow-overlay on the floating
+   canvas controls.
+   ========================================================================== */
+
+.models-tabs a {
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-ink-subtle);
+  text-decoration: none;
+}
+
+.models-tabs a.segmented-active {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-subtle);
+}
+
+/* --- list ---------------------------------------------------------------- */
+
+.arch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.arch-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arch-card-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-decoration: none;
+  letter-spacing: var(--display-tracking);
+}
+
+.arch-card-name:hover {
+  color: var(--color-accent);
+}
+
+/* Explanatory prose, tier 1: the sentence under a title, wherever it appears —
+   an architecture card, a preset card, the inspector header. One size, one
+   colour, one leading, one gap from the thing it explains. These had drifted to
+   five sizes and three colours across the studio, which reads as five different
+   kinds of text rather than one. Tier 2 is `.arch-palette-item-desc`, the
+   denser one-line variant inside compact rows. */
+.arch-card-desc {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+.arch-card-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.arch-card-meta dt {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-card-meta dd {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+/* The row leads with a small "Open studio" button, so the icon buttons beside
+   it match that height instead of standing 6px taller than the action they
+   support. Square, so the glyph keeps its 18px weight. */
+.arch-card-actions .icon-button {
+  min-height: 34px;
+  width: 34px;
+}
+
+.arch-card-actions .icon-button > svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- template picker ----------------------------------------------------- */
+
+.arch-template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.arch-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.arch-template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.arch-template-card:hover:not(:disabled) {
+  border-color: var(--color-line-strong);
+}
+
+.arch-template-blank {
+  background: var(--color-surface-2);
+  border-style: dashed;
+}
+
+.arch-template-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+/* Tier 1 — see `.arch-card-desc`. */
+.arch-template-desc {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+/* --- studio shell -------------------------------------------------------- */
+
+.arch-studio {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Fill the content area: a node canvas is useless in a short box. The canvas
+     is the work surface here, so the studio takes the viewport and the rails
+     and drawer around it start at their smallest useful size. */
+  height: calc(100vh - 88px);
+  min-height: 680px;
+}
+
+/* Fullscreen lifts the studio out of the shell entirely — the canvas is the
+   whole task, and the sidebar is not useful while wiring a graph. */
+.arch-studio-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  height: 100vh;
+  margin: 0;
+  padding: 16px;
+  background: var(--color-canvas);
+  overflow: hidden;
+}
+
+.arch-studio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.arch-studio-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.arch-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+  text-decoration: none;
+}
+
+.arch-back:hover {
+  color: var(--color-accent);
+}
+
+.arch-name-input {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 2px 6px;
+  margin-left: -6px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+  color: var(--color-ink);
+  width: 100%;
+}
+
+.arch-name-input:hover {
+  border-color: var(--color-line);
+}
+
+.arch-name-input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-studio-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--color-ink-subtle);
+}
+
+.arch-studio-stats strong {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-classes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.arch-classes input {
+  width: 72px;
+}
+
+.arch-studio-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.arch-studio-grid {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr) 288px;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.arch-studio-grid.arch-no-palette {
+  grid-template-columns: minmax(0, 1fr) 288px;
+}
+
+.arch-studio-grid.arch-no-inspector {
+  grid-template-columns: 208px minmax(0, 1fr);
+}
+
+.arch-studio-grid.arch-no-palette.arch-no-inspector {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.arch-view-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+/* An icon button in a toolbar is a target for its glyph, not for its label
+   box. The shared primitive is sized for a text-height row with 14px of side
+   padding; here that spends the width on empty space and leaves a 16px icon
+   looking incidental. These are square, tight, and carry a larger glyph. */
+.arch-view-controls .icon-button,
+.arch-drawer-head .icon-button {
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+}
+
+.arch-view-controls .icon-button > svg,
+.arch-drawer-head .icon-button > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.arch-view-controls .icon-button:disabled {
+  color: var(--color-ink-subtle);
+  opacity: 0.5;
+}
+
+@media (max-width: 1200px) {
+  /* Narrow viewports get the palette and canvas; the inspector is reachable
+     from the header toggle, which then overlays. */
+  .arch-studio-grid,
+  .arch-studio-grid.arch-no-palette {
+    grid-template-columns: 188px minmax(0, 1fr);
+  }
+
+  .arch-studio-grid .arch-inspector {
+    display: none;
+  }
+}
+
+/* --- palette ------------------------------------------------------------- */
+
+.arch-palette,
+.arch-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  /* The rail is user-resizable, so its contents adapt to the rail's own width
+     rather than the viewport's — a 900px window with a wide palette and a
+     1600px one with a narrow palette need opposite treatments. */
+  container-type: inline-size;
+}
+
+.arch-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink-subtle);
+}
+
+.arch-palette-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.84rem;
+  color: var(--color-ink);
+}
+
+.arch-palette-search input:focus {
+  outline: none;
+}
+
+.arch-palette-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* Empty and hint states share tier 1's size and leading at the subtle weight,
+   and the 16px padding the panels use. */
+.arch-palette-empty {
+  padding: 16px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-ink-subtle);
+}
+
+/* Entries are two lines of text in a hairline box. Without a gap between them
+   the list reads as one striped block and the boundary between "Conv2D" and
+   the description above it is ambiguous. */
+.arch-palette-group {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.arch-palette-label {
+  padding: 4px 8px 2px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-palette-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: grab;
+}
+
+.arch-palette-item:hover:not(:disabled) {
+  background: var(--color-wash);
+  border-color: var(--color-line);
+}
+
+.arch-palette-item:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.arch-palette-item-name {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+/* Explanatory prose, tier 2: one clamped line inside a dense row. Smaller and
+   quieter than tier 1 on purpose — it is scanned, not read — but it shares
+   tier 1's leading so a wrapped palette and an unwrapped one sit on the same
+   rhythm. */
+.arch-palette-item-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--color-ink-subtle);
+}
+
+/* --- canvas -------------------------------------------------------------- */
+
+.arch-canvas {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-2);
+
+  /* React Flow's own theming hook, set rather than overridden. Its
+     `.react-flow__edge.selectable:focus .react-flow__edge-path` rule ties this
+     file's selected-edge rule on specificity (0,4,0), and `base.css` is
+     imported from the studio client component so it lands last and wins the
+     tie — a clicked wire (click focuses it: edges carry `tabIndex=0`) came out
+     #555 while hover, which base.css does not style, stayed accent. Feeding
+     the variable makes base.css paint the colour we want instead of fighting
+     a rule that outranks us by load order. */
+  --xy-edge-stroke: var(--color-line-input);
+  --xy-edge-stroke-selected: var(--color-accent);
+}
+
+.arch-canvas .react-flow__background-pattern {
+  color: var(--color-line-strong);
+}
+
+.arch-canvas .react-flow__edge-path {
+  stroke: var(--color-line-input);
+  stroke-width: 2;
+}
+
+/* A selected wire has to be findable in a forty-node graph, so selection
+   changes weight as well as hue — colour alone at 2px is easy to lose against
+   the dot grid. Hover previews the accent at the resting weight, so hover and
+   selection stay distinguishable. */
+.arch-canvas .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-accent);
+}
+
+/* Selection is the solid accent blue plus a surface-coloured casing drawn
+   behind the stroke. The casing is what makes the line read against *any*
+   background it crosses — the dot grid, a group frame's pastel wash, or a node
+   it passes behind — which a single stroke colour cannot do on its own.
+   `.selectable` is carried here only to outrank base.css's focus rule, which
+   would otherwise tie this one and win on load order. */
+.arch-canvas .react-flow__edge.selectable.selected .react-flow__edge-path,
+.arch-canvas .react-flow__edge.selectable:focus .react-flow__edge-path,
+.arch-canvas .react-flow__edge.selectable:focus-visible .react-flow__edge-path {
+  stroke: var(--color-accent);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  filter:
+    drop-shadow(0 0 1.5px var(--color-surface))
+    drop-shadow(0 0 3px var(--color-surface));
+}
+
+.arch-canvas .react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--color-accent);
+  stroke-width: 2;
+}
+
+/* Floating controls sit over content, so the overlay elevation applies. */
+.arch-canvas .react-flow__controls,
+.arch-canvas .react-flow__minimap {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+/* Zoom and fit are hit as often as the tools, so they match their size rather
+   than shrinking a 16px glyph into a 26px box. */
+.arch-canvas .react-flow__controls-button {
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+  fill: var(--color-ink-muted);
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+}
+
+.arch-canvas .react-flow__controls-button:hover {
+  background: var(--color-wash);
+}
+
+.arch-canvas .react-flow__minimap-mask {
+  fill: oklch(var(--shadow-ink) / 0.06);
+}
+
+.arch-canvas .react-flow__minimap-node {
+  fill: var(--color-line-strong);
+}
+
+.arch-canvas .react-flow__attribution {
+  background: transparent;
+  font-size: 0.62rem;
+}
+
+.arch-canvas .react-flow__attribution a {
+  color: var(--color-ink-subtle);
+}
+
+/* --- node ---------------------------------------------------------------- */
+
+.arch-node {
+  min-width: 176px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.arch-node:hover {
+  border-color: var(--color-line-strong);
+}
+
+/* --ring-accent alone is ~1.5:1, so selection also sets the border at full
+   opacity (DESIGN.md §5). */
+.arch-node-selected,
+.arch-node-selected:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.arch-node-error,
+.arch-node-error:hover {
+  border-color: var(--color-danger);
+}
+
+.arch-node-warning,
+.arch-node-warning:hover {
+  border-color: var(--color-warn);
+}
+
+.arch-node-category {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-node-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.arch-node-flag-error {
+  color: var(--color-danger-strong);
+  flex-shrink: 0;
+}
+
+.arch-node-flag-warn {
+  color: var(--color-warn-strong);
+  flex-shrink: 0;
+}
+
+.arch-node-shape {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Connectors are drag targets first and decoration second. At 9px they were
+   below the ~13px a pointer reliably hits, which made starting a wire a matter
+   of aim rather than intent. */
+.arch-canvas .arch-handle {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-line-strong);
+  background: var(--color-surface);
+}
+
+.arch-canvas .arch-handle:hover,
+.arch-canvas .arch-handle.connectingfrom,
+.arch-canvas .arch-handle.connectingto {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+
+.arch-node-selected .arch-handle {
+  border-color: var(--color-accent);
+}
+
+/* --- inspector ----------------------------------------------------------- */
+
+/* The whole rail scrolls, header included. A block's description plus its
+   source line can be taller than the settings below it, and pinning them meant
+   the fields scrolled inside a sliver of the panel. Only the action footer
+   stays put, because Remove has to be reachable without a scroll. */
+.arch-inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.arch-inspector-head {
+  padding: 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-inspector-eyebrow {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-title {
+  margin-top: 2px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+  color: var(--color-ink);
+}
+
+/* Tier 1 — see `.arch-card-desc`. */
+.arch-inspector-desc {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+.arch-inspector-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-inspector-fact-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-fact-value {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.arch-inspector-issues {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-inspector-body {
+  flex: 1;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.arch-inspector-group {
+  display: grid;
+  gap: 8px;
+}
+
+/* See `.arch-palette-empty` — same tier, same padding. */
+.arch-inspector-hint {
+  padding: 16px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+/* --- issues + code drawer ------------------------------------------------ */
+
+.arch-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  padding: 12px;
+  max-height: 340px;
+  min-height: 132px;
+}
+
+/* Collapsed, the drawer keeps only its tab row, handing the height back to
+   the canvas. */
+.arch-drawer-collapsed {
+  min-height: 0;
+  max-height: none;
+  flex: 0 0 auto;
+  gap: 0;
+}
+
+.arch-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arch-drawer-chevron {
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arch-drawer-chevron-up {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-drawer-chevron {
+    transition: none;
+  }
+}
+
+.arch-drawer-tabs {
+  align-self: flex-start;
+}
+
+.arch-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.arch-drawer-clean {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: var(--color-success-strong);
+}
+
+.arch-issue-list {
+  display: grid;
+  gap: 6px;
+}
+
+.arch-issue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+}
+
+.arch-issue-error {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+.arch-issue-warning {
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+}
+
+.arch-issue-node {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-muted);
+}
+
+.arch-issue-node:hover {
+  color: var(--color-accent);
+}
+
+.arch-code {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.arch-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.arch-code-name {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+}
+
+.arch-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arch-code-body {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.arch-code-error {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+  font-size: 0.82rem;
+}
+
+.arch-load-error {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+/* Source-code field for `code`-typed catalog params (phase 17 custom layers). */
+.code-field {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  tab-size: 4;
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+/* --- architecture studio: interaction and density (phase 17 revision) ----- */
+
+/* Draggable pane edges. The hit area is wider than the visible line so the
+   handle is grabbable without becoming a thick divider. */
+.arch-resize {
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-pill);
+}
+
+/* The grip is visible at rest, not only on hover: a divider that reveals itself
+   only once the pointer is already on it is a control you have to know about
+   before you can find it. At rest it is a hairline in the same `--line-strong`
+   the panels are built from; hover and drag promote it to the accent. */
+.arch-resize::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-line-strong);
+  transition:
+    background 140ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 140ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arch-resize-x {
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.arch-resize-x::after {
+  width: 2px;
+  height: 36px;
+}
+
+.arch-resize-y {
+  cursor: row-resize;
+  touch-action: none;
+  height: 6px;
+}
+
+.arch-resize-y::after {
+  height: 2px;
+  width: 36px;
+}
+
+.arch-resize:hover::after,
+.arch-resize:focus-visible::after,
+.arch-resize-active::after {
+  background: var(--color-accent);
+}
+
+/* Grabbing it lengthens the grip, which is the confirmation that the drag took
+   — the pane itself may not move if you are already at a min or max. */
+.arch-resize-x:hover::after,
+.arch-resize-x.arch-resize-active::after {
+  height: 64px;
+}
+
+.arch-resize-y:hover::after,
+.arch-resize-y.arch-resize-active::after {
+  width: 64px;
+}
+
+.arch-resize:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-resize::after {
+    transition: none;
+  }
+}
+
+/* Frame edges get the same grip vocabulary as the pane dividers, so "this can
+   be dragged to resize" looks the same everywhere in the studio. NodeResizer
+   draws one line per side and one handle per corner. */
+.arch-canvas .arch-group-line {
+  border-color: var(--color-accent);
+  border-width: 2px;
+}
+
+.arch-canvas .arch-group-line:hover {
+  border-color: var(--color-accent-strong);
+}
+
+/* Corner grips are the only way to resize on both axes at once, so they are
+   sized to be grabbed rather than to be discreet. */
+.arch-canvas .arch-group-handle {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--color-accent);
+  background: var(--color-surface);
+  border-radius: 3px;
+}
+
+.arch-canvas .arch-group-handle:hover {
+  background: var(--color-accent);
+}
+
+/* Category colour. The --label ramp is the sanctioned categorical exception
+   (DESIGN.md §2) and stays inside the node — header tint, left edge, and the
+   palette dot — never in chrome. Tints come from `categoryTint`, which wraps
+   `labelFill`; a hex alpha suffix on `labelColor` would be invalid (§8). */
+.arch-node {
+  position: relative;
+  overflow: hidden;
+  padding: 0 0 10px;
+}
+
+.arch-node::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--arch-node-accent, var(--color-line-strong));
+}
+
+.arch-node-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 12px 5px 14px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-node-name,
+.arch-node-shape {
+  padding-inline: 12px 12px;
+  padding-inline-start: 14px;
+}
+
+.arch-node-name {
+  margin-top: 8px;
+}
+
+.arch-node-category {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.arch-node-repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* A block stands for N layers, so it is drawn as a short stack of cards. The
+   offset sheet behind it is the only affordance that survives at the zoom
+   levels a forty-node graph is actually read at. */
+.arch-node-block {
+  overflow: visible;
+}
+
+.arch-node-stack {
+  position: absolute;
+  inset: 5px -5px -5px 5px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  z-index: -1;
+}
+
+.arch-palette-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.arch-palette-label,
+.arch-inspector-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arch-palette-item-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* React Flow's selection box, drawn in the accent rather than its default. */
+.arch-canvas .react-flow__selection {
+  border: 1px solid var(--color-accent);
+  background: oklch(var(--accent) / 0.08);
+}
+
+/* --- IDE-style code field ------------------------------------------------ */
+
+.code-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.code-editor-frame {
+  display: flex;
+  min-height: 0;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.code-editor-frame:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.code-editor-gutter {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  border-right: 1px solid var(--color-line);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--color-ink-subtle);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.code-editor-line {
+  padding: 0 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-line-flagged {
+  color: var(--color-danger-strong);
+  background: var(--color-danger-tint);
+}
+
+/* The highlighted layer and the textarea are stacked and must share one font
+   metric exactly, or the caret drifts from the glyphs beneath it. */
+.code-editor-surface {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.code-editor-highlight,
+.code-editor-input {
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  tab-size: 4;
+  white-space: pre;
+  word-break: normal;
+}
+
+.code-editor-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.code-editor-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-ink);
+  overflow: auto;
+}
+
+.code-editor-input:focus {
+  outline: none;
+}
+
+.code-editor-input::selection {
+  background: var(--color-accent-tint-strong);
+}
+
+.code-editor-findings {
+  display: grid;
+  gap: 4px;
+}
+
+.code-finding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+}
+
+.code-finding-error {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+.code-finding-warning {
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+}
+
+.code-finding-line {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+/* --- code panel framework toggle ----------------------------------------- */
+
+.arch-code-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.arch-framework-toggle button {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+}
+
+/* --- list search and pagination ------------------------------------------ */
+
+.arch-list-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arch-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 380px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-subtle);
+}
+
+.arch-search:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.arch-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.85rem;
+  color: var(--color-ink);
+}
+
+.arch-search input:focus {
+  outline: none;
+}
+
+.arch-search-compact {
+  max-width: 240px;
+  padding: 6px 10px;
+}
+
+.arch-list-count {
+  font-size: 0.78rem;
+  color: var(--color-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.arch-pagination-status {
+  font-size: 0.82rem;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-template-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arch-template-head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.arch-template-pagination {
+  margin-top: 12px;
+}
+
+/* Task picker above the preset grid. The field takes the readable width of a
+   form control rather than the panel's, so the button beside it stays adjacent
+   instead of drifting to the far edge. */
+.arch-template-task {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 12px 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-template-task .field {
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .arch-template-task {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* --- canvas tools, group frames, branch edges (phase 17 revision 2) ------- */
+
+/* Tools sit on the canvas rather than in the page header: they act on what is
+   under the pointer, and switching between select and pan is the most repeated
+   motion in a node editor. */
+.arch-canvas .arch-canvas-tools {
+  display: flex;
+  gap: 6px;
+  margin: 10px;
+}
+
+.arch-tool-group {
+  display: flex;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.arch-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.arch-tool + .arch-tool {
+  border-left: 1px solid var(--color-line);
+}
+
+.arch-tool:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+.arch-tool:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-tool-active,
+.arch-tool-active:hover {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
+/* The palette's Blocks / Layers split. The rail is resizable down to 160px, so
+   the three segments have to survive a width that cannot fit them at their
+   natural size: they share the row equally, shed the padding first, and drop
+   the count last. */
+.arch-palette-filter {
+  display: flex;
+  margin: 0 10px 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.arch-palette-filter button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 4px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arch-palette-filter .segmented-count {
+  margin-left: 4px;
+  font-size: 0.72rem;
+}
+
+@container (max-width: 190px) {
+  .arch-palette-filter .segmented-count {
+    display: none;
+  }
+}
+
+.arch-palette-item-block {
+  border-color: var(--color-line-strong);
+}
+
+.arch-palette-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink-subtle);
+}
+
+.arch-inspector-kind {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-pill);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+}
+
+.arch-inspector-source {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-ink-subtle);
+}
+
+.arch-canvas-move .react-flow__pane {
+  cursor: grab;
+}
+
+.arch-canvas-move .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.arch-canvas-select .react-flow__pane {
+  cursor: crosshair;
+}
+
+/* A branch edge is a curve, so a fan-out reads as two paths rather than one.
+   It also sits above chain edges so a residual is never hidden behind them. */
+.arch-canvas .arch-edge-branch .react-flow__edge-path {
+  stroke: var(--color-ink-subtle);
+  stroke-width: 2.25;
+}
+
+.arch-canvas .arch-edge-branch:hover .react-flow__edge-path {
+  stroke: var(--color-accent);
+}
+
+.arch-canvas .arch-edge-branch.selectable.selected .react-flow__edge-path,
+.arch-canvas .arch-edge-branch.selectable:focus .react-flow__edge-path,
+.arch-canvas .arch-edge-branch.selectable:focus-visible .react-flow__edge-path {
+  stroke: var(--color-accent);
+  stroke-width: 4;
+}
+
+/* --- group frames --------------------------------------------------------- */
+
+.arch-group {
+  /* The containing block for the title, which is absolutely placed from its
+     stored offset. No padding: an absolutely positioned child resolves against
+     the padding box, so any padding here would silently shift every stored
+     title coordinate. */
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed;
+  border-radius: var(--radius-xl);
+}
+
+.arch-group-selected {
+  border-style: solid;
+  box-shadow: var(--ring-accent);
+}
+
+/* The title is placed inside the frame rather than pinned to its corner, so it
+   is absolutely positioned from the `titleX`/`titleY` the drag writes. Font
+   size comes from the node data, so no size is set here. */
+.arch-group-title,
+.arch-group-title-input {
+  position: absolute;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 1px 4px;
+  margin: -1px -4px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arch-group-title {
+  cursor: move;
+}
+
+.arch-group-title:hover {
+  border-color: var(--color-line-strong);
+}
+
+/* Selected, the title reads as its own object — which is the point of making
+   it draggable and separately styleable. */
+.arch-group-title-active,
+.arch-group-title-active:hover {
+  border-color: var(--color-accent);
+  border-style: dashed;
+  background: var(--color-surface);
+}
+
+.arch-group-title:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-group-title-input {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  min-width: 80px;
+  cursor: text;
+}
+
+.arch-group-title-input:focus {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+/* Live preview in the inspector, so font size and colour are judged together
+   rather than by reading two numbers. Capped: the size ramp reaches banner
+   sizes meant to be read at a zoomed-out canvas, and a 144px preview would
+   push the frame colour and size controls out of the rail. */
+.arch-group-title-preview {
+  font-size: min(var(--title-preview-size, 12px), 40px);
+  padding: 8px 10px;
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Colour swatches, now in the inspector rather than floating over the canvas. */
+.arch-group-tints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.arch-group-tint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  color: var(--color-surface);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.arch-group-tint-active {
+  border-color: var(--color-ink);
+}
+
+/* "Default ink" reads as a swatch of the body colour rather than a hue. */
+.arch-group-tint-ink {
+  background: var(--color-ink);
+  border-color: var(--color-line-strong);
+}
+
+.arch-group-tint:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+/* --- canvas context menu -------------------------------------------------- */
+
+.arch-context-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 216px;
+  padding: 5px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.arch-context-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  font-size: 0.82rem;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.arch-context-item:hover:not(:disabled) {
+  background: var(--color-wash);
+}
+
+.arch-context-item:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-context-item:disabled {
+  color: var(--color-ink-subtle);
+  cursor: default;
+}
+
+.arch-context-item-danger:not(:disabled) {
+  color: var(--color-danger-strong);
+}
+
+.arch-context-item-danger:hover:not(:disabled) {
+  background: var(--color-danger-tint);
+}
+
+.arch-context-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink-subtle);
+}
+
+.arch-context-item-danger:not(:disabled) .arch-context-icon {
+  color: inherit;
+}
+
+.arch-context-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.arch-context-shortcut {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.arch-context-separator {
+  height: 1px;
+  margin: 4px 6px;
+  border: 0;
+  background: var(--color-line);
 }
