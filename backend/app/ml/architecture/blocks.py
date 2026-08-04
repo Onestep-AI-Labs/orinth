@@ -538,6 +538,54 @@ VISION_BLOCKS: list[BlockFamily] = [
 VISION_BLOCKS_BY_TYPE: dict[str, BlockFamily] = {block.type: block for block in VISION_BLOCKS}
 
 
+# --- NLP blocks -------------------------------------------------------------
+#
+# The text-side counterparts to the vision blocks: multi-layer structures that
+# are a whole encoder rather than one operation. They sit apart from the LLM
+# families because neither is a decoder — a Text CNN has no attention at all,
+# and a bidirectional recurrent encoder cannot be causal by construction — so
+# they carry their own parameters instead of the shared decoder set.
+
+NLP_BLOCKS: list[BlockFamily] = [
+    BlockFamily(
+        type="text_cnn_block",
+        name="Text CNN (Kim)",
+        description=(
+            "Parallel 1D convolutions at several kernel widths over the token "
+            "embeddings, each max-pooled over time and concatenated. Reads n-grams of "
+            "every listed width at once, trains in minutes, and is still the baseline a "
+            "text classifier has to beat."
+        ),
+        source="Kim 2014 (arXiv 1408.5882), kernel widths 3/4/5 at 100 filters each",
+        defaults={
+            "filters": 128,
+            "kernel_sizes": "3,4,5",
+            "activation": "relu",
+            "dropout": 0.0,
+        },
+    ),
+    BlockFamily(
+        type="bilstm_encoder",
+        name="BiLSTM encoder",
+        description=(
+            "Stacked bidirectional recurrent layers, so every token is read with both "
+            "its left and right context. Returning the sequence feeds a pooling or "
+            "tagging head; turning that off emits one vector per document."
+        ),
+        source="Graves & Schmidhuber 2005; the standard pre-transformer text encoder",
+        defaults={
+            "cell": "lstm",
+            "units": 128,
+            "layers": 2,
+            "dropout": 0.2,
+            "return_sequences": True,
+        },
+    ),
+]
+
+NLP_BLOCKS_BY_TYPE: dict[str, BlockFamily] = {block.type: block for block in NLP_BLOCKS}
+
+
 BLOCK_TYPES: frozenset[str] = frozenset(
-    {*LLM_FAMILIES_BY_TYPE, *VISION_BLOCKS_BY_TYPE, "transformer_block"}
+    {*LLM_FAMILIES_BY_TYPE, *VISION_BLOCKS_BY_TYPE, *NLP_BLOCKS_BY_TYPE, "transformer_block"}
 )

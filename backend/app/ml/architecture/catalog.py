@@ -23,6 +23,7 @@ from app.ml.architecture.blocks import (
     MHA,
     MLA,
     MOE,
+    NLP_BLOCKS,
     POST,
     PRE,
     ROUTER_SIGMOID_BIAS,
@@ -41,6 +42,7 @@ IO = "Input & Output"
 AUGMENTATION = "Augmentation"
 VISION_BLOCK = "Vision blocks"
 LLM_BLOCK = "LLM blocks"
+NLP = "NLP"
 CORE = "Core"
 CONVOLUTION = "Convolution"
 NORMALIZATION = "Normalization"
@@ -58,6 +60,7 @@ CATEGORY_ORDER = [
     AUGMENTATION,
     VISION_BLOCK,
     LLM_BLOCK,
+    NLP,
     CORE,
     CONVOLUTION,
     NORMALIZATION,
@@ -342,9 +345,50 @@ def _vision_block_spec(block: BlockFamily) -> NodeSpec:
     )
 
 
+# Every task whose input is text. The NLP nodes that are specific to language —
+# a Text CNN, a recurrent encoder, a span head — are offered only for these, so
+# an image graph's palette stays about images.
+TEXT_TASKS: list[TaskType] = [
+    "text_classification",
+    "summarization",
+    "question_answering",
+    "language_modeling",
+]
+
+_NLP_BLOCK_PARAMS: dict[str, list[AdvancedParameterSpec]] = {
+    "text_cnn_block": [
+        number("filters", "Filters per width", default=128, group=LAYER, minimum=1, maximum=4096, integer=True, help="Feature maps learned at each kernel width. The block emits this many times the number of widths."),
+        text("kernel_sizes", "Kernel widths", default="3,4,5", group=LAYER, help="Comma-separated n-gram widths read in parallel. Kim's paper uses 3, 4 and 5."),
+        select("activation", "Activation", options=ACTIVATIONS, default="relu", group=LAYER),
+        number("dropout", "Dropout", default=0.0, group=REGULARIZATION_GROUP, minimum=0.0, maximum=0.9, step=0.05, help="Applied to the pooled features, which is where the original applies it."),
+    ],
+    "bilstm_encoder": [
+        select("cell", "Cell", options=["lstm", "gru"], default="lstm", group=LAYER, help="GRU is cheaper by a third of the gates and usually as accurate on short text."),
+        number("units", "Units per direction", default=128, group=LAYER, minimum=1, maximum=4096, integer=True, help="The output is twice this wide: the two directions are concatenated."),
+        number("layers", "Layers", default=2, group=STACK, minimum=1, maximum=16, integer=True),
+        toggle("return_sequences", "Return sequences", default=True, group=LAYER, help="On to keep one vector per token, for pooling or tagging; off to emit a single document vector."),
+        number("dropout", "Dropout", default=0.2, group=REGULARIZATION_GROUP, minimum=0.0, maximum=0.9, step=0.05),
+    ],
+}
+
+
+def _nlp_block_spec(block: BlockFamily) -> NodeSpec:
+    return _spec(
+        block.type,
+        block.name,
+        NLP,
+        block.description,
+        params=_NLP_BLOCK_PARAMS[block.type],
+        kind="block",
+        source=block.source,
+        task_types=TEXT_TASKS,
+    )
+
+
 _SPEC_LIST: list[NodeSpec] = [
     *(_vision_block_spec(block) for block in VISION_BLOCKS),
     *(_llm_block_spec(family) for family in LLM_FAMILIES),
+    *(_nlp_block_spec(block) for block in NLP_BLOCKS),
     # --- Input & Output ----------------------------------------------------
     _spec(
         "input",
@@ -919,6 +963,66 @@ _SPEC_LIST: list[NodeSpec] = [
         "GlobalAvgPool1D",
         TRANSFORMER,
         "Averages a sequence into one vector. The bridge from a transformer to a classifier head.",
+    ),
+    # --- NLP ---------------------------------------------------------------
+    # Sequence operations, grouped here because text is where they are reached
+    # for. Only the ones that are specific to language declare `task_types`;
+    # pooling, cross-attention and a fixed position signal are as useful to a
+    # Vision Transformer, so they stay offered everywhere.
+    _spec(
+        "sinusoidal_position_encoding",
+        "Sinusoidal position encoding",
+        NLP,
+        "The original transformer's fixed sine/cosine position signal. Carries no weights, so it costs nothing and still works past the longest sequence it was trained on — unlike a learned Positional embedding, which stops at its table.",
+        params=[
+            number("base", "Theta base", default=10000.0, group=LAYER, minimum=100.0, maximum=1_000_000.0, step=1000.0, help="Wavelength scale. 10000 is Vaswani et al.'s; larger values stretch the signal over longer contexts."),
+        ],
+    ),
+    _spec(
+        "cross_attention",
+        "Cross-attention",
+        NLP,
+        "Attention from one sequence to another: the first wire is the query — the sequence being written — and the second is the context it reads. The link between an encoder and a decoder, and how a summarizer or a retrieval-augmented head consults its source.",
+        params=[
+            number("num_heads", "Heads", default=8, group=ATTENTION, minimum=1, maximum=256, integer=True),
+            number("key_dim", "Key dim per head", default=64, group=ATTENTION, minimum=1, maximum=1024, integer=True),
+            number("dropout", "Attention dropout", default=0.0, group=REGULARIZATION_GROUP, minimum=0.0, maximum=0.9, step=0.05),
+        ],
+        min_inputs=2,
+        max_inputs=2,
+    ),
+    _spec(
+        "sequence_pool",
+        "Sequence pooling",
+        NLP,
+        "Collapses a token sequence to one vector, which is what a classifier head needs. cls takes the first position the way BERT does, mean and max pool every position, and attention learns which tokens matter.",
+        params=[
+            select(
+                "mode",
+                "Mode",
+                options=["mean", "cls", "max", "attention"],
+                default="mean",
+                group=LAYER,
+                help="cls only means something when position 0 is a class token or a sentence marker; otherwise it reads the first real token.",
+            ),
+            number(
+                "hidden_dim",
+                "Attention hidden dim",
+                default=128,
+                group=LAYER,
+                minimum=1,
+                maximum=8192,
+                integer=True,
+                help="Width of the scoring layer. Attention mode only; the other modes carry no weights.",
+            ),
+        ],
+    ),
+    _spec(
+        "span_head",
+        "Span head",
+        NLP,
+        "Projects every token to a start and an end logit — the extractive question-answering head. Softmax each column over the sequence to get the answer's boundaries.",
+        task_types=["question_answering"],
     ),
     # --- Custom ------------------------------------------------------------
     _spec(

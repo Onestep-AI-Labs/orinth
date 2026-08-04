@@ -15,7 +15,7 @@ import math
 from collections.abc import Callable
 
 from app.ml.architecture.blocks import LLM_FAMILIES
-from app.ml.architecture.graph import ResolvedGraph, ResolvedNode, parse_shape
+from app.ml.architecture.graph import ResolvedGraph, ResolvedNode, parse_int_list, parse_shape
 from app.schemas import ArchitectureIssue
 
 # A shape excludes the batch dimension. `None` for the whole shape means
@@ -115,6 +115,22 @@ def _require_rank(shape: Shape, rank: int, name: str) -> list[int | None]:
     return shape
 
 
+def _element_count(dims: list[int | None]) -> int:
+    """How many values a fully-known shape holds.
+
+    A dynamic axis makes the count meaningless, so it degrades to unknown
+    rather than standing in a 1 and reporting a number that is off by the batch
+    or sequence length.
+    """
+
+    total = 1
+    for dim in dims:
+        if dim is None:
+            raise _Unknown()
+        total *= dim
+    return total
+
+
 class _Unknown(Exception):
     """Internal: an input shape is unknown, so the output is too."""
 
@@ -189,10 +205,7 @@ def _flatten(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -
         raise _Unknown()
     if any(dim is None for dim in shape):
         return [None]
-    total = 1
-    for dim in shape:
-        total *= int(dim)  # type: ignore[arg-type]
-    return [total]
+    return [_element_count(shape)]
 
 
 def _reshape(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -> Shape:
@@ -203,8 +216,8 @@ def _reshape(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -
     if source is not None and not any(dim is None for dim in source) and not any(
         dim is None for dim in target
     ):
-        before = math.prod(int(dim) for dim in source)  # type: ignore[arg-type]
-        after = math.prod(int(dim) for dim in target)  # type: ignore[arg-type]
+        before = _element_count(source)
+        after = _element_count(target)
         if before != after:
             raise ShapeError(
                 f"Cannot reshape {_fmt(source)} ({before} values) into "
@@ -358,7 +371,9 @@ def _concatenate(node: ResolvedNode, inputs: list[Shape], num_classes: int | Non
     for position in range(rank):
         if position == index:
             continue
-        values = {shape[position] for shape in known if shape[position] is not None}
+        values: set[int] = {
+            dim for shape in known if (dim := shape[position]) is not None
+        }
         if len(values) > 1:
             raise ShapeError(
                 f"Concatenate on axis {axis} needs every other dimension to match, but "
@@ -600,6 +615,54 @@ def _vit_block(node: ResolvedNode, inputs: list[Shape], num_classes: int | None)
     return list(shape)
 
 
+# --- NLP rules ---------------------------------------------------------------
+
+
+def _cross_attention(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -> Shape:
+    """Query in, query out: attention rewrites the query sequence, not the context."""
+
+    query = _require_rank(_only(inputs), 2, "Cross-attention")
+    _require_rank(inputs[1] if len(inputs) > 1 else None, 2, "Cross-attention's context")
+    return list(query)
+
+
+def _sequence_pool(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -> Shape:
+    shape = _require_rank(_only(inputs), 2, "Sequence pooling")
+    length = shape[0]
+    if str(node.params.get("mode")) == "cls" and length is not None and length < 1:
+        raise ShapeError("cls pooling needs at least one position to read.")
+    return [shape[1]]
+
+
+def _span_head(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -> Shape:
+    shape = _require_rank(_only(inputs), 2, "Span head")
+    return [shape[0], 2]
+
+
+def _kernel_sizes(node: ResolvedNode) -> list[int]:
+    sizes = parse_int_list(node.params.get("kernel_sizes"))
+    if not sizes:
+        raise ShapeError(
+            "Kernel widths must be a comma-separated list of positive integers, "
+            "such as “3,4,5”."
+        )
+    return sizes
+
+
+def _text_cnn_block(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -> Shape:
+    _require_rank(_only(inputs), 2, "Text CNN")
+    # Every branch is max-pooled over time, so the block emits one vector whose
+    # width is the filter count once per kernel width.
+    return [int(node.params.get("filters", 1)) * len(_kernel_sizes(node))]
+
+
+def _bilstm_encoder(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -> Shape:
+    shape = _require_rank(_only(inputs), 2, "BiLSTM encoder")
+    # Both directions are concatenated, so the output is twice the unit count.
+    width = 2 * int(node.params.get("units", 1))
+    return [shape[0], width] if node.params.get("return_sequences") else [width]
+
+
 # --- named LLM family blocks ------------------------------------------------
 
 
@@ -718,6 +781,12 @@ SHAPE_RULES: dict[str, Callable[[ResolvedNode, list[Shape], int | None], Shape]]
         "global_avg_pool1d": _global_pool1d,
         "moe_feed_forward": _feed_forward,
         "grouped_query_attention": _grouped_attention,
+        "sinusoidal_position_encoding": _sequence_identity,
+        "cross_attention": _cross_attention,
+        "sequence_pool": _sequence_pool,
+        "span_head": _span_head,
+        "text_cnn_block": _text_cnn_block,
+        "bilstm_encoder": _bilstm_encoder,
         "custom_layer": _declared_or_unknown,
         "custom_function": _declared_or_unknown,
     }.items()
@@ -1212,6 +1281,92 @@ def _vit_block_params(
     return layers * (attention + feed_forward + 4 * model_dim)
 
 
+# --- NLP parameter rules -----------------------------------------------------
+
+
+def _cross_attention_params(
+    node: ResolvedNode, inputs: list[Shape], output: Shape, num_classes: int | None
+) -> int | None:
+    """Q and O are sized by the query; K and V by the context, which may differ."""
+
+    query = _only(inputs)
+    context = inputs[1] if len(inputs) > 1 else None
+    if query is None or context is None or query[-1] is None or context[-1] is None:
+        return None
+    query_dim = int(query[-1])
+    context_dim = int(context[-1])
+    heads = int(node.params.get("num_heads", 1))
+    key_dim = int(node.params.get("key_dim", 1))
+    projection = heads * key_dim
+    return (
+        query_dim * projection
+        + projection  # query
+        + 2 * (context_dim * projection + projection)  # key and value
+        + projection * query_dim
+        + query_dim  # output
+    )
+
+
+def _sequence_pool_params(
+    node: ResolvedNode, inputs: list[Shape], output: Shape, num_classes: int | None
+) -> int | None:
+    shape = _only(inputs)
+    if shape is None or shape[-1] is None:
+        return None
+    if str(node.params.get("mode")) != "attention":
+        # cls, mean and max are pure reductions.
+        return 0
+    width = int(shape[-1])
+    hidden = int(node.params.get("hidden_dim", 1))
+    # A tanh scoring layer with a bias, then a bias-free projection to one
+    # score per token.
+    return width * hidden + hidden + hidden
+
+
+def _span_head_params(
+    node: ResolvedNode, inputs: list[Shape], output: Shape, num_classes: int | None
+) -> int | None:
+    shape = _only(inputs)
+    if shape is None or shape[-1] is None:
+        return None
+    return int(shape[-1]) * 2 + 2
+
+
+def _text_cnn_params(
+    node: ResolvedNode, inputs: list[Shape], output: Shape, num_classes: int | None
+) -> int | None:
+    shape = _only(inputs)
+    sizes = parse_int_list(node.params.get("kernel_sizes"))
+    if shape is None or len(shape) != 2 or shape[1] is None or not sizes:
+        return None
+    width = int(shape[1])
+    filters = int(node.params.get("filters", 1))
+    return sum(kernel * width * filters + filters for kernel in sizes)
+
+
+def _bilstm_encoder_params(
+    node: ResolvedNode, inputs: list[Shape], output: Shape, num_classes: int | None
+) -> int | None:
+    shape = _only(inputs)
+    if shape is None or len(shape) != 2 or shape[1] is None:
+        return None
+    units = int(node.params.get("units", 1))
+    layers = int(node.params.get("layers", 1))
+    lstm = str(node.params.get("cell", "lstm")) == "lstm"
+    features = int(shape[1])
+    total = 0
+    for index in range(layers):
+        # Every layer after the first reads both directions of the one below.
+        inbound = features if index == 0 else 2 * units
+        if lstm:
+            per_direction = 4 * ((inbound + units) * units + units)
+        else:
+            # Keras GRU defaults to reset_after=True, which carries two biases.
+            per_direction = 3 * ((inbound + units) * units + 2 * units)
+        total += 2 * per_direction
+    return total
+
+
 # --- named LLM family blocks -------------------------------------------------
 
 
@@ -1317,6 +1472,11 @@ PARAM_RULES: dict[str, ParamRule] = {
     "lm_head": _lm_head_params,
     "moe_feed_forward": _moe_params,
     "grouped_query_attention": _grouped_attention_params,
+    "cross_attention": _cross_attention_params,
+    "sequence_pool": _sequence_pool_params,
+    "span_head": _span_head_params,
+    "text_cnn_block": _text_cnn_params,
+    "bilstm_encoder": _bilstm_encoder_params,
     "custom_layer": _unknown_params,
     "custom_function": _unknown_params,
 }

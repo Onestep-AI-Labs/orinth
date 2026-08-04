@@ -5,6 +5,7 @@ import {
   Brain,
   Combine,
   Grid3x3,
+  Languages,
   Layers,
   LogIn,
   Package,
@@ -25,10 +26,11 @@ import { labelColor, labelFill } from "@/features/platform/utils";
  * which is exactly what that ramp is for, and it stays confined to the node's
  * header tint, its stripe, and the palette dot.
  *
- * Thirteen categories over an eight-colour ramp means some share a hue. The
+ * Fourteen categories over an eight-colour ramp means some share a hue. The
  * repeats are chosen to be semantically honest rather than merely spaced:
  * Transformer primitives share LLM blocks' violet because one composes into the
- * other, and Backbone shares Convolution's green for the same reason.
+ * other, Backbone shares Convolution's green for the same reason, and NLP shares
+ * Recurrent's — a bidirectional encoder is the older half of that category.
  */
 const CATEGORY_VISUALS: Record<string, { icon: typeof Blocks; label: number }> = {
   "Input & Output": { icon: LogIn, label: 0 },
@@ -37,6 +39,7 @@ const CATEGORY_VISUALS: Record<string, { icon: typeof Blocks; label: number }> =
   Augmentation: { icon: Shuffle, label: 3 },
   "Vision blocks": { icon: Layers, label: 3 },
   "LLM blocks": { icon: Boxes, label: 5 },
+  NLP: { icon: Languages, label: 4 },
   Core: { icon: Blocks, label: 1 },
   Convolution: { icon: Grid3x3, label: 2 },
   Normalization: { icon: Ruler, label: 6 },

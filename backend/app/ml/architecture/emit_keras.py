@@ -28,8 +28,15 @@ from app.ml.architecture.blocks import (
     is_llm_block,
     llm_block_structures,
 )
-from app.ml.architecture.graph import OUTPUT_TYPE, ResolvedGraph, ResolvedNode, parse_shape
+from app.ml.architecture.graph import (
+    OUTPUT_TYPE,
+    ResolvedGraph,
+    ResolvedNode,
+    parse_int_list,
+    parse_shape,
+)
 from app.ml.architecture.keras_helpers import (
+    BI_RNN_ENCODER_HELPER,
     CAUSAL_MASK_HELPER,
     CONVNEXT_HELPER,
     DENSE_BLOCK_HELPER,
@@ -42,8 +49,11 @@ from app.ml.architecture.keras_helpers import (
     PATCH_EMBEDDING_HELPER,
     RESNET_HELPER,
     ROPE_APPLY_HELPER,
+    SEQUENCE_POOL_HELPER,
+    SINUSOIDAL_HELPER,
     SPARSE_MOE_HELPER,
     SQUEEZE_EXCITE_HELPER,
+    TEXT_CNN_HELPER,
     VIT_HELPER,
     llm_block_source,
 )
@@ -647,6 +657,11 @@ HELPER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "inception_block": ("inception",),
     "convnext_block": ("layer_scale", "convnext"),
     "vit_block": ("vit",),
+    # NLP
+    "sinusoidal_position_encoding": ("sinusoidal",),
+    "sequence_pool": ("sequence_pool",),
+    "text_cnn_block": ("text_cnn",),
+    "bilstm_encoder": ("bi_rnn_encoder",),
 }
 
 HELPER_SOURCE: dict[str, str] = {
@@ -677,6 +692,10 @@ HELPER_SOURCE: dict[str, str] = {
     "inception": INCEPTION_HELPER,
     "convnext": CONVNEXT_HELPER,
     "vit": VIT_HELPER,
+    "sinusoidal": SINUSOIDAL_HELPER,
+    "sequence_pool": SEQUENCE_POOL_HELPER,
+    "text_cnn": TEXT_CNN_HELPER,
+    "bi_rnn_encoder": BI_RNN_ENCODER_HELPER,
 }
 # Emission order, so a helper never references one defined below it.
 HELPER_ORDER = [
@@ -706,6 +725,10 @@ HELPER_ORDER = [
     "inception",
     "convnext",
     "vit",
+    "sinusoidal",
+    "sequence_pool",
+    "text_cnn",
+    "bi_rnn_encoder",
 ]
 
 
@@ -1192,6 +1215,78 @@ def _emit_geglu(ctx: EmitContext) -> str:
     )
 
 
+# --- NLP emitters -----------------------------------------------------------
+
+
+def _emit_sinusoidal(ctx: EmitContext) -> str:
+    return (
+        f"SinusoidalPositionEncoding(base={_lit(float(ctx.params['base']))}, "
+        f"name={_lit(ctx.name)})({ctx.first})"
+    )
+
+
+def _emit_cross_attention(ctx: EmitContext) -> str:
+    """Query first, context second — the wire order the node's help states."""
+
+    if len(ctx.inputs) < 2:
+        raise EmitError(
+            f"Node {ctx.node.id!r}: cross-attention needs a query and a context, in that order."
+        )
+    return (
+        f"tf.keras.layers.MultiHeadAttention("
+        f"num_heads={_lit(int(ctx.params['num_heads']))}, "
+        f"key_dim={_lit(int(ctx.params['key_dim']))}, "
+        f"dropout={_lit(float(ctx.params['dropout']))}, "
+        f"name={_lit(ctx.name)})({ctx.inputs[0]}, {ctx.inputs[1]})"
+    )
+
+
+def _emit_sequence_pool(ctx: EmitContext) -> str:
+    return (
+        f"SequencePooling({_lit(str(ctx.params['mode']))}, "
+        f"hidden_dim={int(ctx.params['hidden_dim'])}, name={_lit(ctx.name)})({ctx.first})"
+    )
+
+
+def _emit_span_head(ctx: EmitContext) -> str:
+    # Two logits per token, start and end. The softmax is the loss's job, not
+    # the layer's, so the head stays linear.
+    return f"tf.keras.layers.Dense(2, name={_lit(ctx.name)})({ctx.first})"
+
+
+def _kernel_sizes(ctx: EmitContext) -> list[int]:
+    sizes = parse_int_list(ctx.params.get("kernel_sizes"))
+    if not sizes:
+        raise EmitError(
+            f"Node {ctx.node.id!r}: kernel widths must be a comma-separated list of "
+            "positive integers, such as “3,4,5”."
+        )
+    return sizes
+
+
+def _emit_text_cnn(ctx: EmitContext) -> str:
+    return (
+        f"text_cnn({ctx.first}, "
+        f"filters={_lit(int(ctx.params['filters']))}, "
+        f"kernel_sizes={tuple(_kernel_sizes(ctx))!r}, "
+        f"activation={_lit(ctx.params['activation'])}, "
+        f"dropout={_lit(float(ctx.params['dropout']))}, "
+        f"name={_lit(ctx.name)})"
+    )
+
+
+def _emit_bilstm_encoder(ctx: EmitContext) -> str:
+    return (
+        f"bi_rnn_encoder({ctx.first}, "
+        f"cell={_lit(str(ctx.params['cell']))}, "
+        f"units={_lit(int(ctx.params['units']))}, "
+        f"layers={_lit(int(ctx.params['layers']))}, "
+        f"dropout={_lit(float(ctx.params['dropout']))}, "
+        f"return_sequences={_lit(bool(ctx.params['return_sequences']))}, "
+        f"name={_lit(ctx.name)})"
+    )
+
+
 def _emit_mla(ctx: EmitContext) -> str:
     constructor = _call(
         "LatentAttention",
@@ -1431,6 +1526,12 @@ EMITTERS: dict[str, Callable[[EmitContext], str]] = {
     ),
     "grouped_query_attention": _emit_gqa,
     "moe_feed_forward": _emit_moe,
+    "sinusoidal_position_encoding": _emit_sinusoidal,
+    "cross_attention": _emit_cross_attention,
+    "sequence_pool": _emit_sequence_pool,
+    "span_head": _emit_span_head,
+    "text_cnn_block": _emit_text_cnn,
+    "bilstm_encoder": _emit_bilstm_encoder,
     "custom_layer": _emit_custom_layer,
     "custom_function": _emit_custom_function,
 }

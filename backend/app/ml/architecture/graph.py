@@ -513,3 +513,31 @@ def parse_shape(raw: Any) -> list[int | None] | None:
         except (TypeError, ValueError):
             return None
     return dims
+
+
+def parse_int_list(raw: Any) -> list[int] | None:
+    """Parse a positive-integer list param such as ``"3,4,5"`` into ``[3, 4, 5]``.
+
+    The sibling of `parse_shape` for params that are a set of sizes rather than
+    a shape — a Text CNN's kernel widths, for instance. `None` means the value
+    is unusable (empty, non-numeric, or non-positive), which the shape pass
+    turns into an error the user can act on rather than an opaque failure in
+    the training subprocess.
+    """
+
+    if raw is None:
+        return None
+    parts = list(raw) if isinstance(raw, (list, tuple)) else str(raw).split(",")
+    values: list[int] = []
+    for part in parts:
+        text = str(part).strip()
+        if not text:
+            continue
+        try:
+            value = int(text)
+        except (TypeError, ValueError):
+            return None
+        if value < 1:
+            return None
+        values.append(value)
+    return values or None
