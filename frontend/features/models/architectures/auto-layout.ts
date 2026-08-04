@@ -32,7 +32,7 @@ import type { ArchFlowNode } from "./graph-state";
  * change with it, or Tidy moves every node on a freshly opened template.
  */
 export const COLUMN_PITCH = 300;
-export const ROW_PITCH = 120;
+const ROW_PITCH = 120;
 const ORIGIN_X = 80;
 const ORIGIN_Y = 80;
 
@@ -62,10 +62,11 @@ export function freeSpot(
         Math.abs(node.position.y - spot.y) < clearY
     );
   let spot = start;
+  // A row at a time, so a walked-to spot lands where Tidy would have put it.
   // Bounded so a pathological graph cannot walk forever; 40 rows is far below
   // anything a viewport shows.
   for (let step = 0; step < 40 && occupied(spot); step += 1) {
-    spot = { x: spot.x, y: spot.y + NODE_HEIGHT + 42 };
+    spot = { x: spot.x, y: spot.y + ROW_PITCH };
   }
   return spot;
 }

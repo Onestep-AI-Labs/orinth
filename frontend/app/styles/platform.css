@@ -7051,8 +7051,30 @@ td {
   box-shadow: var(--shadow-overlay);
 }
 
+/* The minimap is only useful while you are lost, which is while you are moving.
+   It fades out once the viewport settles and returns on the next pan or zoom,
+   so a parked canvas gets its bottom-right corner back. `pointer-events` goes
+   with the opacity — an invisible but clickable panel in the corner would
+   swallow presses meant for the graph underneath it. */
 .arch-canvas .react-flow__minimap {
   overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arch-canvas .react-flow__minimap.arch-minimap-awake {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* Nothing to fade to, so it simply stays available. */
+@media (prefers-reduced-motion: reduce) {
+  .arch-canvas .react-flow__minimap {
+    opacity: 1;
+    pointer-events: all;
+    transition: none;
+  }
 }
 
 .arch-canvas .react-flow__controls {

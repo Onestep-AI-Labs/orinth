@@ -7,6 +7,27 @@ templates), validate it, save it, read and download the generated Python as **ei
 PyTorch**, and train it: image and text classifiers into the model registry, and from-scratch
 transformers on next-token prediction with sample generation.
 
+### Revision 16: the minimap hides when the canvas is parked
+
+A minimap is useful while you are lost, which is while you are moving.
+`onMove` wakes it; 1400ms after the viewport settles it fades out and gives the
+bottom-right corner back. `pointer-events` follows the opacity — an invisible
+but clickable panel in the corner would swallow presses meant for the graph
+underneath it — and `onPointerMove` on the map itself restarts the countdown,
+so it cannot fade out from under a pointer that is using it to navigate. Under
+`prefers-reduced-motion` it simply stays up.
+
+Cleanups in the same pass: `ROW_PITCH` is no longer exported (nothing imported
+it) and `freeSpot` steps by it rather than by an open-coded `NODE_HEIGHT + 42`,
+which was the same number written twice; the branch-degree counts moved out of
+`routedEdges` into their own memo, since that one rebuilds on every edge hover
+and the node-stub flags now read from the same maps; `defaultEdgeOptions` is
+gone, because `routedEdges` is the only thing that ever reaches that prop and it
+sets the type and hit width on every edge it emits; `placeInView` replaced
+`viewportCenter` so the canvas rect is only measured when a node actually needs
+placing, not on every drop; and Fit to view uses one glyph in both the menu and
+the zoom stack rather than `Frame` in one and `Maximize` in the other.
+
 ### Revision 15: the stubs were being clipped, and zoom was still ambiguous
 
 **Every free-handle stub was clipped out of existence.** Revision 14 fixed the

@@ -35,7 +35,6 @@ import {
   Code2,
   Copy,
   Download,
-  Frame,
   Group,
   Maximize,
   Maximize2,
@@ -87,7 +86,8 @@ import {
   ActionEdge,
   EDGE_DELETE_EVENT,
   EDGE_HOVER_EVENT,
-  EDGE_INSERT_EVENT
+  EDGE_INSERT_EVENT,
+  type ActionEdgeData
 } from "./action-edge";
 import { SettingsModal } from "./settings-modal";
 import { GroupFrame, TITLE_DEFAULTS } from "./group-frame";
@@ -118,6 +118,8 @@ const VALIDATE_DEBOUNCE_MS = 350;
  * the grace period the affordance blinks out from under the pointer.
  */
 const EDGE_HOVER_GRACE_MS = 90;
+/** How long after the viewport settles the minimap stays up before fading. */
+const MINIMAP_IDLE_MS = 1400;
 /** Breathing room between a framed selection's nodes and the frame's edge. */
 const GROUP_PADDING = 28;
 /** Widened hit area on an edge, so selecting a wire does not need pixel aim. */
@@ -234,6 +236,12 @@ function Studio({ architectureId }: { architectureId: string }) {
   const [spacePan, setSpacePan] = useState(false);
   /** Which wire is under the pointer, so it can show its own edit buttons. */
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
+  /**
+   * The minimap is only useful while you are lost, which is while you are
+   * moving. It fades out when the viewport settles and comes back on the next
+   * pan or zoom, so a parked canvas gets its bottom-right corner back.
+   */
+  const [minimapAwake, setMinimapAwake] = useState(false);
   const [groups, setGroups] = useState<StoredGroup[]>([]);
   const [framework, setFramework] = useState<Framework>("keras");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -414,38 +422,37 @@ function Studio({ architectureId }: { architectureId: string }) {
    * Every wire is the same `action` edge type; the curve/step choice and the
    * hover state ride in its `data` so one component draws both.
    */
-  const routedEdges = useMemo(() => {
-    const outDegree = new Map<string, number>();
-    const inDegree = new Map<string, number>();
+  const degrees = useMemo(() => {
+    const out = new Map<string, number>();
+    const into = new Map<string, number>();
     for (const edge of edges) {
-      outDegree.set(edge.source, (outDegree.get(edge.source) ?? 0) + 1);
-      inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
+      out.set(edge.source, (out.get(edge.source) ?? 0) + 1);
+      into.set(edge.target, (into.get(edge.target) ?? 0) + 1);
     }
-    return edges.map((edge) => {
-      const branching =
-        (outDegree.get(edge.source) ?? 0) > 1 || (inDegree.get(edge.target) ?? 0) > 1;
-      return {
-        ...edge,
-        type: "action",
-        className: branching ? "arch-edge-branch" : undefined,
-        // A 1.5px wire is a 1.5px click target without this.
-        interactionWidth: EDGE_INTERACTION_WIDTH,
-        animated: false,
-        data: { branching, hovered: edge.id === hoveredEdge }
-      };
-    });
-  }, [edges, hoveredEdge]);
-
-  /** Which nodes have something wired to each side, for the stub `+` buttons. */
-  const wired = useMemo(() => {
-    const incoming = new Set<string>();
-    const outgoing = new Set<string>();
-    for (const edge of edges) {
-      incoming.add(edge.target);
-      outgoing.add(edge.source);
-    }
-    return { incoming, outgoing };
+    return { out, into };
   }, [edges]);
+
+  // Keyed on `hoveredEdge` as well as `edges`, so it rebuilds on every hover —
+  // which is why the degree counts above are their own memo rather than being
+  // recomputed in here.
+  const routedEdges = useMemo(
+    () =>
+      edges.map((edge) => {
+        const branching =
+          (degrees.out.get(edge.source) ?? 0) > 1 ||
+          (degrees.into.get(edge.target) ?? 0) > 1;
+        return {
+          ...edge,
+          type: "action",
+          className: branching ? "arch-edge-branch" : undefined,
+          // A 1.5px wire is a 1.5px click target without this.
+          interactionWidth: EDGE_INTERACTION_WIDTH,
+          animated: false,
+          data: { branching, hovered: edge.id === hoveredEdge } satisfies ActionEdgeData
+        };
+      }),
+    [edges, degrees, hoveredEdge]
+  );
 
   const decoratedNodes = useMemo(
     () =>
@@ -455,11 +462,12 @@ function Studio({ architectureId }: { architectureId: string }) {
           ...node.data,
           shape: validation.shapes[node.id] ?? null,
           issues: nodeIssues.get(node.id) ?? [],
-          hasIncoming: wired.incoming.has(node.id),
-          hasOutgoing: wired.outgoing.has(node.id)
+          // A side with nothing on it gets a stub `+`.
+          hasIncoming: degrees.into.has(node.id),
+          hasOutgoing: degrees.out.has(node.id)
         }
       })),
-    [nodes, validation.shapes, nodeIssues, wired]
+    [nodes, validation.shapes, nodeIssues, degrees]
   );
 
   // One array identity per change, rather than a fresh one on every render.
@@ -659,23 +667,29 @@ function Studio({ architectureId }: { architectureId: string }) {
   );
 
   /**
-   * The middle of what is currently on screen, in flow coordinates.
+   * A clear spot near the middle of what is currently on screen.
    *
    * A node added from the palette used to land at a fixed flow position near
    * the origin. Pan two screens right to work on the tail of a graph, add a
    * layer, and it appeared off-view behind you — the add looked like it had
    * failed. The left edge is inset past the layer panel while that is open, so
-   * "centre" means the centre of the part you can actually see.
+   * "centre" means the centre of the part you can actually see; the bias below
+   * it clears the floating toolbar, and `freeSpot` walks down from there so the
+   * node never lands on one that is already sitting in the middle of the view.
    */
-  const viewportCenter = useCallback(() => {
+  const placeInView = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return { x: 320, y: 120 };
     const left = rect.left + (paletteIntent ? palettePane.size : 0);
-    return screenToFlowPosition({
+    const centre = screenToFlowPosition({
       x: (left + rect.right) / 2,
       y: (rect.top + rect.bottom) / 2
     });
-  }, [screenToFlowPosition, paletteIntent, palettePane.size]);
+    return freeSpot(
+      { x: centre.x - NODE_WIDTH / 2, y: centre.y - NODE_HEIGHT / 2 + 48 },
+      nodes
+    );
+  }, [screenToFlowPosition, paletteIntent, palettePane.size, nodes]);
 
   const addNode = useCallback(
     (spec: NodeSpec, position?: { x: number; y: number }) => {
@@ -686,13 +700,7 @@ function Studio({ architectureId }: { architectureId: string }) {
       // panel gets the middle of the view, biased a little below centre so it
       // clears the floating toolbar, then walked down until it is not on top
       // of something.
-      const centre = viewportCenter();
-      const spot =
-        position ??
-        freeSpot(
-          { x: centre.x - NODE_WIDTH / 2, y: centre.y - NODE_HEIGHT / 2 + 48 },
-          nodes
-        );
+      const spot = position ?? placeInView();
       commit();
       setNodes((current) => [
         ...current.map((node) => ({ ...node, selected: false })),
@@ -713,7 +721,7 @@ function Studio({ architectureId }: { architectureId: string }) {
       setSelectedId(id);
       setSelectedGroupIds([]);
     },
-    [nodes, commit, viewportCenter]
+    [nodes, commit, placeInView]
   );
 
   /**
@@ -849,6 +857,18 @@ function Studio({ architectureId }: { architectureId: string }) {
   );
 
   // --- wire hover affordance ------------------------------------------------
+
+  const minimapTimerRef = useRef<number | undefined>(undefined);
+  /** Show the minimap, and restart the countdown that hides it again. */
+  const wakeMinimap = useCallback(() => {
+    window.clearTimeout(minimapTimerRef.current);
+    setMinimapAwake(true);
+    minimapTimerRef.current = window.setTimeout(
+      () => setMinimapAwake(false),
+      MINIMAP_IDLE_MS
+    );
+  }, []);
+  useEffect(() => () => window.clearTimeout(minimapTimerRef.current), []);
 
   const hoverTimerRef = useRef<number | undefined>(undefined);
   const setEdgeHover = useCallback((id: string | null) => {
@@ -1278,7 +1298,7 @@ function Studio({ architectureId }: { architectureId: string }) {
           {
             label: "Fit to view",
             shortcut: "F",
-            icon: <Frame size={14} />,
+            icon: <Maximize size={14} />,
             disabled: nodes.length === 0,
             onSelect: () => fitView({ duration: 200, padding: 0.15 })
           },
@@ -1514,6 +1534,8 @@ function Studio({ architectureId }: { architectureId: string }) {
             onNodeDragStart={() => commit()}
             onEdgeMouseEnter={(_, edge) => setEdgeHover(edge.id)}
             onEdgeMouseLeave={() => setEdgeHover(null)}
+            // Panning and zooming are exactly when a minimap earns its corner.
+            onMove={wakeMinimap}
             onPaneClick={() => {
               setSelectedId("");
               setSelectedGroupIds([]);
@@ -1627,9 +1649,9 @@ function Studio({ architectureId }: { architectureId: string }) {
             zoomOnPinch
             // Double-click belongs to "open this node's settings" now.
             zoomOnDoubleClick={false}
-            // Curved edges: a straight line through a branch reads as one path
-            // rather than two, which is exactly where a graph needs clarity.
-            defaultEdgeOptions={{ type: "action", interactionWidth: EDGE_INTERACTION_WIDTH }}
+            // No `defaultEdgeOptions`: `routedEdges` is the only thing that
+            // ever reaches this prop, and it sets the type and hit width on
+            // every edge it emits.
             connectionLineType={ConnectionLineType.SmoothStep}
           >
             {/* Actions live on the canvas, not in the page header: they act on
@@ -1729,7 +1751,15 @@ function Studio({ architectureId }: { architectureId: string }) {
                 <Maximize size={20} strokeWidth={2.4} aria-hidden />
               </ControlButton>
             </Controls>
-            <MiniMap pannable zoomable nodeColor={minimapColor} />
+            <MiniMap
+              pannable
+              zoomable
+              nodeColor={minimapColor}
+              className={minimapAwake ? "arch-minimap-awake" : undefined}
+              // Hovering it restarts the countdown, so it cannot fade out from
+              // under a pointer that is using it to navigate.
+              onPointerMove={wakeMinimap}
+            />
           </ReactFlow>
 
           {/* The layer panel overlays the canvas rather than holding a column

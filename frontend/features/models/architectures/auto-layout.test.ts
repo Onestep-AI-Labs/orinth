@@ -196,7 +196,7 @@ describe("freeSpot", () => {
   it("gives up rather than looping forever on a pathological graph", () => {
     // A column packed at every step the walk takes: it must still terminate.
     const packed = Array.from({ length: 200 }, (_, index) =>
-      at(400, 200 + index * (NODE_HEIGHT + 42))
+      at(400, 200 + index * ROW)
     );
     expect(() => freeSpot({ x: 400, y: 200 }, packed)).not.toThrow();
   });
