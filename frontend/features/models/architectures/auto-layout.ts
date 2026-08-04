@@ -19,10 +19,57 @@ import type { ArchFlowNode } from "./graph-state";
  * Tidy on a freshly opened template moves every node.
  */
 
-const COLUMN_PITCH = 240;
+/**
+ * Horizontal spacing between columns.
+ *
+ * A node is 176px wide, so this is the wire length as much as the pitch: at
+ * 240 the gap was 64px and a step edge had barely room to show its corner
+ * before arriving, which read as nodes touching rather than as a graph with
+ * connections. 300 leaves 124px of visible wire — enough for the hover pill to
+ * sit on without covering either endpoint.
+ *
+ * `backend/app/ml/architecture/layout.py` carries the same value and must
+ * change with it, or Tidy moves every node on a freshly opened template.
+ */
+export const COLUMN_PITCH = 300;
 const ROW_PITCH = 120;
 const ORIGIN_X = 80;
 const ORIGIN_Y = 80;
+
+/** A node's drawn size, for hit-testing candidate positions against. */
+export const NODE_WIDTH = 176;
+export const NODE_HEIGHT = 78;
+
+/**
+ * The first spot at or below `start` that no existing node is sitting on.
+ *
+ * Dropping a new node on the centre of the view is right until the centre of
+ * the view already has a node on it, which — on a graph you are in the middle
+ * of editing — it usually does. Walking down a row at a time keeps the node in
+ * the same column as whatever it will probably connect to, and lands it in
+ * clear space rather than hidden behind what is already there.
+ */
+export function freeSpot(
+  start: { x: number; y: number },
+  nodes: readonly { position: { x: number; y: number } }[]
+): { x: number; y: number } {
+  const clearX = NODE_WIDTH + 24;
+  const clearY = NODE_HEIGHT + 24;
+  const occupied = (spot: { x: number; y: number }) =>
+    nodes.some(
+      (node) =>
+        Math.abs(node.position.x - spot.x) < clearX &&
+        Math.abs(node.position.y - spot.y) < clearY
+    );
+  let spot = start;
+  // A row at a time, so a walked-to spot lands where Tidy would have put it.
+  // Bounded so a pathological graph cannot walk forever; 40 rows is far below
+  // anything a viewport shows.
+  for (let step = 0; step < 40 && occupied(spot); step += 1) {
+    spot = { x: spot.x, y: spot.y + ROW_PITCH };
+  }
+  return spot;
+}
 
 export function autoLayout(nodes: ArchFlowNode[], edges: Edge[]): ArchFlowNode[] {
   if (nodes.length === 0) return nodes;

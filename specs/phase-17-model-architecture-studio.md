@@ -7,6 +7,243 @@ templates), validate it, save it, read and download the generated Python as **ei
 PyTorch**, and train it: image and text classifiers into the model registry, and from-scratch
 transformers on next-token prediction with sample generation.
 
+### Revision 16: the minimap hides when the canvas is parked
+
+A minimap is useful while you are lost, which is while you are moving.
+`onMove` wakes it; 1400ms after the viewport settles it fades out and gives the
+bottom-right corner back. `pointer-events` follows the opacity — an invisible
+but clickable panel in the corner would swallow presses meant for the graph
+underneath it — and `onPointerMove` on the map itself restarts the countdown,
+so it cannot fade out from under a pointer that is using it to navigate. Under
+`prefers-reduced-motion` it simply stays up.
+
+Cleanups in the same pass: `ROW_PITCH` is no longer exported (nothing imported
+it) and `freeSpot` steps by it rather than by an open-coded `NODE_HEIGHT + 42`,
+which was the same number written twice; the branch-degree counts moved out of
+`routedEdges` into their own memo, since that one rebuilds on every edge hover
+and the node-stub flags now read from the same maps; `defaultEdgeOptions` is
+gone, because `routedEdges` is the only thing that ever reaches that prop and it
+sets the type and hit width on every edge it emits; `placeInView` replaced
+`viewportCenter` so the canvas rect is only measured when a node actually needs
+placing, not on every drop; and Fit to view uses one glyph in both the menu and
+the zoom stack rather than `Frame` in one and `Maximize` in the other.
+
+### Revision 15: the stubs were being clipped, and zoom was still ambiguous
+
+**Every free-handle stub was clipped out of existence.** Revision 14 fixed the
+cascade that dropped them into the node's flow; that only revealed the real
+reason none of them were visible. `.arch-node` sets `overflow: hidden` — which
+is what keeps the header tint and the category stripe inside the rounded
+corners — so a child positioned 46px past its edge is cut off completely. The
+one node type that *did* show a stub was a block, because `.arch-node-block`
+overrides with `overflow: visible`.
+
+`CanvasNode` now returns an `.arch-node-shell`: an unclipped, shrink-wrapping
+box holding `.arch-node` and the stubs as *siblings*. The node keeps its clip;
+the stubs are outside it.
+
+They also read as controls now rather than as absences. The lead *line* stays
+dashed and faint — it stands for "no connection here" — but the *button* is
+solid `--line-input` on `--surface` with muted ink. At a dashed hairline and
+0.6 opacity it disappeared into the dot grid, which is the one thing an
+affordance offering the next action cannot do.
+
+**Zoom in and zoom out looked identical, and size was never the reason.**
+base.css styles a control glyph for its own *filled* icon set:
+
+```css
+.react-flow__controls-button svg {
+  width: 100%; max-width: 12px; max-height: 12px; fill: currentColor;
+}
+```
+
+All four declarations are wrong for a lucide outline glyph, and `fill` is the
+one that actually broke it. Lucide carries `fill="none"` as a **presentation
+attribute**, which any CSS rule outranks — so the magnifier's lens filled solid
+and swallowed the `+`/`−` sitting inside it. Both buttons rendered as the same
+dark disc, which is why two rounds of resizing changed nothing.
+
+`fill: none` and `stroke: currentcolor` fix it; the size caps are overridden
+alongside, since with the fill off the sign was still only a couple of pixels.
+The corner-badge composition tried earlier in this pass is gone — the
+conventional glyph *is* a lens with the sign inside it, and once it renders as
+an outline it reads correctly at 22px / `strokeWidth` 2.4.
+
+**Clicking the canvas closes the layer panel.** `onPaneClick` and `onNodeClick`
+both clear the intent: clicking the graph is how you say "not that" to anything
+the studio is showing, and reaching for the panel's close button to dismiss
+something you had already dismissed is a second gesture for one decision.
+
+**A node added from the panel no longer lands on top of another node.**
+`freeSpot` — moved into `auto-layout.ts` with `NODE_WIDTH`/`NODE_HEIGHT`, where
+it is covered by `auto-layout.test.ts` — walks down a row at a time from the
+requested point until nothing overlaps, keeping the column so the node stays
+next to whatever it will connect to. `addNode` starts it 48px below the centre
+of the view, clearing the floating toolbar; `extendFrom` starts it one column
+along from its anchor. The walk is bounded at 40 steps so a pathological graph
+cannot spin.
+
+### Revision 14: the right-click menu never ran anything, and two CSS bugs
+
+**No context-menu command had ever worked.** `CanvasContextMenu` dismisses on
+`pointerdown` in the *capture* phase — one step ahead of the `click` its rows
+are wired to — and the listener did not check where the press landed. Pressing
+a row tore the menu down before the browser dispatched `click`, so `onSelect`
+never fired and every entry looked inert: Duplicate, Settings…, Add node, all
+of them. `dismiss` now ignores presses inside the menu.
+
+`context-menu.test.tsx` covers it. The load-bearing assertion is that clicking
+a row closes the menu *exactly once* — a second close means the outside-press
+listener also fired, which in a real browser is the moment the row stops
+existing. jsdom still dispatches `click` on a detached node, so asserting
+`onSelect` alone would not have caught this.
+
+**Every stub `+` rendered inside its node.** `.arch-node-stub` sets
+`position: absolute`; `.arch-tip` sets `position: relative`; the stubs carry
+both classes, both selectors are one class wide, and the tooltip block was
+written later in the file — so source order handed it the cascade and dropped
+every stub back into the node's normal flow. The tooltip block now sits above
+anything that positions a tipped element, with a comment saying why it has to.
+
+**Tooltip placement, three cases.** The toolbar is pinned to the canvas's left
+edge and the canvas clips overflow, so a centred tip under the first button was
+cut in half — toolbar tips align to the button's left edge. The wire pill sits
+*on* a connection, so a tip below it landed on whatever the wire runs into —
+`.arch-tip-up` puts those above. The zoom stack keeps `.arch-tip-right`.
+
+**The zoom glyphs were indistinguishable.** base.css caps a control glyph at
+12px and stretches it to `width: 100%`, which shrank the `+`/`−` inside the
+magnifiers to a couple of pixels; both buttons read as plain circles. Fixed
+19px, cap removed, `strokeWidth` 2.1.
+
+**Fit to view was two buttons.** The top-left toolbar's `Frame` copy is gone;
+fit stays in the bottom-left stack with the other view controls. `F` and the
+menu entry are unchanged.
+
+**A node added from the palette landed near the flow origin**, so panning two
+screens right to work on the tail of a graph and adding a layer put it off-view
+behind you — the add looked like it had failed. `viewportCenter()` reads the
+canvas rect (inset past the layer panel while that is open) through
+`screenToFlowPosition`, and `addNode` centres the node's box on it with a small
+stagger for successive adds.
+
+**Picking a layer now closes the panel and opens the new node's settings.**
+Both halves of adding a node in one gesture: a `Conv2D` with catalog defaults is
+rarely the `Conv2D` you wanted, and the panel left open sat over the node it had
+just made. Dragging from the panel is exempt — that gesture places something
+exactly and usually belongs to a run of drops, which a dialog would interrupt.
+
+### Revision 13: the canvas says what its buttons do, and offers the next one
+
+Follow-up pass on revision 12.
+
+**Every icon-only control now has hover text.** Canvas controls — the wire pill,
+the toolbar, the zoom stack, the new handle stubs — carry `data-tip` and the
+`.arch-tip` CSS tooltip rather than `title`: a native tooltip waits about a
+second and then paints an OS chrome box over the graph, which is the wrong
+latency and the wrong surface for a control hit dozens of times a session. Page
+chrome outside the canvas keeps `title`, where the delay is a feature; the ones
+that had neither (fullscreen, panel close, drawer collapse, dialog close) got
+one.
+
+Two containers had to give up `overflow: hidden` for the tooltip to escape —
+`.arch-tool-group` and `.react-flow__controls`. Both had it only to clip their
+children's corners, so the end buttons carry the rounding instead.
+
+**Zoom is a magnifier, not a `+`.** React Flow's stock controls render a bare
+`+`/`−` pair, which on a canvas whose *other* `+` adds a node is the wrong
+glyph. `showZoom`/`showFitView` are off and three `ControlButton`s carry lucide
+`ZoomIn`/`ZoomOut`/`Maximize`. These stroke `currentColor` rather than filling,
+so `.react-flow__controls-button` needed `color` alongside its existing `fill`.
+
+**Inserting into a wire re-lays-out the graph.** The gap between two columns is
+not a node wide, so a node dropped at a wire's midpoint landed *on* both its
+neighbours and every insert was followed by dragging the rest of the chain out
+of the way. `insertOnEdge` now runs `autoLayout` over the graph it just built.
+
+**A free handle grows a stub `+`.** `ArchNodeData` gains derived
+`hasIncoming`/`hasOutgoing` — folded in beside `shape` and `issues`, never
+stored, never sent — and `CanvasNode` draws a dashed lead line and a `+` on any
+side nothing is wired to. It opens the palette with an `extend` intent, and the
+node that comes back is *connected*: an unwired box placed nearby would move
+the same dead end one column over. Drawn quietly (dashed, `--line-strong`,
+0.6 opacity) because mid-build most handles are free.
+
+**The column pitch went 240 → 300.** At 240 a 176px node left 64px of wire,
+which read as nodes touching rather than as a graph with connections; 300
+leaves 124px — enough for the hover pill to sit on without covering either
+endpoint. `backend/app/ml/architecture/layout.py` carries the same constant and
+moved with it, or Tidy would shift every node on a freshly opened template.
+
+**The right-click menu is complete.** Added **Disconnect** (drop every wire on
+the selection, keeping the nodes — picking them off one at a time is at least
+two operations for a node mid-chain), **Deselect all**, **Tidy layout**, and
+**Fit to view**, so every canvas action reachable by keyboard is also reachable
+from the menu.
+
+Also: the palette's Blocks/Layers segmented control gained a top margin — in the
+overlay drawer the search row sits directly above it, and the two read as one
+crowded block without a gap.
+
+### Revision 12: the canvas navigates like a node editor, not like a form
+
+Six changes, all one complaint: moving around this canvas cost more than the
+graph did.
+
+**Trackpad gestures are the n8n set.** `panOnScroll` with
+`PanOnScrollMode.Free`, `zoomOnScroll={false}`, `zoomOnPinch`. Two fingers pan
+in both axes; pinch zooms. Before, a two-finger scroll *zoomed*, so every
+attempt to look at the node to the right changed the scale instead — and a
+trackpad's sideways component made that zoom jitter mid-gesture. ⌘/Ctrl+scroll
+still zooms for a mouse, and the `Controls` cluster still has explicit buttons.
+
+**Drag on empty canvas always selects.** `selectionOnDrag` is unconditional and
+`panOnDrag` is the middle mouse button, plus `true` while `Space` is held.
+
+**The select/move tool pair is gone**, along with its `V`/`H` shortcuts and the
+`.arch-canvas-select` / `.arch-canvas-move` cursor rules. Revision 11 fixed
+those rules by making the wrapper render the tool class; the better fix was
+that there is no tool to indicate. A modal pointer in a two-mode editor is a
+mode you have to look at the toolbar to check, and both modes now have a
+gesture that does not cost one — trackpad or middle-drag for pan, plain drag
+for select. `.arch-canvas-pan` remains for the grab cursor while `Space` is
+down, which is a *held* state rather than a mode.
+
+**The layer panel and the settings rail no longer hold columns.**
+`.arch-studio-grid` went from three panes to one; the canvas gets the row.
+
+- The palette is now the body of `.arch-palette-drawer`, overlaid on the
+  canvas's left edge and closed by default. It opens from the canvas `+`
+  (`N`), a right-click, or a wire's insert button, and `PaletteIntent` carries
+  *why* — `canvas`, `at` a point, or `edge` — so one panel serves three entry
+  points and the pick lands where it was asked for. The targeted intents close
+  the panel on pick; browsing from `+` leaves it open, because building a stack
+  is a run of picks rather than one.
+- Settings are `SettingsModal`, opened by double-clicking the node or frame
+  (`zoomOnDoubleClick` is off to free that gesture), by `↵`, by the header's
+  slider button, or from the node's context menu. `NodeInspector` and
+  `GroupInspector` are unchanged: `.arch-modal .arch-inspector` strips the
+  rail's border and radius in CSS, so neither component knows where it renders.
+  The dialog closes itself when its subject is deleted or deselected.
+
+**Right-click adds a node where you clicked.** "Add node" is the first row of
+the pane menu, above the clipboard block, because that is why the menu gets
+opened. The node menu gains "Settings…", the edge menu "Insert node here".
+
+**A hovered wire carries its own two buttons** — `+` inserts a node into the
+middle of the connection (`a → b` becomes `a → new → b` in one action, rather
+than delete-wire, add-node, draw-two-wires), `×` removes it. All edges are one
+`ActionEdge` type now; the curve/step choice moved from React Flow's built-in
+types into its `data.branching`.
+
+The pill renders inside `EdgeLabelRenderer`, a portal *outside* the edge's own
+DOM subtree, so `.react-flow__edge:hover .pill` cannot reach it — hover has to
+be state. `onEdgeMouseEnter`/`Leave` set it, the pill re-asserts it on its own
+`pointerenter`, and clearing is deferred by 90ms: the pill sits on the line, so
+moving onto a button fires `mouseleave` on the path one frame before
+`pointerenter` on the button, and without the grace period the affordance
+blinks out from under the pointer.
+
 ### Revision 11: the canvas tool never changed the cursor
 
 `platform.css` carried the cursor affordance for both canvas tools —

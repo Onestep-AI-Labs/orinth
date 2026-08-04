@@ -6820,24 +6820,14 @@ td {
   flex-wrap: wrap;
 }
 
+/* The canvas gets the whole row. The layer panel overlays it on demand and
+   settings open as a dialog, so neither holds a column that is empty most of
+   the time. */
 .arch-studio-grid {
-  display: grid;
-  grid-template-columns: 208px minmax(0, 1fr) 288px;
-  gap: 12px;
+  display: flex;
   flex: 1;
   min-height: 0;
-}
-
-.arch-studio-grid.arch-no-palette {
-  grid-template-columns: minmax(0, 1fr) 288px;
-}
-
-.arch-studio-grid.arch-no-inspector {
-  grid-template-columns: 208px minmax(0, 1fr);
-}
-
-.arch-studio-grid.arch-no-palette.arch-no-inspector {
-  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
 }
 
 .arch-view-controls {
@@ -6870,19 +6860,6 @@ td {
 .arch-view-controls .icon-button:disabled {
   color: var(--color-ink-subtle);
   opacity: 0.5;
-}
-
-@media (max-width: 1200px) {
-  /* Narrow viewports get the palette and canvas; the inspector is reachable
-     from the header toggle, which then overlays. */
-  .arch-studio-grid,
-  .arch-studio-grid.arch-no-palette {
-    grid-template-columns: 188px minmax(0, 1fr);
-  }
-
-  .arch-studio-grid .arch-inspector {
-    display: none;
-  }
 }
 
 /* --- palette ------------------------------------------------------------- */
@@ -7003,7 +6980,10 @@ td {
 /* --- canvas -------------------------------------------------------------- */
 
 .arch-canvas {
+  position: relative;
+  flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
@@ -7060,26 +7040,99 @@ td {
   stroke-width: 2;
 }
 
-/* Floating controls sit over content, so the overlay elevation applies. */
+/* Floating controls sit over content, so the overlay elevation applies. The
+   control stack keeps `overflow: visible` so its buttons' tooltips can escape;
+   its end buttons carry the rounding the container used to clip. */
 .arch-canvas .react-flow__controls,
 .arch-canvas .react-flow__minimap {
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
   background: var(--color-surface);
   box-shadow: var(--shadow-overlay);
+}
+
+/* The minimap is only useful while you are lost, which is while you are moving.
+   It fades out once the viewport settles and returns on the next pan or zoom,
+   so a parked canvas gets its bottom-right corner back. `pointer-events` goes
+   with the opacity — an invisible but clickable panel in the corner would
+   swallow presses meant for the graph underneath it. */
+.arch-canvas .react-flow__minimap {
   overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arch-canvas .react-flow__minimap.arch-minimap-awake {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* Nothing to fade to, so it simply stays available. */
+@media (prefers-reduced-motion: reduce) {
+  .arch-canvas .react-flow__minimap {
+    opacity: 1;
+    pointer-events: all;
+    transition: none;
+  }
+}
+
+.arch-canvas .react-flow__controls {
+  overflow: visible;
+}
+
+.arch-canvas .react-flow__controls-button:first-child {
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+
+.arch-canvas .react-flow__controls-button:last-child {
+  border-bottom: 0;
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
 }
 
 /* Zoom and fit are hit as often as the tools, so they match their size rather
    than shrinking a 16px glyph into a 26px box. */
+/* `color`, not `fill`: every button in this stack carries a lucide glyph now,
+   and those are stroked outlines rather than filled shapes. */
 .arch-canvas .react-flow__controls-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface);
-  fill: var(--color-ink-muted);
+  color: var(--color-ink-muted);
   width: 32px;
   height: 32px;
   padding: 7px;
+}
+
+.arch-canvas .react-flow__controls-button:hover {
+  color: var(--color-ink);
+}
+
+/* base.css styles a control glyph for its own filled icon set:
+ *
+ *   .react-flow__controls-button svg {
+ *     width: 100%; max-width: 12px; max-height: 12px; fill: currentColor;
+ *   }
+ *
+ * All four declarations are wrong for a lucide outline glyph, and `fill` is the
+ * one that actually broke the zoom buttons. Lucide carries `fill="none"` as a
+ * *presentation attribute*, which any CSS rule outranks — so the magnifier's
+ * lens filled solid and swallowed the `+`/`−` sitting inside it. Both buttons
+ * came out as the same dark disc. The size caps then kept the sign at a couple
+ * of pixels once the fill was off, so all four are overridden here.
+ */
+.arch-canvas .react-flow__controls-button > svg {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  fill: none;
+  stroke: currentcolor;
 }
 
 .arch-canvas .react-flow__controls-button:hover {
@@ -7106,6 +7159,10 @@ td {
 /* --- node ---------------------------------------------------------------- */
 
 .arch-node {
+  /* The containing block for the free-handle stubs, which hang outside the
+     box. Same geometry as the React Flow wrapper it replaces, so the stacked
+     block edge behind a block node is unaffected. */
+  position: relative;
   min-width: 176px;
   padding: 10px 12px;
   border: 1px solid var(--color-line);
@@ -7910,12 +7967,24 @@ td {
   margin: 10px;
 }
 
+/* `overflow: visible` so a tooltip can leave the group; the corners the group
+   used to clip are rounded on the end buttons instead. */
 .arch-tool-group {
   display: flex;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  overflow: hidden;
+  overflow: visible;
+}
+
+.arch-tool:first-child {
+  border-top-left-radius: var(--radius-md);
+  border-bottom-left-radius: var(--radius-md);
+}
+
+.arch-tool:last-child {
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
 }
 
 .arch-tool {
@@ -7954,9 +8023,12 @@ td {
    the three segments have to survive a width that cannot fit them at their
    natural size: they share the row equally, shed the padding first, and drop
    the count last. */
+/* Top margin as well as bottom: in the overlay drawer the search row sits
+   directly above, and the two controls read as one crowded block without a gap
+   between them. */
 .arch-palette-filter {
   display: flex;
-  margin: 0 10px 8px;
+  margin: 10px 10px 8px;
   padding: 3px;
   gap: 2px;
 }
@@ -8011,16 +8083,377 @@ td {
   color: var(--color-ink-subtle);
 }
 
-.arch-canvas-move .react-flow__pane {
+/* There is one pointer mode and it selects, so the pane carries no tool cursor.
+   Holding Space swaps to the pan grip — the only moment the pointer means
+   something other than "select". */
+.arch-canvas-pan .react-flow__pane {
   cursor: grab;
 }
 
-.arch-canvas-move .react-flow__pane:active {
+.arch-canvas-pan .react-flow__pane:active {
   cursor: grabbing;
 }
 
-.arch-canvas-select .react-flow__pane {
-  cursor: crosshair;
+/* --- the layer panel, overlaid ------------------------------------------- */
+
+/* Opened from the canvas +, a right-click, or a wire's insert button; closed
+   the rest of the time. A sanctioned elevation (DESIGN.md §5) because it sits
+   over the canvas rather than resting in the layout. */
+.arch-palette-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  animation: arch-palette-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes arch-palette-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-palette-drawer {
+    animation: none;
+  }
+}
+
+.arch-palette-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-palette-drawer-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-muted);
+}
+
+.arch-palette-drawer-head .icon-button {
+  min-height: 30px;
+  width: 30px;
+  padding: 0;
+}
+
+/* The palette is the drawer's whole body now, so it drops the panel chrome it
+   wears as a rail and inherits the drawer's border instead. */
+.arch-palette-drawer .arch-palette {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* The drag handle straddles the drawer's own right edge rather than sitting in
+   a grid gutter, so it stays reachable over the canvas. */
+.arch-palette-drawer-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+}
+
+/* --- canvas tooltips ------------------------------------------------------ */
+
+/* Hover text for icon-only canvas controls, driven by `data-tip`.
+   Native `title` waits about a second and then paints an OS chrome box over the
+   graph; on a surface where every control is a glyph and gets hit dozens of
+   times a session, both the latency and the box are wrong. Page chrome outside
+   the canvas keeps `title` — there the delay is a feature.
+
+   This block must stay *above* any rule that positions a tipped element. Both
+   are single-class selectors, so the cascade falls to source order: with the
+   tooltip declared later its `position: relative` beat `.arch-node-stub`'s
+   `position: absolute` and dropped every stub back into the node's flow, inside
+   the box it was supposed to hang off. */
+.arch-tip {
+  position: relative;
+}
+
+.arch-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 110ms ease-out;
+}
+
+.arch-tip:hover::after,
+.arch-tip:focus-visible::after {
+  opacity: 1;
+}
+
+/* The zoom stack sits in the bottom-left corner, so its tips go sideways
+   rather than off the bottom of the canvas. */
+.arch-tip-right::after {
+  top: 50%;
+  left: calc(100% + 7px);
+  transform: translateY(-50%);
+}
+
+/* The wire pill sits *on* a connection, so a tip below it lands on whatever the
+   wire is heading into. Above is the one direction reliably empty. */
+.arch-tip-up::after {
+  top: auto;
+  bottom: calc(100% + 7px);
+}
+
+/* The toolbar is pinned to the canvas's left edge and the canvas clips its
+   overflow, so a tip centred under the first button was cut in half. These
+   align to the button's left edge instead. */
+.arch-canvas-tools .arch-tip::after {
+  left: 0;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-tip::after {
+    transition: none;
+  }
+}
+
+/* --- free-handle stubs ---------------------------------------------------- */
+
+/* The node's own box clips its overflow, so the stubs are positioned against
+   this shell instead. Same geometry — the stubs are out of flow, so the shell
+   shrink-wraps to the node exactly. */
+.arch-node-shell {
+  position: relative;
+  width: fit-content;
+}
+
+/* A handle with nothing on it grows a lead line and a +.
+   The *line* is dashed and faint — it stands for "no connection here". The
+   *button* is a real control and reads like one: a solid `--line-input` border
+   (the same weight inputs carry) on `--surface`, muted ink. Drawn any quieter it
+   disappeared into the dot grid, which is the one thing an affordance offering
+   the next action cannot do. Hover promotes it to the accent, like every other
+   actionable edge in the app. */
+.arch-node-shell .arch-node-stub {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease-out,
+    color 120ms ease-out,
+    background 120ms ease-out;
+}
+
+/* The lead line from the handle out to the stub, so the button reads as
+   belonging to that side of this node rather than floating beside it. */
+.arch-node-stub::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  /* Reaches back to the node's edge, where the handle sits, so the button reads
+     as belonging to that side of this node rather than floating beside it. */
+  width: 22px;
+  border-top: 1px dashed var(--color-line-strong);
+}
+
+.arch-node-shell .arch-node-stub-out {
+  right: -46px;
+  transform: translateY(-50%);
+}
+
+.arch-node-stub-out::before {
+  right: 100%;
+}
+
+.arch-node-shell .arch-node-stub-in {
+  left: -46px;
+  transform: translateY(-50%);
+}
+
+.arch-node-stub-in::before {
+  left: 100%;
+}
+
+.arch-node-stub:hover,
+.arch-node-stub:focus-visible {
+  border-style: solid;
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
+  background: var(--color-accent-tint);
+}
+
+.arch-node-stub:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-node-shell .arch-node-stub {
+    transition: none;
+  }
+}
+
+/* --- wire actions --------------------------------------------------------- */
+
+/* The two things you do to a connection, on the connection. Hidden until the
+   wire is hovered — a pill on every edge of a forty-node graph would be more
+   chrome than graph. */
+.arch-edge-actions {
+  position: absolute;
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.arch-edge-actions-open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-edge-actions {
+    transition: none;
+  }
+}
+
+.arch-edge-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.arch-edge-action:hover {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
+.arch-edge-action:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+.arch-edge-action-danger:hover {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+/* --- settings dialog ------------------------------------------------------ */
+
+.arch-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: oklch(var(--shadow-ink) / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.arch-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(720px, 88vh);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+.arch-modal:focus {
+  outline: none;
+}
+
+.arch-modal-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px 14px 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.arch-modal-heading h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.arch-modal-heading p {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-ink-subtle);
+}
+
+.arch-modal-head .icon-button {
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+}
+
+.arch-modal-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+/* The inspector is the dialog's body, so it sheds the rail's border and radius
+   and fills the panel it is now inside of. */
+.arch-modal .arch-inspector {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* A branch edge is a curve, so a fan-out reads as two paths rather than one.

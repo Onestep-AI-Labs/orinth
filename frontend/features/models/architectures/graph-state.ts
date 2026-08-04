@@ -14,6 +14,14 @@ export type ArchNodeData = {
   label: string;
   shape: (number | null)[] | null;
   issues: ArchitectureIssue[];
+  /**
+   * Whether anything is wired to each side, so a free handle can offer a stub
+   * `+`. Derived from the edge list at render time and folded in beside `shape`
+   * and `issues` — optional because, like those, it is never stored on the node
+   * and never travels to the server.
+   */
+  hasIncoming?: boolean;
+  hasOutgoing?: boolean;
 };
 
 export type ArchFlowNode = Node<ArchNodeData, "arch">;

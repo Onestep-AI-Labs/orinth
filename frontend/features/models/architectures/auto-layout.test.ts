@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Edge } from "@xyflow/react";
-import { autoLayout } from "./auto-layout";
+import { autoLayout, freeSpot, NODE_HEIGHT, NODE_WIDTH } from "./auto-layout";
 import { blockRepeat, type ArchFlowNode, type ArchNodeData } from "./graph-state";
 import type { NodeSpec } from "@/types/api";
 
@@ -35,7 +35,7 @@ function edge(source: string, target: string): Edge {
   return { id: `e_${source}_${target}`, source, target };
 }
 
-const COLUMN = 240;
+const COLUMN = 300;
 const ROW = 120;
 
 function column(nodes: ArchFlowNode[], id: string): number {
@@ -161,5 +161,43 @@ describe("blockRepeat", () => {
     }).data;
 
     expect(blockRepeat(data)).toBe(3);
+  });
+});
+
+describe("freeSpot", () => {
+  const at = (x: number, y: number) => ({ position: { x, y } });
+
+  it("returns the requested spot when nothing is there", () => {
+    expect(freeSpot({ x: 400, y: 200 }, [at(1200, 200)])).toEqual({ x: 400, y: 200 });
+  });
+
+  it("drops below a node sitting on the spot, keeping the column", () => {
+    const spot = freeSpot({ x: 400, y: 200 }, [at(400, 200)]);
+    expect(spot.x).toBe(400);
+    expect(spot.y).toBeGreaterThan(200 + NODE_HEIGHT);
+  });
+
+  it("keeps walking past a stack of occupied rows", () => {
+    const column = [at(400, 200), at(400, 320), at(400, 440)];
+    const spot = freeSpot({ x: 400, y: 200 }, column);
+    for (const node of column) {
+      const overlaps =
+        Math.abs(node.position.x - spot.x) < NODE_WIDTH &&
+        Math.abs(node.position.y - spot.y) < NODE_HEIGHT;
+      expect(overlaps).toBe(false);
+    }
+  });
+
+  it("ignores nodes in other columns", () => {
+    // A node one full column away shares no pixels, so the spot stands.
+    expect(freeSpot({ x: 400, y: 200 }, [at(700, 200)])).toEqual({ x: 400, y: 200 });
+  });
+
+  it("gives up rather than looping forever on a pathological graph", () => {
+    // A column packed at every step the walk takes: it must still terminate.
+    const packed = Array.from({ length: 200 }, (_, index) =>
+      at(400, 200 + index * ROW)
+    );
+    expect(() => freeSpot({ x: 400, y: 200 }, packed)).not.toThrow();
   });
 });
