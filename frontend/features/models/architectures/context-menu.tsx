@@ -53,7 +53,18 @@ export function CanvasContextMenu({
 
   useEffect(() => {
     if (!state) return;
-    const dismiss = () => onClose();
+    /**
+     * Dismiss on a press *outside* the menu.
+     *
+     * The `contains` check is the whole reason the commands run at all. This
+     * listener is on `pointerdown` in the capture phase, so a press on a menu
+     * row used to unmount the menu before the browser got as far as dispatching
+     * `click` — the row's `onSelect` never fired, and every entry looked inert.
+     */
+    const dismiss = (event: Event) => {
+      if (ref.current?.contains(event.target as Node)) return;
+      onClose();
+    };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };

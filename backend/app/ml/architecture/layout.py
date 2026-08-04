@@ -28,7 +28,11 @@ import math
 
 from app.schemas import ArchitectureGraph, ArchitectureNode
 
-COLUMN_PITCH = 240.0
+# Mirrors `frontend/features/models/architectures/auto-layout.ts`. The column
+# pitch is the visible wire length as much as the spacing — a 176px node at a
+# 240px pitch left 64px of edge, which read as nodes touching. Change both or
+# Tidy moves every node on a freshly opened template.
+COLUMN_PITCH = 300.0
 ROW_PITCH = 120.0
 ORIGIN_X = 80.0
 ORIGIN_Y = 80.0

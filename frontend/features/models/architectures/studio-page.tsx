@@ -6,9 +6,11 @@ import {
   Background,
   BackgroundVariant,
   ConnectionLineType,
+  ControlButton,
   Controls,
   MiniMap,
   Panel,
+  PanOnScrollMode,
   ReactFlow,
   ReactFlowProvider,
   addEdge,
@@ -35,22 +37,23 @@ import {
   Download,
   Frame,
   Group,
-  Hand,
+  Maximize,
   Maximize2,
   Minimize2,
-  MousePointer2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
   Play,
+  Plus,
   Redo2,
   Save,
   Scissors,
+  SlidersHorizontal,
   SquareDashedMousePointer,
   Trash2,
   Undo2,
-  Wand2
+  Unlink,
+  Wand2,
+  X,
+  ZoomIn,
+  ZoomOut
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -67,13 +70,26 @@ import { toast } from "@/features/platform/toast";
 import type { ArchitectureIssue, NodeSpec } from "@/types/api";
 import type { StoredGroup } from "./graph-state";
 import type { Framework } from "@/lib/api/architectures";
-import { autoLayout } from "./auto-layout";
+import {
+  autoLayout,
+  freeSpot,
+  COLUMN_PITCH,
+  NODE_HEIGHT,
+  NODE_WIDTH
+} from "./auto-layout";
 import { useResizable } from "./use-resizable";
 import { useHistory, type GraphSnapshot } from "./use-history";
 import { instantiate, parsePayload, selectionPayload, serializePayload } from "./clipboard";
 import { applyGroupChanges, isGroupEdit, resizePhase } from "./group-changes";
 import { CanvasContextMenu, type ContextMenuItem, type ContextMenuState } from "./context-menu";
-import { CanvasNode } from "./canvas-node";
+import { CanvasNode, NODE_EXTEND_EVENT } from "./canvas-node";
+import {
+  ActionEdge,
+  EDGE_DELETE_EVENT,
+  EDGE_HOVER_EVENT,
+  EDGE_INSERT_EVENT
+} from "./action-edge";
+import { SettingsModal } from "./settings-modal";
 import { GroupFrame, TITLE_DEFAULTS } from "./group-frame";
 import { GroupInspector } from "./group-inspector";
 import { CodePanel } from "./code-panel";
@@ -92,11 +108,18 @@ import {
 } from "./graph-state";
 
 const nodeTypes = { arch: CanvasNode, group: GroupFrame };
+const edgeTypes = { action: ActionEdge };
 const VALIDATE_DEBOUNCE_MS = 350;
+/**
+ * How long the edge hover pill survives after the pointer leaves the wire.
+ *
+ * The pill sits on the line it belongs to, so moving onto a button fires
+ * `mouseleave` on the path a frame before `pointerenter` on the button. Without
+ * the grace period the affordance blinks out from under the pointer.
+ */
+const EDGE_HOVER_GRACE_MS = 90;
 /** Breathing room between a framed selection's nodes and the frame's edge. */
 const GROUP_PADDING = 28;
-const NODE_WIDTH = 176;
-const NODE_HEIGHT = 78;
 /** Widened hit area on an edge, so selecting a wire does not need pixel aim. */
 const EDGE_INTERACTION_WIDTH = 18;
 
@@ -135,6 +158,40 @@ function isTextEntry(target: EventTarget | null): boolean {
   return /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable;
 }
 
+/**
+ * Whether a keystroke landed on something Space already means something to.
+ *
+ * Space holds the pan tool, which needs `preventDefault` to stop the page
+ * scrolling — but Space is also how a focused button is pressed, so swallowing
+ * it everywhere would break every toolbar control by keyboard.
+ */
+function isSpaceConsumer(target: EventTarget | null): boolean {
+  if (isTextEntry(target)) return true;
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest("button, a, [role='menuitem'], [role='separator']"));
+}
+
+/**
+ * What the layer panel will do with the next node picked out of it.
+ *
+ * The panel is one component serving three entry points — the canvas **+**, a
+ * right-click on empty space, and the **+** on a wire — and each drops the node
+ * somewhere different. Carrying that in the open/closed state keeps the palette
+ * itself ignorant of all three.
+ */
+type PaletteIntent =
+  | { kind: "canvas" }
+  | { kind: "at"; position: { x: number; y: number } }
+  | { kind: "edge"; edgeId: string }
+  | { kind: "extend"; nodeId: string; side: "in" | "out" };
+
+const PALETTE_TITLES: Record<PaletteIntent["kind"], string> = {
+  canvas: "Add a node",
+  at: "Add a node here",
+  edge: "Insert on this connection",
+  extend: "Extend the chain"
+};
+
 export function ArchitectureStudioPage({ architectureId }: { architectureId: string }) {
   return (
     <ReactFlowProvider>
@@ -147,7 +204,7 @@ function Studio({ architectureId }: { architectureId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { projectId } = useProject();
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow();
 
   const [nodes, setNodes] = useState<ArchFlowNode[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -159,22 +216,30 @@ function Studio({ architectureId }: { architectureId: string }) {
   const [numClasses, setNumClasses] = useState(2);
   const [tab, setTab] = useState<"issues" | "code">("issues");
   const [loaded, setLoaded] = useState(false);
-  // Canvas real estate is the scarce resource in a node editor, so every
-  // surrounding panel can get out of the way independently.
+  // Canvas real estate is the scarce resource in a node editor. Nothing that is
+  // not the canvas holds a column: the layer panel is an overlay opened on
+  // demand, settings are a dialog opened on the thing being edited.
   const [fullscreen, setFullscreen] = useState(false);
-  const [showPalette, setShowPalette] = useState(true);
-  const [showInspector, setShowInspector] = useState(true);
   const [showDrawer, setShowDrawer] = useState(true);
-  // Select drags a marquee; Move pans the canvas. A node editor that only
-  // does one of them forces a modifier key for the other.
-  const [tool, setTool] = useState<"select" | "move">("select");
+  /** Non-null while the layer panel is open; carries where the pick lands. */
+  const [paletteIntent, setPaletteIntent] = useState<PaletteIntent | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /**
+   * Space is held: drag pans instead of marquee-selecting.
+   *
+   * Dragging on empty canvas selects, unconditionally — that is the gesture the
+   * pointer is for. Panning is the trackpad's job (two fingers) or the middle
+   * mouse button's, and Space is the escape hatch for a one-button mouse.
+   */
+  const [spacePan, setSpacePan] = useState(false);
+  /** Which wire is under the pointer, so it can show its own edit buttons. */
+  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   const [groups, setGroups] = useState<StoredGroup[]>([]);
   const [framework, setFramework] = useState<Framework>("keras");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
-  // Every pane edge is draggable and remembers where it was left. The canvas
-  // is the work surface, so the rails start narrow and the drawer short.
-  const palettePane = useResizable("palette", 208, { min: 160, max: 420 });
-  const inspectorPane = useResizable("inspector", 288, { min: 240, max: 560, invert: true });
+  // The two remaining pane edges are draggable and remember where they were
+  // left: the overlay panel's width and the bottom drawer's height.
+  const palettePane = useResizable("palette", 264, { min: 200, max: 460 });
   const drawerPane = useResizable("drawer", 168, { min: 132, max: 560, axis: "vertical", invert: true });
 
   const architectureQuery = useQuery({
@@ -200,6 +265,8 @@ function Studio({ architectureId }: { architectureId: string }) {
   // The history stack reads and writes whole graphs, so it needs the committed
   // state from inside event handlers that also set it. An effect-synced ref is
   // the only version of that which is safe under concurrent rendering.
+  const canvasRef = useRef<HTMLDivElement>(null);
+
   const stateRef = useRef<GraphSnapshot>({ nodes: [], edges: [], groups: [] });
   useEffect(() => {
     stateRef.current = { nodes, edges, groups };
@@ -343,6 +410,9 @@ function Studio({ architectureId }: { architectureId: string }) {
    * as one path too, which is the opposite of the truth — the residual in a
    * ResNet block and the router in an MoE layer are exactly where the picture
    * has to show two things happening. Bezier separates them visually.
+   *
+   * Every wire is the same `action` edge type; the curve/step choice and the
+   * hover state ride in its `data` so one component draws both.
    */
   const routedEdges = useMemo(() => {
     const outDegree = new Map<string, number>();
@@ -356,13 +426,25 @@ function Studio({ architectureId }: { architectureId: string }) {
         (outDegree.get(edge.source) ?? 0) > 1 || (inDegree.get(edge.target) ?? 0) > 1;
       return {
         ...edge,
-        type: branching ? "default" : "smoothstep",
+        type: "action",
         className: branching ? "arch-edge-branch" : undefined,
         // A 1.5px wire is a 1.5px click target without this.
         interactionWidth: EDGE_INTERACTION_WIDTH,
-        animated: false
+        animated: false,
+        data: { branching, hovered: edge.id === hoveredEdge }
       };
     });
+  }, [edges, hoveredEdge]);
+
+  /** Which nodes have something wired to each side, for the stub `+` buttons. */
+  const wired = useMemo(() => {
+    const incoming = new Set<string>();
+    const outgoing = new Set<string>();
+    for (const edge of edges) {
+      incoming.add(edge.target);
+      outgoing.add(edge.source);
+    }
+    return { incoming, outgoing };
   }, [edges]);
 
   const decoratedNodes = useMemo(
@@ -372,10 +454,12 @@ function Studio({ architectureId }: { architectureId: string }) {
         data: {
           ...node.data,
           shape: validation.shapes[node.id] ?? null,
-          issues: nodeIssues.get(node.id) ?? []
+          issues: nodeIssues.get(node.id) ?? [],
+          hasIncoming: wired.incoming.has(node.id),
+          hasOutgoing: wired.outgoing.has(node.id)
         }
       })),
-    [nodes, validation.shapes, nodeIssues]
+    [nodes, validation.shapes, nodeIssues, wired]
   );
 
   // One array identity per change, rather than a fresh one on every render.
@@ -565,25 +649,50 @@ function Studio({ architectureId }: { architectureId: string }) {
   const onConnect = useCallback(
     (connection: Connection) => {
       commit();
+      // No `type` here: `routedEdges` assigns it, and a stale one stored on the
+      // edge would only be overwritten a render later.
       setEdges((current) =>
-        addEdge(
-          { ...connection, id: edgeId(connection.source, connection.target), type: "smoothstep" },
-          current
-        )
+        addEdge({ ...connection, id: edgeId(connection.source, connection.target) }, current)
       );
     },
     [commit]
   );
+
+  /**
+   * The middle of what is currently on screen, in flow coordinates.
+   *
+   * A node added from the palette used to land at a fixed flow position near
+   * the origin. Pan two screens right to work on the tail of a graph, add a
+   * layer, and it appeared off-view behind you — the add looked like it had
+   * failed. The left edge is inset past the layer panel while that is open, so
+   * "centre" means the centre of the part you can actually see.
+   */
+  const viewportCenter = useCallback(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 320, y: 120 };
+    const left = rect.left + (paletteIntent ? palettePane.size : 0);
+    return screenToFlowPosition({
+      x: (left + rect.right) / 2,
+      y: (rect.top + rect.bottom) / 2
+    });
+  }, [screenToFlowPosition, paletteIntent, palettePane.size]);
 
   const addNode = useCallback(
     (spec: NodeSpec, position?: { x: number; y: number }) => {
       // The id and position are derived before the updater runs: a state
       // updater must stay pure, and React invokes it twice under StrictMode.
       const id = nextNodeId(spec.type, nodes.map((node) => node.id));
+      // A dropped node goes exactly where it was dropped. One added from the
+      // panel gets the middle of the view, biased a little below centre so it
+      // clears the floating toolbar, then walked down until it is not on top
+      // of something.
+      const centre = viewportCenter();
       const spot =
         position ??
-        // Stagger click-added nodes so they do not stack on one point.
-        { x: 320 + (nodes.length % 5) * 40, y: 120 + (nodes.length % 7) * 60 };
+        freeSpot(
+          { x: centre.x - NODE_WIDTH / 2, y: centre.y - NODE_HEIGHT / 2 + 48 },
+          nodes
+        );
       commit();
       setNodes((current) => [
         ...current.map((node) => ({ ...node, selected: false })),
@@ -604,12 +713,219 @@ function Studio({ architectureId }: { architectureId: string }) {
       setSelectedId(id);
       setSelectedGroupIds([]);
     },
+    [nodes, commit, viewportCenter]
+  );
+
+  /**
+   * Drop a node into the middle of an existing connection.
+   *
+   * `a → b` becomes `a → new → b` in one action. Doing it by hand is delete the
+   * wire, add the node, draw two wires — three operations for the single most
+   * common edit there is on a graph that is mostly a chain.
+   *
+   * The graph is re-laid-out afterwards. A node dropped at the midpoint of a
+   * wire lands *on* both its neighbours — the gap between two columns is not a
+   * node wide — so leaving it there means every insert is followed by dragging
+   * the rest of the chain out of the way by hand.
+   */
+  const insertOnEdge = useCallback(
+    (spec: NodeSpec, targetEdgeId: string) => {
+      const edge = edges.find((item) => item.id === targetEdgeId);
+      if (!edge) return;
+      const id = nextNodeId(
+        spec.type,
+        nodes.map((node) => node.id)
+      );
+      const nextEdges = [
+        ...edges.filter((item) => item.id !== targetEdgeId),
+        { id: edgeId(edge.source, id), source: edge.source, target: id },
+        { id: edgeId(id, edge.target), source: id, target: edge.target }
+      ];
+      const nextNodes: ArchFlowNode[] = [
+        ...nodes.map((node) => ({ ...node, selected: false })),
+        {
+          id,
+          type: "arch" as const,
+          // Overwritten by the layout below; a real position first so the node
+          // never renders at the origin for a frame.
+          position: { x: 0, y: 0 },
+          selected: true,
+          data: {
+            spec,
+            params: defaultParams(spec),
+            label: spec.name,
+            shape: null,
+            issues: []
+          }
+        }
+      ];
+      commit();
+      setNodes(autoLayout(nextNodes, nextEdges));
+      setEdges(nextEdges);
+      setSelectedId(id);
+      setSelectedGroupIds([]);
+      setHoveredEdge(null);
+    },
+    [nodes, edges, commit]
+  );
+
+  /**
+   * Add a node onto a free handle, wired to the one it came from.
+   *
+   * The stub `+` beside an unconnected handle is the answer to "what now" on a
+   * node the graph dead-ends at, so it has to produce a *connected* node — an
+   * unwired box placed nearby would just move the same dead end one column over.
+   */
+  const extendFrom = useCallback(
+    (spec: NodeSpec, nodeId: string, side: "in" | "out") => {
+      const anchor = nodes.find((node) => node.id === nodeId);
+      if (!anchor) return;
+      const id = nextNodeId(
+        spec.type,
+        nodes.map((node) => node.id)
+      );
+      // One column along, on the anchor's row: the chain reads left to right,
+      // so an extension belongs where Tidy would have put it anyway — unless
+      // that column is already taken, in which case it drops to clear space.
+      const position = freeSpot(
+        {
+          x: anchor.position.x + (side === "out" ? COLUMN_PITCH : -COLUMN_PITCH),
+          y: anchor.position.y
+        },
+        nodes
+      );
+      commit();
+      setNodes((current) => [
+        ...current.map((node) => ({ ...node, selected: false })),
+        {
+          id,
+          type: "arch" as const,
+          position,
+          selected: true,
+          data: {
+            spec,
+            params: defaultParams(spec),
+            label: spec.name,
+            shape: null,
+            issues: []
+          }
+        }
+      ]);
+      setEdges((current) => [
+        ...current,
+        side === "out"
+          ? { id: edgeId(nodeId, id), source: nodeId, target: id }
+          : { id: edgeId(id, nodeId), source: id, target: nodeId }
+      ]);
+      setSelectedId(id);
+      setSelectedGroupIds([]);
+    },
     [nodes, commit]
   );
+
+  /**
+   * A node picked out of the layer panel, routed by why the panel is open.
+   *
+   * Whichever route it took, the pick ends the same way: the panel closes and
+   * the new node's settings open. Picking a layer is one half of adding it —
+   * a `Conv2D` with catalog defaults is rarely the `Conv2D` you wanted — and
+   * leaving the panel open over the node you just made meant closing it by hand
+   * before you could see what you had done.
+   *
+   * Dragging from the panel is deliberately exempt (see the canvas `onDrop`):
+   * that gesture is about placing something exactly, and interrupting it with a
+   * dialog would fight the run of drops it usually belongs to.
+   */
+  const handlePaletteAdd = useCallback(
+    (spec: NodeSpec) => {
+      if (!paletteIntent || paletteIntent.kind === "canvas") addNode(spec);
+      else if (paletteIntent.kind === "at") addNode(spec, paletteIntent.position);
+      else if (paletteIntent.kind === "edge") insertOnEdge(spec, paletteIntent.edgeId);
+      else extendFrom(spec, paletteIntent.nodeId, paletteIntent.side);
+      setPaletteIntent(null);
+      setSettingsOpen(true);
+    },
+    [paletteIntent, addNode, insertOnEdge, extendFrom]
+  );
+
+  // --- wire hover affordance ------------------------------------------------
+
+  const hoverTimerRef = useRef<number | undefined>(undefined);
+  const setEdgeHover = useCallback((id: string | null) => {
+    window.clearTimeout(hoverTimerRef.current);
+    if (id) setHoveredEdge(id);
+    else hoverTimerRef.current = window.setTimeout(() => setHoveredEdge(null), EDGE_HOVER_GRACE_MS);
+  }, []);
+  useEffect(() => () => window.clearTimeout(hoverTimerRef.current), []);
+
+  // The buttons render inside React Flow's edge-label portal and cannot reach
+  // this state directly, so they come back as events — the same contract the
+  // group frame's title already uses.
+  useEffect(() => {
+    const onInsert = (event: Event) => {
+      const { id } = (event as CustomEvent).detail as { id: string };
+      setEdgeHover(null);
+      setPaletteIntent({ kind: "edge", edgeId: id });
+    };
+    const onDelete = (event: Event) => {
+      const { id } = (event as CustomEvent).detail as { id: string };
+      commit();
+      setEdges((current) => current.filter((edge) => edge.id !== id));
+      setHoveredEdge(null);
+    };
+    const onHover = (event: Event) => {
+      const { id } = (event as CustomEvent).detail as { id: string | null };
+      setEdgeHover(id);
+    };
+    // A node's own stub +, which reaches this state the same way for the same
+    // reason: it renders inside React Flow's node tree.
+    const onExtend = (event: Event) => {
+      const { id, side } = (event as CustomEvent).detail as { id: string; side: "in" | "out" };
+      setPaletteIntent({ kind: "extend", nodeId: id, side });
+    };
+    window.addEventListener(EDGE_INSERT_EVENT, onInsert);
+    window.addEventListener(EDGE_DELETE_EVENT, onDelete);
+    window.addEventListener(EDGE_HOVER_EVENT, onHover);
+    window.addEventListener(NODE_EXTEND_EVENT, onExtend);
+    return () => {
+      window.removeEventListener(EDGE_INSERT_EVENT, onInsert);
+      window.removeEventListener(EDGE_DELETE_EVENT, onDelete);
+      window.removeEventListener(EDGE_HOVER_EVENT, onHover);
+      window.removeEventListener(NODE_EXTEND_EVENT, onExtend);
+    };
+  }, [commit, setEdgeHover]);
+
+  // Hold Space to pan. Released on blur as well as keyup, so alt-tabbing away
+  // mid-pan does not leave the canvas stuck in the pan tool.
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || event.repeat || isSpaceConsumer(event.target)) return;
+      event.preventDefault();
+      setSpacePan(true);
+    };
+    const up = (event: KeyboardEvent) => {
+      if (event.code === "Space") setSpacePan(false);
+    };
+    const release = () => setSpacePan(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", release);
+    };
+  }, []);
 
   const selected = decoratedNodes.find((node) => node.id === selectedId) ?? null;
   const selectedGroup =
     groups.find((group) => group.id === selectedGroupIds.at(-1)) ?? null;
+
+  // The dialog edits the selection, so deleting or deselecting that closes it
+  // rather than leaving an empty panel over the canvas.
+  useEffect(() => {
+    if (settingsOpen && !selected && !selectedGroup) setSettingsOpen(false);
+  }, [settingsOpen, selected, selectedGroup]);
 
   const updateSelected = useCallback(
     (mutate: (node: ArchFlowNode) => ArchFlowNode) => {
@@ -628,6 +944,21 @@ function Studio({ architectureId }: { architectureId: string }) {
 
   const selectAll = useCallback(() => {
     setNodes((current) => current.map((node) => ({ ...node, selected: true })));
+    setSelectedGroupIds([]);
+  }, []);
+
+  const deselectAll = useCallback(() => {
+    setNodes((current) =>
+      current.some((node) => node.selected)
+        ? current.map((node) => ({ ...node, selected: false }))
+        : current
+    );
+    setEdges((current) =>
+      current.some((edge) => edge.selected)
+        ? current.map((edge) => ({ ...edge, selected: false }))
+        : current
+    );
+    setSelectedId("");
     setSelectedGroupIds([]);
   }, []);
 
@@ -685,6 +1016,23 @@ function Studio({ architectureId }: { architectureId: string }) {
     if (!copySelection()) return;
     deleteSelection();
   }, [copySelection, deleteSelection]);
+
+  /**
+   * Drop every wire attached to the selected nodes, keeping the nodes.
+   *
+   * The alternative is picking each connector off one at a time, and a node in
+   * the middle of a chain has at least two.
+   */
+  const disconnectSelection = useCallback(() => {
+    const chosen = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
+    if (selectedId) chosen.add(selectedId);
+    if (chosen.size === 0) return;
+    if (!edges.some((edge) => chosen.has(edge.source) || chosen.has(edge.target))) return;
+    commit();
+    setEdges((current) =>
+      current.filter((edge) => !chosen.has(edge.source) && !chosen.has(edge.target))
+    );
+  }, [nodes, edges, selectedId, commit]);
 
   /**
    * Paste `raw` — or whatever was last copied in-app — at `at`, or offset from
@@ -787,21 +1135,33 @@ function Studio({ architectureId }: { architectureId: string }) {
         return;
       }
       if (event.key === "Escape") {
-        setMenu(null);
-        if (fullscreen) setFullscreen(false);
+        // One layer per press, outermost first: the dialog, then the layer
+        // panel, then the menu, then fullscreen.
+        if (menu) setMenu(null);
+        else if (settingsOpen) setSettingsOpen(false);
+        else if (paletteIntent) setPaletteIntent(null);
+        else if (fullscreen) setFullscreen(false);
+        return;
       }
       if (meta || event.altKey) return;
-      // Single-key tool shortcuts, but never while typing into a field —
-      // renaming a node to "Vision" should not switch tools five times.
+      // Single-key shortcuts, but never while typing into a field — renaming a
+      // node to "Gate" should not tidy the layout on the way through.
       if (isTextEntry(event.target)) return;
       if (key === "delete" || key === "backspace") {
         // Group frames are not React Flow's to delete, so the whole selection
         // is handled here rather than by `deleteKeyCode`.
         event.preventDefault();
         deleteSelection();
-      } else if (key === "v") setTool("select");
-      else if (key === "h") setTool("move");
-      else if (key === "g") addGroup();
+      } else if (key === "n") setPaletteIntent((current) => (current ? null : { kind: "canvas" }));
+      else if (
+        key === "enter" &&
+        // Enter on a focused control activates that control; it only means
+        // "open settings" when the keystroke belongs to nobody else.
+        !isSpaceConsumer(event.target) &&
+        (selectedId || selectedGroupIds.length > 0)
+      ) {
+        setSettingsOpen(true);
+      } else if (key === "g") addGroup();
       else if (key === "t") tidy();
       else if (key === "f") fitView({ duration: 200, padding: 0.15 });
     };
@@ -815,6 +1175,11 @@ function Studio({ architectureId }: { architectureId: string }) {
     duplicateSelection,
     deleteSelection,
     fullscreen,
+    menu,
+    settingsOpen,
+    paletteIntent,
+    selectedId,
+    selectedGroupIds,
     addGroup,
     tidy,
     fitView
@@ -838,6 +1203,16 @@ function Studio({ architectureId }: { architectureId: string }) {
         x: event.clientX,
         y: event.clientY,
         items: [
+          // Right-click adds a node where you right-clicked. That is the reason
+          // most people open this menu, so it is the first row rather than the
+          // one under six clipboard commands.
+          {
+            label: "Add node",
+            shortcut: "N",
+            icon: <Plus size={14} />,
+            onSelect: () => setPaletteIntent({ kind: "at", position: at })
+          },
+          { kind: "separator" },
           ...extra,
           {
             label: "Cut",
@@ -867,6 +1242,12 @@ function Studio({ architectureId }: { architectureId: string }) {
             disabled: !hasSelection,
             onSelect: duplicateSelection
           },
+          {
+            label: "Disconnect",
+            icon: <Unlink size={14} />,
+            disabled: !hasSelection,
+            onSelect: disconnectSelection
+          },
           { kind: "separator" },
           {
             label: "Select all",
@@ -875,10 +1256,31 @@ function Studio({ architectureId }: { architectureId: string }) {
             onSelect: selectAll
           },
           {
+            label: "Deselect all",
+            icon: <SquareDashedMousePointer size={14} />,
+            disabled: !hasSelection && selectedEdgeCount === 0,
+            onSelect: deselectAll
+          },
+          {
             label: hasSelection ? "Frame as group" : "Add group frame",
             shortcut: "G",
             icon: <Group size={14} />,
             onSelect: addGroup
+          },
+          { kind: "separator" },
+          {
+            label: "Tidy layout",
+            shortcut: "T",
+            icon: <Wand2 size={14} />,
+            disabled: nodes.length === 0,
+            onSelect: tidy
+          },
+          {
+            label: "Fit to view",
+            shortcut: "F",
+            icon: <Frame size={14} />,
+            disabled: nodes.length === 0,
+            onSelect: () => fitView({ duration: 200, padding: 0.15 })
           },
           { kind: "separator" },
           {
@@ -916,8 +1318,13 @@ function Studio({ architectureId }: { architectureId: string }) {
       copySelection,
       paste,
       duplicateSelection,
+      disconnectSelection,
       selectAll,
+      deselectAll,
       addGroup,
+      nodes.length,
+      tidy,
+      fitView,
       canUndo,
       undo,
       canRedo,
@@ -1006,19 +1413,18 @@ function Studio({ architectureId }: { architectureId: string }) {
           </div>
           <div className="arch-view-controls" role="group" aria-label="Canvas layout">
             <IconButton
-              aria-label={showPalette ? "Hide the layer palette" : "Show the layer palette"}
-              onClick={() => setShowPalette((value) => !value)}
+              aria-label="Open settings for the selection"
+              title="Settings for the selected node or frame (↵) — or double-click it"
+              disabled={!selected && !selectedGroup}
+              onClick={() => setSettingsOpen(true)}
             >
-              {showPalette ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-            </IconButton>
-            <IconButton
-              aria-label={showInspector ? "Hide node settings" : "Show node settings"}
-              onClick={() => setShowInspector((value) => !value)}
-            >
-              {showInspector ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+              <SlidersHorizontal size={18} />
             </IconButton>
             <IconButton
               aria-label={fullscreen ? "Exit fullscreen" : "Expand the canvas to fullscreen"}
+              title={
+                fullscreen ? "Exit fullscreen (Esc)" : "Expand the canvas to fullscreen"
+              }
               onClick={() => setFullscreen((value) => !value)}
             >
               {fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
@@ -1075,41 +1481,10 @@ function Studio({ architectureId }: { architectureId: string }) {
 
       <MutationError mutations={[saveMutation]} />
 
-      <div
-        className={[
-          "arch-studio-grid",
-          showPalette ? "" : "arch-no-palette",
-          showInspector ? "" : "arch-no-inspector"
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        style={{
-          gridTemplateColumns: [
-            showPalette ? `${palettePane.size}px` : null,
-            "minmax(0, 1fr)",
-            showInspector ? `${inspectorPane.size}px` : null
-          ]
-            .filter(Boolean)
-            .join(" 6px ")
-        }}
-      >
-        {showPalette && (
-          <NodePalette
-            specs={catalogQuery.data ?? []}
-            categories={categoriesQuery.data ?? []}
-            onAdd={(spec) => addNode(spec)}
-          />
-        )}
-        {showPalette && (
-          <div
-            className={`arch-resize arch-resize-x${palettePane.dragging ? " arch-resize-active" : ""}`}
-            aria-label="Resize the layer palette"
-            {...palettePane.handleProps}
-          />
-        )}
-
+      <div className="arch-studio-grid">
         <div
-          className={`arch-canvas arch-canvas-${tool}`}
+          ref={canvasRef}
+          className={`arch-canvas${spacePan ? " arch-canvas-pan" : ""}`}
           onPointerMove={(event) => {
             pointerRef.current = screenToFlowPosition({ x: event.clientX, y: event.clientY });
           }}
@@ -1132,13 +1507,38 @@ function Studio({ architectureId }: { architectureId: string }) {
             nodes={flowNodes as never}
             edges={routedEdges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeDragStart={() => commit()}
+            onEdgeMouseEnter={(_, edge) => setEdgeHover(edge.id)}
+            onEdgeMouseLeave={() => setEdgeHover(null)}
             onPaneClick={() => {
               setSelectedId("");
               setSelectedGroupIds([]);
+              // Clicking the canvas is how you say "not that" to anything the
+              // studio is showing, the layer panel included — reaching for its
+              // close button to dismiss something you already dismissed is a
+              // second gesture for one decision.
+              setPaletteIntent(null);
+            }}
+            onNodeClick={() => setPaletteIntent(null)}
+            // Double-click opens the thing you double-clicked. That gesture is
+            // free only because pane double-click no longer zooms.
+            onNodeDoubleClick={(_, node) => {
+              const { id, type } = node as { id: string; type?: string };
+              if (type === "group") {
+                setSelectedGroupIds([id]);
+                setSelectedId("");
+              } else {
+                setNodes((current) =>
+                  current.map((item) => ({ ...item, selected: item.id === id }))
+                );
+                setSelectedId(id);
+                setSelectedGroupIds([]);
+              }
+              setSettingsOpen(true);
             }}
             onPaneContextMenu={(event) => openMenu(event as unknown as React.MouseEvent)}
             onNodeContextMenu={(event, node) => {
@@ -1164,7 +1564,15 @@ function Studio({ architectureId }: { architectureId: string }) {
                 setSelectedId(id);
                 setSelectedGroupIds([]);
               }
-              openMenu(event);
+              openMenu(event, [
+                {
+                  label: "Settings…",
+                  shortcut: "↵",
+                  icon: <SlidersHorizontal size={14} />,
+                  onSelect: () => setSettingsOpen(true)
+                },
+                { kind: "separator" }
+              ]);
             }}
             onEdgeContextMenu={(event, edge) => {
               // Right-clicking a wire acts on that wire, so it becomes the
@@ -1180,6 +1588,11 @@ function Studio({ architectureId }: { architectureId: string }) {
               setSelectedId("");
               setSelectedGroupIds([]);
               openMenu(event, [
+                {
+                  label: "Insert node here",
+                  icon: <Plus size={14} />,
+                  onSelect: () => setPaletteIntent({ kind: "edge", edgeId: edge.id })
+                },
                 {
                   label: "Delete connection",
                   icon: <Trash2 size={14} />,
@@ -1197,53 +1610,68 @@ function Studio({ architectureId }: { architectureId: string }) {
             // Delete is handled by the studio's own key handler so it can take
             // group frames — which React Flow does not own — with the selection.
             deleteKeyCode={null}
-            // Drag on empty canvas draws a selection box; the inspector still
-            // edits one node, but delete and drag act on the whole selection.
-            selectionOnDrag={tool === "select"}
-            panOnDrag={tool === "move" ? true : [1, 2]}
+            // Drag on empty canvas draws a selection box — always, with no tool
+            // to switch first. Panning is the trackpad's two fingers, the middle
+            // mouse button, or Space; none of them cost a mode.
+            selectionOnDrag={!spacePan}
+            panOnDrag={spacePan ? true : [1]}
             selectionMode={SelectionMode.Partial}
             multiSelectionKeyCode={["Meta", "Shift", "Control"]}
+            // Trackpad semantics, matching every other graph canvas: two-finger
+            // scroll pans in both axes, pinch zooms. Wheel-zoom is off, so a
+            // sideways flick no longer changes scale mid-gesture; ⌘/Ctrl+scroll
+            // is still there for a mouse.
+            panOnScroll
+            panOnScrollMode={PanOnScrollMode.Free}
+            zoomOnScroll={false}
+            zoomOnPinch
+            // Double-click belongs to "open this node's settings" now.
+            zoomOnDoubleClick={false}
             // Curved edges: a straight line through a branch reads as one path
             // rather than two, which is exactly where a graph needs clarity.
-            defaultEdgeOptions={{ type: "smoothstep", interactionWidth: EDGE_INTERACTION_WIDTH }}
+            defaultEdgeOptions={{ type: "action", interactionWidth: EDGE_INTERACTION_WIDTH }}
             connectionLineType={ConnectionLineType.SmoothStep}
           >
-            {/* Tools live on the canvas, not in the page header: they act on
+            {/* Actions live on the canvas, not in the page header: they act on
                 what is under the pointer, and a round trip to the top of the
-                screen to switch between selecting and panning is the single
-                most repeated motion in a node editor. */}
-            <Panel position="top-left" className="arch-canvas-tools">
-              <div className="arch-tool-group" role="group" aria-label="Canvas tool">
+                screen is the wrong cost for the most repeated motions in a node
+                editor. The select/move pair that used to sit here is gone — the
+                pointer always selects, so there was no mode left to show. */}
+            <Panel
+              position="top-left"
+              className="arch-canvas-tools"
+              // Both floating clusters step aside for the layer panel rather
+              // than sitting under it — the + that opens the panel is also the
+              // one that closes it.
+              style={paletteIntent ? { marginLeft: palettePane.size + 10 } : undefined}
+            >
+              {/* Canvas controls carry `data-tip` rather than `title`: a native
+                  tooltip waits about a second and then paints an OS chrome box
+                  over the graph, which is the wrong latency and the wrong
+                  surface for a control you hit dozens of times a session. */}
+              <div className="arch-tool-group" role="group" aria-label="Add">
                 <button
                   type="button"
-                  aria-label="Select — drag to marquee-select"
-                  title="Select (V) — drag to marquee-select"
-                  aria-pressed={tool === "select"}
-                  className={tool === "select" ? "arch-tool arch-tool-active" : "arch-tool"}
-                  onClick={() => setTool("select")}
+                  aria-label="Add a node"
+                  data-tip="Add node (N)"
+                  aria-pressed={paletteIntent !== null}
+                  className={`arch-tool arch-tip${paletteIntent ? " arch-tool-active" : ""}`}
+                  onClick={() =>
+                    setPaletteIntent((current) => (current ? null : { kind: "canvas" }))
+                  }
                 >
-                  <MousePointer2 size={17} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Move — drag to pan the canvas"
-                  title="Move (H) — drag to pan the canvas"
-                  aria-pressed={tool === "move"}
-                  className={tool === "move" ? "arch-tool arch-tool-active" : "arch-tool"}
-                  onClick={() => setTool("move")}
-                >
-                  <Hand size={17} aria-hidden />
+                  <Plus size={17} aria-hidden />
                 </button>
               </div>
               <div className="arch-tool-group" role="group" aria-label="Canvas actions">
                 <button
                   type="button"
-                  className="arch-tool"
+                  className="arch-tool arch-tip"
                   aria-label="Frame the selection as a group"
-                  title={
+                  data-tip={
                     framedCount > 0
-                      ? `Frame ${framedCount} selected node${framedCount === 1 ? "" : "s"} as a group (G)`
-                      : "Add a group frame (G)"
+                      ? `Frame ${framedCount} node${framedCount === 1 ? "" : "s"} (G)`
+                      : "Add group frame (G)"
                   }
                   onClick={addGroup}
                 >
@@ -1251,67 +1679,96 @@ function Studio({ architectureId }: { architectureId: string }) {
                 </button>
                 <button
                   type="button"
-                  className="arch-tool"
+                  className="arch-tool arch-tip"
                   aria-label="Tidy the layout"
-                  title="Tidy — lay the graph out left to right (T)"
+                  data-tip="Tidy layout (T)"
                   onClick={tidy}
                 >
                   <Wand2 size={17} aria-hidden />
                 </button>
-                <button
-                  type="button"
-                  className="arch-tool"
-                  aria-label="Fit the graph to the view"
-                  title="Fit to view (F)"
-                  onClick={() => fitView({ duration: 200, padding: 0.15 })}
-                >
-                  <Frame size={17} aria-hidden />
-                </button>
               </div>
             </Panel>
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-            <Controls showInteractive={false} position="bottom-left" />
+            {/* React Flow's stock zoom buttons are a bare + and −, which on a
+                canvas whose other + adds a node is the wrong glyph entirely.
+                These say magnifier. */}
+            <Controls
+              showZoom={false}
+              showFitView={false}
+              showInteractive={false}
+              position="bottom-left"
+              style={paletteIntent ? { marginLeft: palettePane.size + 15 } : undefined}
+            >
+              <ControlButton
+                className="arch-tip arch-tip-right"
+                aria-label="Zoom in"
+                data-tip="Zoom in"
+                onClick={() => zoomIn({ duration: 120 })}
+              >
+                {/* The lens-with-a-sign glyph, sized so the sign inside it is
+                    actually legible: base.css's 12px cap rendered it a couple
+                    of pixels wide and both buttons read as a plain circle. */}
+                <ZoomIn size={22} strokeWidth={2.4} aria-hidden />
+              </ControlButton>
+              <ControlButton
+                className="arch-tip arch-tip-right"
+                aria-label="Zoom out"
+                data-tip="Zoom out"
+                onClick={() => zoomOut({ duration: 120 })}
+              >
+                <ZoomOut size={22} strokeWidth={2.4} aria-hidden />
+              </ControlButton>
+              {/* Fit lives here, with the other view controls, and no longer
+                  also in the top-left toolbar — one action, one button. */}
+              <ControlButton
+                className="arch-tip arch-tip-right"
+                aria-label="Fit the graph to the view"
+                data-tip="Fit to view (F)"
+                onClick={() => fitView({ duration: 200, padding: 0.15 })}
+              >
+                <Maximize size={20} strokeWidth={2.4} aria-hidden />
+              </ControlButton>
+            </Controls>
             <MiniMap pannable zoomable nodeColor={minimapColor} />
           </ReactFlow>
-        </div>
 
-        {showInspector && (
-          <div
-            className={`arch-resize arch-resize-x${inspectorPane.dragging ? " arch-resize-active" : ""}`}
-            aria-label="Resize the node settings panel"
-            {...inspectorPane.handleProps}
-          />
-        )}
-        {showInspector &&
-          (selectedGroup ? (
-            <GroupInspector
-              group={selectedGroup}
-              onChange={(patch) => patchGroup(selectedGroup.id, patch)}
-              onDelete={() => {
-                commit();
-                setGroups((current) =>
-                  current.filter((group) => group.id !== selectedGroup.id)
-                );
-                setSelectedGroupIds([]);
-              }}
-            />
-          ) : (
-            <NodeInspector
-              node={selected}
-              issues={selected ? (nodeIssues.get(selected.id) ?? []) : []}
-              onRename={(label) =>
-                updateSelected((node) => ({ ...node, data: { ...node.data, label } }))
-              }
-              onParamChange={(key, value) =>
-                updateSelected((node) => ({
-                  ...node,
-                  data: { ...node.data, params: { ...node.data.params, [key]: value } }
-                }))
-              }
-              onDuplicate={duplicateSelection}
-              onDelete={deleteSelection}
-            />
-          ))}
+          {/* The layer panel overlays the canvas rather than holding a column
+              of it. It is closed by default, because for most of a session the
+              answer to "what do I need on screen" is the graph. */}
+          {paletteIntent && (
+            <div
+              className="arch-palette-drawer"
+              style={{ width: `${palettePane.size}px` }}
+              role="dialog"
+              aria-label={PALETTE_TITLES[paletteIntent.kind]}
+            >
+              <div className="arch-palette-drawer-head">
+                <p className="arch-palette-drawer-title">
+                  {PALETTE_TITLES[paletteIntent.kind]}
+                </p>
+                <IconButton
+                  aria-label="Close the layer panel"
+                  title="Close the layer panel (Esc)"
+                  onClick={() => setPaletteIntent(null)}
+                >
+                  <X size={18} />
+                </IconButton>
+              </div>
+              <NodePalette
+                specs={catalogQuery.data ?? []}
+                categories={categoriesQuery.data ?? []}
+                onAdd={handlePaletteAdd}
+              />
+              <div
+                className={`arch-resize arch-resize-x arch-palette-drawer-resize${
+                  palettePane.dragging ? " arch-resize-active" : ""
+                }`}
+                aria-label="Resize the layer panel"
+                {...palettePane.handleProps}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {showDrawer && (
@@ -1353,6 +1810,7 @@ function Studio({ architectureId }: { architectureId: string }) {
           </div>
           <IconButton
             aria-label={showDrawer ? "Collapse this panel" : "Expand this panel"}
+            title={showDrawer ? "Collapse this panel" : "Expand this panel"}
             onClick={() => setShowDrawer((value) => !value)}
           >
             <ChevronDown
@@ -1413,6 +1871,51 @@ function Studio({ architectureId }: { architectureId: string }) {
           />
         )}
       </section>
+
+      {settingsOpen && selectedGroup && (
+        <SettingsModal
+          title={selectedGroup.title || "Untitled group"}
+          subtitle="Group frame"
+          onClose={() => setSettingsOpen(false)}
+        >
+          <GroupInspector
+            group={selectedGroup}
+            onChange={(patch) => patchGroup(selectedGroup.id, patch)}
+            onDelete={() => {
+              commit();
+              setGroups((current) => current.filter((group) => group.id !== selectedGroup.id));
+              setSelectedGroupIds([]);
+              setSettingsOpen(false);
+            }}
+          />
+        </SettingsModal>
+      )}
+      {settingsOpen && !selectedGroup && selected && (
+        <SettingsModal
+          title={selected.data.label || selected.data.spec.name}
+          subtitle={`${selected.data.spec.name} · ${selected.id}`}
+          onClose={() => setSettingsOpen(false)}
+        >
+          <NodeInspector
+            node={selected}
+            issues={nodeIssues.get(selected.id) ?? []}
+            onRename={(label) =>
+              updateSelected((node) => ({ ...node, data: { ...node.data, label } }))
+            }
+            onParamChange={(key, value) =>
+              updateSelected((node) => ({
+                ...node,
+                data: { ...node.data, params: { ...node.data.params, [key]: value } }
+              }))
+            }
+            onDuplicate={duplicateSelection}
+            onDelete={() => {
+              deleteSelection();
+              setSettingsOpen(false);
+            }}
+          />
+        </SettingsModal>
+      )}
 
       <CanvasContextMenu state={menu} onClose={() => setMenu(null)} />
     </div>
