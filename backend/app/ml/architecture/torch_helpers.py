@@ -728,6 +728,112 @@ VIT_HELPER = '''class ViTEncoder(nn.Module):
         return x'''
 
 
+# --- NLP ---------------------------------------------------------------------
+
+SINUSOIDAL_HELPER = '''class SinusoidalPositionEncoding(nn.Module):
+    """The 2017 transformer's fixed position signal (Vaswani et al., section 3.5).
+
+    Even features carry a sine of the position, odd ones a cosine of the same
+    angle. No parameters, so it extrapolates past any length seen in training.
+    """
+
+    def __init__(self, base: float = 10000.0) -> None:
+        super().__init__()
+        self.base = base
+
+    def forward(self, x):
+        length, width = x.shape[1], x.shape[2]
+        positions = torch.arange(length, device=x.device, dtype=x.dtype)[:, None]
+        index = torch.arange(width, device=x.device, dtype=x.dtype)[None, :]
+        # Feature 2i and 2i+1 share an angle; only the function applied differs.
+        pair = torch.div(index, 2, rounding_mode="floor")
+        angles = positions / self.base ** (2.0 * pair / width)
+        return x + torch.where(index % 2 == 0, angles.sin(), angles.cos())'''
+
+
+SEQUENCE_POOL_HELPER = '''class SequencePooling(nn.Module):
+    """Collapse a token sequence to one vector: cls, mean, max, or learned attention.
+
+    Padding is pooled along with everything else. The Keras module skips it
+    using the mask an `Embedding(mask_zero=True)` propagates; torch carries no
+    such mask, so batch by length or pass a mask of your own if that matters.
+    """
+
+    def __init__(self, width: int, mode: str = "mean", hidden_dim: int = 128) -> None:
+        super().__init__()
+        self.mode = mode
+        self.score = (
+            nn.Sequential(
+                nn.Linear(width, hidden_dim),
+                nn.Tanh(),
+                nn.Linear(hidden_dim, 1, bias=False),
+            )
+            if mode == "attention"
+            else None
+        )
+
+    def forward(self, x):
+        if self.mode == "cls":
+            return x[:, 0]
+        if self.mode == "max":
+            return x.max(dim=1).values
+        if self.score is not None:
+            return (x * self.score(x).softmax(dim=1)).sum(dim=1)
+        return x.mean(dim=1)'''
+
+
+TEXT_CNN_HELPER = '''class TextCNN(nn.Module):
+    """Kim's sentence classifier: parallel n-gram convolutions, max-pooled over time.
+
+    torch convolves over the last axis, so the sequence is transposed to
+    (batch, width, length) on the way in and the pooled result comes back as a
+    plain (batch, features) vector.
+    """
+
+    def __init__(self, width, filters, kernel_sizes, activation=None, dropout=0.0):
+        super().__init__()
+        self.convolutions = nn.ModuleList(
+            nn.Conv1d(width, filters, kernel, padding=kernel // 2) for kernel in kernel_sizes
+        )
+        self.activation = activation or nn.Identity()
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        h = x.transpose(1, 2)
+        pooled = [
+            self.activation(convolve(h)).max(dim=-1).values for convolve in self.convolutions
+        ]
+        return self.dropout(torch.cat(pooled, dim=-1))'''
+
+
+BI_RNN_ENCODER_HELPER = '''class BiRnnEncoder(nn.Module):
+    """Stacked bidirectional recurrent layers, forward and backward concatenated."""
+
+    def __init__(self, width, units, layers=1, cell="lstm", dropout=0.0, return_sequences=True):
+        super().__init__()
+        module = nn.LSTM if cell == "lstm" else nn.GRU
+        self.rnn = module(
+            width,
+            units,
+            num_layers=layers,
+            batch_first=True,
+            bidirectional=True,
+            # torch only applies dropout between layers, so a single-layer
+            # encoder would otherwise warn about a value it silently ignores.
+            dropout=dropout if layers > 1 else 0.0,
+        )
+        self.return_sequences = return_sequences
+
+    def forward(self, x):
+        output, state = self.rnn(x)
+        if self.return_sequences:
+            return output
+        # Keras concatenates the forward pass's last step with the backward
+        # pass's, which is the *first* step in input order — not output[:, -1].
+        hidden = state[0] if isinstance(state, tuple) else state
+        return torch.cat([hidden[-2], hidden[-1]], dim=-1)'''
+
+
 # --- augmentation ------------------------------------------------------------
 
 # Keras applies augmentation as layers and switches them off by the `training`

@@ -35,11 +35,18 @@ from app.ml.architecture.blocks import (
     llm_block_structures,
 )
 from app.ml.architecture.emit_keras import EmitError, _identifier, _lit
-from app.ml.architecture.graph import OUTPUT_TYPE, ResolvedGraph, ResolvedNode, parse_shape
+from app.ml.architecture.graph import (
+    OUTPUT_TYPE,
+    ResolvedGraph,
+    ResolvedNode,
+    parse_int_list,
+    parse_shape,
+)
 from app.ml.architecture.shapes import Shape
 from app.ml.architecture.torch_helpers import (
     ATTENTION_MASK_HELPER,
     AUGMENT_AFFINE_HELPER,
+    BI_RNN_ENCODER_HELPER,
     CONVNEXT_HELPER,
     DENSE_BLOCK_HELPER,
     FAMILY_ATTENTION_HELPER,
@@ -54,8 +61,11 @@ from app.ml.architecture.torch_helpers import (
     RANDOM_ROTATION_HELPER,
     RANDOM_ZOOM_HELPER,
     RESNET_HELPER,
+    SEQUENCE_POOL_HELPER,
+    SINUSOIDAL_HELPER,
     SPARSE_MOE_HELPER,
     SQUEEZE_EXCITE_HELPER,
+    TEXT_CNN_HELPER,
     VIT_HELPER,
     llm_block_source,
 )
@@ -270,6 +280,10 @@ RESERVED_CLASS_NAMES = frozenset(
         "InceptionModule",
         "ConvNeXtStage",
         "ViTEncoder",
+        "SinusoidalPositionEncoding",
+        "SequencePooling",
+        "TextCNN",
+        "BiRnnEncoder",
     }
 )
 
@@ -629,6 +643,90 @@ def _latent_attention(ctx: TorchContext) -> tuple[str, str]:
     return construction, f"self.{ctx.name}({ctx.first})"
 
 
+# --- NLP ---------------------------------------------------------------------
+
+# Keras names an activation; torch's functional form is an expression, so a
+# helper that applies one has to be handed a module instead.
+ACTIVATION_MODULES = {
+    "relu": "nn.ReLU()",
+    "gelu": "nn.GELU()",
+    "swish": "nn.SiLU()",
+    "tanh": "nn.Tanh()",
+    "sigmoid": "nn.Sigmoid()",
+    "softmax": "nn.Softmax(dim=-1)",
+    "elu": "nn.ELU()",
+    "selu": "nn.SELU()",
+    "linear": "nn.Identity()",
+}
+
+
+def _sinusoidal(ctx: TorchContext) -> tuple[str, str]:
+    construction = f"SinusoidalPositionEncoding(base={_lit(float(ctx.params['base']))})"
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _cross_attention(ctx: TorchContext) -> tuple[str, str]:
+    """Query first, context second — the wire order the node's help states."""
+
+    if len(ctx.inputs) < 2:
+        raise EmitError(
+            f"Node {ctx.node.id!r}: cross-attention needs a query and a context, in that order."
+        )
+    query_width = ctx.width(0)
+    context_width = ctx.width(1)
+    construction = (
+        f"nn.MultiheadAttention({query_width}, {int(ctx.params['num_heads'])}, "
+        f"dropout={_lit(float(ctx.params['dropout']))}, "
+        f"kdim={context_width}, vdim={context_width}, batch_first=True)"
+    )
+    call = (
+        f"self.{ctx.name}({ctx.inputs[0]}, {ctx.inputs[1]}, {ctx.inputs[1]}, "
+        f"need_weights=False)[0]"
+    )
+    return construction, call
+
+
+def _sequence_pool(ctx: TorchContext) -> tuple[str, str]:
+    construction = (
+        f"SequencePooling({ctx.width()}, mode={_lit(str(ctx.params['mode']))}, "
+        f"hidden_dim={int(ctx.params['hidden_dim'])})"
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _span_head(ctx: TorchContext) -> tuple[str, str]:
+    return f"nn.Linear({ctx.width()}, 2)", f"self.{ctx.name}({ctx.first})"
+
+
+def _text_cnn(ctx: TorchContext) -> tuple[str, str]:
+    sizes = parse_int_list(ctx.params.get("kernel_sizes"))
+    if not sizes:
+        raise EmitError(
+            f"Node {ctx.node.id!r}: kernel widths must be a comma-separated list of "
+            "positive integers, such as “3,4,5”."
+        )
+    activation = ACTIVATION_MODULES.get(str(ctx.params["activation"]), "nn.Identity()")
+    construction = (
+        f"TextCNN({ctx.width()}, {int(ctx.params['filters'])}, {tuple(sizes)!r}, "
+        f"activation={activation}, dropout={_lit(float(ctx.params['dropout']))})"
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
+def _bilstm_encoder(ctx: TorchContext) -> tuple[str, str]:
+    construction = _construct(
+        "BiRnnEncoder",
+        [ctx.width(), int(ctx.params["units"])],
+        {
+            "layers": int(ctx.params["layers"]),
+            "cell": str(ctx.params["cell"]),
+            "dropout": float(ctx.params["dropout"]),
+            "return_sequences": bool(ctx.params["return_sequences"]),
+        },
+    )
+    return construction, f"self.{ctx.name}({ctx.first})"
+
+
 # --- vision blocks ----------------------------------------------------------
 
 
@@ -837,6 +935,12 @@ TORCH_EMITTERS: dict[str, Emitter] = {
     "moe_feed_forward": _moe,
     "transformer_block": _transformer_block,
     "lm_head": _lm_head,
+    "sinusoidal_position_encoding": _sinusoidal,
+    "cross_attention": _cross_attention,
+    "sequence_pool": _sequence_pool,
+    "span_head": _span_head,
+    "text_cnn_block": _text_cnn,
+    "bilstm_encoder": _bilstm_encoder,
     "custom_function": _custom_function,
 }
 
@@ -1106,6 +1210,10 @@ TORCH_HELPER_SOURCE: dict[str, str] = {
     "inception": INCEPTION_HELPER,
     "convnext": CONVNEXT_HELPER,
     "vit": VIT_HELPER,
+    "sinusoidal": SINUSOIDAL_HELPER,
+    "sequence_pool": SEQUENCE_POOL_HELPER,
+    "text_cnn": TEXT_CNN_HELPER,
+    "bi_rnn_encoder": BI_RNN_ENCODER_HELPER,
 }
 # Emission order, so a helper never references one defined below it.
 TORCH_HELPER_ORDER = [
@@ -1139,6 +1247,10 @@ TORCH_HELPER_ORDER = [
     "inception",
     "convnext",
     "vit",
+    "sinusoidal",
+    "sequence_pool",
+    "text_cnn",
+    "bi_rnn_encoder",
 ]
 
 # Family blocks are absent here: their helpers depend on how they are
@@ -1167,4 +1279,8 @@ TORCH_HELPER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "inception_block": ("inception",),
     "convnext_block": ("layer_scale", "convnext"),
     "vit_block": ("vit",),
+    "sinusoidal_position_encoding": ("sinusoidal",),
+    "sequence_pool": ("sequence_pool",),
+    "text_cnn_block": ("text_cnn",),
+    "bilstm_encoder": ("bi_rnn_encoder",),
 }

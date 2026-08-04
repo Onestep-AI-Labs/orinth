@@ -947,3 +947,159 @@ VIT_HELPER = '''def vit_encoder(x, *, layers, num_heads, head_dim, mlp_dim, drop
         h = tf.keras.layers.Dense(int(x.shape[-1]), name=f"{prefix}_mlp_down")(h)
         x = tf.keras.layers.Add(name=f"{prefix}_mlp_add")([residual, h])
     return x'''
+
+
+SINUSOIDAL_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class SinusoidalPositionEncoding(tf.keras.layers.Layer):
+    """The 2017 transformer's fixed position signal (Vaswani et al., section 3.5).
+
+    Even features carry a sine of the position, odd ones a cosine of the same
+    angle, at wavelengths that grow geometrically across the feature axis. It
+    holds no weights, so it extrapolates past any length seen in training —
+    which a learned Positional embedding cannot do.
+    """
+
+    def __init__(self, base=10000.0, **kwargs):
+        super().__init__(**kwargs)
+        self.base = base
+        # A per-feature add changes nothing about which positions are padding,
+        # so the mask an Embedding(mask_zero=True) produces passes straight on.
+        self.supports_masking = True
+
+    def call(self, inputs):
+        length = tf.shape(inputs)[1]
+        width = tf.shape(inputs)[-1]
+        dtype = inputs.dtype
+        positions = tf.cast(tf.range(length)[:, None], dtype)
+        # Feature 2i and 2i+1 share an angle; only the function applied differs.
+        index = tf.cast(tf.range(width)[None, :] // 2, dtype)
+        angles = positions / tf.pow(
+            tf.cast(self.base, dtype), 2.0 * index / tf.cast(width, dtype)
+        )
+        even = tf.cast(tf.range(width)[None, :] % 2 == 0, dtype)
+        signal = even * tf.sin(angles) + (1.0 - even) * tf.cos(angles)
+        return inputs + signal[None, :, :]
+
+    def get_config(self):
+        return {**super().get_config(), "base": self.base}'''
+
+
+SEQUENCE_POOL_HELPER = '''@tf.keras.utils.register_keras_serializable(package="onestep")
+class SequencePooling(tf.keras.layers.Layer):
+    """Collapse a token sequence to one vector.
+
+    `cls` reads position 0, which is what BERT classifies from; `mean` and
+    `max` reduce every position; `attention` scores each token with a small
+    tanh layer and takes the weighted average, which beats mean pooling when
+    only part of a long input is relevant.
+
+    Padding is honoured wherever it can be: given a mask from an
+    `Embedding(mask_zero=True)`, the reductions skip padded positions instead
+    of averaging in a few hundred zeros and diluting a short document.
+    """
+
+    def __init__(self, mode="mean", hidden_dim=128, **kwargs):
+        super().__init__(**kwargs)
+        self.mode = mode
+        self.hidden_dim = hidden_dim
+        self.supports_masking = True
+
+    def build(self, input_shape):
+        if self.mode == "attention":
+            self.score = tf.keras.Sequential(
+                [
+                    tf.keras.layers.Dense(self.hidden_dim, activation="tanh", name="hidden"),
+                    tf.keras.layers.Dense(1, use_bias=False, name="score"),
+                ],
+                name="attention_score",
+            )
+            # Both Denses act per position, so a mask survives them untouched —
+            # and this layer applies it to the scores itself just below.
+            self.score.supports_masking = True
+            # Built explicitly: this layer declares `compute_output_shape`, so
+            # Keras never traces `call` and would otherwise leave it unbuilt.
+            self.score.build(input_shape)
+        super().build(input_shape)
+
+    def call(self, inputs, mask=None):
+        if self.mode == "cls":
+            return inputs[:, 0]
+        keep = None if mask is None else tf.cast(mask, inputs.dtype)[:, :, None]
+        if self.mode == "max":
+            if keep is not None:
+                inputs = tf.where(keep > 0, inputs, inputs.dtype.min)
+            return tf.reduce_max(inputs, axis=1)
+        if self.mode == "attention":
+            scores = self.score(inputs)
+            if keep is not None:
+                scores += (1.0 - keep) * -1e9
+            return tf.reduce_sum(inputs * tf.nn.softmax(scores, axis=1), axis=1)
+        if keep is None:
+            return tf.reduce_mean(inputs, axis=1)
+        # An all-padding row would divide by zero; one is the harmless divisor.
+        return tf.reduce_sum(inputs * keep, axis=1) / tf.maximum(
+            tf.reduce_sum(keep, axis=1), 1.0
+        )
+
+    def compute_mask(self, inputs, mask=None):
+        # The sequence axis is gone, so there is nothing left to mask.
+        return None
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], input_shape[-1])
+
+    def get_config(self):
+        return {**super().get_config(), "mode": self.mode, "hidden_dim": self.hidden_dim}'''
+
+
+TEXT_CNN_HELPER = '''def text_cnn(x, *, filters, kernel_sizes, activation="relu", dropout=0.0, name="text_cnn"):
+    """Kim's sentence classifier: parallel n-gram convolutions, max-pooled over time.
+
+    Each branch reads one n-gram width and keeps only the strongest response
+    per feature map, so the block is insensitive to where in the sequence a
+    phrase appears — the property that makes it work on padded batches.
+    """
+
+    branches = []
+    for kernel in kernel_sizes:
+        branch = tf.keras.layers.Conv1D(
+            filters,
+            kernel,
+            padding="same",
+            activation=activation,
+            name=f"{name}_conv_{kernel}",
+        )(x)
+        branches.append(
+            tf.keras.layers.GlobalMaxPooling1D(name=f"{name}_pool_{kernel}")(branch)
+        )
+    pooled = (
+        branches[0]
+        if len(branches) == 1
+        else tf.keras.layers.Concatenate(name=f"{name}_concat")(branches)
+    )
+    if dropout:
+        pooled = tf.keras.layers.Dropout(dropout, name=f"{name}_drop")(pooled)
+    return pooled'''
+
+
+BI_RNN_ENCODER_HELPER = '''def bi_rnn_encoder(x, *, cell="lstm", units=128, layers=1, dropout=0.0,
+                   return_sequences=True, name="encoder"):
+    """Stacked bidirectional recurrent layers, forward and backward concatenated.
+
+    Every layer but the last returns its sequence whatever the caller asked
+    for — a recurrent layer needs a sequence to read — so `return_sequences`
+    only decides what the block as a whole emits.
+    """
+
+    layer_type = tf.keras.layers.LSTM if cell == "lstm" else tf.keras.layers.GRU
+    for index in range(layers):
+        last = index == layers - 1
+        x = tf.keras.layers.Bidirectional(
+            layer_type(
+                units,
+                return_sequences=return_sequences or not last,
+                dropout=dropout,
+            ),
+            name=f"{name}_{index + 1}",
+        )(x)
+    return x'''

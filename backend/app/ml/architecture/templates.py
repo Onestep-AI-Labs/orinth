@@ -329,6 +329,45 @@ def _text_cnn() -> ArchitectureGraph:
     )
 
 
+def _kim_text_cnn() -> ArchitectureGraph:
+    """The published sentence classifier: three n-gram widths read in parallel."""
+
+    return _graph(
+        [
+            node("input", "input", shape="200"),
+            node("embed", "embedding", input_dim=20000, output_dim=128),
+            node("cnn", "text_cnn_block", filters=128, kernel_sizes="3,4,5", activation="relu", dropout=0.5),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("output", "output"),
+        ],
+        chain("input", "embed", "cnn", "head", "output"),
+        {"epochs": 12, "batch_size": 32, "learning_rate": 0.001, "optimizer": "adam"},
+    )
+
+
+def _bilstm_attention_text() -> ArchitectureGraph:
+    """A recurrent encoder that keeps its sequence, pooled by learned attention.
+
+    The contrast with `bilstm_text` is the point: that one throws the sequence
+    away at the last layer, this one weighs every token and lets the pooling
+    decide which mattered.
+    """
+
+    return _graph(
+        [
+            node("input", "input", shape="200"),
+            node("embed", "embedding", input_dim=20000, output_dim=128, mask_zero=True),
+            node("encoder", "bilstm_encoder", cell="lstm", units=128, layers=2, dropout=0.2, return_sequences=True),
+            node("pool", "sequence_pool", mode="attention", hidden_dim=128),
+            node("drop", "dropout", rate=0.3),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("output", "output"),
+        ],
+        chain("input", "embed", "encoder", "pool", "drop", "head", "output"),
+        {"epochs": 12, "batch_size": 32, "learning_rate": 0.001, "optimizer": "adam"},
+    )
+
+
 def _resnet18() -> ArchitectureGraph:
     """The four-stage ResNet-18: 7×7 stem, then 64/128/256/512 at halving resolution."""
 
@@ -751,6 +790,20 @@ _TEMPLATES: list[tuple[str, str, str, TaskType, ArchitectureGraph]] = [
         "1D convolutions over word embeddings. Faster than a recurrent model and often just as accurate.",
         "text_classification",
         _text_cnn(),
+    ),
+    (
+        "kim_text_cnn",
+        "Text CNN (Kim)",
+        "Kernel widths 3, 4 and 5 over the embeddings at once, each max-pooled over time. The published version of the template above, in one block.",
+        "text_classification",
+        _kim_text_cnn(),
+    ),
+    (
+        "bilstm_attention_text",
+        "BiLSTM + attention pooling",
+        "A two-layer bidirectional encoder that keeps its sequence, pooled by a learned attention score instead of taking the last step.",
+        "text_classification",
+        _bilstm_attention_text(),
     ),
     (
         "transformer_text_classifier",

@@ -15,6 +15,7 @@ import pytest
 
 from app.ml.architecture.blocks import (
     LLM_FAMILIES,
+    NLP_BLOCKS,
     VISION_BLOCKS,
     llm_block_params,
 )
@@ -121,7 +122,7 @@ VISION_TYPES = sorted(SMALL_VISION_OVERRIDES)
 
 
 def test_every_declared_family_has_a_catalog_entry_marked_as_a_block():
-    for family in [*LLM_FAMILIES, *VISION_BLOCKS]:
+    for family in [*LLM_FAMILIES, *VISION_BLOCKS, *NLP_BLOCKS]:
         spec = NODE_SPECS[family.type]
         assert spec.kind == "block"
         # A block's numbers are only meaningful if you can check where they
@@ -421,6 +422,108 @@ def test_the_new_primitives_build_in_both_frameworks():
         assert estimate == keras_count == torch_count, label
 
 
+def nlp_graph(*middle, length: int = 32, width: int = 64) -> ArchitectureGraph:
+    """Embedding → the nodes under test → a 4-class head."""
+
+    ids = [f"n{index}" for index, _ in enumerate(middle)]
+    return ArchitectureGraph(
+        nodes=[
+            node("input", "input", shape=str(length)),
+            node("embed", "embedding", input_dim=200, output_dim=width),
+            *(
+                node(node_id, node_type, **params)
+                for node_id, (node_type, params) in zip(ids, middle, strict=True)
+            ),
+            node("head", "dense", units_from_dataset=True, activation="softmax"),
+            node("output", "output"),
+        ],
+        edges=chain("input", "embed", *ids, "head", "output"),
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("label", "graph"),
+    [
+        (
+            "sinusoidal",
+            nlp_graph(
+                ("sinusoidal_position_encoding", {"base": 10000.0}),
+                ("sequence_pool", {"mode": "mean"}),
+            ),
+        ),
+        (
+            "attention_pool",
+            nlp_graph(("sequence_pool", {"mode": "attention", "hidden_dim": 32})),
+        ),
+        (
+            "text_cnn",
+            nlp_graph(("text_cnn_block", {"filters": 16, "kernel_sizes": "3,4,5", "dropout": 0.1})),
+        ),
+        (
+            # GRU rather than LSTM: Keras carries one bias vector per gate set
+            # and torch carries two, and only torch's GRU (`reset_after=True`'s
+            # counterpart) matches Keras's count exactly. The LSTM difference is
+            # asserted directly below.
+            "bigru_encoder",
+            nlp_graph(
+                ("bilstm_encoder", {"cell": "gru", "units": 24, "layers": 2,
+                                    "return_sequences": False}),
+            ),
+        ),
+        (
+            "cross_attention",
+            ArchitectureGraph(
+                nodes=[
+                    node("input", "input", shape="32"),
+                    node("query", "embedding", input_dim=200, output_dim=64),
+                    node("context", "embedding", input_dim=200, output_dim=64),
+                    # heads × key dim equals the query width, which is the one
+                    # configuration where Keras's four projections and torch's
+                    # packed in-projection hold the same number of weights.
+                    node("attend", "cross_attention", num_heads=4, key_dim=16),
+                    node("span", "span_head"),
+                    node("output", "output"),
+                ],
+                edges=[
+                    edge("input", "query"),
+                    edge("input", "context"),
+                    edge("query", "attend"),
+                    edge("context", "attend"),
+                    *chain("attend", "span", "output"),
+                ],
+            ),
+        ),
+    ],
+)
+def test_nlp_nodes_build_identically_in_both_frameworks(label, graph):
+    estimate, keras_count, torch_count = build_both(graph, label)
+
+    assert estimate == keras_count == torch_count, label
+
+
+@pytest.mark.slow
+def test_a_recurrent_encoder_differs_from_torch_only_by_torch_s_second_bias():
+    """The one place the two frameworks genuinely disagree, stated rather than hidden.
+
+    `nn.LSTM` carries `bias_ih` *and* `bias_hh`; Keras folds both into one
+    vector. The estimate follows Keras, which is what the platform trains, so
+    the torch export is larger by 4 × units per direction per layer.
+    """
+
+    units, layers = 24, 2
+    estimate, keras_count, torch_count = build_both(
+        nlp_graph(
+            ("bilstm_encoder", {"cell": "lstm", "units": units, "layers": layers,
+                                "return_sequences": False}),
+        ),
+        "bilstm_encoder",
+    )
+
+    assert estimate == keras_count
+    assert torch_count - keras_count == layers * 2 * 4 * units
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize(
     ("template_id", "published"),
@@ -500,6 +603,80 @@ def test_vision_blocks_survive_a_save_and_reload(block_type):
 
     sample = np.random.default_rng(0).random((1, *model.input_shape[1:])).astype("float32")
     assert np.allclose(model.predict(sample, verbose=0), reloaded.predict(sample, verbose=0))
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("label", "middle"),
+    [
+        ("sinusoidal", [("sinusoidal_position_encoding", {"base": 10000.0}),
+                        ("sequence_pool", {"mode": "mean"})]),
+        ("attention_pool", [("sequence_pool", {"mode": "attention", "hidden_dim": 16})]),
+        ("cls_pool", [("sequence_pool", {"mode": "cls"})]),
+        ("text_cnn", [("text_cnn_block", {"filters": 16, "kernel_sizes": "3,4"})]),
+        ("bilstm", [("bilstm_encoder", {"units": 16, "layers": 1,
+                                        "return_sequences": False})]),
+    ],
+)
+def test_nlp_nodes_survive_a_save_and_reload(label, middle):
+    """Same contract as the vision blocks: a trained text model has to reload.
+
+    The two custom layers here — the fixed position signal and the pooling —
+    are registered serializable rather than `Lambda`s precisely so this passes.
+    """
+
+    import numpy as np
+    import tensorflow as tf
+
+    graph = nlp_graph(*middle)
+    resolved, shapes, _estimate, issues = resolve(graph)
+    assert not errors(issues), errors(issues)
+    module = load(
+        emit_module(resolved, shapes, architecture_name=label, default_num_classes=4),
+        "generated_model.py",
+    )
+    model = module.build_model(4)
+
+    path = pathlib.Path(tempfile.mkdtemp()) / "model.keras"
+    model.save(path)
+    reloaded = tf.keras.models.load_model(path)
+
+    # Token ids, not floats: the graph starts at an Embedding.
+    sample = np.random.default_rng(0).integers(0, 200, size=(1, 32))
+    assert np.allclose(model.predict(sample, verbose=0), reloaded.predict(sample, verbose=0))
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("mode", ["mean", "max", "attention"])
+def test_sequence_pooling_ignores_padding_when_the_embedding_masks_it(mode):
+    """Padding must not dilute the pooled vector.
+
+    Without a mask, mean pooling a 4-token document padded to 32 divides by 32
+    and scales every feature down by 8. The masked model has to give the same
+    answer as the same document with no padding at all.
+    """
+
+    import numpy as np
+
+    graph = nlp_graph(("sequence_pool", {"mode": mode, "hidden_dim": 16}), length=32)
+    graph.nodes[1] = node("embed", "embedding", input_dim=200, output_dim=64, mask_zero=True)
+    resolved, shapes, _estimate, issues = resolve(graph)
+    assert not errors(issues), errors(issues)
+    module = load(
+        emit_module(resolved, shapes, architecture_name="pooling", default_num_classes=4),
+        "generated_model.py",
+    )
+    model = module.build_model(4)
+
+    tokens = [7, 11, 3, 5]
+    padded = np.array([tokens + [0] * 28])
+    # The same four tokens with the padding replaced by more of themselves:
+    # a mask-aware pooling reads only the first four either way.
+    repeated = np.array([tokens + tokens * 7])
+
+    assert np.allclose(
+        model.predict(padded, verbose=0), model.predict(repeated, verbose=0), atol=1e-5
+    )
 
 
 # --- augmentation ------------------------------------------------------------

@@ -2,10 +2,59 @@
 
 ## Status
 
-**Implemented — all five stages, plus a second emitter.** Compose a graph (69 node types, 38 starter
+**Implemented — all five stages, plus a second emitter.** Compose a graph (75 node types, 40 starter
 templates), validate it, save it, read and download the generated Python as **either TensorFlow or
 PyTorch**, and train it: image and text classifiers into the model registry, and from-scratch
 transformers on next-token prediction with sample generation.
+
+### Revision 17: an NLP palette, not just a decoder palette
+
+The text side of the catalog was a decoder stack and nothing else. Everything language-shaped in the
+palette — the family blocks, `lm_head`, `transformer_block` — assumes you are building a GPT. The
+models people actually reach for on a labelled corpus are a convolutional sentence classifier and a
+bidirectional recurrent encoder, and neither could be expressed without hand-wiring a dozen nodes.
+
+**A new `NLP` palette category with six node types.** Two are blocks, declared in `blocks.py` beside
+the vision and LLM families and carrying the same `source` contract:
+
+| Node | Kind | What it is |
+| --- | --- | --- |
+| `text_cnn_block` | block | Kim's sentence classifier: parallel Conv1D at each listed kernel width, each max-pooled over time, concatenated |
+| `bilstm_encoder` | block | Stacked bidirectional LSTM or GRU; returns the sequence or one document vector |
+| `cross_attention` | layer | Attention from a query sequence to a context one — two inputs, query first |
+| `sequence_pool` | layer | Collapses a sequence to one vector: `cls`, `mean`, `max`, or learned `attention` |
+| `sinusoidal_position_encoding` | layer | The 2017 fixed sine/cosine signal; no weights, so it extrapolates past any trained length |
+| `span_head` | layer | Start and end logits per token — the extractive QA head |
+
+Decisions worth recording:
+
+- **Only the language-specific nodes declare `task_types`.** `text_cnn_block`, `bilstm_encoder` and
+  `span_head` are offered for text tasks (the last for question answering alone); pooling,
+  cross-attention and a fixed position signal are as useful to a Vision Transformer and stay
+  universal. The category is a grouping for discovery, not a restriction.
+- **Cross-attention takes its inputs in wire order**, query then context, the same convention
+  `subtract` uses. Multi-port nodes remain reserved in the edge schema and unbuilt in the UI, and
+  adding two named ports for one node was not worth a canvas change.
+- **`sequence_pool` honours the padding mask** an `Embedding(mask_zero=True)` propagates: masked
+  positions are excluded from the mean, driven to `dtype.min` before the max, and given a `-1e9`
+  score before the attention softmax. Without that, a 4-token document padded to 200 has its pooled
+  vector scaled down by 50. The PyTorch export carries no mask — nothing in the torch path does — and
+  its helper says so rather than implying parity.
+- **The two emitters disagree by exactly one bias vector on an LSTM**, and the test states it instead
+  of hiding it: `nn.LSTM` carries `bias_ih` *and* `bias_hh` where Keras folds both into one, so a
+  torch export is larger by 4 × units per direction per layer. The estimate follows Keras, which is
+  what the platform trains. GRU matches exactly, so that is the variant asserted three ways.
+
+**Two new templates**, both `text_classification`: `kim_text_cnn` (the published three-width version
+of the older single-Conv1D `text_cnn`) and `bilstm_attention_text` (a two-layer encoder that keeps
+its sequence and pools it by learned attention rather than taking the last step).
+
+Verified the way the other blocks are: `test_architecture_families.py` builds each new node under
+real TensorFlow and real PyTorch and asserts the analytic estimate equals both parameter counts,
+reloads each from `.keras` so a trained text model stays usable, and checks that masked and unpadded
+inputs pool to the same vector. `test_architecture_nlp.py` covers the shape arithmetic, the task-type
+filtering, the generated source, and `parse_int_list` — the new sibling of `parse_shape` for the
+kernel-width param.
 
 ### Revision 16: the minimap hides when the canvas is parked
 
@@ -1200,6 +1249,7 @@ defaults were read from.
 | I/O | Input, Output |
 | Vision blocks | ResNet stage, Inverted residual (MBConv), DenseNet block, Inception module, ConvNeXt block, ViT encoder block |
 | LLM blocks | Llama, Qwen3, Mistral, Mixtral, Gemma 3, DeepSeek V3, Kimi K2, GPT-2, BERT, and the generic transformer block |
+| NLP | Text CNN (Kim), BiLSTM encoder, Cross-attention, Sequence pooling, Sinusoidal position encoding, Span head |
 | Core | Dense, Activation, Dropout, Flatten, Reshape, Permute |
 | Convolution | Conv1D, Conv2D, SeparableConv2D, DepthwiseConv2D, Conv2DTranspose, MaxPool2D, AvgPool2D, GlobalAvgPool2D, GlobalMaxPool2D, UpSampling2D, ZeroPadding2D, Squeeze-and-excite |
 | Normalization | BatchNormalization, LayerNormalization, GroupNormalization, RMSNorm |
