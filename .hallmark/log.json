@@ -1,24 +1,49 @@
 [
   {
+    "date": "2026-07-27",
+    "verb": "redesign",
+    "scope": "single-page (landing_page/ \u2014 in place, no files created or deleted)",
+    "macrostructure": "Split Studio (kept \u2014 author asked for DNA fidelity, not a new page shape)",
+    "genre": "editorial",
+    "theme": "studied-DNA (source: landing_page/new_ui/DESIGN.md === styles.refero.design/style/1f32d914-6fdd-4692-b4fc-fcee2c414766 \u2014 verified identical, same Jeton reference)",
+    "theme_axes": "light paper / grotesk-sans display (Cabinet Grotesk 500) / neutral accent",
+    "nav": "N12 banner + retract, links now centred, controls at the DNA's 84px pill radius",
+    "footer": "Ft1 mast-headed (unchanged)",
+    "enrichment": "none \u2014 real unretouched captures",
+    "brief": "Revamp toward DNA fidelity: display 84px->106px & leading 0.96->0.90 with a full-bleed headline; hairline strip + bento -> the DNA's tinted Feature Category Cards; section rhythm opened to 160px; body weight 300->400. Near-black monochrome kept. DNA's numbered Scroll Indicator still refused (gate 54). DNA internal conflict (Layout says tinted section bands, Do says white canvas) resolved in favour of the Do list."
+  },
+  {
+    "date": "2026-07-27",
+    "verb": "default",
+    "macrostructure": "Split Studio",
+    "genre": "editorial",
+    "theme": "studied-DNA (source: landing_page/new_ui/DESIGN.md \u2014 Jeton, editorial fintech on warm marble)",
+    "theme_axes": "light paper / grotesk-sans display (Cabinet Grotesk 500) / neutral accent (no chromatic hue)",
+    "nav": "N12 banner + retract (fill=tint+ink, dismiss=yes, bar=also-frosts)",
+    "footer": "Ft1 mast-headed (wordmark=xl, tagline=roman body, links=inline)",
+    "enrichment": "none \u2014 real unretouched captures from frontend/public/brand, hairline figures",
+    "brief": "Onestep AI Studio \u2014 standalone landing at landing_page/, NOT wired into the Next app. Rename Platform\u2192Studio scoped to this page only; author is Onestep AI Labs. DNA accent overridden orange\u2192near-black monochrome per author. Diversification suspended (external DNA). Deviations from DNA logged in the styles.css stamp."
+  },
+  {
     "date": "2026-07-19",
     "verb": "default",
     "macrostructure": "Narrative Workflow",
     "genre": "modern-minimal",
-    "theme": "system-managed (frontend/DESIGN.md — catalog dispatch skipped)",
+    "theme": "system-managed (frontend/DESIGN.md \u2014 catalog dispatch skipped)",
     "theme_axes": "light paper / grotesk-sans display (Inter 600) / cool accent",
     "nav": "N9 edge-aligned minimal",
     "footer": "Ft2 inline single line",
-    "enrichment": "real product captures from public/brand — no re-drawn chrome",
-    "brief": "Onestep AI Platform · public landing + sign-in at / and /signin; OSS/self-host positioning. Rules narrowed: landing composition now allowed on the two (marketing) routes only, DESIGN.md §10."
+    "enrichment": "real product captures from public/brand \u2014 no re-drawn chrome",
+    "brief": "Onestep AI Platform \u00b7 public landing + sign-in at / and /signin; OSS/self-host positioning. Rules narrowed: landing composition now allowed on the two (marketing) routes only, DESIGN.md \u00a710."
   },
   {
     "date": "2026-07-18",
     "verb": "redesign",
     "scope": "whole-app design system (system layer only)",
-    "macrostructure": "n/a — app shell, not a page composition",
+    "macrostructure": "n/a \u2014 app shell, not a page composition",
     "theme": "studied-DNA (source: Dub, archived at docs/design/dub-dna/)",
     "theme_axes": "light paper / grotesk-sans display / cool accent",
-    "enrichment": "none — operational UI",
-    "brief": "Onestep AI Platform · apply Dub system layer to dense medical-imaging dashboard; reject its marketing composition layer per docs/ai/rules.md"
+    "enrichment": "none \u2014 operational UI",
+    "brief": "Onestep AI Platform \u00b7 apply Dub system layer to dense medical-imaging dashboard; reject its marketing composition layer per docs/ai/rules.md"
   }
 ]

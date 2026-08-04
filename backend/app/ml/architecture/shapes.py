@@ -115,6 +115,22 @@ def _require_rank(shape: Shape, rank: int, name: str) -> list[int | None]:
     return shape
 
 
+def _element_count(dims: list[int | None]) -> int:
+    """How many values a fully-known shape holds.
+
+    A dynamic axis makes the count meaningless, so it degrades to unknown
+    rather than standing in a 1 and reporting a number that is off by the batch
+    or sequence length.
+    """
+
+    total = 1
+    for dim in dims:
+        if dim is None:
+            raise _Unknown()
+        total *= dim
+    return total
+
+
 class _Unknown(Exception):
     """Internal: an input shape is unknown, so the output is too."""
 
@@ -189,10 +205,7 @@ def _flatten(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -
         raise _Unknown()
     if any(dim is None for dim in shape):
         return [None]
-    total = 1
-    for dim in shape:
-        total *= int(dim)  # type: ignore[arg-type]
-    return [total]
+    return [_element_count(shape)]
 
 
 def _reshape(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -> Shape:
@@ -203,8 +216,8 @@ def _reshape(node: ResolvedNode, inputs: list[Shape], num_classes: int | None) -
     if source is not None and not any(dim is None for dim in source) and not any(
         dim is None for dim in target
     ):
-        before = math.prod(int(dim) for dim in source)  # type: ignore[arg-type]
-        after = math.prod(int(dim) for dim in target)  # type: ignore[arg-type]
+        before = _element_count(source)
+        after = _element_count(target)
         if before != after:
             raise ShapeError(
                 f"Cannot reshape {_fmt(source)} ({before} values) into "
@@ -358,7 +371,9 @@ def _concatenate(node: ResolvedNode, inputs: list[Shape], num_classes: int | Non
     for position in range(rank):
         if position == index:
             continue
-        values = {shape[position] for shape in known if shape[position] is not None}
+        values: set[int] = {
+            dim for shape in known if (dim := shape[position]) is not None
+        }
         if len(values) > 1:
             raise ShapeError(
                 f"Concatenate on axis {axis} needs every other dimension to match, but "
