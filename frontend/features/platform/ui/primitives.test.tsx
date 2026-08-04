@@ -84,6 +84,17 @@ describe("Select", () => {
     expect(select).toHaveClass("w-40");
   });
 
+  it("renders a chevron so it matches the custom task picker", () => {
+    // The native double-arrow stepper is suppressed in CSS; without this
+    // chevron a native dropdown reads as a different control from TaskSelect.
+    const { container } = render(<Select aria-label="Optimizer" />);
+    expect(container.querySelector(".select-shell")).not.toBeNull();
+    const chevron = container.querySelector(".select-chevron");
+    expect(chevron).not.toBeNull();
+    // Presentational only — the native control owns interaction.
+    expect(chevron).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("forwards native select props", () => {
     const onChange = vi.fn();
     render(
