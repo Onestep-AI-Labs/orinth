@@ -60,6 +60,7 @@ The app source lives in `backend/` and `frontend/`.
 - **Backend**: FastAPI, SQLAlchemy, SQLite
 - **Machine Learning**: PyTorch, TensorFlow/Keras, Hugging Face Transformers, Ultralytics YOLO, Scikit-Learn
 - **Frontend**: Next.js, React, Tailwind CSS, pnpm
+- **Desktop**: Tauri (Rust), packaged as a macOS `.dmg`
 
 ## Architecture
 
@@ -86,6 +87,9 @@ The frontend is a Next.js app with route entrypoints, feature modules, and a dom
 - API types: `frontend/types/api.ts`
 - Global base styles: `frontend/app/globals.css`
 - Platform styles: `frontend/app/styles/platform.css`
+
+The macOS desktop app under `desktop/` wraps both servers rather than
+reimplementing them — see [Desktop App](#desktop-app-macos).
 
 ## Quickstart
 
@@ -164,6 +168,31 @@ cd frontend && pnpm lint
 cd frontend && pnpm build
 ```
 
+## Desktop App (macOS)
+
+`desktop/` packages the platform as an installable macOS app. Drag
+**Onestep AI Platform.app** to `/Applications`, double-click, and the full app
+opens in a native window — no terminal and no `make dev`.
+
+```bash
+make desktop
+```
+
+Output: `desktop/src-tauri/target/release/bundle/dmg/Onestep AI Platform_<version>_<arch>.dmg` (~35 MB).
+
+The app is a supervisor around the same FastAPI and Next.js servers `make dev`
+runs, so there is no separate implementation to keep in sync. Because the
+`.dmg` ships source rather than runtimes, **first launch downloads and installs
+the ~2.7 GB ML environment** (10–20 minutes, needs a network connection) with
+per-step progress on screen; later launches start in seconds. Everything the
+app generates lives in `~/Library/Application Support/ai.onestep.platform/`,
+never in the repo checkout.
+
+The bundle is ad-hoc signed, so the first launch on another machine needs
+right-click → Open. Details, troubleshooting, and known limitations:
+[`desktop/README.md`](desktop/README.md); design rationale:
+[`specs/phase-18-macos-desktop-app.md`](specs/phase-18-macos-desktop-app.md).
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` in the repo root for backend settings, and
@@ -219,6 +248,12 @@ Phase 13 adds advanced training settings and device detection.
 Phase 14 adds LLM fine-tuning (LoRA, QLoRA, full, and continued pretraining).
 
 Phase 15 adds LLM serving, GGUF export, and the interactive chat surface.
+
+Phase 16 adds guided tours across the platform surfaces.
+
+Phase 17 adds the Model Architecture Studio — a visual graph editor with Keras and PyTorch emitters.
+
+Phase 18 packages the platform as a macOS desktop app (`.dmg`); see [Desktop App](#desktop-app-macos).
 
 ## AI Workflow
 

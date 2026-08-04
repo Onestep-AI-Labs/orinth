@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 
-.PHONY: backend frontend dev test lint lint-backend typecheck build check doctor
+.PHONY: backend frontend dev test lint lint-backend typecheck build check doctor \
+	desktop desktop-dev desktop-test
 
 # --- Run -------------------------------------------------------------------
 
@@ -63,6 +64,29 @@ build:
 # Stops at the first failing gate.
 check: lint-backend test typecheck lint build
 	@echo "All checks passed."
+
+# --- macOS desktop app -------------------------------------------------
+
+# See specs/phase-18-macos-desktop-app.md.
+#
+# The bundler's bundle_dmg.sh calls `head -1` internally, so a `head` earlier
+# on PATH than /usr/bin's breaks DMG creation with a misleading "interstitial
+# disk image was not found". libwww-perl ships such a `head`, and XAMPP bundles
+# libwww-perl — putting the system paths first makes the build reproducible
+# regardless of what else is installed.
+DESKTOP_PATH := /usr/bin:/bin:/usr/sbin:/sbin:$(PATH)
+
+# Build the installable .dmg. Output lands in
+# desktop/src-tauri/target/release/bundle/dmg/.
+desktop:
+	cd desktop && PATH="$(DESKTOP_PATH)" pnpm build
+
+# Run the desktop shell against a freshly staged bundle, with devtools.
+desktop-dev:
+	cd desktop && PATH="$(DESKTOP_PATH)" pnpm dev
+
+desktop-test:
+	cd desktop/src-tauri && cargo test
 
 # --- Environment -------------------------------------------------------
 

@@ -29,9 +29,20 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" }
 ];
 
+// The desktop app (see specs/phase-18-macos-desktop-app.md) runs this server
+// from an app bundle, where the repo's node_modules do not exist. Standalone
+// output emits a self-contained server.js plus a pruned node_modules. It is
+// gated on the flag so `pnpm build` / `make build` keep their existing output.
+// Standalone mode delegates image optimization to `sharp`, which is a native
+// dependency the desktop bundle would have to ship per-architecture. The app
+// serves its own bundled screenshots over loopback, where optimization buys
+// nothing, so it is turned off for that build only.
+const isDesktopBuild = process.env.DESKTOP_BUILD === "1";
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  ...(isDesktopBuild ? { output: "standalone", images: { unoptimized: true } } : {}),
   async headers() {
     return [
       {

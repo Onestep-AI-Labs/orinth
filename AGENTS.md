@@ -18,6 +18,7 @@ If local skills are available, invoke `$onestep-ai-platform` for repository work
 
 - Backend: `backend/` using FastAPI, `uv`, Python 3.11, SQLite, SQLAlchemy, TensorFlow/Keras, and Ultralytics.
 - Frontend: `frontend/` using Next.js, TypeScript, Tailwind, and pnpm.
+- Desktop: `desktop/` using Tauri v2 (Rust), packaged as a macOS `.dmg`.
 - Runtime artifacts: `storage/`, ignored.
 - Reference assets: `datasets/`, `models/`, `notebooks/`, ignored.
 

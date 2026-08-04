@@ -1,0 +1,17 @@
+{
+  "name": "onestep-ai-platform-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.10.0",
+  "scripts": {
+    "prepare-resources": "node scripts/prepare-resources.mjs",
+    "dev": "pnpm prepare-resources && tauri dev",
+    "build": "pnpm prepare-resources && tauri build",
+    "icons": "tauri icon ./ui/logo.png",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.1"
+  }
+}
