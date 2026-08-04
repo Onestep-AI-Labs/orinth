@@ -200,3 +200,47 @@ export function splitConfigFromDataset(dataset: DatasetSummary): DatasetSplitCon
     ...((dataset.metadata?.split_config as Partial<DatasetSplitConfig> | undefined) ?? {})
   };
 }
+
+// OSC (window title) and CSI (colour/cursor) sequences. Neither carries any
+// visible text, so both are dropped before the cursor walk below.
+const OSC_SEQUENCE = /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g;
+const CSI_SEQUENCE = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
+
+/**
+ * Render one line of captured terminal output the way a terminal would.
+ *
+ * Training runners stream raw TTY output. Keras draws its progress bar with
+ * ANSI colour codes and then rewinds the cursor with a run of backspaces
+ * (`\b`) so the next update overwrites the line in place. Printed verbatim in
+ * the run log, those control bytes show up as a long trail of boxes after
+ * every `loss:` value.
+ *
+ * Deleting the control characters is not enough — a backspace *moves* the
+ * cursor, it does not erase — so this walks the line with a cursor and lets
+ * later text overwrite earlier text. A trailing run of backspaces with nothing
+ * written after it therefore leaves the visible text intact, which is exactly
+ * the Keras case.
+ */
+export function normalizeTerminalOutput(line: string): string {
+  const withoutAnsi = line.replace(OSC_SEQUENCE, "").replace(CSI_SEQUENCE, "");
+
+  const buffer: string[] = [];
+  let cursor = 0;
+  for (const char of withoutAnsi) {
+    if (char === "\b") {
+      if (cursor > 0) cursor -= 1;
+    } else if (char === "\r") {
+      cursor = 0;
+    } else if (char === "\n") {
+      // Captured logs are already split per line; a stray newline is noise.
+      continue;
+    } else {
+      buffer[cursor] = char;
+      cursor += 1;
+    }
+  }
+
+  // A hole is only reachable if a writer moved the cursor past the end, which
+  // terminals do not do; fill defensively so no `undefined` leaks into the DOM.
+  return Array.from(buffer, (char) => char ?? " ").join("").trimEnd();
+}

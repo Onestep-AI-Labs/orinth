@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
 import { SPLIT_FILTERS, SPLITS, TRAINING_SPLITS } from "@/features/platform/constants";
 import { formatDatasetFormat, formatDatasetTask, isLlmTask, isNlpTask, labelColor, labelFill, pointsAttr, taskDescription } from "@/features/platform/utils";
-import { CardGridSkeleton, EmptyState, Field, InlineSpinner, Metric, MutationError, PanelTitle, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
+import { CardGridSkeleton, EmptyState, Field, InlineSpinner, Metric, MutationError, PanelTitle, Select, StatusBadge, useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetEdaSummary, DatasetFormat, DatasetItemSummary, DatasetPreprocessConfig, DatasetSplitConfig, DatasetSplitFilter, DatasetSummary, DatasetVersionSummary, SplitKey, TaskType } from "@/types/api";
 
 export function DatasetCreatePanel({
@@ -306,7 +306,7 @@ export function PreprocessPanel({
         config.enabled ? (
           <div className="accordion-body">
             <Field label="Preset">
-              <select
+              <Select
                 value={config.preset}
                 disabled={!editable}
                 onChange={(event) => setConfig({ ...config, preset: event.target.value as DatasetPreprocessConfig["preset"] })}
@@ -323,7 +323,7 @@ export function PreprocessPanel({
                     <option value="inspection">Inspection</option>
                   </>
                 )}
-              </select>
+              </Select>
             </Field>
             {!nlp && (
               <div className="grid grid-cols-2 gap-3">
@@ -376,14 +376,14 @@ export function PreprocessPanel({
               ))}
             </div>
             <Field label="Augmentation mode">
-              <select
+              <Select
                 value={config.augmentation_mode}
                 disabled={!editable}
                 onChange={(event) => setConfig({ ...config, augmentation_mode: event.target.value as DatasetPreprocessConfig["augmentation_mode"] })}
               >
                 <option value="random">Random during training</option>
                 <option value="materialize">Generate version copies</option>
-              </select>
+              </Select>
             </Field>
             {config.augmentation_mode === "materialize" && (
               <Field label={`Generated copies per train ${nlp ? "text" : "image"}`}>
@@ -769,11 +769,11 @@ export function DatasetPagination({
     <div className="dataset-pagination">
       <label className="dataset-pagination-size">
         <span>Images per page:</span>
-        <select value={limit} onChange={(event) => onLimitChange(Number(event.target.value))}>
+        <Select value={limit} onChange={(event) => onLimitChange(Number(event.target.value))}>
           {[25, 50, 100, 200].map((size) => (
             <option value={size} key={size}>{size}</option>
           ))}
-        </select>
+        </Select>
       </label>
       <div className="dataset-pagination-nav">
         <strong>{from} - {to} of {total}</strong>

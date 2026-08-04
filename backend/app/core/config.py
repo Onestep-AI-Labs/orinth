@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     models_dir: str = Field(default="./models", alias="MODELS_DIR")
     datasets_dir: str = Field(default="./datasets", alias="DATASETS_DIR")
     storage_dir: str = Field(default="./storage", alias="STORAGE_DIR")
+    # Tracked starter datasets shared read-only with every project. Overridable
+    # so a packaged build (the macOS app) can point at its own copy instead of
+    # depending on this file's depth below the repo root.
+    sample_data_dir: str = Field(default="./sample_data", alias="SAMPLE_DATA_DIR")
     database_url: str = Field(default="sqlite:///./storage/app.db", alias="DATABASE_URL")
     backend_cors_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000",
@@ -74,6 +78,10 @@ class Settings(BaseSettings):
     @property
     def storage_path(self) -> Path:
         return self.resolve_path(self.storage_dir)
+
+    @property
+    def sample_data_path(self) -> Path:
+        return self.resolve_path(self.sample_data_dir)
 
     @property
     def database_path(self) -> Path:

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { Field, NumberInput } from "@/features/platform/ui";
+import { Field, NumberInput, Select } from "@/features/platform/ui";
 import type { AdvancedParameterSpec } from "@/types/api";
 
 // The group micro-headers render in this order; anything unrecognised trails.
@@ -159,13 +159,13 @@ export function AdvancedField({
   if (spec.type === "select") {
     return (
       <Field label={spec.label} hint={spec.help ?? undefined}>
-        <select value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
+        <Select value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
           {spec.options.map((option) => (
             <option key={String(option)} value={String(option)}>
               {String(option)}
             </option>
           ))}
-        </select>
+        </Select>
       </Field>
     );
   }

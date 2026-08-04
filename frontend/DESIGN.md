@@ -143,6 +143,7 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 | `Button` | `primary` · `secondary` · `ghost` · `danger` × `sm` `md` | `primary` is the **near-black `--ink` fill** with `--shadow-subtle`, not the accent — one per view region. `ButtonLink` is the same style over `next/link` |
 | `IconButton` | `danger?` | Always has `aria-label`. Square 40px, zero padding — the glyph is the whole target |
 | `Badge` | tone: `neutral` `ok` `warn` `fail` `info` | Always the `-tint` background + `-strong` text pair; never the base hue (see §9) |
+| `Select` | — | **The** dropdown. Every native `<select>` in the app renders through it, so all dropdowns share one height (40px), `--radius-sm`, `--line-input` border, and focus ring. Wrapping containers may set width, nothing else — a raw `<select>` used to inherit whichever of `.field select` / `.select-label select` / `.bulk-bar select` / `.project-switcher select` its container provided, and those disagreed on the border token |
 | `.panel` (class) | — | `--surface`, hairline `--line`, `--radius-xl`, **no shadow**. Applied as a raw class in ~26 places; a `Panel` primitive may be added later |
 | `EmptyState` | with `action` | Every empty state names the next step and links to it |
 | `StatusBadge` | job states | Maps run states to Badge tones |

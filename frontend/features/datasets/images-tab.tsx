@@ -17,7 +17,7 @@ import type {
 } from "@/features/datasets/hooks";
 import { DatasetUploadPanel } from "@/features/datasets/upload-panel";
 import { SPLITS } from "@/features/platform/constants";
-import { CardGridSkeleton, EmptyState, MutationError, PanelTitle } from "@/features/platform/ui";
+import { CardGridSkeleton, EmptyState, MutationError, PanelTitle, Select } from "@/features/platform/ui";
 import type { useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetItemPage, DatasetItemSummary, DatasetSplitFilter, DatasetSummary, SplitKey } from "@/types/api";
 
@@ -183,11 +183,11 @@ export function DatasetImagesTab({
         </label>
         {dataset.editable && (
           <>
-            <select value={moveTarget} onChange={(event) => setMoveTarget(event.target.value as SplitKey)} disabled={selectedItems.length === 0}>
+            <Select value={moveTarget} onChange={(event) => setMoveTarget(event.target.value as SplitKey)} disabled={selectedItems.length === 0}>
               {SPLITS.filter((splitName) => split === "all" || splitName !== split).map((splitName) => (
                 <option value={splitName} key={splitName}>{splitName}</option>
               ))}
-            </select>
+            </Select>
             <button
               className="secondary-button"
               onClick={confirmMoveSelectedImages}
@@ -197,11 +197,11 @@ export function DatasetImagesTab({
             </button>
             {supportsBulkLabel && (
               <>
-                <select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItems.length === 0}>
+                <Select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItems.length === 0}>
                   {dataset.labels.map((label, index) => (
                     <option value={index} key={label}>{label}</option>
                   ))}
-                </select>
+                </Select>
                 <button
                   className="secondary-button"
                   onClick={confirmBulkLabelSelectedImages}

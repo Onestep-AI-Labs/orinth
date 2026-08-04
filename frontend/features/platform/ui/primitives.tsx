@@ -61,6 +61,28 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   );
 });
 
+export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
+
+/**
+ * The single dropdown control.
+ *
+ * Every `<select>` in the app renders through this so they share one height,
+ * radius, border token, and focus ring. Before it existed the same control
+ * picked up whichever of `.field select`, `.select-label select`,
+ * `.bulk-bar select`, or `.project-switcher select` its container happened to
+ * provide — two different border tokens among them — so dropdowns sitting side
+ * by side on the training form did not match.
+ *
+ * Per DESIGN.md §2 the border is `--line-input`: the one weight that clears
+ * WCAG 1.4.11 for a control boundary.
+ */
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
+  { className, ...props },
+  ref
+) {
+  return <select ref={ref} className={cn("select-control", className)} {...props} />;
+});
+
 export const badgeVariants = cva("badge", {
   variants: {
     tone: {

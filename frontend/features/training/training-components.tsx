@@ -11,7 +11,8 @@ import {
   isActiveStatus,
   isLlmTask,
   isNlpTask,
-  labelColor
+  labelColor,
+  normalizeTerminalOutput
 } from "@/features/platform/utils";
 import { dedupeConsecutive, Metric, StatusBadge, toggleId } from "@/features/platform/ui";
 import { type ChartSeries, TrainingChart } from "@/features/training/training-chart";
@@ -74,7 +75,12 @@ export function TrainingDetails({ job }: { job: TrainingJob }) {
   const liveMetrics = liveMetricRows(job);
   const groups = chartGroups(job);
   const advancedRows = advancedTrainingParameters(job);
-  const logLines = dedupeConsecutive(job.progress.logs).slice(-80);
+  // Normalize before deduping: the runner streams raw TTY output, and two
+  // progress-bar frames that differ only in cursor control bytes are the same
+  // line once rendered.
+  const logLines = dedupeConsecutive(
+    job.progress.logs.map(normalizeTerminalOutput).filter((line) => line.length > 0)
+  ).slice(-80);
   return (
     <div className="training-detail-body">
       {liveMetrics.length > 0 && (

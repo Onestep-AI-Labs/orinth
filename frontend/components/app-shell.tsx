@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { IconButton } from "@/features/platform/ui";
+import { IconButton, Select } from "@/features/platform/ui";
 import { Toaster } from "@/features/platform/toast";
 import { PlatformTour } from "@/features/platform/tour";
 import type { ProjectSummary } from "@/types/api";
@@ -278,7 +278,7 @@ function ProjectSidebar({
       </div>
       <label className="project-switcher">
         <span>Switch project</span>
-        <select value={project?.id ?? projectId} onChange={(event) => switchProject(event.target.value)}>
+        <Select value={project?.id ?? projectId} onChange={(event) => switchProject(event.target.value)}>
           {!projects.some((item) => item.id === projectId) && (
             <option value={projectId}>Project</option>
           )}
@@ -291,7 +291,7 @@ function ProjectSidebar({
                 {item.archived ? `${item.name} (archived)` : item.name}
               </option>
             ))}
-        </select>
+        </Select>
       </label>
       <nav className="side-nav">
         <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} dataTour="nav-datasets">

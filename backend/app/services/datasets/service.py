@@ -321,8 +321,12 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
 
         Each entry lives under ``sample_data/`` and is committed, so a fresh
         clone has a usable dataset for its task without any seeding step.
+
+        The location comes from settings rather than the repo root so packaged
+        builds can ship the same datasets somewhere else; the macOS app unpacks
+        them beside its runtime and points ``SAMPLE_DATA_DIR`` at that copy.
         """
-        root = self.settings.repo_root / "sample_data"
+        root = self.settings.sample_data_path
         specs = [
             ("sample_image_classification", "Sample Trash Classification", "vision/classification", "classification", "image_folder", ["cardboard", "glass", "metal", "paper", "plastic", "trash"]),
             ("sample_text_classification", "Sample Text Classification", "nlp/text_classification", "text_classification", "text_folder", ["positive", "negative", "neutral"]),

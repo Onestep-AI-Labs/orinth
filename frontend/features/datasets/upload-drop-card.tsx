@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { FileImage, FolderOpen, Upload, UploadCloud } from "lucide-react";
 import { isNlpTask } from "@/features/platform/utils";
 import type { DatasetSummary } from "@/types/api";
+import { Select } from "@/features/platform/ui";
 
 type FileSystemFileHandleLike = {
   kind: "file";
@@ -184,11 +185,11 @@ export function UploadDropCard({
         {(dataset.task_type === "classification" || dataset.task_type === "text_classification") && (
           <label className="select-label">
             Class label
-            <select value={uploadClassId} onChange={(event) => setUploadClassId(Number(event.target.value))}>
+            <Select value={uploadClassId} onChange={(event) => setUploadClassId(Number(event.target.value))}>
               {dataset.labels.map((label, index) => (
                 <option value={index} key={label}>{label}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         <button className="primary-button" onClick={() => setUploadDialogOpen(true)} disabled={files.length === 0 || pending}>

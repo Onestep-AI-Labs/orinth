@@ -184,6 +184,10 @@ fn spawn_backend(paths: &AppPaths, port: u16) -> Result<Child> {
         .env("STORAGE_DIR", &paths.storage)
         .env("MODELS_DIR", &paths.models)
         .env("DATASETS_DIR", &paths.datasets)
+        // Without this the backend looks for starter datasets relative to a
+        // repo root that does not exist in a packaged build, and silently
+        // presents an empty catalog.
+        .env("SAMPLE_DATA_DIR", &paths.sample_data)
         .env("DATABASE_URL", paths.database_url())
         .env("PYTHONUNBUFFERED", "1");
 

@@ -60,6 +60,8 @@ pub struct BundleResources {
     pub backend: PathBuf,
     /// Tarball, not a directory — see [`sync_sources`].
     pub frontend_archive: PathBuf,
+    /// Tracked starter datasets, surfaced read-only in every project.
+    pub sample_data: PathBuf,
     pub uv: PathBuf,
 }
 
@@ -69,6 +71,7 @@ impl BundleResources {
         Self {
             backend: base.join("backend"),
             frontend_archive: base.join("frontend.tar.gz"),
+            sample_data: base.join("sample_data"),
             uv: base.join("bin").join("uv"),
         }
     }
@@ -77,6 +80,7 @@ impl BundleResources {
         for (label, path) in [
             ("backend source", &self.backend),
             ("frontend build", &self.frontend_archive),
+            ("sample datasets", &self.sample_data),
             ("uv binary", &self.uv),
         ] {
             if !path.exists() {
@@ -97,7 +101,9 @@ impl BundleResources {
             .context("failed to fingerprint the bundled backend source")?;
         let frontend = download::file_sha256(&self.frontend_archive)
             .context("failed to fingerprint the bundled interface build")?;
-        Ok(format!("{}-{backend}-{frontend}", app_version()))
+        let samples = download::dir_sha256(&self.sample_data)
+            .context("failed to fingerprint the bundled sample datasets")?;
+        Ok(format!("{}-{backend}-{frontend}-{samples}", app_version()))
     }
 }
 
@@ -209,6 +215,12 @@ fn sync_sources(
     // The freshly unpacked build carries the placeholder origin again, so the
     // record of what to substitute has to go back with it.
     crate::origin::reset(paths)?;
+
+    // Starter datasets. The backend reads these read-only, but they are copied
+    // out of the bundle like everything else so the app never depends on its
+    // own `Contents/Resources` staying mounted and readable at runtime.
+    reporter.log("Copying starter datasets…");
+    replace_dir(&bundle.sample_data, &paths.sample_data)?;
 
     paths.write_marker("sources", &fingerprint)?;
     Ok(StepStatus::Done)
@@ -410,6 +422,12 @@ mod tests {
         std::fs::write(resources.join("backend").join("app").join("main.py"), b"x").unwrap();
         std::fs::create_dir_all(resources.join("bin")).unwrap();
         std::fs::write(resources.join("bin").join("uv"), b"").unwrap();
+        std::fs::create_dir_all(resources.join("sample_data").join("vision")).unwrap();
+        std::fs::write(
+            resources.join("sample_data").join("vision").join("manifest.json"),
+            br#"{"name":"Sample Trash Classification"}"#,
+        )
+        .unwrap();
 
         // Mirror the real layout: server.js plus a package symlinked into a
         // .pnpm-style store, so a copy that flattens links is detectable.
@@ -476,6 +494,21 @@ mod tests {
             std::fs::read_to_string(paths.backend.join("app").join("main.py")).unwrap(),
             "changed"
         );
+
+        let _ = std::fs::remove_dir_all(&paths.root);
+    }
+
+    #[test]
+    fn sync_sources_materializes_the_starter_datasets() {
+        let paths = AppPaths::rooted(temp_root("samples"));
+        paths.ensure().unwrap();
+        let bundle = fake_bundle(&paths.root.join("bundle"));
+
+        sync_sources(&paths, &bundle, &RecordingReporter::default()).unwrap();
+
+        // The backend reads these through SAMPLE_DATA_DIR; if they are absent
+        // it silently shows an empty dataset catalog rather than failing.
+        assert!(paths.sample_data.join("vision").join("manifest.json").exists());
 
         let _ = std::fs::remove_dir_all(&paths.root);
     }

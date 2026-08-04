@@ -6,7 +6,7 @@ import { CheckCircle2, Cloud, Download, FolderOpen, Search } from "lucide-react"
 import { api } from "@/lib/api";
 import { useImportHubDatasetMutation } from "@/features/datasets/hooks";
 import { formatDatasetFormat } from "@/features/platform/utils";
-import { Badge, EmptyState, Field, InlineSpinner, MutationError } from "@/features/platform/ui";
+import { Badge, EmptyState, Field, InlineSpinner, MutationError, Select } from "@/features/platform/ui";
 import type { DatasetFormat, DatasetHubSearchResult, DatasetSummary } from "@/types/api";
 
 type Role = { key: "instruction" | "input" | "output" | "messages" | "conversations"; label: string };
@@ -283,7 +283,7 @@ export function HubImportPanel({
                       {columns.map((column) => (
                         <th key={column}>
                           <span className="hub-col-name" title={column}>{column}</span>
-                          <select
+                          <Select
                             className="hub-col-select"
                             value={roleForColumn(column)}
                             onChange={(event) => assignColumn(column, event.target.value)}
@@ -292,7 +292,7 @@ export function HubImportPanel({
                             {roles.map((role) => (
                               <option key={role.key} value={role.key}>{role.label}</option>
                             ))}
-                          </select>
+                          </Select>
                         </th>
                       ))}
                     </tr>
@@ -314,11 +314,11 @@ export function HubImportPanel({
                   <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name this dataset" />
                 </Field>
                 <Field label="Rows">
-                  <select value={maxRows} onChange={(event) => setMaxRows(Number(event.target.value))}>
+                  <Select value={maxRows} onChange={(event) => setMaxRows(Number(event.target.value))}>
                     {[500, 1000, 2500, 5000].map((value) => (
                       <option key={value} value={value}>{value.toLocaleString()}</option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <button
                   className="primary-button"

@@ -3,7 +3,12 @@ from sqlalchemy.orm import sessionmaker
 import pytest
 from fastapi import HTTPException
 
-from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_TASK_TYPES
+from app.core.defaults import (
+    DEFAULT_PROJECT_ID,
+    DEFAULT_PROJECT_NAME,
+    DEFAULT_PROJECT_TASK_TYPES,
+    LEGACY_DEFAULT_PROJECT_NAME,
+)
 from app.core.database import Base
 from app.db.models import Project, TrainingJob
 from app.schemas import ProjectCreate, ProjectUpdate
@@ -92,6 +97,8 @@ def test_project_service_backfills_default_nlp_tasks(tmp_path):
 
         default = service.ensure_default(db)
 
+        # Every task type, so a fresh install can start any workflow without
+        # first editing project settings. Pre-existing entries keep their order.
         assert default.task_types == [
             "segmentation",
             "classification",
@@ -99,7 +106,52 @@ def test_project_service_backfills_default_nlp_tasks(tmp_path):
             "text_classification",
             "summarization",
             "question_answering",
+            "llm_finetune",
+            "language_modeling",
         ]
+    finally:
+        db.close()
+
+
+def test_ensure_default_renames_the_legacy_starter_project(tmp_path):
+    """The starter project was vision-only and named for it; it is not anymore."""
+    db = _session(tmp_path, "projects-rename.db")
+    service = ProjectService()
+    try:
+        db.add(
+            Project(
+                id=DEFAULT_PROJECT_ID,
+                name=LEGACY_DEFAULT_PROJECT_NAME,
+                task_types=["segmentation"],
+                metadata_json={"created_from": "system_default"},
+            )
+        )
+        db.commit()
+
+        assert service.ensure_default(db).name == DEFAULT_PROJECT_NAME
+    finally:
+        db.close()
+
+
+def test_ensure_default_keeps_a_name_the_user_chose(tmp_path):
+    """Only the untouched legacy name is rewritten — a rename is the user's."""
+    db = _session(tmp_path, "projects-keep-name.db")
+    service = ProjectService()
+    try:
+        db.add(
+            Project(
+                id=DEFAULT_PROJECT_ID,
+                name="Dental caries study",
+                task_types=["segmentation"],
+                metadata_json={"created_from": "system_default"},
+            )
+        )
+        db.commit()
+
+        default = service.ensure_default(db)
+        assert default.name == "Dental caries study"
+        # Task types are still widened; only the name is left alone.
+        assert "llm_finetune" in default.task_types
     finally:
         db.close()
 

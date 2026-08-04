@@ -9,7 +9,11 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import Engine, create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from app.core.defaults import DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME, DEFAULT_TASK_TYPE
+from app.core.defaults import (
+    DEFAULT_PROJECT_ID,
+    DEFAULT_PROJECT_NAME,
+    DEFAULT_PROJECT_TASK_TYPES,
+)
 from app.core.config import Settings, get_settings
 
 
@@ -121,7 +125,7 @@ def _ensure_default_project() -> None:
                 id=DEFAULT_PROJECT_ID,
                 name=DEFAULT_PROJECT_NAME,
                 description="Default local AI research workspace.",
-                task_types=[DEFAULT_TASK_TYPE, "classification", "object_detection"],
+                task_types=list(DEFAULT_PROJECT_TASK_TYPES),
                 metadata_json={"created_from": "system_default"},
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),

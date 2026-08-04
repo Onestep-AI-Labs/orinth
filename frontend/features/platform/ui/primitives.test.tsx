@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Badge, Button, ButtonLink, IconButton } from "./primitives";
+import { Badge, Button, ButtonLink, IconButton, Select } from "./primitives";
 
 describe("Button", () => {
   it("renders a native button with the mapped variant class", () => {
@@ -64,5 +64,35 @@ describe("Badge", () => {
     const badge = screen.getByText("completed");
     expect(badge).toHaveClass("badge");
     expect(badge).toHaveClass("badge-ok");
+  });
+});
+
+describe("Select", () => {
+  it("carries the shared dropdown class so every select looks the same", () => {
+    render(
+      <Select aria-label="Task">
+        <option value="a">A</option>
+      </Select>
+    );
+    expect(screen.getByRole("combobox", { name: "Task" })).toHaveClass("select-control");
+  });
+
+  it("keeps caller classes alongside the shared one", () => {
+    render(<Select aria-label="Device" className="w-40" />);
+    const select = screen.getByRole("combobox", { name: "Device" });
+    expect(select).toHaveClass("select-control");
+    expect(select).toHaveClass("w-40");
+  });
+
+  it("forwards native select props", () => {
+    const onChange = vi.fn();
+    render(
+      <Select aria-label="Split" defaultValue="train" onChange={onChange} disabled>
+        <option value="train">train</option>
+      </Select>
+    );
+    const select = screen.getByRole("combobox", { name: "Split" }) as HTMLSelectElement;
+    expect(select.value).toBe("train");
+    expect(select).toBeDisabled();
   });
 });

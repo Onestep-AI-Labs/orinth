@@ -1,3 +1,4 @@
+import shutil
 from io import BytesIO
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from fastapi import HTTPException, UploadFile
 from PIL import Image
 
 from app.core.config import Settings
+from app.core.defaults import DEFAULT_PROJECT_ID
 from app.core.storage import Storage
 from app.schemas import (
     DatasetAnnotation,
@@ -721,3 +723,34 @@ def test_nlp_dataset_upload_process_version_and_eda(tmp_path: Path, settings: Se
     eda = service.eda_summary(dataset.id, "train")
     assert eda.text_count == 2
     assert eda.text_length["mean_tokens"]
+
+
+def test_sample_datasets_follow_the_sample_data_dir_setting(tmp_path: Path, settings: Settings):
+    """Packaged builds relocate the starter datasets via SAMPLE_DATA_DIR.
+
+    They used to be found only at ``repo_root / "sample_data"``, which does not
+    exist inside the macOS app bundle — the catalog came up empty there with no
+    error, because missing sample roots are skipped silently.
+    """
+    relocated = tmp_path / "bundled_samples"
+    source = Path(settings.sample_data_dir)
+    source = source if source.is_absolute() else settings.repo_root / settings.sample_data_dir
+    shutil.copytree(source, relocated)
+
+    moved = settings.model_copy(update={"sample_data_dir": str(relocated)})
+    assert moved.sample_data_path == relocated
+
+    service = DatasetService(moved, Storage(moved))
+    listed = {dataset.id for dataset in service.list_datasets(DEFAULT_PROJECT_ID)}
+    assert "sample_image_classification" in listed
+    assert "sample_text_classification" in listed
+
+
+def test_sample_datasets_are_absent_when_the_directory_is_missing(
+    tmp_path: Path, settings: Settings
+):
+    """A missing sample root degrades to an empty catalog, never an exception."""
+    missing = settings.model_copy(update={"sample_data_dir": str(tmp_path / "nope")})
+    service = DatasetService(missing, Storage(missing))
+    listed = {dataset.id for dataset in service.list_datasets(DEFAULT_PROJECT_ID)}
+    assert "sample_image_classification" not in listed

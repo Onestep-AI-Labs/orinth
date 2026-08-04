@@ -6,9 +6,10 @@
  * the 2.7 GB ML runtime is provisioned into the user's data root on first
  * launch (see specs/phase-18-macos-desktop-app.md). What lands here is:
  *
- *   resources/backend/         FastAPI source + pyproject.toml + uv.lock
- *   resources/frontend.tar.gz  Next standalone server
- *   resources/bin/uv           pinned uv binary for the host arch
+ *   resources/backend/            FastAPI source + pyproject.toml + uv.lock
+ *   resources/frontend.tar.gz     Next standalone server
+ *   resources/sample_data/        starter datasets (trash classification + NLP)
+ *   resources/bin/uv              pinned uv binary for the host arch
  */
 
 import { createHash } from "node:crypto";
@@ -200,6 +201,35 @@ function stageBackend() {
   log(`Backend staged at ${path.relative(repoRoot, dest)}`);
 }
 
+/**
+ * Copy the tracked starter datasets so a fresh install has usable data.
+ *
+ * Without these the app opens with an empty catalog: the backend's sample
+ * locations resolve `SAMPLE_DATA_DIR` and silently skip anything missing, so
+ * the Trash classification and NLP datasets simply never appear.
+ */
+function stageSampleData() {
+  const source = path.join(repoRoot, "sample_data");
+  if (!fs.existsSync(source)) {
+    fail(`missing ${path.relative(repoRoot, source)}; the app would ship with an empty catalog`);
+  }
+
+  const dest = path.join(resourcesDir, "sample_data");
+  resetDir(dest);
+  fs.cpSync(source, dest, {
+    recursive: true,
+    filter: (entry) => path.basename(entry) !== ".DS_Store"
+  });
+
+  const manifests = fs
+    .readdirSync(dest, { recursive: true })
+    .filter((entry) => String(entry).endsWith("manifest.json"));
+  if (manifests.length === 0) {
+    fail("sample_data staged without any manifest.json; the datasets would not be discovered");
+  }
+  log(`Sample data staged (${manifests.length} datasets)`);
+}
+
 /** Download, verify, and vendor the pinned uv binary for the host arch. */
 async function stageUv() {
   const arch = os.arch();
@@ -255,6 +285,7 @@ async function main() {
   fs.mkdirSync(resourcesDir, { recursive: true });
 
   stageBackend();
+  stageSampleData();
   buildFrontend();
   await stageUv();
 

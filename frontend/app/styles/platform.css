@@ -274,14 +274,10 @@ not a bar indicator. */
   font-weight: 600;
 }
 
+/* Appearance comes from `.select-control`; the sidebar only needs the control
+   to be allowed to shrink inside its grid track. */
 .project-switcher select {
-  min-height: 40px;
   min-width: 0;
-  border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  padding: 8px 10px;
-  color: var(--color-ink);
 }
 
 .sidebar-project-collapsed {
@@ -2976,6 +2972,40 @@ button.task-choice {
   transition: border-color 150ms ease-out;
 }
 
+/* The one dropdown appearance, rendered by the `Select` primitive.
+   Every `<select>` goes through it, so a dropdown looks the same whether it
+   sits in a `.field`, a `.select-label`, a `.bulk-bar`, or the project
+   switcher. Border is `--line-input` per DESIGN.md §2 — the only border weight
+   that clears WCAG 1.4.11 for a control boundary. */
+.select-control {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 150ms ease-out;
+}
+
+.select-control:hover:not(:disabled) {
+  border-color: var(--color-ink-subtle);
+}
+
+.select-control:disabled {
+  background: var(--color-surface-2);
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+.select-control:focus-visible {
+  border-color: var(--color-accent);
+  outline: 2px solid oklch(var(--accent) / 0.35);
+  outline-offset: 0;
+}
+
 .field input:focus-visible,
 .field textarea:focus-visible,
 .field select:focus-visible,
@@ -3061,14 +3091,11 @@ button.task-choice {
   gap: 5px;
 }
 
+/* Appearance comes from `.select-control`; these contexts only constrain
+   width, which their layouts depend on. */
 .select-label select,
 .bulk-bar select {
-  min-height: 40px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  padding: 8px 10px;
-  color: var(--color-ink);
+  width: auto;
 }
 
 .check-row {

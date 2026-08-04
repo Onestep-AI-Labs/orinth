@@ -10,23 +10,7 @@ import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { allowedTaskTypesForProject, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
 import { LlmServeView } from "@/features/inference/llm-serve-view";
-import {
-  Button,
-  ButtonLink,
-  CardGridSkeleton,
-  EmptyState,
-  Field,
-  HistoryHeader,
-  MutationError,
-  PageHeader,
-  PanelTitle,
-  ProgressPanel,
-  SliderField,
-  TableSkeleton,
-  TaskSelect,
-  toggleId,
-  useConfirmationDialog
-} from "@/features/platform/ui";
+import { Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, ProgressPanel, Select, SliderField, TableSkeleton, TaskSelect, toggleId, useConfirmationDialog } from "@/features/platform/ui";
 import type { InferenceJob, InferenceResult, ModelInfo, TaskType } from "@/types/api";
 
 function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; modelsLoading?: boolean }) {
@@ -188,14 +172,14 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
             <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
           </Field>
           <Field label="Model">
-            <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+            <Select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
               <option value="">Choose a model…</option>
               {taskModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name} - {formatDatasetTask(model.task_type)}
                 </option>
               ))}
-            </select>
+            </Select>
             {taskModels.length === 0 && (
               <span className="field-hint">
                 No available models yet — <ButtonLink variant="ghost" size="sm" href="/training">train one</ButtonLink>
