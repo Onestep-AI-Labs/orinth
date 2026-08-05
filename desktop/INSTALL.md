@@ -116,12 +116,23 @@ rm -rf ~/Library/Application\ Support/ai.onestep.platform
 The second command deletes your projects and trained models too — skip it if
 you want to keep them for a reinstall.
 
+## Intel Macs
+
+Supported, on older versions of the ML libraries. TensorFlow and PyTorch both
+stopped publishing Intel-Mac builds in 2024, so on an Intel Mac the app installs
+the last releases that have them — TensorFlow 2.16.2 and PyTorch 2.2.2 — while
+Apple silicon gets current versions. This is handled by platform markers in the
+dependency manifest; nothing to configure.
+
+One consequence worth knowing: `transformers` declares its own Torch code paths
+against torch 2.4 or newer, so NLP and LLM features run on an older Torch than
+upstream targets on Intel. Image workflows are unaffected.
+
 ## Troubleshooting
 
 **"The application ... can't be opened."**
-This means the app's architecture does not match the Mac. Make sure the file
-is the **`_universal.dmg`**, not `_aarch64.dmg` (Apple silicon only) or
-`_x64.dmg` (Intel only). Check which Mac you have with  → About This Mac.
+The app's architecture does not match the Mac. Make sure the file is the
+**`_universal.dmg`**, not `_aarch64.dmg` (Apple silicon only).
 
 **"...is damaged and can't be opened."**
 The download was truncated or the quarantine flag is set. Re-download, then
