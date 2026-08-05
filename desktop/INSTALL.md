@@ -25,30 +25,44 @@ The app is **not signed with an Apple Developer ID**, so macOS blocks it the
 first time. This is expected for an internally distributed app, and it only
 happens once.
 
-Pick whichever route you prefer.
+### Route A — System Settings (no typing, recommended)
 
-### Route A — Terminal (one command, most reliable)
+1. Open the app from Applications. macOS refuses and shows a warning. Click
+   **Done** / **OK**.
+2. Open **System Settings → Privacy & Security**.
+3. Scroll down to the **Security** section. You will see a line saying
+   *"Onestep AI Platform was blocked to protect your Mac."*
+4. Click **Open Anyway**, then confirm with Touch ID or your password.
+5. Open the app again from Applications. It starts.
 
-Open **Terminal** (⌘-Space, type "Terminal") and paste:
+### Route B — Terminal
 
-```bash
-xattr -dr com.apple.quarantine "/Applications/Onestep AI Platform.app"
+Open **Terminal** (⌘-Space, type "Terminal", press Return), then **type this
+by hand**:
+
+```
+xattr -dr com.apple.quarantine
 ```
 
-Then open the app normally from Applications. Nothing else is needed.
+Type one space after `quarantine`, then **drag the app from the Applications
+folder onto the Terminal window** — that inserts its path correctly — and press
+Return. Open the app normally afterwards.
+
+> **Do not copy this command out of a chat message, email, or web page.**
+> Formatted text carries invisible characters, and pasting them produces:
+>
+> ```
+> zsh: command not found:  xattr
+> ```
+>
+> That is not a missing tool — `xattr` is part of macOS and always present at
+> `/usr/bin/xattr`. The shell is reading an invisible character glued to the
+> word. Typing the command by hand avoids it entirely. If you already pasted
+> it and got that error, just retype it.
 
 This removes the "downloaded from the internet" flag that macOS attaches to
 files arriving by browser, email, AirDrop, or Slack. It is the flag — not the
 app — that triggers the block.
-
-### Route B — System Settings
-
-1. Open the app from Applications. macOS refuses and shows a warning.
-2. Open **System Settings → Privacy & Security**.
-3. Scroll to the **Security** section. You will see a line saying
-   *"Onestep AI Platform was blocked to protect your Mac."*
-4. Click **Open Anyway**, then confirm with Touch ID or your password.
-5. Open the app again.
 
 > On macOS 15 (Sequoia) and newer, right-click → **Open** no longer bypasses
 > this — Apple removed that shortcut. Use Route A or B.
