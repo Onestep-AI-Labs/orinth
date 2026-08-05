@@ -34,12 +34,20 @@ In:
 
 Out:
 
-- Windows and Linux bundles. The bootstrap paths, the bundler target, and the
-  Node/uv asset names are macOS-only in this phase.
-- Apple Developer ID signing and notarization. The bundle is ad-hoc signed;
-  first launch needs the Gatekeeper right-click → Open, or `xattr -dr
-  com.apple.quarantine`. Notarization is a packaging-credentials task, not a
-  code task, and is documented rather than automated.
+- Windows and Linux bundles. This is not a build-target flag: the data root
+  (`~/Library/Application Support`), the Node and uv asset names and archive
+  formats, `.venv/bin/python` vs `Scripts\python.exe`, `/usr/bin/tar`, `/bin/ps`,
+  and process-group teardown via `libc::kill` are all Unix- or macOS-specific.
+  A Tauri Windows bundle also cannot be cross-compiled from macOS — it needs the
+  MSVC toolchain, the Windows SDK, and WebView2 — so it must be built on Windows
+  or a `windows-latest` CI runner.
+- Apple Developer ID signing and notarization. `bundle.macOS.signingIdentity`
+  is `"-"`, which produces a *valid* ad-hoc signature — without it the bundle
+  ships with a broken one, and a quarantined copy then reports "is damaged and
+  can't be opened", which reads like a corrupt download rather than an unsigned
+  app. Ad-hoc is not notarization: first launch elsewhere still needs
+  `xattr -dr com.apple.quarantine` or Privacy & Security → Open Anyway
+  (`desktop/INSTALL.md`). Notarization is a credentials task, not a code task.
 - Shipping model weights. `models/` stays a read-only local research asset per
   `AGENTS.md`; the app provisions an empty models directory and lets the user
   point at or import weights.
@@ -74,7 +82,8 @@ Bundle (read-only), under `Onestep AI Platform.app/Contents/Resources/`:
 resources/backend/          backend source: app/, migrations/, alembic.ini,
                             pyproject.toml, uv.lock
 resources/frontend.tar.gz   Next standalone output: server.js, .next/, public/
-resources/bin/uv            pinned uv binary
+resources/sample_data/      starter datasets (trash classification + NLP)
+resources/bin/uv            pinned uv binary (universal: arm64 + x86_64)
 ```
 
 The frontend ships as a **tarball, not a directory**. pnpm's standalone output
@@ -106,8 +115,8 @@ logs/frontend.log      Next server stdout/stderr
 
 | Asset | Version | Source |
 | --- | --- | --- |
-| Node | v22.23.2 (LTS) | `nodejs.org/dist`, SHA-256 verified per arch |
-| uv | 0.12.1 | GitHub release tarball, SHA-256 verified, vendored at build time |
+| Node | v22.23.2 (LTS) | `nodejs.org/dist`, SHA-256 verified, downloaded per arch at first launch |
+| uv | 0.12.1 | GitHub release tarballs for both arches, SHA-256 verified, `lipo`-merged into a universal binary at build time |
 | CPython | 3.11 | `uv python install`, into `runtime/python` |
 
 ## Data Flow
@@ -115,15 +124,17 @@ logs/frontend.log      Next server stdout/stderr
 **Build** (`desktop/scripts/prepare-resources.mjs`, then `pnpm tauri build`):
 
 1. `DESKTOP_BUILD=1 pnpm build` in `frontend/` emits `.next/standalone`.
-2. Standalone `server.js`, `.next/static`, and `public/` are assembled into
-   `desktop/src-tauri/resources/frontend/`.
+2. Standalone `server.js`, `.next/static`, and `public/` are assembled and
+   tarred to `desktop/src-tauri/resources/frontend.tar.gz`.
 3. `backend/app`, `backend/migrations`, `alembic.ini`, `pyproject.toml`, and
    `uv.lock` are copied to `desktop/src-tauri/resources/backend/`, excluding
    `__pycache__`, `.venv`, and tests.
-4. The pinned `uv` tarball for the host arch is downloaded, checksum-verified,
-   and extracted to `desktop/src-tauri/resources/bin/uv`.
-5. The Tauri bundler produces `.app` and `.dmg` under
-   `desktop/src-tauri/target/release/bundle/`.
+4. `sample_data/` is copied to `desktop/src-tauri/resources/sample_data/`.
+5. Both pinned `uv` builds are downloaded, checksum-verified, and welded with
+   `lipo` into one universal `desktop/src-tauri/resources/bin/uv`.
+6. The Tauri bundler, targeting `universal-apple-darwin`, produces the `.app`
+   and `.dmg` under
+   `desktop/src-tauri/target/universal-apple-darwin/release/bundle/`.
 
 **First launch**:
 

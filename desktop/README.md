@@ -4,6 +4,11 @@ Packages the platform as `Onestep AI Platform.app` and an installable `.dmg`.
 Drag it to `/Applications`, double-click, and the full app opens in a native
 window — no terminal, no `make dev`.
 
+The bundle is **universal**: one `.dmg` runs on both Apple silicon and Intel.
+End-user install steps (including the Gatekeeper prompt an unsigned app
+triggers) live in [`INSTALL.md`](INSTALL.md) — send that to whoever you hand
+the `.dmg` to.
+
 Design and rationale: [`specs/phase-18-macos-desktop-app.md`](../specs/phase-18-macos-desktop-app.md).
 
 ## What it actually is
@@ -16,12 +21,13 @@ frontend edit is an env-gated `output: "standalone"` in `next.config.mjs`.
 ```
 Onestep AI Platform.app
 └── Contents/Resources/resources/
-    ├── backend/    FastAPI source + pyproject.toml + uv.lock
-    ├── frontend/   Next standalone server
-    └── bin/uv      pinned uv binary
+    ├── backend/           FastAPI source + pyproject.toml + uv.lock
+    ├── frontend.tar.gz    Next standalone server
+    ├── sample_data/       starter datasets
+    └── bin/uv             pinned uv binary (universal)
 ```
 
-The `.dmg` is ~35 MB because it ships source, not runtimes. On first launch the
+The `.dmg` is ~56 MB because it ships source, not runtimes. On first launch the
 app provisions the heavy parts into `~/Library/Application Support/ai.onestep.platform/`:
 
 ```
@@ -47,7 +53,7 @@ make desktop-dev # run the shell against a freshly staged bundle
 make desktop-test
 ```
 
-Output: `desktop/src-tauri/target/release/bundle/dmg/Onestep AI Platform_<version>_<arch>.dmg`
+Output: `desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Onestep AI Platform_<version>_universal.dmg`
 
 Requires Rust ≥ 1.88 (`rustup update stable`), Xcode Command Line Tools, Node,
 and pnpm.
@@ -63,17 +69,40 @@ interstitial disk image was not found`, and leaves read-write `.dmg` images
 mounted under `/Volumes`. If you hit that, `hdiutil detach` them and build via
 `make desktop`.
 
-## Signing
+## Architectures
 
-The bundle is **ad-hoc signed**. On a machine that did not build it, Gatekeeper
-will refuse the first launch; open it once with right-click → Open, or:
+`pnpm build` targets `universal-apple-darwin`, so the `.app` and the bundled
+`uv` are both fat binaries carrying `arm64` and `x86_64`. This matters: Rosetta
+translates Intel binaries to run on Apple silicon, never the reverse, so an
+arm64-only build fails on an Intel Mac with the bare message *"The application
+"Onestep AI Platform" can't be opened."* — no mention of architecture, which
+makes it easy to misread as a Gatekeeper problem.
+
+`uv` is welded together with `lipo` from the two published builds. It is a
+separate executable the app spawns, so shipping an arm64-only `uv` inside a
+universal bundle would leave Intel users with a first launch that dies the
+moment provisioning starts.
+
+Verify a build with:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Onestep AI Platform.app"
+lipo -archs "…/Onestep AI Platform.app/Contents/MacOS/onestep-desktop"   # x86_64 arm64
+lipo -archs "…/Onestep AI Platform.app/Contents/Resources/resources/bin/uv"
 ```
 
-Distributing without that step needs a Developer ID certificate and
-notarization — see the spec's Scope section for what that would involve.
+## Signing
+
+`bundle.macOS.signingIdentity` is `"-"`, so the bundle carries a **valid ad-hoc
+signature**. That is deliberate: without it the bundle ships with a broken
+signature (`spctl` reports "code has no resources but signature indicates they
+must be present"), and a quarantined copy of a broken-signature app produces
+*"…is damaged and can't be opened. You should move it to the Trash."* — which
+reads like a corrupt download rather than an unsigned app.
+
+Ad-hoc signing does not make it notarized. A copy that arrives over the network
+still carries `com.apple.quarantine` and Gatekeeper still blocks the first
+launch; `INSTALL.md` covers both ways past it. Removing that step for good
+needs a Developer ID certificate plus notarization.
 
 ## Layout
 
@@ -107,7 +136,12 @@ re-downloads the full 2.7 GB.
 
 ## Known limitations
 
-- macOS only, built for the host architecture.
+- **macOS only.** Windows and Linux need more than a build target: the data
+  root, the Node/uv asset names and archive formats, `.venv/bin/python` vs
+  `Scripts\python.exe`, and process-group teardown (`libc::kill` / `ps`) are all
+  Unix-specific, and a Tauri Windows build cannot be produced from macOS — it
+  needs the MSVC toolchain, the Windows SDK, and WebView2, so it must run on a
+  Windows machine or a `windows-latest` CI runner.
 - The `llm` extra (`llama-cpp-python`, PEFT/TRL) is **not** installed: it builds
   from source and needs Xcode Command Line Tools. LLM fine-tuning and serving
   remain developer-environment features.

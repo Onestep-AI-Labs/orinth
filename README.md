@@ -178,7 +178,12 @@ opens in a native window — no terminal and no `make dev`.
 make desktop
 ```
 
-Output: `desktop/src-tauri/target/release/bundle/dmg/Onestep AI Platform_<version>_<arch>.dmg` (~35 MB).
+Output: `desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Onestep AI Platform_<version>_universal.dmg` (~56 MB).
+
+The bundle is **universal** — one `.dmg` for both Apple silicon and Intel Macs.
+Hand [`desktop/INSTALL.md`](desktop/INSTALL.md) to anyone you send it to; it
+covers the Gatekeeper prompt an unsigned app triggers on a machine that did not
+build it.
 
 The app is a supervisor around the same FastAPI and Next.js servers `make dev`
 runs, so there is no separate implementation to keep in sync. Because the
@@ -188,8 +193,9 @@ per-step progress on screen; later launches start in seconds. Everything the
 app generates lives in `~/Library/Application Support/ai.onestep.platform/`,
 never in the repo checkout.
 
-The bundle is ad-hoc signed, so the first launch on another machine needs
-right-click → Open. Details, troubleshooting, and known limitations:
+The bundle is ad-hoc signed but not notarized, so the first launch on another
+machine needs one manual approval (see `INSTALL.md`). Details, troubleshooting,
+and known limitations:
 [`desktop/README.md`](desktop/README.md); design rationale:
 [`specs/phase-18-macos-desktop-app.md`](specs/phase-18-macos-desktop-app.md).
 

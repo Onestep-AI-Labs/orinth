@@ -230,9 +230,8 @@ function stageSampleData() {
   log(`Sample data staged (${manifests.length} datasets)`);
 }
 
-/** Download, verify, and vendor the pinned uv binary for the host arch. */
-async function stageUv() {
-  const arch = os.arch();
+/** Download one pinned uv build, verify it, and return the extracted binary. */
+async function fetchUv(arch) {
   const asset = UV_ASSETS[arch];
   if (!asset) {
     fail(`no pinned uv build for arch "${arch}" (expected arm64 or x64)`);
@@ -258,10 +257,10 @@ async function stageUv() {
     }
     fs.renameSync(partial, archive);
   } else {
-    log(`Using cached uv ${UV_VERSION}`);
+    log(`Using cached uv ${UV_VERSION} for ${arch}`);
   }
 
-  const staging = path.join(cacheDir, "uv-extract");
+  const staging = path.join(cacheDir, `uv-extract-${arch}`);
   resetDir(staging);
   run("/usr/bin/tar", ["-xzf", archive, "-C", staging]);
 
@@ -269,13 +268,38 @@ async function stageUv() {
   if (!fs.existsSync(binary)) {
     fail(`uv archive did not contain ${path.relative(staging, binary)}`);
   }
+  return binary;
+}
+
+/**
+ * Vendor `uv` as a universal binary.
+ *
+ * The app ships as one universal `.app` so a single download runs on both
+ * Apple silicon and Intel. `uv` is a separate executable the app invokes, so
+ * it needs the same treatment: an arm64-only `uv` inside a universal bundle
+ * leaves Intel users with a first launch that dies as soon as provisioning
+ * starts. `lipo` welds the two published builds into one binary that runs
+ * either way.
+ */
+async function stageUv() {
+  const arm64 = await fetchUv("arm64");
+  const x64 = await fetchUv("x64");
 
   const binDir = path.join(resourcesDir, "bin");
   resetDir(binDir);
-  fs.copyFileSync(binary, path.join(binDir, "uv"));
-  fs.chmodSync(path.join(binDir, "uv"), 0o755);
-  fs.rmSync(staging, { recursive: true, force: true });
-  log(`uv ${UV_VERSION} staged at ${path.relative(repoRoot, path.join(binDir, "uv"))}`);
+  const target = path.join(binDir, "uv");
+  run("/usr/bin/lipo", ["-create", arm64, x64, "-output", target]);
+  fs.chmodSync(target, 0o755);
+
+  const archs = execSync(`/usr/bin/lipo -archs ${JSON.stringify(target)}`).toString().trim();
+  if (!archs.includes("arm64") || !archs.includes("x86_64")) {
+    fail(`uv was not built universal (got "${archs}")`);
+  }
+
+  for (const arch of ["arm64", "x64"]) {
+    fs.rmSync(path.join(cacheDir, `uv-extract-${arch}`), { recursive: true, force: true });
+  }
+  log(`uv ${UV_VERSION} staged universal (${archs})`);
 }
 
 async function main() {

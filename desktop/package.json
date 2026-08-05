@@ -7,7 +7,7 @@
   "scripts": {
     "prepare-resources": "node scripts/prepare-resources.mjs",
     "dev": "pnpm prepare-resources && tauri dev",
-    "build": "pnpm prepare-resources && tauri build",
+    "build": "pnpm prepare-resources && tauri build --target universal-apple-darwin",
     "icons": "tauri icon ./ui/logo.png",
     "tauri": "tauri"
   },
