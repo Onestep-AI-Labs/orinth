@@ -11,5 +11,12 @@ export const LANDING_HREF = "/";
 /** Where the landing page's calls to action send a visitor. */
 export const SIGN_IN_HREF = "/signin";
 
+/** Models catalog and showcase page. */
+export const MODELS_HREF = "/model-catalog";
+
+/** Documentation and platform guide page. */
+export const DOCS_HREF = "/docs";
+
 /** Where sign-in hands off once the visitor is through. */
 export const WORKSPACE_HREF = "/projects";
+

@@ -2,19 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { ButtonLink } from "@/features/platform/ui";
 import { CodeBlock } from "./code-block";
+import { MarketingNav } from "./marketing-nav";
+import { PopularModelsSlider } from "./popular-models-slider";
 import { SIGN_IN_HREF } from "./routes";
 
 const REPO_HREF = "https://github.com/L007/onestep-ai-platform";
+const DOWNLOAD_HREF = "https://github.com/L007/onestep-ai-platform/archive/refs/heads/main.zip";
 
-/** One string, so what renders and what gets copied cannot drift. */
-const QUICKSTART = `cp .env.example .env
-cp frontend/.env.example frontend/.env.local
-
-# verify uv, pnpm, Python 3.11, Node
-make doctor
-
-# backend :8000 + frontend :3000
-make dev`;
+const CMD_STEP_1 = `cp .env.example .env && cp frontend/.env.example frontend/.env.local`;
+const CMD_STEP_2 = `make doctor`;
+const CMD_STEP_3 = `make dev`;
 
 /**
  * Every claim on this page is traceable to README.md or docs/ai/rules.md. No
@@ -25,349 +22,271 @@ make dev`;
 const STAGES = [
   {
     n: "01",
-    title: "Organize",
-    copy: "Create projects that scope image and text work separately. A project owns its datasets, its runs, and the models promoted out of them.",
-    tags: ["Projects", "Vision + NLP"],
+    title: "Organize & Scope",
+    subtitle: "Say goodbye to notebook clutter and loose script files.",
+    action: "Create isolated projects for Vision & NLP work to manage datasets, runs, and checkpoints.",
+    result: "🗂️ Clean, organized project workspace with strict version boundary.",
+    tags: ["Projects", "Vision & NLP Workspace"],
     image: "/brand/1_project_list.png",
-    caption: "Project list"
+    caption: "Project list & scope manager"
   },
   {
     n: "02",
-    title: "Prepare",
-    copy: "Upload, label, annotate, split, and version datasets without rewriting the originals. Dataset Studio handles segmentation masks, classification labels, and text records — or import a set from the Hugging Face Hub, or build one from your own documents with data recipes.",
-    tags: ["Annotation", "Splits", "Versioning", "Hub import", "Recipes"],
+    title: "Prepare & Annotate",
+    subtitle: "Label data like a pro — zero cloud upload required.",
+    action: "Annotate polygon segmentation masks, tag classes, or import Hugging Face Hub datasets & recipes.",
+    result: "🏷️ Gold-standard ground truth dataset version ready for training.",
+    tags: ["Dataset Studio", "Polygon Masks", "Hub Import", "Data Recipes"],
     image: "/brand/5_dataset_studio_nlp_clasification_task.png",
-    caption: "Dataset Studio — text classification"
+    caption: "Dataset Studio — annotation & split manager"
   },
   {
     n: "03",
-    title: "Train",
-    copy: "Start task-compatible training jobs from a prepared dataset version. Runs execute as subprocesses, so a long fine-tune never blocks the API.",
-    tags: ["Subprocess runs", "Model zoo"],
+    title: "Train & Fine-Tune",
+    subtitle: "Press start, grab a coffee, watch epoch curves live.",
+    action: "Launch single-click PyTorch or Keras runs (YOLO, U-Net, BERT, LoRA LLMs) in background subprocesses.",
+    result: "⚡ High-accuracy model weights & real-time loss tracking.",
+    tags: ["Subprocess Runs", "Ultralytics & Keras", "LoRA Fine-Tuning"],
     image: "/brand/6_training_details.png",
-    caption: "Training run detail"
+    caption: "Training detail & live metric loss curve"
   },
   {
     n: "04",
-    title: "Test",
-    copy: "Score a trained model against a held-out split with task-aware metrics, then read the per-item results sitting behind each number.",
-    tags: ["Task-aware metrics", "Per-item review"],
+    title: "Test & Benchmark",
+    subtitle: "No guessing — read real numbers behind model behavior.",
+    action: "Score trained checkpoints against held-out validation splits with task-aware metrics & ROC curves.",
+    result: "📊 Verified model scorecard & per-item error breakdown.",
+    tags: ["Task-Aware Metrics", "mAP / F1 / Dice", "Per-Item Analysis"],
     image: "/brand/5_available_trained_model_list.png",
-    caption: "Trained models"
+    caption: "Trained models catalog & evaluation scorecard"
   },
   {
     n: "05",
-    title: "Inspect",
-    copy: "Run inference on a single item and read the output with its overlays, class confidence, and full run history.",
-    tags: ["Overlays", "Run history"],
+    title: "Inspect & Serve",
+    subtitle: "Run instant predictions or chat with your local LLM.",
+    action: "Execute single-item inference with polygon overlays or stream chat with local GGUF models.",
+    result: "🚀 Live visual predictions, chat responses, and local REST API.",
+    tags: ["Visual Overlays", "GGUF Chat", "Local REST API"],
     image: "/brand/7_inference_image_segmentation_task.png",
-    caption: "Inference — image segmentation"
-  }
-];
-
-const MODEL_FAMILIES = [
-  {
-    family: "YOLOv11",
-    tasks: "Instance segmentation",
-    notes: (
-      <>
-        Ultralytics weights. Default confidence <code>0.65</code>, inference IoU <code>0.7</code>.
-      </>
-    )
-  },
-  {
-    family: "U-Net + Inception",
-    tasks: "Segmentation, classification",
-    notes: (
-      <>
-        Keras. <code>256×256</code> segmentation input, <code>299×299</code> classifier input.
-      </>
-    )
-  },
-  {
-    family: "Hugging Face Transformers",
-    tasks: "Text classification, summarization, question answering",
-    notes: (
-      <>
-        Fine-tuned locally. Gated repos need <code>HUGGINGFACE_HUB_TOKEN</code>.
-      </>
-    )
-  },
-  {
-    family: "LLMs (Transformers + GGUF)",
-    tasks: "Instruction fine-tuning, serving, chat",
-    notes: (
-      <>
-        Fine-tune with LoRA, QLoRA, or full runs; export to <code>GGUF</code> to serve and chat locally.
-      </>
-    )
-  }
-];
-
-/**
- * Capabilities that live inside the workspace beyond the five-stage spine. Each
- * line maps to a real surface — no aspirational features. See README.md pillars
- * and specs/phase-10..15.
- */
-const WORKSPACE_FEATURES = [
-  {
-    name: "Hugging Face Hub import",
-    copy: "Browse and pull a Hub dataset straight into a project, ready to annotate, split, and train."
-  },
-  {
-    name: "Data recipes",
-    copy: "Turn your own documents into an instruction dataset — deterministic by default, LLM-assisted when an OpenRouter key is set."
-  },
-  {
-    name: "Custom model upload",
-    copy: "Bring your own weights — a checkpoint, a GGUF file, or a LoRA adapter — into the same catalog as trained and reference models."
-  },
-  {
-    name: "EDA and versioning",
-    copy: "Read split counts, class balance, and geometry warnings, then freeze a materialized dataset version for a reproducible run."
-  },
-  {
-    name: "Guided tours",
-    copy: "A first-run walkthrough plus a per-page tour on every surface, so the workflow explains itself."
+    caption: "Inference studio — image segmentation overlay"
   }
 ];
 
 export function LandingPage() {
   return (
     <div className="landing">
-      <header className="landing-nav">
-        <Link className="landing-wordmark" href="/">
-          <Image src="/brand/logo_transparent.png" alt="" width={30} height={30} priority />
-          <strong>Onestep AI Platform</strong>
-        </Link>
-        <div className="landing-nav-actions">
-          <a
-            className="landing-nav-link landing-nav-link-secondary"
-            href={REPO_HREF}
-            target="_blank"
-            rel="noreferrer"
-          >
-            GitHub
-          </a>
-          <ButtonLink href={SIGN_IN_HREF} size="sm">
-            Open the platform
-          </ButtonLink>
-        </div>
-      </header>
+      <MarketingNav />
 
       <main>
         <div className="landing-container">
-          <section className="landing-hero">
-            <div>
-              <span className="landing-eyebrow">Open source · Apache 2.0</span>
-              <h1 className="landing-h1">From raw data to measured model behavior.</h1>
+          <section className="landing-hero landing-hero-centered">
+            <div className="landing-hero-content">
+              <span className="landing-eyebrow">Open source · Local & Self-Hosted</span>
+
+              <h1 className="landing-h1">
+                Run, train, and evaluate AI models on your own machine.
+              </h1>
+
               <p className="landing-lede">
-                Onestep AI Platform is a local studio for computer vision and NLP. Label, prepare,
-                train, test, and inspect models in one workspace instead of five disconnected
-                notebooks.
+                Onestep AI Platform is an open-source, easy-to-use local workspace for Computer Vision,
+                NLP, and LLM intelligence.
               </p>
-              <div className="landing-cta-row">
-                <ButtonLink href={SIGN_IN_HREF}>Open the platform</ButtonLink>
+
+              <div className="landing-cta-row landing-cta-row-centered">
                 <ButtonLink variant="secondary" href={REPO_HREF} target="_blank" rel="noreferrer">
-                  View the source
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    style={{ marginRight: "8px", display: "inline-block", verticalAlign: "middle" }}
+                  >
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                    />
+                  </svg>
+                  GitHub Source
+                </ButtonLink>
+
+                <ButtonLink href={DOWNLOAD_HREF} target="_blank" rel="noreferrer">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ marginRight: "8px", display: "inline-block", verticalAlign: "middle" }}
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
                 </ButtonLink>
               </div>
-              <p className="landing-note">
-                Runs on your own machine. Datasets, weights, and predictions stay in local storage.
-                Built for research and engineering work — it measures model behavior, and is not a
-                diagnostic device.
-              </p>
+
+              <div className="landing-trust-pills">
+                <span className="landing-trust-pill">🔒 100% Local & Private</span>
+                <span className="landing-trust-pill">⚡ Zero Cloud Dependency</span>
+                <span className="landing-trust-pill">📜 Open Source (Apache 2.0)</span>
+                <span className="landing-trust-pill">⚒️ Easy to configure and run</span>
+              </div>
             </div>
-            <figure className="landing-figure">
-              <Image
-                src="/brand/3_dataset_studio_image_segmentation_task.png"
-                alt="Dataset Studio showing an image segmentation task with annotated regions"
-                width={1915}
-                height={927}
-                priority
-                sizes="(max-width: 60rem) 100vw, 45vw"
-              />
-              <figcaption>Dataset Studio — image segmentation</figcaption>
-            </figure>
           </section>
         </div>
 
-        <section className="landing-section">
-          <div className="landing-container">
-            <span className="landing-eyebrow">The workflow</span>
-            <h2 className="landing-h2">Five stages, and each one hands off to the next.</h2>
-            <p className="landing-lede">
-              Continuity is the organizing idea: an empty dataset points at upload, a finished
-              training run points at testing, a scored model points at inference.
-            </p>
+        <section id="models" className="landing-section">
+          <div className="landing-container landing-container-centered">
+            <h2 className="landing-featured-title">Featured Models</h2>
+            <PopularModelsSlider />
+          </div>
+        </section>
 
-            <ol className="landing-stages">
-              {STAGES.map((stage) => (
-                <li className="landing-stage" key={stage.n}>
-                  <div className="landing-stage-rail">
-                    <span className="landing-stage-number">{stage.n}</span>
-                  </div>
-                  <div className="landing-stage-body">
-                    <div>
-                      <h3 className="landing-stage-title">{stage.title}</h3>
-                      <p className="landing-stage-copy">{stage.copy}</p>
-                      <ul className="landing-stage-tags">
-                        {stage.tags.map((tag) => (
-                          <li key={tag}>{tag}</li>
-                        ))}
-                      </ul>
+        <section id="workflow" className="landing-section workflow-section">
+          <div className="landing-container">
+            <div className="workflow-header">
+              <span className="landing-eyebrow">The Workflow</span>
+              <h2 className="landing-h2">From Raw Data to Deployed Inference in 5 Simple Steps</h2>
+              <p className="landing-lede">
+                Continuity is the organizing principle: every stage seamlessly hands off to the next — from raw dataset upload to measured model predictions.
+              </p>
+            </div>
+
+            <div className="workflow-timeline-wrapper">
+              <ol className="workflow-timeline">
+                {STAGES.map((stage, idx) => (
+                  <li className="workflow-timeline-item" key={stage.n}>
+                    <div className="workflow-timeline-rail">
+                      <div className="workflow-timeline-node">
+                        <span className="workflow-timeline-number">{stage.n}</span>
+                      </div>
+                      {idx < STAGES.length - 1 && <div className="workflow-timeline-line" />}
                     </div>
-                    <figure className="landing-figure">
-                      <Image
-                        src={stage.image}
-                        alt={`${stage.title} stage — ${stage.caption}`}
-                        width={1915}
-                        height={927}
-                        loading="lazy"
-                        sizes="(max-width: 60rem) 100vw, 40vw"
-                      />
-                      <figcaption>{stage.caption}</figcaption>
-                    </figure>
-                  </div>
-                </li>
-              ))}
-            </ol>
+
+                    <div className="workflow-timeline-content">
+                      <div className="workflow-stage-card">
+                        <div className="workflow-stage-body">
+                          <span className="workflow-stage-step-pill">Stage {stage.n}</span>
+                          <h3 className="workflow-stage-title">{stage.title}</h3>
+                          <p className="workflow-stage-subtitle">{stage.subtitle}</p>
+
+                          <div className="workflow-action-result-box">
+                            <div className="workflow-flow-step">
+                              <span className="workflow-flow-lbl">1. What You Do</span>
+                              <p className="workflow-flow-txt">{stage.action}</p>
+                            </div>
+                            <div className="workflow-flow-arrow">↓</div>
+                            <div className="workflow-flow-step workflow-flow-result">
+                              <span className="workflow-flow-lbl">2. What You Get</span>
+                              <p className="workflow-flow-txt">{stage.result}</p>
+                            </div>
+                          </div>
+
+                          <ul className="workflow-stage-tags">
+                            {stage.tags.map((tag) => (
+                              <li key={tag}>{tag}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Image padded & framed cleanly inside container card */}
+                        <div className="workflow-image-card-container">
+                          <figure className="workflow-image-card">
+                            <div className="workflow-image-frame">
+                              <Image
+                                src={stage.image}
+                                alt={`${stage.title} stage — ${stage.caption}`}
+                                width={1915}
+                                height={927}
+                                loading="lazy"
+                                sizes="(max-width: 60rem) 100vw, 42vw"
+                              />
+                            </div>
+                            <figcaption>{stage.caption}</figcaption>
+                          </figure>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </section>
 
-        <section className="landing-section">
+        <section id="quickstart" className="landing-section quickstart-section">
           <div className="landing-container">
-            <span className="landing-eyebrow">What it runs</span>
-            <h2 className="landing-h2">Three model families, one normalized response.</h2>
-            <p className="landing-lede">
-              Inference output is normalized across families, so the review surface keeps its shape
-              when the model underneath changes.
-            </p>
-            <div className="landing-table-wrap">
-              <table className="landing-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Family</th>
-                    <th scope="col">Tasks</th>
-                    <th scope="col">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {MODEL_FAMILIES.map((row) => (
-                    <tr key={row.family}>
-                      <th scope="row">{row.family}</th>
-                      <td>{row.tasks}</td>
-                      <td>{row.notes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <section className="landing-section">
-          <div className="landing-container landing-split">
-            <div>
-              <span className="landing-eyebrow">Language models</span>
-              <h2 className="landing-h2">Fine-tune an LLM, then chat with it.</h2>
+            <div className="quickstart-header">
+              <span className="landing-eyebrow">Quickstart Setup</span>
+              <h2 className="landing-h2">Run the Full Stack in 3 Easy Steps</h2>
               <p className="landing-lede">
-                Fine-tune a Hugging Face base model with LoRA, QLoRA, or a full run — the platform
-                detects your accelerator and picks a matching backend. Export the result to GGUF,
-                serve it, and open a chat with sampler controls, an optional system prompt, web
-                search with citations, and a view into the model&rsquo;s reasoning.
-              </p>
-              <p className="landing-note">
-                A research instrument for measuring model behavior — not a medical assistant.
+                A FastAPI & SQLite backend, a Next.js frontend, and single-click <code>make</code> targets. Copy each command independently to get up and running on your local machine.
               </p>
             </div>
-            <figure className="landing-figure">
-              <Image
-                src="/brand/12_llm_chat.png"
-                alt="Chat surface conversing with a served GGUF model, with sampler controls and a served-model panel"
-                width={1915}
-                height={927}
-                loading="lazy"
-                sizes="(max-width: 60rem) 100vw, 45vw"
-              />
-              <figcaption>Chat — a served GGUF model</figcaption>
-            </figure>
-          </div>
-        </section>
 
-        <section className="landing-section">
-          <div className="landing-container">
-            <span className="landing-eyebrow">More in the workspace</span>
-            <h2 className="landing-h2">Everything the five stages lean on.</h2>
-            <div className="landing-table-wrap">
-              <table className="landing-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Capability</th>
-                    <th scope="col">What it does</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {WORKSPACE_FEATURES.map((feature) => (
-                    <tr key={feature.name}>
-                      <th scope="row">{feature.name}</th>
-                      <td>{feature.copy}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
+            <div className="quickstart-grid">
+              <div className="quickstart-card">
+                <div className="quickstart-card-header">
+                  <span className="quickstart-step-num">Step 01</span>
+                  <h3 className="quickstart-card-title">Configure Environment Variables</h3>
+                </div>
+                <p className="quickstart-card-desc">
+                  Copy template environment settings for FastAPI backend (<code>:8000</code>) and Next.js frontend (<code>:3000</code>).
+                </p>
+                <CodeBlock code={CMD_STEP_1} label="step 1 environment setup command" />
+              </div>
 
-        <section className="landing-section">
-          <div className="landing-container landing-split">
-            <div>
-              <h2 className="landing-h2">Two commands to a running stack.</h2>
-              <p className="landing-lede">
-                A FastAPI and SQLite backend, a Next.js frontend, and <code>make</code> targets that
-                start both together with interleaved logs. Full setup lives in the{" "}
-                <a
-                  className="landing-inline-link"
-                  href={`${REPO_HREF}#quickstart`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  README
-                </a>
-                .
-              </p>
+              <div className="quickstart-card">
+                <div className="quickstart-card-header">
+                  <span className="quickstart-step-num">Step 02</span>
+                  <h3 className="quickstart-card-title">Verify Prerequisites</h3>
+                </div>
+                <p className="quickstart-card-desc">
+                  Check local Python 3.11, Node.js, <code>uv</code>, and <code>pnpm</code> dependencies automatically.
+                </p>
+                <CodeBlock code={CMD_STEP_2} label="step 2 doctor command" />
+              </div>
+
+              <div className="quickstart-card">
+                <div className="quickstart-card-header">
+                  <span className="quickstart-step-num">Step 03</span>
+                  <h3 className="quickstart-card-title">Launch Platform Stack</h3>
+                </div>
+                <p className="quickstart-card-desc">
+                  Start backend (port 8000) and frontend (port 3000) concurrently with interleaved terminal logs.
+                </p>
+                <CodeBlock code={CMD_STEP_3} label="step 3 launch stack command" />
+              </div>
             </div>
-            <CodeBlock code={QUICKSTART} label="quickstart commands" />
           </div>
         </section>
 
         <section className="landing-close">
-          <div className="landing-container">
-            <h2 className="landing-h2">Start with a project.</h2>
-            <p className="landing-lede">
-              Create one, point it at a dataset, and the workspace carries you through to a scored
-              model.
+          <div className="landing-container landing-close-container">
+            <span className="landing-eyebrow">Get Started</span>
+            <h2 className="landing-h1 landing-close-title">Start with a project.</h2>
+            <p className="landing-lede landing-close-lede">
+              Create a workspace project, point it at a dataset, and let the platform guide you from annotation to measured model inference.
             </p>
-            <div className="landing-cta-row">
-              <ButtonLink href={SIGN_IN_HREF}>Open the platform</ButtonLink>
+            <div className="landing-cta-row landing-cta-row-centered">
+              <ButtonLink href={SIGN_IN_HREF} className="landing-close-btn">
+                Open the Platform →
+              </ButtonLink>
             </div>
           </div>
         </section>
       </main>
 
       <footer>
-        <div className="landing-container landing-footer">
-          <span>Onestep AI Platform — research and engineering workspace for vision and NLP.</span>
-          <div className="landing-footer-links">
-            <a href={REPO_HREF} target="_blank" rel="noreferrer">
-              GitHub
-            </a>
-            <Link href="/documentation">Documentation</Link>
-            <a href={`${REPO_HREF}/blob/main/LICENSE`} target="_blank" rel="noreferrer">
-              Apache 2.0
-            </a>
-          </div>
+        <div className="landing-container landing-footer-simple">
+          <p className="landing-footer-text">
+            Onestep AI Platform — Research and engineering workspace for Vision &amp; NLP intelligence.
+          </p>
         </div>
       </footer>
     </div>
