@@ -16,9 +16,27 @@ export function generateStaticParams() {
 
 export function generateMetadata({ params }: PageProps): Metadata {
   const model = SYSTEM_MODELS.find((m) => m.id === params.modelId);
+  const title = model ? `${model.name} — ${model.family} Model Specs | Onestep AI Platform` : "Model Specs — Onestep AI Platform";
+  const description = model ? model.description : "Technical details and inference specifications of system model in Onestep AI Platform.";
+  const keywords = model
+    ? [model.name, model.family, model.taskLabel, model.format, "Onestep AI Platform", "local AI model", "model specifications"]
+    : ["Onestep AI Platform", "model details"];
+
   return {
-    title: model ? `${model.name} · Models Catalog · Onestep AI Platform` : "Model Details · Onestep AI Platform",
-    description: model ? model.description : "Details of system model in Onestep AI Platform."
+    title,
+    description,
+    keywords,
+    openGraph: {
+      title,
+      description,
+      siteName: "Onestep AI Platform",
+      type: "website"
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description
+    }
   };
 }
 

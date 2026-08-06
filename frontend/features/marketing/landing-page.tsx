@@ -72,9 +72,37 @@ const STAGES = [
   }
 ];
 
+const JSON_LD_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Onestep AI Platform",
+  "operatingSystem": "macOS, Linux, Windows",
+  "applicationCategory": "DeveloperApplication",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "Open-source, privacy-first local research and engineering workspace for Computer Vision, NLP, and LLM intelligence.",
+  "license": "https://github.com/L007/onestep-ai-platform/blob/main/LICENSE",
+  "downloadUrl": "https://github.com/L007/onestep-ai-platform/archive/refs/heads/main.zip",
+  "featureList": [
+    "YOLOv11 Instance Segmentation",
+    "Keras U-Net & Inception Classifiers",
+    "Hugging Face Transformers Fine-tuning",
+    "Local GGUF LLM Serving & Streaming Chat",
+    "Dataset Studio Annotation & Versioning",
+    "100% Local Subprocess Execution"
+  ]
+};
+
 export function LandingPage() {
   return (
     <div className="landing">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD_SCHEMA) }}
+      />
       <MarketingNav />
 
       <main>
