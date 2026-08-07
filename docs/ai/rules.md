@@ -26,13 +26,16 @@
 - Keep feature implementations under `frontend/features` and shared page exports in `frontend/components/platform-pages.tsx`.
 - Keep API calls in the domain-based `frontend/lib/api/` package and preserve `import { api } from "@/lib/api"`.
 - Keep generated TypeScript build info out of git tracking.
-- Keep every platform surface the working app. Route entry is `/` (landing) → `/signin` → `/projects`;
+- Keep every platform surface the working app. Route entry is `/` (sign-in) → `/projects`;
   everything from `/projects` inward is dense operational UI and must never take on marketing framing.
-- The public entry surface is exactly two routes, `app/(marketing)/page.tsx` and
-  `app/(marketing)/signin/page.tsx`. Adding a third marketing route needs a spec first.
+- The public entry surface is exactly one route, `app/(auth)/page.tsx`. There is no marketing landing
+  page in this app — a public marketing surface belongs on the Orinth site. Adding a second public
+  route needs a spec first.
 - Prefer dense, operational UI over marketing-style presentation on every `(platform)` route.
-- Marketing copy must stay honest: no invented metrics, testimonials, logo walls, or user counts.
-  Every claim on the landing page traces to `README.md` or this file.
+- Entry-surface copy must stay honest: no invented metrics, testimonials, logo walls, or user counts.
+  Every claim traces to `README.md` or this file.
+- The product is **Orinth**, by **Onestep AI Labs**. The name and mark come from
+  `frontend/components/brand.tsx` — never retype the name in JSX or ship a second logo asset.
 - Use the design tokens defined in `frontend/app/globals.css` and documented in `frontend/DESIGN.md`; never hardcode hex, rgb, or hsl values.
 - Use the shared primitives from `@/features/platform/ui` (Button, Badge, EmptyState, toast, skeletons) instead of raw class names in new code.
 - Follow the `/frontend-design` skill for UI work. Use `hallmark` only via `audit` / `redesign` or on component-scope briefs; its greenfield flow composes marketing pages and is out of scope here.

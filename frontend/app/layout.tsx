@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 import "./styles/platform.css";
-import "./styles/marketing.css";
+import "./styles/auth.css";
 
 // One face. Display type is Inter 500 with tightened tracking (see DESIGN.md §3);
 // --font-display aliases --font-sans in globals.css.
@@ -13,15 +13,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Onestep AI Platform",
+  title: "Orinth",
   description: "One workspace for vision and NLP intelligence",
   icons: {
-    icon: "/brand/logo_transparent.png"
+    icon: [{ url: "/brand/orinth-mark.svg", type: "image/svg+xml" }]
   }
 };
 
-// The shell lives in app/(platform)/layout.tsx, not here — the marketing group
-// renders its own chrome and must not mount the sidebar or the project context.
+// The shell lives in app/(platform)/layout.tsx, not here — the auth group renders
+// its own chrome and must not mount the sidebar or the project context.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

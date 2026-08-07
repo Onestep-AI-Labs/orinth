@@ -1,7 +1,7 @@
 [project]
-name = "onestep-ai-platform-backend"
+name = "orinth-backend"
 version = "0.1.0"
-description = "FastAPI backend for Onestep AI Platform image datasets, inference, testing, and training jobs."
+description = "FastAPI backend for Orinth image datasets, inference, testing, and training jobs."
 # torch 2.2.2 — the last release with a macOS x86_64 wheel — has no cp312
 # build, and the lock has to resolve for every supported interpreter.
 requires-python = ">=3.11,<3.12"

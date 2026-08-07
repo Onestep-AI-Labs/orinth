@@ -6,7 +6,7 @@ Implemented V1 with local baselines; neural Keras and Hugging Face transformer a
 
 ## Goal
 
-Extend the Onestep AI Platform workspace to support Natural Language Processing (NLP) tasks:
+Extend the workspace to support Natural Language Processing (NLP) tasks:
 - Text Classification
 - Text Summarization
 - Question Answering

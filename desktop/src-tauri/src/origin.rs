@@ -25,7 +25,7 @@ use crate::paths::AppPaths;
 /// Baked in at build time by `prepare-resources.mjs`. `.invalid` is reserved by
 /// RFC 2606 and can never resolve, so a missed substitution fails loudly
 /// instead of silently reaching a real host.
-pub const PLACEHOLDER_ORIGIN: &str = "http://onestep-backend.invalid";
+pub const PLACEHOLDER_ORIGIN: &str = "http://orinth-backend.invalid";
 
 const MARKER: &str = "frontend-origin";
 
@@ -111,7 +111,7 @@ mod tests {
     use super::*;
 
     fn fixture(name: &str) -> AppPaths {
-        let root = std::env::temp_dir().join(format!("onestep-origin-{name}-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("orinth-origin-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let paths = AppPaths::rooted(root);
         paths.ensure().unwrap();

@@ -1,5 +1,5 @@
 {
-  "name": "onestep-ai-platform-frontend",
+  "name": "orinth-frontend",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.10.0",
@@ -13,7 +13,6 @@
     "generate:api": "uv run --project ../backend python ../backend/scripts/export_openapi.py ../backend/openapi.json && openapi-typescript ../backend/openapi.json -o ./types/generated/api.ts"
   },
   "dependencies": {
-    "@tailwindcss/typography": "^0.5.20",
     "@tanstack/react-query": "^5.51.21",
     "@xyflow/react": "^12.11.2",
     "class-variance-authority": "^0.7.0",

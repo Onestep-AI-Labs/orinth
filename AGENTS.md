@@ -39,12 +39,13 @@ If local skills are available, invoke `$onestep-ai-platform` for repository work
 - Update the relevant `specs/` file when behavior, APIs, data flow, or acceptance criteria change.
 - `frontend/DESIGN.md` is the authoritative design contract. Never hardcode a color; never add elevation
   to a resting surface. Update the contract when the system changes.
-- Inside `frontend/app/(platform)`, use `hallmark` only via its `audit` / `redesign` verbs or on
-  component-scope briefs. Its default greenfield flow builds marketing pages and conflicts with
-  "every platform screen is the working app".
-- `frontend/app/(marketing)` — the two public routes `/` and `/signin` — is the one place the greenfield
-  flow applies. It is still bound by `frontend/DESIGN.md` §10: one typeface, weight cap 600, token-only
-  color, border-first elevation, real screenshots, and no invented metrics or testimonials.
+- Use `hallmark` only via its `audit` / `redesign` verbs or on component-scope briefs. Its default
+  greenfield flow builds marketing pages and conflicts with "every screen is the working app".
+- `frontend/app/(auth)` holds the single public route: `/`, the sign-in screen. There is no marketing
+  landing page. It is bound by `frontend/DESIGN.md` §10: one typeface, weight cap 600, token-only
+  color, border-first elevation, and no invented metrics or testimonials.
+- The product is **Orinth**, by **Onestep AI Labs**. Name and mark come from
+  `frontend/components/brand.tsx`.
 
 ## Medical Context
 

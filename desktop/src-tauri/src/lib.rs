@@ -1,4 +1,4 @@
-//! Onestep AI Platform desktop shell.
+//! Orinth desktop shell.
 //!
 //! The app owns three things: provisioning a Python/Node runtime on first
 //! launch, supervising the FastAPI and Next servers, and pointing a webview at
@@ -167,7 +167,7 @@ fn show_main_window(app: &AppHandle, url: &str) -> anyhow::Result<()> {
     // Window construction belongs on the main thread on macOS.
     app.clone().run_on_main_thread(move || {
         let built = WebviewWindowBuilder::new(&app, MAIN_WINDOW, WebviewUrl::External(url))
-            .title("Onestep AI Platform")
+            .title("Orinth")
             .inner_size(1440.0, 900.0)
             .min_inner_size(1024.0, 700.0)
             .center()
@@ -203,7 +203,7 @@ pub fn run() {
         ])
         .setup(|app| {
             WebviewWindowBuilder::new(app, SETUP_WINDOW, WebviewUrl::App("index.html".into()))
-                .title("Onestep AI Platform")
+                .title("Orinth")
                 .inner_size(680.0, 560.0)
                 .resizable(false)
                 .center()
@@ -211,7 +211,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to start the Onestep AI Platform desktop app");
+        .expect("failed to start the Orinth desktop app");
 
     // Bootstrap is kicked off by the setup window (see `start_bootstrap`), not
     // from here, so no progress event can fire before the webview subscribes.

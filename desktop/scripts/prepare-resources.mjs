@@ -30,7 +30,7 @@ const cacheDir = path.join(desktopDir, ".cache");
 // Must match PLACEHOLDER_ORIGIN in src-tauri/src/origin.rs. `.invalid` is
 // reserved by RFC 2606 and can never resolve, so a missed substitution fails
 // loudly instead of quietly reaching some real host.
-const BACKEND_ORIGIN_PLACEHOLDER = "http://onestep-backend.invalid";
+const BACKEND_ORIGIN_PLACEHOLDER = "http://orinth-backend.invalid";
 
 // Keep in sync with the pinned versions table in
 // specs/phase-18-macos-desktop-app.md.

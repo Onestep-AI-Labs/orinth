@@ -21,7 +21,7 @@ use crate::ports;
 /// Set on both children as a diagnostic marker only. It is deliberately *not*
 /// used to prove ownership at reap time: macOS restricts `ps -E`, so a parent
 /// cannot read a child's environment back.
-const OWNER_TAG: &str = "onestep-desktop-child";
+const OWNER_TAG: &str = "orinth-desktop-child";
 
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(180);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(8);
@@ -177,7 +177,7 @@ fn spawn_backend(paths: &AppPaths, port: u16) -> Result<Child> {
         // `python -m` already puts the cwd on sys.path; this makes the import
         // root explicit rather than incidental.
         .args(["--app-dir", "."])
-        .env("ONESTEP_DESKTOP", OWNER_TAG)
+        .env("ORINTH_DESKTOP", OWNER_TAG)
         // Absolute data paths keep every artifact in Application Support. These
         // win over the backend's `.env` lookup: pydantic-settings reads the
         // process environment first.
@@ -208,7 +208,7 @@ fn spawn_frontend(paths: &AppPaths, port: u16, backend_port: u16) -> Result<Chil
     command
         .current_dir(&paths.frontend)
         .arg(&server)
-        .env("ONESTEP_DESKTOP", OWNER_TAG)
+        .env("ORINTH_DESKTOP", OWNER_TAG)
         .env("NODE_ENV", "production")
         .env("HOSTNAME", "127.0.0.1")
         .env("PORT", port.to_string())
@@ -393,7 +393,7 @@ mod tests {
     use super::*;
 
     fn temp_root(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("onestep-sup-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("orinth-sup-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }

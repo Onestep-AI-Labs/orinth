@@ -1,4 +1,4 @@
-# Installing Onestep AI Platform (macOS)
+# Installing Orinth (macOS)
 
 The `.dmg` is **universal** — the same file runs on Apple silicon (M1–M4) and
 on Intel Macs.
@@ -14,8 +14,8 @@ on Intel Macs.
 
 ## Install
 
-1. Double-click **`Onestep AI Platform_0.1.0_universal.dmg`**.
-2. Drag **Onestep AI Platform** onto the **Applications** shortcut in the
+1. Double-click **`Orinth_0.1.0_universal.dmg`**.
+2. Drag **Orinth** onto the **Applications** shortcut in the
    window that opens.
 3. Eject the disk image (click ⏏ next to it in Finder's sidebar).
 
@@ -31,7 +31,7 @@ happens once.
    **Done** / **OK**.
 2. Open **System Settings → Privacy & Security**.
 3. Scroll down to the **Security** section. You will see a line saying
-   *"Onestep AI Platform was blocked to protect your Mac."*
+   *"Orinth was blocked to protect your Mac."*
 4. Click **Open Anyway**, then confirm with Touch ID or your password.
 5. Open the app again from Applications. It starts.
 
@@ -95,13 +95,13 @@ Everything the app creates — datasets, models, training runs, the database —
 lives in:
 
 ```
-~/Library/Application Support/ai.onestep.platform/
+~/Library/Application Support/orinth.ai.studio/
 ```
 
 Logs, if you ever need to send them:
 
 ```
-~/Library/Application Support/ai.onestep.platform/logs/
+~/Library/Application Support/orinth.ai.studio/logs/
 ```
 
 The setup window also has an **Open logs** button.
@@ -109,8 +109,8 @@ The setup window also has an **Open logs** button.
 ## Uninstall
 
 ```bash
-rm -rf "/Applications/Onestep AI Platform.app"
-rm -rf ~/Library/Application\ Support/ai.onestep.platform
+rm -rf "/Applications/Orinth.app"
+rm -rf ~/Library/Application\ Support/orinth.ai.studio
 ```
 
 The second command deletes your projects and trained models too — skip it if

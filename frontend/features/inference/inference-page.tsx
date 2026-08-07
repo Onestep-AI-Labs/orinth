@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { MessagesSquare, Play, ScanEye, Upload } from "lucide-react";
+import { MessagesSquare, Play, Rocket, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
@@ -142,7 +142,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
       <PageHeader
         title="Inference"
         subtitle={isLlm ? "Serve and chat with a fine-tuned LLM" : "Run models on project samples"}
-        icon={<ScanEye size={20} />}
+        icon={<Rocket size={20} />}
         actions={
           // The chat surface only applies to the LLM task with a servable
           // model, so the button appears only then — not on vision/NLP tasks.
@@ -222,13 +222,13 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           {jobQuery.data && <ProgressPanel progress={jobQuery.data.progress} status={jobQuery.data.status} error={jobQuery.data.error} />}
         </section>
         <section className="panel min-h-[520px]">
-          <PanelTitle icon={<ScanEye size={18} />} title="Result" dataTour="inference-result" />
+          <PanelTitle icon={<Rocket size={18} />} title="Result" dataTour="inference-result" />
           {result ? (
             <InferenceResultView result={result} modelNameById={modelNameById} />
           ) : (
             <EmptyState
               label="No result selected"
-              icon={<ScanEye size={28} />}
+              icon={<Rocket size={28} />}
               description="Run an inference or pick a row from the history below."
             />
           )}

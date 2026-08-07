@@ -1,8 +1,8 @@
-# Onestep AI Platform Product Vision
+# Orinth Product Vision
 
 ## Product Promise
 
-Onestep AI Platform is one workspace for image intelligence: a local studio where teams can turn image datasets into usable model experiments through labeling, preparation, training, testing, and inspection.
+Orinth is one workspace for image intelligence: a local studio where teams can turn image datasets into usable model experiments through labeling, preparation, training, testing, and inspection.
 
 The product is built for research and engineering workflows. It helps teams move from raw images to measurable model behavior without implying autonomous clinical diagnosis or final decision-making.
 
@@ -34,4 +34,4 @@ One workspace for image intelligence.
 
 ## Brand Asset Source
 
-The product UI uses the canonical Onestep AI Platform assets under `frontend/public/brand/`. The app shell and favicon metadata use `logo_transparent.png`; `logo_dark.png` and `logo_light.png` are reserved for documentation, presentation, and preview surfaces that need a complete logo tile.
+The app shell renders the mark through `frontend/components/brand.tsx` (`LogoMark`), which strokes on `currentColor` and therefore needs no light/dark variants. `frontend/public/brand/orinth-mark.svg` is the standalone tile, used for the favicon and for README or presentation placements. See `docs/brand/orinth.md`.

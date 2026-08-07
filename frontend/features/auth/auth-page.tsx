@@ -1,17 +1,16 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { Button } from "@/features/platform/ui";
-import { LANDING_HREF, WORKSPACE_HREF } from "./routes";
+import { BRAND_NAME, LogoMark } from "@/components/brand";
+import { WORKSPACE_HREF } from "./routes";
 
 /**
- * Presentational sign-in. There is no auth backend yet — docs/ai/rules.md is
- * explicit that auth lands before multi-user or network-exposed deployment, so
- * this screen deliberately does not validate, store, or transmit anything. The
- * notice below says so on the page rather than letting the form imply otherwise.
+ * Presentational sign-in, and the app's entry route. There is no auth backend
+ * yet — docs/ai/rules.md is explicit that auth lands before multi-user or
+ * network-exposed deployment, so this screen deliberately does not validate,
+ * store, or transmit anything. The notice below says so on the page rather than
+ * letting the form imply otherwise.
  *
  * Wiring real auth later: submit against the auth endpoint here, and keep the
  * redirect target in ./routes.ts.
@@ -23,13 +22,13 @@ export function SignInPage() {
     <div className="signin">
       <div className="signin-panel">
         <div className="signin-form-wrap">
-          <Link className="signin-back" href={LANDING_HREF}>
-            <ArrowLeft size={15} />
-            <span>Back</span>
-          </Link>
+          <span className="signin-wordmark">
+            <LogoMark size={22} />
+            <strong>{BRAND_NAME}</strong>
+          </span>
 
           <h1 className="signin-title">Sign in</h1>
-          <p className="signin-sub">Continue to your Onestep AI Platform workspace.</p>
+          <p className="signin-sub">Continue to your {BRAND_NAME} workspace.</p>
 
           <form
             className="signin-form"
@@ -64,7 +63,9 @@ export function SignInPage() {
 
       <aside className="signin-aside">
         <div className="signin-aside-inner">
-          <Image src="/brand/logo_transparent.png" alt="" width={36} height={36} />
+          <span className="signin-aside-mark">
+            <LogoMark size={34} />
+          </span>
           <p className="signin-aside-lede">
             One workspace that carries a dataset from raw files through to measured model behavior.
           </p>

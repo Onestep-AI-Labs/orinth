@@ -409,7 +409,7 @@ mod tests {
     }
 
     fn temp_root(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("onestep-boot-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("orinth-boot-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }

@@ -1,6 +1,6 @@
 # Desktop app (macOS)
 
-Packages the platform as `Onestep AI Platform.app` and an installable `.dmg`.
+Packages the platform as `Orinth.app` and an installable `.dmg`.
 Drag it to `/Applications`, double-click, and the full app opens in a native
 window — no terminal, no `make dev`.
 
@@ -19,7 +19,7 @@ points a WKWebView at the Next server. The web app is unchanged; the only
 frontend edit is an env-gated `output: "standalone"` in `next.config.mjs`.
 
 ```
-Onestep AI Platform.app
+Orinth.app
 └── Contents/Resources/resources/
     ├── backend/           FastAPI source + pyproject.toml + uv.lock
     ├── frontend.tar.gz    Next standalone server
@@ -28,7 +28,7 @@ Onestep AI Platform.app
 ```
 
 The `.dmg` is ~56 MB because it ships source, not runtimes. On first launch the
-app provisions the heavy parts into `~/Library/Application Support/ai.onestep.platform/`:
+app provisions the heavy parts into `~/Library/Application Support/orinth.ai.studio/`:
 
 ```
 runtime/backend/.venv   ~2.7 GB of ML wheels (torch, TensorFlow, Ultralytics, Transformers)
@@ -53,7 +53,7 @@ make desktop-dev # run the shell against a freshly staged bundle
 make desktop-test
 ```
 
-Output: `desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Onestep AI Platform_<version>_universal.dmg`
+Output: `desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Orinth_<version>_universal.dmg`
 
 Requires Rust ≥ 1.88 (`rustup update stable`), Xcode Command Line Tools, Node,
 and pnpm.
@@ -75,7 +75,7 @@ mounted under `/Volumes`. If you hit that, `hdiutil detach` them and build via
 `uv` are both fat binaries carrying `arm64` and `x86_64`. This matters: Rosetta
 translates Intel binaries to run on Apple silicon, never the reverse, so an
 arm64-only build fails on an Intel Mac with the bare message *"The application
-"Onestep AI Platform" can't be opened."* — no mention of architecture, which
+"Orinth" can't be opened."* — no mention of architecture, which
 makes it easy to misread as a Gatekeeper problem.
 
 `uv` is welded together with `lipo` from the two published builds. It is a
@@ -86,8 +86,8 @@ moment provisioning starts.
 Verify a build with:
 
 ```bash
-lipo -archs "…/Onestep AI Platform.app/Contents/MacOS/onestep-desktop"   # x86_64 arm64
-lipo -archs "…/Onestep AI Platform.app/Contents/Resources/resources/bin/uv"
+lipo -archs "…/Orinth.app/Contents/MacOS/orinth-desktop"   # x86_64 arm64
+lipo -archs "…/Orinth.app/Contents/Resources/resources/bin/uv"
 ```
 
 ## Signing
@@ -125,7 +125,7 @@ desktop/
 
 ## Troubleshooting
 
-Logs are at `~/Library/Application Support/ai.onestep.platform/logs/`
+Logs are at `~/Library/Application Support/orinth.ai.studio/logs/`
 (`backend.log`, `frontend.log`); the setup window's **Open logs** button reveals
 them in Finder. A failed step shows the error plus the last 50 log lines, and
 **Retry** resumes from the step that failed rather than starting over.

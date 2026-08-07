@@ -77,9 +77,9 @@ const config: Config = {
       }
     }
   },
-  plugins: [
-    require("@tailwindcss/typography"),
-  ]
+  // No plugins. @tailwindcss/typography was here only for the `prose` classes on
+  // the in-app documentation route, which phase 19 removed.
+  plugins: []
 };
 
 export default config;

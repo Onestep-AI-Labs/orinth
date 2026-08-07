@@ -1,1 +1,1 @@
-"""Onestep AI Platform backend."""
+"""Orinth backend."""

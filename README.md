@@ -1,8 +1,8 @@
 <div align="center">
-  <img src="frontend/public/brand/logo_transparent.png" alt="Onestep AI Platform Logo" width="300" />
+  <img src="frontend/public/brand/orinth-mark.svg" alt="Orinth" width="96" />
 </div>
 
-# Onestep AI Platform
+# Orinth
 
 ![license](https://img.shields.io/badge/license-Apache%202.0-blue)
 [![Backend CI](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml/badge.svg)](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml)
@@ -10,7 +10,7 @@
 
 **One workspace for Computer Vision, NLP, and LLM intelligence.**
 
-Onestep AI Platform is a local studio where teams can turn image and text datasets into usable model experiments through labeling, preparation, training, testing, and inspection — and fine-tune, serve, and chat with language models in the same place. Built for research and engineering workflows, it helps teams move from raw images and text to measurable model behavior without implying autonomous clinical diagnosis or final decision-making.
+Orinth is a local studio where teams can turn image and text datasets into usable model experiments through labeling, preparation, training, testing, and inspection — and fine-tune, serve, and chat with language models in the same place. Built for research and engineering workflows, it helps teams move from raw images and text to measurable model behavior without implying autonomous clinical diagnosis or final decision-making.
 
 ## Workflow Pillars
 
@@ -171,14 +171,14 @@ cd frontend && pnpm build
 ## Desktop App (macOS)
 
 `desktop/` packages the platform as an installable macOS app. Drag
-**Onestep AI Platform.app** to `/Applications`, double-click, and the full app
+**Orinth.app** to `/Applications`, double-click, and the full app
 opens in a native window — no terminal and no `make dev`.
 
 ```bash
 make desktop
 ```
 
-Output: `desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Onestep AI Platform_<version>_universal.dmg` (~56 MB).
+Output: `desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Orinth_<version>_universal.dmg` (~56 MB).
 
 The bundle is **universal** — one `.dmg` for both Apple silicon and Intel Macs.
 Hand [`desktop/INSTALL.md`](desktop/INSTALL.md) to anyone you send it to; it
@@ -190,7 +190,7 @@ runs, so there is no separate implementation to keep in sync. Because the
 `.dmg` ships source rather than runtimes, **first launch downloads and installs
 the ~2.7 GB ML environment** (10–20 minutes, needs a network connection) with
 per-step progress on screen; later launches start in seconds. Everything the
-app generates lives in `~/Library/Application Support/ai.onestep.platform/`,
+app generates lives in `~/Library/Application Support/orinth.ai.studio/`,
 never in the repo checkout.
 
 The bundle is ad-hoc signed but not notarized, so the first launch on another
@@ -241,7 +241,7 @@ Phase 6 introduces comprehensive Natural Language Processing (NLP) task pipeline
 
 Phase 7 & 8 revamp the frontend UI and formalize the design system.
 
-Phase 9 adds the entry flow (landing → sign-in → workspace) and project settings.
+Phase 9 adds the entry flow and project settings.
 
 Phase 10 adds Hugging Face Hub dataset import (the Dataset Hub).
 
@@ -260,6 +260,8 @@ Phase 16 adds guided tours across the platform surfaces.
 Phase 17 adds the Model Architecture Studio — a visual graph editor with Keras and PyTorch emitters.
 
 Phase 18 packages the platform as a macOS desktop app (`.dmg`); see [Desktop App](#desktop-app-macos).
+
+Phase 19 rebrands the product to **Orinth**, makes sign-in the entry route, and removes the marketing landing page and the in-app documentation surface.
 
 ## AI Workflow
 

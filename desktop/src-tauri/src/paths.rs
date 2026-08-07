@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
 
-pub const APP_ID: &str = "ai.onestep.platform";
+pub const APP_ID: &str = "orinth.ai.studio";
 
 /// Writable per-user layout. Every field is an absolute path; none of them are
 /// guaranteed to exist until [`AppPaths::ensure`] runs.
@@ -176,7 +176,7 @@ mod tests {
     use super::*;
 
     fn temp_root(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("onestep-paths-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("orinth-paths-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }

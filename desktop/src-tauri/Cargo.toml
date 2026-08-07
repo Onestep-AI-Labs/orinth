@@ -1,17 +1,17 @@
 [package]
-name = "onestep-desktop"
+name = "orinth-desktop"
 version = "0.1.0"
-description = "Onestep AI Platform desktop shell"
+description = "Orinth desktop shell"
 edition = "2021"
 rust-version = "1.77"
 publish = false
 
 [lib]
-name = "onestep_desktop"
+name = "orinth_desktop"
 path = "src/lib.rs"
 
 [[bin]]
-name = "onestep-desktop"
+name = "orinth-desktop"
 path = "src/main.rs"
 
 [build-dependencies]

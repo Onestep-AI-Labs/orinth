@@ -1,4 +1,4 @@
-# Onestep AI Platform — Design System
+# Orinth — Design System
 
 AI-readable design contract for the frontend. Tokens live in `app/globals.css`; selectors that consume them live in `app/styles/platform.css`. New code uses primitives from `@/features/platform/ui`. Never hardcode a color value.
 
@@ -7,7 +7,11 @@ AI-readable design contract for the frontend. Tokens live in `app/globals.css`; 
 Operational research instrument for medical-imaging and NLP experiments — not a marketing site, not a diagnostic device.
 
 - Every platform screen is the working app. No landing-page composition inside `app/(platform)`.
-  The one public entry surface — `/` and `/signin` — is scoped in §10 and is the sole exception.
+  The one public entry surface — `/`, the sign-in screen — is scoped in §10 and is the sole exception.
+  There is no marketing landing page; `/` is auth.
+- The brand mark and name are drawn by `@/components/brand`, never by an image tag or a
+  retyped string. The mark is a stroked SVG on `currentColor`, so one asset serves every surface
+  and both themes.
 - Labels are nouns ("Training runs"). Buttons are verbs ("Start training").
 - Dense over spacious; informative over decorative.
 - Never imply final clinical diagnosis or autonomous medical decision-making.
@@ -134,6 +138,26 @@ There is no inverse-text context anywhere in the shell. If one is ever reintrodu
 
 - **Page header**: uppercase micro-label eyebrow above a 24px display title; actions right-aligned.
 
+### Navigation glyphs
+
+One glyph per destination, and **a destination's page header uses the same glyph as its nav entry** —
+the icon is how you confirm you landed where the rail said you would. Two entries sharing a glyph is a
+bug, not a style choice: it was how Projects ended up wearing Inference's eye and Datasets' database.
+
+| Destination | Glyph | Why it reads |
+|---|---|---|
+| Projects | `Folder` | A project is a container of scoped work, not a data store |
+| Datasets | `Database` | The stored corpus |
+| Models | `Boxes` | Discrete artifacts in a registry |
+| Training | `Activity` | A run producing a curve over time |
+| Testing | `FlaskConical` | A measured experiment |
+| Inference | `Rocket` | Putting a trained model to work — domain-neutral across vision, NLP, and LLM |
+| Settings | `Settings` (global) / `Settings2` (project) | Two scopes, two glyphs |
+
+Inference carries `Rocket` on every surface it owns: the nav entry (both rail widths), the page header,
+and the Result panel and its empty state. `ScanEye` is retired — it read as vision-only on a menu that
+also covers NLP and LLM chat. Lucide outline set only; never mix in a filled icon family.
+
 ## 7. Components
 
 Primitives live in `@/features/platform/ui`. Reach for a primitive before raw class names.
@@ -216,43 +240,35 @@ The node inspector renders `NodeSpec.params` through the phase-13 `AdvancedField
 - **Do** keep tables semantic (`<table>`) inside a horizontal-scroll wrapper; **don't** rebuild them as div grids.
 - **Do** write empty states with a next-step action; **don't** render bare "No data".
 - **Don't** add elevation to resting surfaces.
-- **Don't** set type above 24px on a `(platform)` route, or use weight 700 anywhere. The landing type
-  scale in §10 is the only sanctioned way past 24px, and it is scoped to `/` and `/signin`.
+- **Don't** set type above 24px on a `(platform)` route, or use weight 700 anywhere. The auth display
+  step in §10 is the only sanctioned way past 24px, and it is scoped to `/`.
 - **Don't** use gradients, icon-tile card grids, decorative accent blobs, or centered hero layouts.
 - **Don't** add diagnosis language anywhere, or marketing language on a `(platform)` route.
+- **Don't** reintroduce a marketing landing page. `/` is the sign-in screen; a public marketing
+  surface belongs on the Orinth site, not in this app.
 
-## 10. Landing scope — `/` and `/signin` only
+## 10. Auth scope — `/` only
 
-The public entry surface is a landing page and a sign-in screen. It is the one place the system is
-allowed to compose like a marketing page, and the allowance is deliberately narrow. Tokens live in
-`app/globals.css`; selectors live in `app/styles/marketing.css`.
+The one public route is the sign-in screen. It is the only place the system may compose outside the
+dashboard shell, and the allowance is deliberately narrow. Tokens live in `app/globals.css`;
+selectors live in `app/styles/auth.css`.
 
-**What the landing scope may do that a platform route may not:**
+**What the auth scope may do that a platform route may not:**
 
 | Allowance | Token | Why it is scoped |
 |---|---|---|
-| Type above 24px | `--display-hero` (36→56px), `--display-section` (26→34px) | A headline is the page's whole job. Nothing inside the app has that job |
-| Section rhythm past 48px | `--landing-gap` (64→112px) | The app is a full-bleed dashboard; the landing page is a read-through document |
-| Centered content column | `--landing-max` (72rem), `--landing-measure` (34rem) | The shell is a fixed sidebar; the landing page has no sidebar |
+| Type above 24px | `--display-section` (26→34px) | The page has one heading and no page header. Nothing inside the app is composed that way |
+| Full-viewport two-column split | — | The shell is a fixed sidebar; sign-in has no sidebar and no project context |
 
 **What does not change, and must not:** one typeface (Inter), weight cap 600, token-only color, the
-single-accent budget, and border-first elevation. `--accent` on the landing page is links and focus
-rings only — the primary CTA is the near-black `--ink` fill, exactly as `Button` renders it everywhere
-else. No shadow on a resting surface, including the nav, the figures, and the spec table.
+single-accent budget, and border-first elevation. `--accent` here is focus rings only — the submit
+button is the near-black `--ink` fill, exactly as `Button` renders it everywhere else. No shadow on a
+resting surface.
 
-**Content rules.** Product captures are real screenshots from `public/brand` in a hairline `<figure>` —
-never a re-drawn browser frame, phone mockup, or fake IDE chrome. No invented metrics, testimonials,
-logo walls, or user counts. The medical-context rule applies with full force: the page may say the
-platform *measures model behavior*, never that it diagnoses.
-
-**Beware the global table rules.** `app/styles/platform.css` styles bare `table` / `th` / `td` for
-dense dashboards — `white-space: nowrap`, ellipsis truncation, a 340px cap, sticky uppercase headers.
-Any unscoped `<table>` inherits them. `.landing-table` resets them explicitly; a new prose table must
-do the same rather than weakening the global rule.
-
-**Beware `next/image` intrinsic sizing.** A sized `<Image>` lays out at its intrinsic width unless the
-CSS sets `max-width: 100%`. `width: 100%` alone is not enough, and a wrapper's `overflow: hidden` will
-hide the resulting document overflow instead of preventing it.
+**Content rules.** No invented metrics, testimonials, logo walls, or user counts. The sign-in notice
+must keep saying that auth is not wired up, for as long as that is true. The medical-context rule
+applies with full force: the page may say the platform *measures model behavior*, never that it
+diagnoses.
 
 ## Exceptions
 

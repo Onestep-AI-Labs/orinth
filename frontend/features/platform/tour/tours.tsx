@@ -22,7 +22,7 @@ const projects: TourDefinition = {
   steps: [
     {
       target: '[data-tour="brand"]',
-      title: "Welcome to Onestep AI Platform",
+      title: "Welcome to Orinth",
       content:
         "A local studio for vision and NLP. The workflow is always: Organize → Prepare → Train → Test → Inspect. This quick tour shows where each stage lives.",
       placement: "right"    },
@@ -39,12 +39,6 @@ const projects: TourDefinition = {
       content:
         "Pick a project to drop into its workspace. That reveals the project rail — Datasets, Models, Training, Testing, and Inference.",
       placement: "top"
-    },
-    {
-      target: '[data-tour="nav-documentation"]',
-      title: "Documentation",
-      content: "The full guide — installation, Dataset Studio, training, testing, inference, and NLP — lives here.",
-      placement: "right"
     },
     {
       target: '[data-tour="nav-settings"]',

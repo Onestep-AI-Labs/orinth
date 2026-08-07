@@ -2,7 +2,13 @@
 
 ## Status
 
-Implemented.
+Implemented, then partly superseded by `specs/phase-19-orinth-rebrand.md`.
+
+**What phase 19 changed:** the landing page is deleted and `/` is the sign-in screen, so the entry
+flow is `/` → `/projects`, not `/` → `/signin` → `/projects`. The `(marketing)` group is now
+`(auth)`, `features/marketing/` is now `features/auth/`, and `app/styles/marketing.css` is now
+`app/styles/auth.css`. `/documentation` is gone. Everything below describes this phase as it shipped
+and is kept for the reasoning, not as a description of the current router.
 
 Supersedes the separate `phase-9-landing-and-signin.md` and `phase-12-project-settings.md` drafts,
 which are merged here. They ship together and share a route tree, a navigation model, and the
@@ -57,6 +63,9 @@ is unchanged.
 |---|---|---|
 | `app/(marketing)` | root layout only — no shell, no project context | `/`, `/signin` |
 | `app/(platform)` | `AppShell` + project context | `/projects`, `/projects/new`, `/projects/{id}/settings`, `/datasets`, `/models`, `/training`, `/testing`, `/inference`, `/settings`, `/documentation` |
+
+(Phase 19: the first row is now `app/(auth)` serving `/` alone, and `/documentation` is removed from
+the second.)
 
 The projects list moved from `/` to `/projects`. Six in-app links that pointed at `/` now point at
 `/projects`: the sidebar wordmark, the Projects nav item, the project back-link, the create-project

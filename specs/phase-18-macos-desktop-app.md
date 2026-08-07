@@ -2,13 +2,16 @@
 
 ## Status
 
-Implemented
+Implemented. Rebranded by `specs/phase-19-orinth-rebrand.md`: the product is **Orinth**, the bundle
+identifier is `orinth.ai.studio`, the app-data root moved with it, and the window opens on `/`
+(sign-in) because the landing page no longer exists. Names below are updated to match; the
+architecture is unchanged.
 
 ## Goal
 
-Ship Onestep AI Platform as a signed-optional macOS `.dmg`. A user drags
-**Onestep AI Platform.app** to `/Applications`, double-clicks it, and gets the
-full platform — landing, projects, datasets, training, inference — in a native
+Ship Orinth as a signed-optional macOS `.dmg`. A user drags
+**Orinth.app** to `/Applications`, double-clicks it, and gets the
+full platform — projects, datasets, training, inference — in a native
 window. No terminal, no `make dev`, no manually started servers.
 
 The app is a supervisor, not a rewrite: it starts the existing FastAPI backend
@@ -30,7 +33,7 @@ In:
 - `output: "standalone"` and `images.unoptimized` in `frontend/next.config.mjs`,
   both gated on `DESKTOP_BUILD=1` so `pnpm build` / `make build` behavior is
   unchanged.
-- The desktop window opens on `/signin`, not the marketing landing page.
+- The desktop window opens on the sign-in screen at `/`.
 
 Out:
 
@@ -69,14 +72,13 @@ Out:
 
 ### Entry surface
 
-The app window opens directly on `/signin`. Someone who has installed and
-launched a desktop app does not need the marketing landing page, so `/` is
-skipped in this shell; it remains the entry route for the browser build, and
-`frontend/app/(marketing)/page.tsx` is unchanged.
+The app window opens directly on the sign-in screen. As of phase 19 that is `/`
+itself: the marketing landing page is deleted, so there is nothing for the shell
+to skip past and no divergence from the browser build.
 
 ### Runtime layout
 
-Bundle (read-only), under `Onestep AI Platform.app/Contents/Resources/`:
+Bundle (read-only), under `Orinth.app/Contents/Resources/`:
 
 ```
 resources/backend/          backend source: app/, migrations/, alembic.ini,
@@ -98,7 +100,7 @@ directories. Either way the server dies on boot with
 exactly, and a single opaque file survives the bundler untouched.
 
 User data (writable), under
-`~/Library/Application Support/ai.onestep.platform/`:
+`~/Library/Application Support/orinth.ai.studio/`:
 
 ```
 runtime/backend/       working copy of resources/backend + its .venv
@@ -148,7 +150,7 @@ logs/frontend.log      Next server stdout/stderr
    env vars; poll `/health` until 200. Retarget the baked backend origin (see
    below), then start `runtime/node/bin/node runtime/frontend/server.js` with
    `PORT`, `HOSTNAME`, and `BACKEND_PROXY_ORIGIN`; poll `/` until 200.
-4. The main window opens at `http://127.0.0.1:<frontend port>/signin`; the setup
+4. The main window opens at `http://127.0.0.1:<frontend port>/`; the setup
    window closes.
 
 ### Retargeting the backend origin
@@ -165,7 +167,7 @@ own `{"detail":"Not Found"}`, so the UI reports "Not Found" on every action
 while both of this app's servers are perfectly healthy.
 
 The desktop build therefore bakes the unroutable placeholder
-`http://onestep-backend.invalid` (RFC 2606 guarantees it can never resolve, so a
+`http://orinth-backend.invalid` (RFC 2606 guarantees it can never resolve, so a
 missed substitution fails loudly rather than reaching a real host). Before
 starting Next, `src-tauri/src/origin.rs` rewrites that string to the real
 loopback origin across `.next/**/*.{json,js}`, and records what it wrote in a
@@ -228,7 +230,7 @@ lifespan already reaps orphaned llama.cpp servers and drains its executors.
   - Second launch reaches the working app in under ~10 s.
   - Quitting the app leaves no `uvicorn`, `node`, or `llama` process behind.
   - Data written in the app appears under
-    `~/Library/Application Support/ai.onestep.platform/storage/`, never in the
+    `~/Library/Application Support/orinth.ai.studio/storage/`, never in the
     repo checkout.
 - Tests:
   - `cd desktop/src-tauri && cargo test` covers port selection, checksum
