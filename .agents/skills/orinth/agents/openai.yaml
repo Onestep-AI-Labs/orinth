@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orinth"
+  short_description: "Orinth workflow"
+  default_prompt: "Use $orinth to implement an Orinth change from the specs."

@@ -1,9 +1,9 @@
 ---
-name: onestep-ai-platform
+name: orinth
 description: Orinth workflow for Codex or Claude Code. Use when working on this repository's FastAPI backend, Next.js frontend, image datasets, YOLO inference, U-Net + Inception inference, testing/evaluation jobs, training jobs, SQLite persistence, project specs, or AI workflow documentation.
 ---
 
-# Orinth (repo: onestep-ai-platform)
+# Orinth
 
 ## Core Workflow
 

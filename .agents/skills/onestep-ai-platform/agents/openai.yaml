@@ -1,4 +1,0 @@
-interface:
-  display_name: "Orinth"
-  short_description: "Orinth workflow"
-  default_prompt: "Use $onestep-ai-platform to implement an Orinth change from the specs."

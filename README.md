@@ -5,8 +5,8 @@
 # Orinth
 
 ![license](https://img.shields.io/badge/license-Apache%202.0-blue)
-[![Backend CI](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml/badge.svg)](https://github.com/L007/onestep-ai-platform/actions/workflows/backend.yml)
-[![Frontend CI](https://github.com/L007/onestep-ai-platform/actions/workflows/frontend.yml/badge.svg)](https://github.com/L007/onestep-ai-platform/actions/workflows/frontend.yml)
+[![Backend CI](https://github.com/Onestep-AI-Labs/orinth/actions/workflows/backend.yml/badge.svg)](https://github.com/Onestep-AI-Labs/orinth/actions/workflows/backend.yml)
+[![Frontend CI](https://github.com/Onestep-AI-Labs/orinth/actions/workflows/frontend.yml/badge.svg)](https://github.com/Onestep-AI-Labs/orinth/actions/workflows/frontend.yml)
 
 **One workspace for Computer Vision, NLP, and LLM intelligence.**
 
@@ -269,7 +269,7 @@ Project AI guidance is shared across Codex and Claude Code:
 
 - Codex entrypoint: `AGENTS.md`
 - Claude Code entrypoint: `CLAUDE.md`
-- Local skill: `.agents/skills/onestep-ai-platform`
+- Local skill: `.agents/skills/orinth`
 - Workflow and rules: `docs/ai/`
 - Planning and execution references: `specs/`
 

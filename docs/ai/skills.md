@@ -2,9 +2,9 @@
 
 The project-local skill lives at:
 
-- `.agents/skills/onestep-ai-platform`
+- `.agents/skills/orinth`
 
-Use `$onestep-ai-platform` for repository work when the agent runtime discovers local skills.
+Use `$orinth` for repository work when the agent runtime discovers local skills.
 
 The sections below document the workflows captured by that skill.
 

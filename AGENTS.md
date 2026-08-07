@@ -4,7 +4,7 @@ This repository supports both Codex and Claude Code. Treat this file as the proj
 
 ## Start Here
 
-If local skills are available, invoke `$onestep-ai-platform` for repository work.
+If local skills are available, invoke `$orinth` for repository work.
 
 1. Read `README.md`.
 2. Read `docs/ai/workflow.md`.

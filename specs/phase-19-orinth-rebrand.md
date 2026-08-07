@@ -18,8 +18,10 @@ Three changes that land together because they all rewrite the app's front door:
   this is not a redesign.
 - No auth backend. Sign-in stays presentational, and its notice still says so. `docs/ai/rules.md`
   still governs when real auth lands.
-- No repo rename. The GitHub slug, the checkout directory, and `.agents/skills/onestep-ai-platform`
-  identify the repository, not the product, and stay as they are.
+- ~~No repo rename.~~ Superseded immediately after this phase merged: the repository was renamed to
+  `orinth` and transferred to the `Onestep-AI-Labs` organization, the local checkout moved to
+  `AI/Orinth/orinth`, and the local skill was renamed `orinth` (`$orinth`). GitHub redirects the old
+  URLs, but remotes were repointed explicitly rather than relying on them.
 - No replacement for the deleted documentation. Reintroducing a docs surface needs its own spec.
 
 ## Brand

@@ -4,7 +4,7 @@ Use the same workflow as Codex.
 
 Use the local project skill when available:
 
-- `$onestep-ai-platform`
+- `$orinth`
 
 Read in order:
 
