@@ -1,0 +1,210 @@
+/* Auth surface — the single public route, `/`.
+ *
+ * Scope: the sign-in screen only. Everything here obeys DESIGN.md — token-only
+ * color, border-first structure, weight cap 600, one accent under 5%. The single
+ * sanctioned extension is the display step (--display-section), documented at
+ * DESIGN.md §10.
+ */
+
+/* Gate 34: no horizontal scroll on the public page. clip, never hidden. */
+html:has(.signin),
+html:has(.signin) body {
+  overflow-x: clip;
+}
+
+/* ---------------------------------------------------------------------------
+ * Sign-in — presentational only, no auth behind it yet
+ * ------------------------------------------------------------------------ */
+.signin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.signin-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 5vw, 4rem);
+}
+
+.signin-form-wrap {
+  width: 100%;
+  max-width: 24rem;
+}
+
+/* The wordmark stands in for the nav the landing page used to carry: on the
+   entry route there is nowhere to navigate to, so it identifies and nothing more. */
+.signin-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 40px;
+  color: var(--color-ink);
+}
+
+.signin-wordmark strong {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+}
+
+.signin-aside a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.signin-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--display-section);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: var(--display-tracking);
+}
+
+.signin-sub {
+  margin: 10px 0 0;
+  color: var(--color-ink-muted);
+  font-size: 15px;
+}
+
+.signin-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.signin-field {
+  display: grid;
+  gap: 6px;
+}
+
+.signin-field span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.signin-field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  /* DESIGN.md §9: controls use --line-input, not --line (WCAG 1.4.11). */
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.signin-field input::placeholder {
+  color: var(--color-ink-subtle);
+}
+
+.signin-field input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.signin-form .primary-button {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.signin-notice {
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Right column: quiet context, hairline separated. No stock imagery. */
+.signin-aside {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  padding: clamp(2rem, 6vw, 4rem);
+  border-left: 1px solid var(--color-line);
+  background: var(--color-canvas);
+}
+
+.signin-aside-inner {
+  max-width: 26rem;
+}
+
+.signin-aside p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.signin-aside .signin-aside-lede {
+  margin-top: 20px;
+}
+
+.signin-aside-mark {
+  color: var(--color-ink);
+}
+
+.signin-aside-list {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signin-aside-list li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  color: var(--color-ink-muted);
+  font-size: 14px;
+}
+
+.signin-aside-list b {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-ink-subtle);
+}
+
+/* ---------------------------------------------------------------------------
+ * Responsive — verified at 320 / 375 / 414 / 768
+ * ------------------------------------------------------------------------ */
+@media (max-width: 60rem) {
+  .signin {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  /* Context reads as a footer to the form on narrow screens, not a side panel. */
+  .signin-aside {
+    border-left: 0;
+    border-top: 1px solid var(--color-line);
+  }
+}
+
+/* Motion: this page ships no reveals. Transitions are hover/focus only and
+ * already sit inside the 120–200ms ease-out band. Honour the preference anyway
+ * so nothing here can animate for a user who asked it not to. */
+@media (prefers-reduced-motion: reduce) {
+  .signin * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

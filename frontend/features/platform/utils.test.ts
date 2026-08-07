@@ -8,7 +8,8 @@ import {
   isVisionTask,
   labelColor,
   labelFill,
-  listPollInterval
+  listPollInterval,
+  normalizeTerminalOutput
 } from "@/features/platform/utils";
 
 describe("isActiveStatus", () => {
@@ -143,5 +144,36 @@ describe("allowedTaskTypesForProject", () => {
       "object_detection",
       "segmentation"
     ]);
+  });
+});
+
+describe("normalizeTerminalOutput", () => {
+  it("drops the trailing backspaces Keras uses to rewind its progress bar", () => {
+    // Captured verbatim from a real run log: the metrics are followed by a run
+    // of 0x08 bytes, which rendered as a long trail of boxes in the UI.
+    const line = "22/56 - 23s 694ms/step - accuracy: 0.3807 - loss: 1.6060" + "\b".repeat(40);
+    expect(normalizeTerminalOutput(line)).toBe(
+      "22/56 - 23s 694ms/step - accuracy: 0.3807 - loss: 1.6060"
+    );
+  });
+
+  it("strips ANSI colour codes", () => {
+    const line = `ESC[1m0sESC[0m 587ms/step - loss: 1.3129`.replaceAll("ESC", "\u001b");
+    expect(normalizeTerminalOutput(line)).toBe("0s 587ms/step - loss: 1.3129");
+  });
+
+  it("lets text after a backspace overwrite, as a terminal would", () => {
+    // A backspace moves the cursor; it does not erase. Deleting the control
+    // character instead of applying it would yield "abcX".
+    expect(normalizeTerminalOutput("abc\bX")).toBe("abX");
+  });
+
+  it("treats a carriage return as a rewrite of the line", () => {
+    expect(normalizeTerminalOutput("first pass\rsecond")).toBe("secondpass");
+  });
+
+  it("leaves ordinary log lines untouched", () => {
+    expect(normalizeTerminalOutput("Epoch 1/15")).toBe("Epoch 1/15");
+    expect(normalizeTerminalOutput("")).toBe("");
   });
 });

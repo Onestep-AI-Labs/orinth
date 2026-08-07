@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Orinth</title>
+    <style>
+      /*
+       * Native shell chrome, shown only while provisioning.
+       *
+       * Tokens mirror frontend/DESIGN.md §2 so the setup screen reads as the
+       * same product: achromatic neutral ramp, one accent, border-first
+       * elevation, weight cap 600, 4px spacing multiples, radius vocabulary.
+       *
+       * Two deliberate deviations, both because this is a native window and
+       * not a route under frontend/:
+       *   - Type is the system stack (SF on macOS) rather than self-hosted
+       *     Inter. This window ships before any Next asset is available, so
+       *     there is no font pipeline to draw from; SF is the correct face for
+       *     OS-level chrome anyway.
+       *   - The app is light-only (globals.css defines no dark ramp), so this
+       *     screen is light-only too rather than inventing dark tokens.
+       */
+      :root {
+        --ink: #171717;
+        --ink-muted: #525252;
+        --ink-subtle: #6b6b6b;
+        --line: #e5e5e5;
+        --line-soft: #ebebeb;
+        --line-strong: #d4d4d4;
+        --wash: #f5f5f5;
+        --surface: #ffffff;
+        --surface-2: #fafafa;
+        --canvas: #f5f5f5;
+        --accent: #2563eb;
+        --accent-strong: #1e40af;
+        --accent-tint: #eff6ff;
+        --danger: #dc2626;
+        --danger-strong: #b91c1c;
+        --danger-tint: #fee2e2;
+        --success: #16a34a;
+        --success-strong: #15803d;
+        --radius-sm: 6px;
+        --radius: 8px;
+        --radius-lg: 12px;
+        --radius-pill: 9999px;
+        --display-tracking: -0.02em;
+        --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+        --font-mono: SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 24px;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        font-size: 14px;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+        cursor: default;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      header img {
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-sm);
+      }
+
+      .titles h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: var(--display-tracking);
+      }
+
+      .titles p {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: var(--ink-muted);
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        /* Border-first: resting surfaces carry no shadow (DESIGN.md §5). */
+      }
+
+      ol.steps {
+        margin: 0;
+        padding: 4px 0;
+        list-style: none;
+      }
+
+      ol.steps li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        font-size: 13px;
+        color: var(--ink-subtle);
+      }
+
+      ol.steps li + li {
+        border-top: 1px solid var(--line-soft);
+      }
+
+      ol.steps li[data-status="running"],
+      ol.steps li[data-status="done"],
+      ol.steps li[data-status="skipped"] {
+        color: var(--ink);
+      }
+
+      ol.steps li[data-status="failed"] {
+        color: var(--danger-strong);
+      }
+
+      .dot {
+        flex: none;
+        width: 14px;
+        height: 14px;
+        border-radius: var(--radius-pill);
+        border: 1px solid var(--line-strong);
+        background: var(--surface-2);
+        position: relative;
+      }
+
+      li[data-status="running"] .dot {
+        border-color: var(--accent);
+        border-top-color: transparent;
+        background: transparent;
+        animation: spin 0.7s linear infinite;
+      }
+
+      li[data-status="done"] .dot,
+      li[data-status="skipped"] .dot {
+        border-color: var(--success);
+        background: var(--success);
+      }
+
+      li[data-status="done"] .dot::after,
+      li[data-status="skipped"] .dot::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 3px;
+        height: 6px;
+        border: solid var(--surface);
+        border-width: 0 1.5px 1.5px 0;
+        transform: translateY(-1px) rotate(45deg);
+      }
+
+      li[data-status="failed"] .dot {
+        border-color: var(--danger);
+        background: var(--danger-tint);
+      }
+
+      .step-note {
+        margin-left: auto;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--ink-subtle);
+      }
+
+      #log {
+        flex: 1;
+        min-height: 96px;
+        margin: 0;
+        padding: 12px 16px;
+        overflow-y: auto;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--ink-muted);
+        white-space: pre-wrap;
+        word-break: break-word;
+        user-select: text;
+      }
+
+      #error {
+        display: none;
+        padding: 12px 16px;
+        background: var(--danger-tint);
+        border: 1px solid var(--danger);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--danger-strong);
+        white-space: pre-wrap;
+        user-select: text;
+      }
+
+      body[data-state="error"] #error {
+        display: block;
+      }
+
+      footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      footer .hint {
+        font-size: 12px;
+        color: var(--ink-subtle);
+      }
+
+      .actions {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+      }
+
+      button {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 6px 12px;
+        border-radius: var(--radius);
+        border: 1px solid var(--line-strong);
+        background: var(--surface);
+        color: var(--ink);
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--wash);
+      }
+
+      button.primary {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--surface);
+        box-shadow: 0 1px 2px rgb(10 10 10 / 0.05);
+      }
+
+      button.primary:hover {
+        background: #0a0a0a;
+      }
+
+      button:focus-visible {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px rgb(37 99 235 / 0.2);
+      }
+
+      .actions {
+        display: none;
+      }
+
+      body[data-state="error"] .actions {
+        display: flex;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        li[data-status="running"] .dot {
+          animation: none;
+          border-top-color: var(--accent);
+          background: var(--accent-tint);
+        }
+      }
+    </style>
+  </head>
+  <body data-state="working">
+    <header>
+      <img src="logo.png" alt="" />
+      <div class="titles">
+        <h1>Orinth</h1>
+        <p id="subtitle">Preparing your workspace…</p>
+      </div>
+    </header>
+
+    <div class="panel">
+      <ol class="steps" id="steps"></ol>
+    </div>
+
+    <pre id="log" aria-live="polite" aria-label="Setup log"></pre>
+
+    <div id="error" role="alert"></div>
+
+    <footer>
+      <span class="hint" id="hint">First run downloads the ML runtime (~2.7&nbsp;GB). Later launches start in seconds.</span>
+      <div class="actions">
+        <button type="button" id="logs">Open logs</button>
+        <button type="button" class="primary" id="retry">Retry</button>
+      </div>
+    </footer>
+
+    <script>
+      const { invoke } = window.__TAURI__.core;
+      const { listen } = window.__TAURI__.event;
+
+      const stepsEl = document.getElementById("steps");
+      const logEl = document.getElementById("log");
+      const errorEl = document.getElementById("error");
+      const subtitleEl = document.getElementById("subtitle");
+      const rows = new Map();
+
+      const NOTE = { skipped: "ready", failed: "failed", done: "" };
+
+      function renderSteps(steps) {
+        stepsEl.innerHTML = "";
+        rows.clear();
+        for (const step of steps) {
+          const li = document.createElement("li");
+          li.dataset.status = "pending";
+          li.innerHTML =
+            '<span class="dot"></span><span class="label"></span><span class="step-note"></span>';
+          li.querySelector(".label").textContent = step.label;
+          stepsEl.append(li);
+          rows.set(step.id, li);
+        }
+      }
+
+      // The log pane is a tail, not a transcript: an unbounded DOM would make
+      // the 2.7 GB install progressively janky.
+      const MAX_LOG_LINES = 400;
+      let logLines = [];
+
+      function appendLog(line) {
+        logLines.push(line);
+        if (logLines.length > MAX_LOG_LINES) {
+          logLines = logLines.slice(-MAX_LOG_LINES);
+        }
+        logEl.textContent = logLines.join("\n");
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      listen("bootstrap:step", ({ payload }) => {
+        const row = rows.get(payload.id);
+        if (!row) return;
+        row.dataset.status = payload.status;
+        row.querySelector(".step-note").textContent = NOTE[payload.status] ?? "";
+        if (payload.status === "running") {
+          subtitleEl.textContent = payload.label + "…";
+        }
+        if (payload.detail) {
+          appendLog(payload.detail);
+        }
+      });
+
+      listen("bootstrap:log", ({ payload }) => appendLog(payload));
+
+      listen("bootstrap:error", ({ payload }) => {
+        document.body.dataset.state = "error";
+        subtitleEl.textContent = "Setup could not finish";
+        errorEl.textContent = payload.message;
+      });
+
+      document.getElementById("retry").addEventListener("click", () => {
+        document.body.dataset.state = "working";
+        errorEl.textContent = "";
+        subtitleEl.textContent = "Retrying…";
+        invoke("start_bootstrap");
+      });
+
+      document.getElementById("logs").addEventListener("click", () => {
+        invoke("reveal_logs").catch((error) => appendLog(String(error)));
+      });
+
+      // Render the checklist and subscribe *before* asking Rust to start, so
+      // no early progress event is missed.
+      invoke("bootstrap_steps").then((steps) => {
+        renderSteps(steps);
+        invoke("start_bootstrap");
+      });
+    </script>
+  </body>
+</html>

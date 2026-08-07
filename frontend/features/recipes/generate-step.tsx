@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AlertTriangle, ArrowRight, ExternalLink, Play, Sparkles, X } from "lucide-react";
-import { Badge, Field, InlineSpinner, MutationError, NumberInput, PanelTitle } from "@/features/platform/ui";
+import { Badge, Field, InlineSpinner, MutationError, NumberInput, PanelTitle, Select } from "@/features/platform/ui";
 import {
   useCancelRecipeMutation,
   useGenerateRecipeMutation,
@@ -69,26 +69,26 @@ export function RecipeGenerateStep({ recipe, onReview }: { recipe: RecipeRead; o
 
       <div className="recipe-generate-grid mt-4">
         <Field label="Mode" hint={MODES.find((entry) => entry.value === mode)?.hint}>
-          <select value={mode} onChange={(event) => setMode(event.target.value as RecipeGenerationMode)}>
+          <Select value={mode} onChange={(event) => setMode(event.target.value as RecipeGenerationMode)}>
             {MODES.map((entry) => (
               <option key={entry.value} value={entry.value}>{entry.label}</option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Prompt style">
-          <select value={flavor} onChange={(event) => setFlavor(event.target.value as RecipePromptFlavor)}>
+          <Select value={flavor} onChange={(event) => setFlavor(event.target.value as RecipePromptFlavor)}>
             {FLAVORS.map((value) => (
               <option key={value} value={value}>{value}</option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Model override">
-          <select value={model} onChange={(event) => setModel(event.target.value)} disabled={mode === "rules"}>
+          <Select value={model} onChange={(event) => setModel(event.target.value)} disabled={mode === "rules"}>
             <option value="">{platformModel ? `Default (${platformModel})` : "Platform default"}</option>
             {models.map((entry) => (
               <option key={entry.id} value={entry.id}>{entry.name}</option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Chunk size (chars)">
           <NumberInput value={chunkSize} min={200} max={20000} step={100} onChange={setChunkSize} />

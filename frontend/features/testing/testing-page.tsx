@@ -7,20 +7,7 @@ import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TestingComparison, TestingJobTable } from "@/features/testing/testing-components";
 import { allowedTaskTypesForProject, areTasksCompatible, listPollInterval } from "@/features/platform/utils";
-import {
-  ButtonLink,
-  CardGridSkeleton,
-  EmptyState,
-  Field,
-  HistoryHeader,
-  MultiSelect,
-  MutationError,
-  PageHeader,
-  PanelTitle,
-  TableSkeleton,
-  TaskSelect,
-  useConfirmationDialog
-} from "@/features/platform/ui";
+import { ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MultiSelect, MutationError, PageHeader, PanelTitle, Select, TableSkeleton, TaskSelect, useConfirmationDialog } from "@/features/platform/ui";
 import type { EvaluationJob, TaskType } from "@/types/api";
 
 export function TestingPage() {
@@ -188,13 +175,13 @@ export function TestingPage() {
             )}
           </Field>
           <Field label="Dataset">
-            <select value={datasetKey} onChange={(event) => setDatasetKey(event.target.value)}>
+            <Select value={datasetKey} onChange={(event) => setDatasetKey(event.target.value)}>
               {datasets.map((dataset) => (
                 <option key={dataset.key} value={dataset.key} disabled={!dataset.available}>
                   {dataset.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Limit">
             <input type="number" min={1} max={500} value={limit} onChange={(event) => setLimit(event.target.value === "" ? "" : Number(event.target.value))} />

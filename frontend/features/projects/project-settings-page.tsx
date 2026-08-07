@@ -19,7 +19,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { ALL_TASK_TYPES } from "@/features/platform/utils";
-import { WORKSPACE_HREF } from "@/features/marketing/routes";
+import { WORKSPACE_HREF } from "@/features/auth/routes";
 import { TaskTypePicker, domainForTasks, initialDomainForTasks } from "./task-type-picker";
 import {
   Badge,

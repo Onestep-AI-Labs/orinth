@@ -1,25 +1,25 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowLeft,
-  BookOpen,
   Boxes,
   ChevronsLeft,
   ChevronsRight,
   Database,
   FlaskConical,
-  ScanEye,
+  Folder,
+  Rocket,
   Settings,
   Settings2
 } from "lucide-react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { IconButton } from "@/features/platform/ui";
+import { BRAND_NAME, BRAND_PARENT, BRAND_TAGLINE, LogoMark } from "@/components/brand";
+import { IconButton, Select } from "@/features/platform/ui";
 import { Toaster } from "@/features/platform/toast";
 import { PlatformTour } from "@/features/platform/tour";
 import type { ProjectSummary } from "@/types/api";
@@ -163,13 +163,13 @@ function GlobalLoadingOverlay({ loadingModel }: { loadingModel: boolean }) {
 function GlobalSidebar({ pathname, compact = false }: { pathname: string; compact?: boolean }) {
   return (
     <aside className={`sidebar sidebar-global ${compact ? "sidebar-global-compact" : ""}`}>
-      <Link className="brand-block brand-link" href="/projects" title="Onestep AI Platform workspace" data-tour="brand">
+      <Link className="brand-block brand-link" href="/projects" title={`${BRAND_NAME} workspace`} data-tour="brand">
         <span className="brand-mark" aria-hidden="true">
-          <Image src="/brand/logo_transparent.png" alt="" width={42} height={42} priority />
+          <LogoMark size={26} />
         </span>
         <div className="brand-copy">
-          <h1>Onestep AI Platform</h1>
-          <span>AI research workspace</span>
+          <h1>{BRAND_NAME}</h1>
+          <span>{BRAND_TAGLINE}</span>
         </div>
       </Link>
       <nav className="side-nav">
@@ -178,20 +178,17 @@ function GlobalSidebar({ pathname, compact = false }: { pathname: string; compac
         <SideLink
           href="/projects"
           active={pathname.startsWith("/projects") && !PROJECT_SETTINGS_PATH.test(pathname)}
-          icon={<ScanEye size={17} />}
+          icon={<Folder size={17} />}
           dataTour="nav-projects"
         >
           Projects
-        </SideLink>
-        <SideLink href="/documentation" active={pathname.startsWith("/documentation")} icon={<BookOpen size={17} />} dataTour="nav-documentation">
-          Documentation
         </SideLink>
         <SideLink href="/settings" active={pathname.startsWith("/settings")} icon={<Settings size={17} />} dataTour="nav-settings">
           Settings
         </SideLink>
       </nav>
       <div className="sidebar-spacer" />
-      <div className="sidebar-note">ONESTEP product studio</div>
+      <div className="sidebar-note">By {BRAND_PARENT}</div>
     </aside>
   );
 }
@@ -241,7 +238,7 @@ function ProjectSidebar({
           <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />} iconOnly>
             Testing
           </SideLink>
-          <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ScanEye size={17} />} iconOnly>
+          <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<Rocket size={17} />} iconOnly>
             Inference
           </SideLink>
         </nav>
@@ -278,7 +275,7 @@ function ProjectSidebar({
       </div>
       <label className="project-switcher">
         <span>Switch project</span>
-        <select value={project?.id ?? projectId} onChange={(event) => switchProject(event.target.value)}>
+        <Select value={project?.id ?? projectId} onChange={(event) => switchProject(event.target.value)}>
           {!projects.some((item) => item.id === projectId) && (
             <option value={projectId}>Project</option>
           )}
@@ -291,7 +288,7 @@ function ProjectSidebar({
                 {item.archived ? `${item.name} (archived)` : item.name}
               </option>
             ))}
-        </select>
+        </Select>
       </label>
       <nav className="side-nav">
         <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} dataTour="nav-datasets">
@@ -306,7 +303,7 @@ function ProjectSidebar({
         <SideLink href="/testing" active={pathname.startsWith("/testing")} icon={<FlaskConical size={17} />} dataTour="nav-testing">
           Testing
         </SideLink>
-        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<ScanEye size={17} />} dataTour="nav-inference">
+        <SideLink href="/inference" active={pathname.startsWith("/inference")} icon={<Rocket size={17} />} dataTour="nav-inference">
           Inference
         </SideLink>
       </nav>

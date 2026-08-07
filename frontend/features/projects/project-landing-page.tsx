@@ -6,8 +6,8 @@ import { useMemo, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
-  Database,
   FilePlus2,
+  Folder,
   FolderOpen,
   MoreVertical,
   Settings2,
@@ -85,10 +85,10 @@ export function ProjectLandingPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Projects" subtitle="Choose a workspace" icon={<Database size={20} />} />
+      <PageHeader title="Projects" subtitle="Choose a workspace" icon={<Folder size={20} />} />
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={<Database size={18} />} title="Project List" />
+          <PanelTitle icon={<Folder size={18} />} title="Project List" />
           <div className="action-row">
             {archivedCount > 0 && (
               <label className="check-row">

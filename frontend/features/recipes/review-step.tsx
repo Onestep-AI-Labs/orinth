@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, ArrowRight, ChevronLeft, ChevronRight, Plus, Save, Trash2, X } from "lucide-react";
-import { Badge, EmptyState, Field, InlineSpinner, MutationError, PanelTitle, TableSkeleton } from "@/features/platform/ui";
+import { Badge, EmptyState, Field, InlineSpinner, MutationError, PanelTitle, Select, TableSkeleton } from "@/features/platform/ui";
 import { toast } from "@/features/platform/toast";
 import {
   useAddRecordMutation,
@@ -231,7 +231,7 @@ function RecordDrawer({
             {messages.map((message, index) => (
               <div className="record-message" key={index}>
                 <div className="record-message-head">
-                  <select
+                  <Select
                     value={message.role}
                     onChange={(event) =>
                       setMessages((current) =>
@@ -244,7 +244,7 @@ function RecordDrawer({
                     {(["system", "user", "assistant"] as ChatMessage["role"][]).map((role) => (
                       <option key={role} value={role}>{role}</option>
                     ))}
-                  </select>
+                  </Select>
                   <button
                     className="icon-button"
                     title="Remove message"

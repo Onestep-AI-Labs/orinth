@@ -52,3 +52,11 @@ frontend/.env
 
 # graphify tool output (regenerable; never commit)
 graphify-out/
+
+# Desktop app build artifacts. `resources/` is staged from backend/ and
+# frontend/ by prepare-resources.mjs and re-downloads the pinned uv binary;
+# all of it is regenerable and none of it belongs in git.
+/desktop/src-tauri/target/
+/desktop/src-tauri/resources/
+/desktop/src-tauri/gen/
+/desktop/.cache/

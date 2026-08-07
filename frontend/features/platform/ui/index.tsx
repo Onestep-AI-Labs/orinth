@@ -6,7 +6,7 @@ import { formatSeconds } from "@/features/platform/utils";
 import type { JobProgress } from "@/types/api";
 import { Badge, Button, IconButton } from "./primitives";
 
-export { Badge, Button, ButtonLink, IconButton, badgeVariants, buttonVariants } from "./primitives";
+export { Badge, Button, ButtonLink, IconButton, Select, badgeVariants, buttonVariants } from "./primitives";
 export type { BadgeProps, ButtonLinkProps, ButtonProps, IconButtonProps } from "./primitives";
 export { cn } from "./cn";
 export { TaskSelect } from "./task-select";

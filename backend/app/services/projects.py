@@ -11,6 +11,7 @@ from app.core.defaults import (
     DEFAULT_PROJECT_NAME,
     DEFAULT_PROJECT_TASK_TYPES,
     DEFAULT_TASK_TYPE,
+    LEGACY_DEFAULT_PROJECT_NAME,
 )
 from app.db.models import EvaluationJob, InferenceJob, InferenceRun, Project, TrainingJob
 from app.schemas import (
@@ -134,10 +135,23 @@ class ProjectService:
     def ensure_default(self, db: Session) -> Project:
         project = db.get(Project, DEFAULT_PROJECT_ID)
         if project is not None:
+            changed = False
+
             task_types = list(project.task_types or [])
             missing = [task for task in DEFAULT_PROJECT_TASK_TYPES if task not in task_types]
             if missing:
                 project.task_types = [*task_types, *missing]
+                changed = True
+
+            # The starter project shipped as "Research Image Workspace" back
+            # when it only covered vision. Only a project still carrying that
+            # exact name is renamed, so a project the user renamed themselves
+            # is left alone.
+            if project.name == LEGACY_DEFAULT_PROJECT_NAME:
+                project.name = DEFAULT_PROJECT_NAME
+                changed = True
+
+            if changed:
                 project.updated_at = datetime.now(UTC).replace(tzinfo=None)
                 db.commit()
                 db.refresh(project)

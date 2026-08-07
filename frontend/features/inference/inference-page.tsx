@@ -4,29 +4,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { MessagesSquare, Play, ScanEye, Upload } from "lucide-react";
+import { MessagesSquare, Play, Rocket, Upload } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, mediaUrl } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { allowedTaskTypesForProject, activePollInterval, displayModelName, formatDatasetTask, formatMetric, isNlpTask, labelColor } from "@/features/platform/utils";
 import { LlmServeView } from "@/features/inference/llm-serve-view";
-import {
-  Button,
-  ButtonLink,
-  CardGridSkeleton,
-  EmptyState,
-  Field,
-  HistoryHeader,
-  MutationError,
-  PageHeader,
-  PanelTitle,
-  ProgressPanel,
-  SliderField,
-  TableSkeleton,
-  TaskSelect,
-  toggleId,
-  useConfirmationDialog
-} from "@/features/platform/ui";
+import { Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, PageHeader, PanelTitle, ProgressPanel, Select, SliderField, TableSkeleton, TaskSelect, toggleId, useConfirmationDialog } from "@/features/platform/ui";
 import type { InferenceJob, InferenceResult, ModelInfo, TaskType } from "@/types/api";
 
 function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; modelsLoading?: boolean }) {
@@ -158,7 +142,7 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
       <PageHeader
         title="Inference"
         subtitle={isLlm ? "Serve and chat with a fine-tuned LLM" : "Run models on project samples"}
-        icon={<ScanEye size={20} />}
+        icon={<Rocket size={20} />}
         actions={
           // The chat surface only applies to the LLM task with a servable
           // model, so the button appears only then — not on vision/NLP tasks.
@@ -188,14 +172,14 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
             <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
           </Field>
           <Field label="Model">
-            <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+            <Select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
               <option value="">Choose a model…</option>
               {taskModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name} - {formatDatasetTask(model.task_type)}
                 </option>
               ))}
-            </select>
+            </Select>
             {taskModels.length === 0 && (
               <span className="field-hint">
                 No available models yet — <ButtonLink variant="ghost" size="sm" href="/training">train one</ButtonLink>
@@ -238,13 +222,13 @@ function InferencePageInner({ models, modelsLoading }: { models: ModelInfo[]; mo
           {jobQuery.data && <ProgressPanel progress={jobQuery.data.progress} status={jobQuery.data.status} error={jobQuery.data.error} />}
         </section>
         <section className="panel min-h-[520px]">
-          <PanelTitle icon={<ScanEye size={18} />} title="Result" dataTour="inference-result" />
+          <PanelTitle icon={<Rocket size={18} />} title="Result" dataTour="inference-result" />
           {result ? (
             <InferenceResultView result={result} modelNameById={modelNameById} />
           ) : (
             <EmptyState
               label="No result selected"
-              icon={<ScanEye size={28} />}
+              icon={<Rocket size={28} />}
               description="Run an inference or pick a row from the history below."
             />
           )}

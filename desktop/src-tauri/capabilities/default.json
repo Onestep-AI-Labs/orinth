@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Setup window needs core events to render bootstrap progress.",
+  "windows": ["setup", "main"],
+  "permissions": ["core:default"]
+}

@@ -5,7 +5,7 @@ import { KeyRound, Save, Settings, Sparkles, Trash2 } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useProject } from "@/components/app-shell";
 import { api } from "@/lib/api";
-import { Field, Metric, MutationError, PageHeader, PanelTitle, StatusBadge } from "@/features/platform/ui";
+import { Field, Metric, MutationError, PageHeader, PanelTitle, Select, StatusBadge } from "@/features/platform/ui";
 
 export function SettingsPage() {
   const { projects } = useProject();
@@ -127,12 +127,12 @@ export function SettingsPage() {
             <StatusBadge status={openrouterConfigured ? "available" : "missing"} />
           </div>
           <Field label="Default model">
-            <select value={openrouterModel} onChange={(event) => setOpenrouterModel(event.target.value)}>
+            <Select value={openrouterModel} onChange={(event) => setOpenrouterModel(event.target.value)}>
               <option value="">No default</option>
               {openrouterModels.map((model) => (
                 <option key={model.id} value={model.id}>{model.name}</option>
               ))}
-            </select>
+            </Select>
           </Field>
           <div className="action-row">
             <button className="secondary-button" type="button" onClick={saveOpenrouterModel} disabled={updateSettings.isPending}>

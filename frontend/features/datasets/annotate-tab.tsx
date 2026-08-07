@@ -17,7 +17,7 @@ import type {
   useDatasetItemDetailQuery,
   useDatasetItemsQuery
 } from "@/features/datasets/hooks";
-import { CardGridSkeleton, EmptyState, MutationError, PanelTitle } from "@/features/platform/ui";
+import { CardGridSkeleton, EmptyState, MutationError, PanelTitle, Select } from "@/features/platform/ui";
 import type { useConfirmationDialog } from "@/features/platform/ui";
 import type { DatasetItemPage, DatasetItemSummary, DatasetSplitFilter, DatasetSummary, SplitKey } from "@/types/api";
 
@@ -138,11 +138,11 @@ export function DatasetAnnotateTab({
           </label>
           {dataset.editable && (dataset.task_type === "classification" || dataset.task_type === "text_classification") && (
             <>
-              <select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItems.length === 0}>
+              <Select value={bulkClassId} onChange={(event) => setBulkClassId(Number(event.target.value))} disabled={selectedItems.length === 0}>
                 {dataset.labels.map((label, index) => (
                   <option value={index} key={label}>{label}</option>
                 ))}
-              </select>
+              </Select>
               <button
                 className="secondary-button"
                 onClick={confirmBulkLabelImages}

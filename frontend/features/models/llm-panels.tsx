@@ -6,7 +6,7 @@ import { Download, MessagesSquare, Package, Play, Square } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatBytes, formatSeconds } from "@/features/platform/utils";
-import { Badge, Button, EmptyState, Field, MutationError } from "@/features/platform/ui";
+import { Badge, Button, EmptyState, Field, MutationError, Select } from "@/features/platform/ui";
 import { toast } from "@/features/platform/toast";
 import type { ModelExportFormat, ModelExportStatus, ModelInfo, ServingStatus } from "@/types/api";
 
@@ -123,7 +123,7 @@ export function ExportPanel({ model }: { model: ModelInfo }) {
         <div className="export-controls">
           {isGgufSelected && (
             <Field label="Quantization">
-              <select
+              <Select
                 value={ggufQuant}
                 onChange={(event) => {
                   const next = event.target.value as ModelExportFormat;
@@ -136,7 +136,7 @@ export function ExportPanel({ model }: { model: ModelInfo }) {
                     {FORMAT_LABEL[format]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           )}
           <Button

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ShieldAlert, UploadCloud, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Badge, Button, Field, InlineSpinner } from "@/features/platform/ui";
+import { Badge, Button, Field, InlineSpinner, Select } from "@/features/platform/ui";
 import { toast } from "@/features/platform/toast";
 import type { components } from "@/types/generated/api";
 
@@ -199,12 +199,12 @@ function FamilyForm({
       {option.fields.map((field) => (
         <Field key={field.key} label={field.label} hint={field.help ?? undefined}>
           {field.type === "select" ? (
-            <select value={fieldValues[field.key] ?? ""} onChange={(event) => onField(field.key, event.target.value)}>
+            <Select value={fieldValues[field.key] ?? ""} onChange={(event) => onField(field.key, event.target.value)}>
               <option value="" disabled>Select…</option>
               {(field.options ?? []).map((choice) => (
                 <option key={choice} value={choice}>{choice.replaceAll("_", " ")}</option>
               ))}
-            </select>
+            </Select>
           ) : (
             <input
               type={field.type === "number" ? "number" : "text"}

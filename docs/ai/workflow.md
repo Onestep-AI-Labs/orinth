@@ -27,10 +27,9 @@ Applies to any change that adds or alters a UI surface. Skip only for pure backe
 - **Do not run hallmark's default greenfield flow on a `(platform)` route.** It composes marketing
   pages — heroes, marquees, feature pills, testimonials, footers — which `docs/ai/rules.md` forbids for
   the working app. Its `audit` and `redesign` verbs are the parts that fit those surfaces.
-- The greenfield flow *is* appropriate for `frontend/app/(marketing)` (`/` and `/signin`), which is the
-  project's public entry surface. See `frontend/DESIGN.md` §10 and
-  `specs/phase-9-entry-flow-and-project-settings.md`
-  for what that scope allows and what still binds.
+- There is no greenfield surface left in this app. `frontend/app/(auth)` holds the single public route
+  (`/`, sign-in) and is bound by `frontend/DESIGN.md` §10 — treat it with `audit` / `redesign`, same as
+  a platform route. See `specs/phase-19-orinth-rebrand.md` for why the landing page was removed.
 - Design decisions that change tokens, elevation, typography, or shell anatomy belong in a spec before
   implementation, and in `frontend/DESIGN.md` after.
 - Reuse tokens and shared primitives. Add a token rather than a literal; add a variant rather than a

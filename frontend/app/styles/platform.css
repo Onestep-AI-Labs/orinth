@@ -274,14 +274,10 @@ not a bar indicator. */
   font-weight: 600;
 }
 
-.project-switcher select {
-  min-height: 40px;
+/* Appearance comes from `.select-control`; the sidebar only needs the control
+   to be allowed to shrink inside its grid track. */
+.project-switcher .select-shell {
   min-width: 0;
-  border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  padding: 8px 10px;
-  color: var(--color-ink);
 }
 
 .sidebar-project-collapsed {
@@ -325,13 +321,13 @@ not a bar indicator. */
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+  /* The mark is a stroked SVG on `currentColor`, so the tile only has to set the
+     ink — one asset covers both themes and both sidebar widths. */
+  color: var(--color-ink);
 }
 
-.brand-mark img {
+.brand-mark svg {
   display: block;
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
 }
 
 .brand-block h1 {
@@ -2964,8 +2960,7 @@ button.task-choice {
 }
 
 .field input,
-.field textarea,
-.field select {
+.field textarea {
   min-height: 40px;
   width: 100%;
   border: 1px solid var(--color-line-input);
@@ -2976,11 +2971,76 @@ button.task-choice {
   transition: border-color 150ms ease-out;
 }
 
+/* The one dropdown appearance, rendered by the `Select` primitive.
+   Metrics are deliberately identical to `.task-select-trigger` so a native
+   dropdown and the custom task picker read as the same control: 40px, hairline
+   `--line-input` border, `--radius-sm`, 8px/10px padding, single chevron.
+   `--line-input` is required by DESIGN.md §2 — the only border weight that
+   clears WCAG 1.4.11 for a control boundary. */
+.select-shell {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.select-control {
+  /* Suppress the platform's double-arrow stepper; the chevron below replaces
+     it. Without this a native select never matches the custom trigger no
+     matter how its box is styled. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--color-line-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  /* Right padding reserves the chevron's gutter so a long option label never
+     runs underneath it. */
+  padding: 8px 32px 8px 10px;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-overflow: ellipsis;
+  transition: border-color 150ms ease-out;
+}
+
+.select-control:hover:not(:disabled) {
+  border-color: var(--color-line-strong);
+}
+
+.select-control:disabled {
+  background: var(--color-surface-2);
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+.select-control:focus-visible {
+  border-color: var(--color-accent);
+  outline: 2px solid oklch(var(--accent) / 0.35);
+  outline-offset: 0;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-shrink: 0;
+  /* The native control underneath owns every interaction. */
+  pointer-events: none;
+  color: var(--color-ink-subtle);
+}
+
+.select-control:disabled ~ .select-chevron {
+  opacity: 0.5;
+}
+
 .field input:focus-visible,
 .field textarea:focus-visible,
-.field select:focus-visible,
-.compact-create input:focus-visible,
-.project-switcher select:focus-visible {
+.compact-create input:focus-visible {
   border-color: var(--color-accent);
   outline: 2px solid oklch(var(--accent) / 0.35);
   outline-offset: 0;
@@ -3061,14 +3121,12 @@ button.task-choice {
   gap: 5px;
 }
 
-.select-label select,
-.bulk-bar select {
-  min-height: 40px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  padding: 8px 10px;
-  color: var(--color-ink);
+/* Appearance comes from `.select-control`; these contexts only constrain
+   width, which their layouts depend on. */
+/* Layout only — appearance comes from `.select-control`. */
+.select-label .select-shell,
+.bulk-bar .select-shell {
+  width: auto;
 }
 
 .check-row {
@@ -4146,13 +4204,10 @@ button.task-choice {
   font-weight: 600;
 }
 
-.dataset-pagination-size select {
+/* Compact pagination control: shorter, but the same dropdown otherwise. */
+.dataset-pagination-size .select-control {
   min-height: 34px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  padding: 0 10px;
-  color: var(--color-ink);
+  padding-block: 0;
 }
 
 .thumb {
@@ -4496,13 +4551,7 @@ button.task-choice {
   gap: 8px;
 }
 
-.annotation-actions select {
-  min-height: 40px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  padding: 8px 10px;
-}
+
 
 .annotation-row-selected {
   background: oklch(var(--accent) / 0.1);
@@ -6205,7 +6254,7 @@ td {
   gap: 8px;
 }
 
-.record-message-head select {
+.record-message-head .select-shell {
   min-width: 130px;
 }
 

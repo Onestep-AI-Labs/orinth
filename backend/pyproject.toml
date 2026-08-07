@@ -1,8 +1,10 @@
 [project]
-name = "onestep-ai-platform-backend"
+name = "orinth-backend"
 version = "0.1.0"
-description = "FastAPI backend for Onestep AI Platform image datasets, inference, testing, and training jobs."
-requires-python = ">=3.11,<3.13"
+description = "FastAPI backend for Orinth image datasets, inference, testing, and training jobs."
+# torch 2.2.2 — the last release with a macOS x86_64 wheel — has no cp312
+# build, and the lock has to resolve for every supported interpreter.
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
@@ -17,8 +19,17 @@ dependencies = [
     "scikit-learn>=1.5.1",
     "pycocotools>=2.0.8",
     "ultralytics>=8.3.0",
-    "tensorflow>=2.16.1",
-    "torch>=2.3.0",
+    # Intel Macs are capped by upstream: TensorFlow's last macOS x86_64 wheel
+    # is 2.16.2 and PyTorch's is 2.2.2. Both libraries dropped Intel-Mac builds
+    # in 2024; the markers below keep those machines installable without
+    # holding every other platform back.
+    "tensorflow==2.16.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    # Floor sits above the Intel pin on purpose: uv collapses to a single
+    # version whenever one satisfies every branch, which would drag Apple
+    # silicon and Linux back to 2.16.2 just to accommodate Intel Macs.
+    "tensorflow>=2.18; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch>=2.2.0,<=2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "torch>=2.3.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     # Gemma 4 support landed in transformers 5.5.0; the shared BERT/BART
     # runners ride the same dependency, so their tests gate this upgrade.
     "transformers>=5.5.0",
@@ -50,8 +61,8 @@ llm = [
 ]
 # Only reliably installable on CUDA platforms.
 llm-cuda = [
-    "unsloth>=2025.12.1",
-    "bitsandbytes>=0.45.0",
+    "unsloth>=2025.12.1; sys_platform == 'linux'",
+    "bitsandbytes>=0.45.0; sys_platform == 'linux'",
 ]
 
 [dependency-groups]

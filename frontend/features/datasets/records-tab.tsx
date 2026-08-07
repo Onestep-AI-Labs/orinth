@@ -11,7 +11,7 @@ import type {
   useSaveDatasetRecordMutation,
   useUploadDatasetRecordsMutation
 } from "@/features/datasets/hooks";
-import { Badge, EmptyState, Field, InlineSpinner } from "@/features/platform/ui";
+import { Badge, EmptyState, Field, InlineSpinner, Select } from "@/features/platform/ui";
 import type {
   DatasetItemDetail,
   DatasetItemPage,
@@ -347,11 +347,11 @@ export function DatasetRecordsTab({
               <>
             {mode === "create" && (
               <Field label="Split">
-                <select value={draftSplit} onChange={(event) => setDraftSplit(event.target.value as SplitKey)}>
+                <Select value={draftSplit} onChange={(event) => setDraftSplit(event.target.value as SplitKey)}>
                   {(["unassigned", "train", "valid", "test"] as SplitKey[]).map((value) => (
                     <option key={value} value={value}>{value}</option>
                   ))}
-                </select>
+                </Select>
               </Field>
             )}
             {mode === "edit" && detailQuery.isLoading ? (
@@ -361,7 +361,7 @@ export function DatasetRecordsTab({
                 {messages.map((message, index) => (
                   <div className="record-message" key={index}>
                     <div className="record-message-head">
-                      <select
+                      <Select
                         value={message.role}
                         onChange={(event) =>
                           setMessages((current) =>
@@ -374,7 +374,7 @@ export function DatasetRecordsTab({
                         {CHAT_ROLE_OPTIONS.map((role) => (
                           <option key={role} value={role}>{role}</option>
                         ))}
-                      </select>
+                      </Select>
                       <button
                         className="icon-button"
                         title="Remove message"

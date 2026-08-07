@@ -37,4 +37,6 @@ Use a spec when:
 - `phase-15-llm-serving-and-export.md`
 - `phase-16-guided-tours.md`
 - `phase-17-model-architecture-studio.md`
+- `phase-18-macos-desktop-app.md`
+- `phase-19-orinth-rebrand.md`
 - `SPEC_TEMPLATE.md`

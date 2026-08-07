@@ -7,7 +7,7 @@ import { CheckCircle2, MousePointer2, Pentagon, Save, Square, Trash2, Undo2 } fr
 import { useMutation } from "@tanstack/react-query";
 import { api, apiAssetUrl } from "@/lib/api";
 import { isNlpTask, labelColor, labelFill, pointsAttr } from "@/features/platform/utils";
-import { MutationError } from "@/features/platform/ui";
+import { MutationError, Select } from "@/features/platform/ui";
 import type { DatasetAnnotation, DatasetItemDetail, DatasetSummary } from "@/types/api";
 
 type AnnotationTool = "select" | "box" | "polygon";
@@ -305,13 +305,13 @@ function VisionAnnotationEditor({ dataset, item, onSaved }: AnnotationEditorProp
       </div>
 
       <div className="annotation-actions">
-        <select value={classId} onChange={(event) => setClassId(Number(event.target.value))} disabled={!editable}>
+        <Select value={classId} onChange={(event) => setClassId(Number(event.target.value))} disabled={!editable}>
           {dataset.labels.map((label, index) => (
             <option value={index} key={label}>
               {label}
             </option>
           ))}
-        </select>
+        </Select>
         {dataset.task_type === "classification" && (
           <button className="primary-button" onClick={() => labelMutation.mutate()} disabled={!editable || labelMutation.isPending}>
             <CheckCircle2 size={16} /> Save label
@@ -448,11 +448,11 @@ function NlpAnnotationEditor({
         {item.text_content || item.text_preview || ""}
       </div>
       {dataset.task_type === "text_classification" ? (
-        <select value={classId} onChange={(event) => setClassId(Number(event.target.value))} disabled={!editable}>
+        <Select value={classId} onChange={(event) => setClassId(Number(event.target.value))} disabled={!editable}>
           {dataset.labels.map((label, index) => (
             <option value={index} key={label}>{label}</option>
           ))}
-        </select>
+        </Select>
       ) : dataset.task_type === "summarization" ? (
         <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={5} disabled={!editable} />
       ) : (

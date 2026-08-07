@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Onestep AI Platform. This project is intended to be open-source friendly while keeping local research assets, generated artifacts, and secrets out of source control.
+Thanks for helping improve Orinth. This project is intended to be open-source friendly while keeping local research assets, generated artifacts, and secrets out of source control.
 
 ## Model Adoption
 

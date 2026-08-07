@@ -9,7 +9,7 @@ import { useProject } from "@/components/app-shell";
 import { TrainingJobTable } from "@/features/training/training-components";
 import { AdvancedSettings, advancedDefaults, type AdvancedValues } from "@/features/training/advanced-settings";
 import { allowedTaskTypesForProject, compactNumber, formatBytes, isLlmTask, isNlpTask, listPollInterval } from "@/features/platform/utils";
-import { Badge, Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, TableSkeleton, TaskSelect, useConfirmationDialog } from "@/features/platform/ui";
+import { Badge, Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, Select, TableSkeleton, TaskSelect, useConfirmationDialog } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
 
 // Phase 17: the architecture studio's Train button deep-links here with the
@@ -319,7 +319,7 @@ export function TrainingPage() {
               <TaskSelect value={taskType} onChange={setTaskType} options={taskOptions} />
             </Field>
             <Field label="Base model">
-              <select value={modelOptionId} onChange={(event) => setModelOptionId(event.target.value)}>
+              <Select value={modelOptionId} onChange={(event) => setModelOptionId(event.target.value)}>
                 <option value="">Choose a model…</option>
                 {llm ? (
                   <>
@@ -351,7 +351,7 @@ export function TrainingPage() {
                     </option>
                   ))
                 )}
-              </select>
+              </Select>
             </Field>
             <Field label="Model name" hint="optional">
               <input value={modelName} onChange={(event) => setModelName(event.target.value)} placeholder="Display name" />
@@ -374,7 +374,7 @@ export function TrainingPage() {
                   }
                 />
               ) : (
-                <select
+                <Select
                   value={architectureId}
                   onChange={(event) => setArchitectureId(event.target.value)}
                 >
@@ -384,7 +384,7 @@ export function TrainingPage() {
                       {item.name} — v{item.version}, {item.node_count} nodes
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
           )}
@@ -460,13 +460,13 @@ export function TrainingPage() {
                 />
               ) : (
                 <Field label="Dataset" hint={`${datasets.length} available`}>
-                  <select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
+                  <Select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
                     {datasets.map((dataset) => (
                       <option value={dataset.id} key={dataset.id}>
                         {dataset.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
               )}
             </section>
@@ -477,14 +477,14 @@ export function TrainingPage() {
                   {/* Auto-detected accelerator, offered as a dropdown rather than
                       free text so an invalid device string can't reach training.
                       "Auto" lets the runner pick cuda > mps > cpu. */}
-                  <select value={device} onChange={(event) => setDevice(event.target.value)}>
+                  <Select value={device} onChange={(event) => setDevice(event.target.value)}>
                     <option value="">
                       Auto{detectedDevice ? ` — ${detectedDevice.toUpperCase()}` : ""}
                     </option>
                     {detectedDevice === "cuda" && <option value="cuda:0">CUDA (cuda:0)</option>}
                     {detectedDevice === "mps" && <option value="mps">MPS (Apple GPU)</option>}
                     <option value="cpu">CPU</option>
-                  </select>
+                  </Select>
                 </Field>
               )}
               <div className="action-row action-row-split">
@@ -520,12 +520,12 @@ export function TrainingPage() {
             {llm && (
               <div className="form-grid">
                 <Field label="Fine-tuning method">
-                  <select value={finetuneMethod} onChange={(event) => setFinetuneMethod(event.target.value)}>
+                  <Select value={finetuneMethod} onChange={(event) => setFinetuneMethod(event.target.value)}>
                     <option value="lora">LoRA adapter — light, recommended</option>
                     <option value="qlora">QLoRA (4-bit) — least VRAM (CUDA)</option>
                     <option value="full">Full fine-tune — updates every weight (heavy)</option>
                     <option value="continued_pretrain">Continued pretraining — LoRA on full text</option>
-                  </select>
+                  </Select>
                   {finetuneMethod === "full" && (
                     <span className="field-hint field-hint-start">
                       Full fine-tuning needs far more memory; on a Mac/CPU prefer LoRA or QLoRA.
@@ -575,13 +575,13 @@ export function TrainingPage() {
                     a select with one working value would be decoration. */}
                 {!llm && (
                   <Field label="Optimizer">
-                    <select value={optimizer} onChange={(event) => setOptimizer(event.target.value)}>
+                    <Select value={optimizer} onChange={(event) => setOptimizer(event.target.value)}>
                       <option value="AdamW">AdamW</option>
                       <option value="adam">Adam</option>
                       <option value="sgd">SGD</option>
                       <option value="liblinear">Liblinear</option>
                       <option value="keyword">Keyword</option>
-                    </select>
+                    </Select>
                   </Field>
                 )}
                 <Field label={option?.id === "nlp_tfidf_classifier" ? "Regularisation (C)" : "Learning rate"}>

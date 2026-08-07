@@ -5,7 +5,7 @@ import { Cpu, Download, FolderOpen, Play, Sparkles } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { compactNumber, formatBytes } from "@/features/platform/utils";
-import { Badge, Button, InlineSpinner } from "@/features/platform/ui";
+import { Badge, Button, InlineSpinner, Select } from "@/features/platform/ui";
 import { toast } from "@/features/platform/toast";
 import type { ModelInfo } from "@/types/api";
 
@@ -224,10 +224,10 @@ function HubTab({ onServe, disabled }: { onServe: (t: StartTarget) => void; disa
           }}
           placeholder="Search Hugging Face…"
         />
-        <select value={format} onChange={(event) => setFormat(event.target.value as "gguf" | "mlx")}>
+        <Select value={format} onChange={(event) => setFormat(event.target.value as "gguf" | "mlx")}>
           <option value="gguf">GGUF</option>
           <option value="mlx">MLX</option>
-        </select>
+        </Select>
       </div>
       {format === "mlx" && (
         <p className="field-hint">MLX is downloadable for reference; only GGUF is servable here.</p>
