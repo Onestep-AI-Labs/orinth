@@ -228,7 +228,50 @@ your code with no sandbox, by design: this is a local single-user research tool,
 as trusted as the terminal you started the server from. Do not expose the backend to a network
 without adding authentication first.
 
-### 3. The `orinth` CLI
+### 3. GPU auto-detection
+
+Training now adapts to the hardware it is on, and says what it decided before the run starts.
+
+```bash
+cd backend && uv run orinth doctor
+```
+
+```
+FRAMEWORK   VERSION  GPU  DEVICES
+torch       2.10.0   yes  mps:Apple arm64 GPU
+tensorflow  2.21.0   no   cpu only
+! PyTorch sees a GPU here but TensorFlow does not, so runs on TensorFlow will use the CPU
+  and take far longer. Install `tensorflow-metal` to give Keras the same GPU.
+```
+
+That warning is the reason this exists. Detection is **per framework**, not per machine, because
+they disagree — Apple silicon without `tensorflow-metal` gives PyTorch a GPU and TensorFlow a CPU,
+and until now nothing said so. You found out from a Keras run that took twenty times longer than
+the torch run before it.
+
+`device: auto` (the default) resolves once and reaches every runner. Batch size adapts to reported
+memory minus headroom, precision follows the hardware — bf16 on Ampere and newer, fp16 on older
+CUDA and on Metal, fp32 on CPU — and every choice comes with its reason:
+
+```
+GET /api/training/compute/plan?task_type=llm_finetune&model_family=llm_sft
+
+device      mps    batch_size 4    precision fp16
+  · torch reports Apple arm64 GPU (mps).
+  · Batch size 4 from about 9093 MB usable (25% held back) and roughly 1800 MB per sample.
+    Estimate, not a measurement.
+  · fp16 — Metal supports it; bf16 has been unreliable across torch releases.
+```
+
+A batch size you set explicitly is **warned about, never lowered** — an override is a decision, and
+silently halving it would make the form lie about what ran.
+
+**Rented GPUs (Vast.ai, Modal, RunPod) are declared, not built.** `GET /api/training/compute/providers`
+lists them with `available: false` and the concrete requirements each needs — credentials, dataset
+transfer, artifact retrieval, log streaming, and a per-job cost ceiling. They are listed rather than
+hidden so the roadmap is visible; nothing pretends to work.
+
+### 4. The `orinth` CLI
 
 ```bash
 cd backend && uv run orinth --help
@@ -423,6 +466,8 @@ Phase 22 adds notebooks — a managed Jupyter kernel and the `orinth` Python pac
 
 Phase 23 adds the `orinth` CLI, making the whole platform drivable from a terminal and from CI.
 
+Phase 24 adds compute targets: per-framework GPU detection, `device: auto` resolving into an adapted batch size and precision with its reasoning shown, and a provider registry with rented GPUs (Vast.ai, Modal, RunPod) declared for a later phase.
+
 ## AI Workflow
 
 Project AI guidance is shared across Codex and Claude Code:
@@ -441,6 +486,12 @@ Project AI guidance is shared across Codex and Claude Code:
 - [x] prep agent — drop files, get a trainable dataset (phase 21)
 - [x] jupyter notebook with the workspace one import away (phase 22)
 - [x] CLI for dataset prep, train, test, inference (phase 23)
+- [x] auto-detect and adapt to the available GPU (phase 24)
+- [ ] **rented GPUs** — Vast.ai, Modal, RunPod. Declared with their requirements in
+      `specs/phase-24-compute-targets.md`; the cost ceiling is the requirement most likely to be
+      skipped and least acceptable to skip.
+- [ ] measured per-sample memory footprints, rather than the current estimates
+- [ ] multi-GPU (detected and reported; only device 0 is used)
 - [ ] **kernel isolation.** Notebooks run unsandboxed today, which is correct for a local
       single-user tool and is the blocker for any networked deployment. See the Security section of
       `specs/phase-22-notebooks.md`.

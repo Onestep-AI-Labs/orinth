@@ -1868,3 +1868,102 @@ class NotebookRunSeries(BaseModel):
     #: step and `val_accuracy` every epoch, and forcing a dense grid would
     #: invent numbers.
     points: list[dict[str, float]] = Field(default_factory=list)
+
+
+# --- Phase 24: compute targets ------------------------------------------------
+#
+# The unit of truth is a *(framework, device)* pair, not a device. Phase 14's
+# `LlmEnvironment` reports one `device` for `llm_sft`, which is right for that
+# runner and wrong for the machine: torch and TensorFlow see different hardware
+# on the same box — Apple silicon with `tensorflow-metal` absent is the common
+# case — and a single field cannot express it.
+
+ComputeKind = Literal["cuda", "mps", "metal", "rocm", "cpu"]
+
+
+class ComputeDevice(BaseModel):
+    kind: ComputeKind = "cpu"
+    index: int = 0
+    name: str = "Unknown device"
+    #: None where the framework will not say. Apple silicon reports a *ceiling*
+    #: on a shared pool rather than dedicated VRAM, and TensorFlow reports
+    #: nothing at all — None and 0 are different answers and must not render
+    #: the same.
+    total_memory_mb: int | None = None
+    capability: str | None = None
+
+
+class ComputeFramework(BaseModel):
+    name: str
+    installed: bool = False
+    version: str | None = None
+    devices: list[ComputeDevice] = Field(default_factory=list)
+    #: Whether this framework can reach a GPU. False with `installed=True` is a
+    #: normal, important state: it means CPU-only runs for everything this
+    #: framework backs.
+    accelerated: bool = False
+    error: str | None = None
+
+
+class ComputeEnvironment(BaseModel):
+    python_version: str = ""
+    platform: str = ""
+    machine: str = ""
+    frameworks: list[ComputeFramework] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    #: Set when the probe itself could not run. Distinct from a framework's own
+    #: `error`, which means that framework is unusable while others may be fine.
+    error: str | None = None
+
+    def framework(self, name: str) -> "ComputeFramework | None":
+        return next((entry for entry in self.frameworks if entry.name == name), None)
+
+    def accelerators(self) -> list[ComputeDevice]:
+        return [
+            device
+            for entry in self.frameworks
+            for device in entry.devices
+            if device.kind != "cpu"
+        ]
+
+
+class ComputePlan(BaseModel):
+    """What a run would actually do, resolved before it starts.
+
+    Every field carries its `reason`, because the value alone is not actionable:
+    "batch size 4" is a number, and "batch size 4 - 8 GB of shared memory, and
+    this family needs about 1.8 GB per sample" is a thing the user can argue
+    with or override.
+    """
+
+    task_type: str
+    model_family: str
+    framework: str
+    device: str
+    device_name: str = ""
+    accelerated: bool = False
+    batch_size: int = 8
+    precision: str = "fp32"
+    reasons: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+# Remote GPU providers. Declared but not implemented - see
+# `specs/phase-24-compute-targets.md`. They are listed rather than hidden so the
+# roadmap is visible and, more importantly, so `available: false` is a fact the
+# UI reads rather than a state it invents.
+ComputeProviderId = Literal["local", "vast", "modal", "runpod"]
+
+
+class ComputeProvider(BaseModel):
+    id: ComputeProviderId
+    name: str
+    #: False means the platform cannot run anything there yet. The UI must
+    #: disable rather than hide: a provider nobody can see is a roadmap nobody
+    #: can plan against.
+    available: bool = False
+    summary: str = ""
+    #: What would have to be true for `available` to become True. Concrete, so
+    #: this doubles as the implementation checklist.
+    requirements: list[str] = Field(default_factory=list)
+    docs_url: str | None = None

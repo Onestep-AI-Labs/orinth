@@ -42,4 +42,5 @@ Use a spec when:
 - `phase-21-prep-agent.md`
 - `phase-22-notebooks.md`
 - `phase-23-cli.md`
+- `phase-24-compute-targets.md`
 - `SPEC_TEMPLATE.md`

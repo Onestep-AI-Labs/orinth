@@ -15,6 +15,38 @@ from app.cli.config import find_project_config
 from app.cli.errors import EXIT_OK, EXIT_UNREACHABLE, CliError
 
 
+def _print_compute(compute: dict | None) -> None:
+    """The per-framework device table, and the notes that matter.
+
+    Printed as its own block rather than folded into the key/value list above,
+    because the interesting fact is a *comparison* — which framework sees a GPU
+    and which does not — and that only reads as a table.
+    """
+    if not compute:
+        return
+    output.note("")
+    frameworks = compute.get("frameworks") or []
+    if frameworks:
+        output.table(
+            [
+                [
+                    entry.get("name"),
+                    entry.get("version") or "-",
+                    "yes" if entry.get("accelerated") else "no",
+                    ", ".join(
+                        f"{device.get('kind')}:{device.get('name')}"
+                        for device in entry.get("devices") or []
+                    )
+                    or "cpu only",
+                ]
+                for entry in frameworks
+            ],
+            ["framework", "version", "gpu", "devices"],
+        )
+    for note in compute.get("notes") or []:
+        output.warn(note)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="orinth doctor", allow_abbrev=False)
     add_common(parser)
@@ -45,6 +77,13 @@ def run(argv: list[str], config, globals_) -> int:
         report["server_app"] = health.get("app")
         report["projects"] = len(client.get("/api/projects") or [])
         report["models"] = len(client.get("/api/models", params={"project_id": project}) or [])
+        # The compute probe is the slowest thing `doctor` does (it imports torch
+        # and TensorFlow in a subprocess), so a failure degrades to "unknown"
+        # rather than failing the whole diagnosis.
+        try:
+            report["compute"] = client.get("/api/training/compute", timeout=120.0)
+        except CliError:
+            report["compute"] = None
     except CliError as failure:
         report["error"] = failure.message
 
@@ -70,6 +109,9 @@ def run(argv: list[str], config, globals_) -> int:
                 else [("error", report.get("error"))]
             )
         )
+
+    if not (globals_.json or globals_.jsonl):
+        _print_compute(report.get("compute"))
 
     if not report["reachable"]:
         # `doctor` reporting a down backend is a successful diagnosis, but the

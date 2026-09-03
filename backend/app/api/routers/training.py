@@ -6,6 +6,9 @@ from app.container import training_executor, training_service
 from app.core.database import get_db
 from app.db.models import TrainingJob
 from app.schemas import (
+    ComputeEnvironment,
+    ComputePlan,
+    ComputeProvider,
     DeleteRequest,
     DeleteResponse,
     LlmEnvironment,
@@ -24,6 +27,52 @@ router = APIRouter(prefix="/training")
 @router.get("/model-options", response_model=list[TrainingModelOption])
 def list_training_model_options(task_type: str | None = Query(default=None)) -> list[TrainingModelOption]:
     return training_service.model_options(task_type)
+
+
+@router.get("/compute", response_model=ComputeEnvironment)
+def training_compute_environment(refresh: bool = Query(default=False)) -> ComputeEnvironment:
+    """What this machine can train on, per framework.
+
+    Per framework rather than per machine because they disagree: Apple silicon
+    without `tensorflow-metal` gives torch a GPU and TensorFlow a CPU, and a
+    single `device` field cannot say that. The probe runs in a subprocess and is
+    cached — importing torch and TensorFlow here is what `docs/ai/rules.md`
+    forbids, and a machine does not grow a GPU between requests.
+    """
+    from app.ml.compute import probe  # noqa: PLC0415
+
+    return probe(refresh=refresh)
+
+
+@router.get("/compute/plan", response_model=ComputePlan)
+def training_compute_plan(
+    task_type: str = Query(...),
+    model_family: str = Query(...),
+    device: str | None = Query(default=None),
+    batch_size: int | None = Query(default=None),
+) -> ComputePlan:
+    """Resolve `device: auto` into what a run would actually do, before it starts."""
+    from app.ml.compute_plan import plan_for  # noqa: PLC0415
+
+    return plan_for(
+        task_type=task_type,
+        model_family=model_family,
+        requested_device=device,
+        requested_batch_size=batch_size,
+    )
+
+
+@router.get("/compute/providers", response_model=list[ComputeProvider])
+def training_compute_providers() -> list[ComputeProvider]:
+    """Where a run could execute. Only `local` is available today.
+
+    The unavailable ones are listed rather than hidden so the roadmap is visible
+    and `available: false` is a fact the client reads rather than a string it
+    hardcodes.
+    """
+    from app.ml.compute_providers import providers  # noqa: PLC0415
+
+    return providers()
 
 
 @router.get("/llm/environment", response_model=LlmEnvironment)

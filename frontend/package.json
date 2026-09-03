@@ -13,11 +13,14 @@
     "generate:api": "uv run --project ../backend python ../backend/scripts/export_openapi.py ../backend/openapi.json && openapi-typescript ../backend/openapi.json -o ./types/generated/api.ts"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.11.0",
     "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.12.4",
     "@codemirror/state": "^6.7.2",
     "@codemirror/view": "^6.43.10",
     "@jupyterlab/services": "^7.6.3",
+    "@lezer/highlight": "^1.2.3",
     "@tanstack/react-query": "^5.51.21",
     "@xyflow/react": "^12.11.2",
     "class-variance-authority": "^0.7.0",

@@ -57,6 +57,17 @@ Cells now round-trip their kind, markdown renders by default and edits on double
 other reader. Verified by reading a template through the proxy, projecting it through the editor's
 cell model, saving, and reading back: 3 markdown cells in, 3 out, prose intact.
 
+**Editor pass (phase 24 follow-up).** The first cut shipped `python()` for parsing with **no
+`HighlightStyle`**, so the parser built a syntax tree nothing consumed and every cell rendered in
+one flat ink colour. `syntax.ts` now maps eight token classes onto the `--label-*` ramp — the
+sanctioned §2 exception, since colour here encodes what a token *is*. Alongside it: completion from
+the kernel's own `complete_request` (verified against a live namespace — after
+`df = orinth.datasets.load(…)`, typing `df.sh` offers `shape, shift, show, shrink_to_fit`, which no
+static word list could know), Shift-Tab inspect through `inspect_request` with the ANSI stripped
+off the docstring, bracket matching and auto-close, 4-space `indentUnit` per PEP 8, and the
+standard notebook operations — run all (sequential, stopping at the first error, because a notebook
+is a script), clear outputs, move up/down, insert, delete.
+
 **Deferred, and not attempted:** `ipywidgets` and interactive output (out of scope by design);
 `text/html` output rendering — it falls through to `text/plain` with a note, because sanitizing
 arbitrary kernel HTML needs DOMPurify and a policy, and a half-sanitized

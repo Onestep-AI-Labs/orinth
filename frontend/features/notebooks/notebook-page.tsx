@@ -7,7 +7,11 @@ import {
   ArrowLeft,
   Circle,
   Play,
+  ChevronDown,
+  ChevronUp,
   Code2,
+  Eraser,
+  FastForward,
   Plus,
   RotateCcw,
   Text,
@@ -93,6 +97,10 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
   const [kernelState, setKernelState] = useState<KernelState>("unknown");
   const [connecting, setConnecting] = useState(false);
   const kernel = useRef<NotebookKernel | null>(null);
+  //: `runAll` awaits between cells, so a closed-over `cells` would be the array
+  //: as it stood when the loop started — stale by the second iteration.
+  const cellsRef = useRef<Cell[]>([]);
+  cellsRef.current = cells;
 
   const runtimeRunning = runtimeQuery.data?.state === "running";
 
@@ -175,17 +183,18 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
     );
   }
 
-  async function runCell(id: string) {
-    const cell = cells.find((entry) => entry.id === id);
-    if (!cell) return;
+  /** Returns true when the cell errored, so `runAll` can stop where it should. */
+  async function runCell(id: string): Promise<boolean> {
+    const cell = cellsRef.current.find((entry) => entry.id === id);
+    if (!cell) return false;
     if (cell.kind === "markdown") {
       // "Running" a prose cell means rendering it — the same gesture, the same
       // key, a different meaning, which is the convention every notebook uses.
       patch(id, { editing: false });
-      return;
+      return false;
     }
     const client = kernel.current;
-    if (!client) return;
+    if (!client) return false;
     patch(id, { outputs: [], running: true });
     try {
       const result = await client.execute(cell.source, (output) => {
@@ -198,10 +207,55 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
         );
       });
       patch(id, { running: false, executionCount: result.executionCount });
+      return result.status === "error";
     } catch (error) {
       patch(id, { running: false });
       toast.error((error as Error).message);
+      return true;
     }
+  }
+
+  function insertAfter(index: number, kind: CellKind) {
+    setCells((current) => [
+      ...current.slice(0, index + 1),
+      newCell("", kind),
+      ...current.slice(index + 1)
+    ]);
+  }
+
+  function move(index: number, delta: number) {
+    setCells((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  /**
+   * Run every cell in order, stopping at the first error.
+   *
+   * Sequential rather than parallel because a notebook is a script: cell three
+   * depends on cell two having defined something. Stopping on error is what
+   * makes the result readable — continuing past a failure produces a cascade of
+   * NameErrors that bury the one that mattered.
+   */
+  async function runAll() {
+    for (const cell of cells) {
+      if (cell.kind === "markdown") {
+        patch(cell.id, { editing: false });
+        continue;
+      }
+      const failed = await runCell(cell.id);
+      if (failed) break;
+    }
+  }
+
+  function clearOutputs() {
+    setCells((current) =>
+      current.map((cell) => ({ ...cell, outputs: [], executionCount: null }))
+    );
   }
 
   async function save() {
@@ -281,6 +335,23 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
           >
             <RotateCcw size={14} /> Restart
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={runAll}
+            disabled={!kernel.current || busy}
+            title="Run every cell in order, stopping at the first error"
+          >
+            <FastForward size={14} /> Run all
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={clearOutputs}
+            title="Clear every output. Variables in the kernel are untouched."
+          >
+            <Eraser size={14} /> Clear outputs
+          </Button>
           <Button variant="secondary" size="sm" onClick={save}>
             Save
           </Button>
@@ -309,6 +380,32 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
                 <button
                   type="button"
                   className="icon-button"
+                  onClick={() => move(index, -1)}
+                  disabled={index === 0}
+                  title="Move up"
+                >
+                  <ChevronUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => move(index, 1)}
+                  disabled={index === cells.length - 1}
+                  title="Move down"
+                >
+                  <ChevronDown size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => insertAfter(index, "code")}
+                  title="Insert a code cell below"
+                >
+                  <Plus size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
                   onClick={() => setCells((current) => current.filter((entry) => entry.id !== cell.id))}
                   disabled={cells.length === 1}
                   title="Delete this cell"
@@ -328,6 +425,10 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
                     value={cell.source}
                     onChange={(value) => patch(cell.id, { source: value })}
                     onRun={() => runCell(cell.id)}
+                    // A getter, not the kernel itself: the editor mounts before
+                    // the kernel connects, and passing the value would freeze
+                    // `null` into the completion source for the cell's life.
+                    getKernel={() => kernel.current}
                   />
                 )}
                 {cell.outputs.length > 0 && (

@@ -23,6 +23,9 @@
 - Keep the notebook SDK (`backend/orinth/`) importable by a kernel and invisible to the server:
   `orinth` may import `app`, `app` may never import `orinth`. Reads go direct to the filesystem;
   writes go over HTTP so the project gate, the manifest write, and readiness run exactly once.
+- Probe hardware out of process. `app/ml/compute.py` runs `sys.executable -c` and parses one JSON
+  line; importing torch or TensorFlow into the API to ask about devices is the rule above in
+  another costume. Device detection is per *framework*, never per machine — they disagree.
 - Keep `jupyter_server` out of the API process. `services/notebooks/runtime.py` spawns it and
   checks for it with `find_spec`; nothing under `app/` imports it.
 - Manage schema changes with Alembic migrations under `backend/migrations/`, not `Base.metadata.create_all` or hand-written `ALTER TABLE` patches. When you change `backend/app/db/models.py`, generate a matching migration with `uv run alembic revision --autogenerate -m "..."`, review it, and commit it alongside the model change. See `backend/README.md` for the full workflow.

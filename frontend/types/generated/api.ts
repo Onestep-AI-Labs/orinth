@@ -2010,6 +2010,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/training/compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Training Compute Environment
+         * @description What this machine can train on, per framework.
+         *
+         *     Per framework rather than per machine because they disagree: Apple silicon
+         *     without `tensorflow-metal` gives torch a GPU and TensorFlow a CPU, and a
+         *     single `device` field cannot say that. The probe runs in a subprocess and is
+         *     cached — importing torch and TensorFlow here is what `docs/ai/rules.md`
+         *     forbids, and a machine does not grow a GPU between requests.
+         */
+        get: operations["training_compute_environment_api_training_compute_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/training/compute/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Training Compute Plan
+         * @description Resolve `device: auto` into what a run would actually do, before it starts.
+         */
+        get: operations["training_compute_plan_api_training_compute_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/training/compute/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Training Compute Providers
+         * @description Where a run could execute. Only `local` is available today.
+         *
+         *     The unavailable ones are listed rather than hidden so the roadmap is visible
+         *     and `available: false` is a fact the client reads rather than a string it
+         *     hardcodes.
+         */
+        get: operations["training_compute_providers_api_training_compute_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/training/jobs": {
         parameters: {
             query?: never;
@@ -2906,6 +2976,177 @@ export interface components {
              * @default null
              */
             text_macro_f1: number | null;
+        };
+        /** ComputeDevice */
+        ComputeDevice: {
+            /**
+             * Capability
+             * @default null
+             */
+            capability: string | null;
+            /**
+             * Index
+             * @default 0
+             */
+            index: number;
+            /**
+             * Kind
+             * @default cpu
+             * @enum {string}
+             */
+            kind: "cuda" | "mps" | "metal" | "rocm" | "cpu";
+            /**
+             * Name
+             * @default Unknown device
+             */
+            name: string;
+            /**
+             * Total Memory Mb
+             * @default null
+             */
+            total_memory_mb: number | null;
+        };
+        /** ComputeEnvironment */
+        ComputeEnvironment: {
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Frameworks
+             * @default null
+             */
+            frameworks: components["schemas"]["ComputeFramework"][];
+            /**
+             * Machine
+             * @default
+             */
+            machine: string;
+            /**
+             * Notes
+             * @default null
+             */
+            notes: string[];
+            /**
+             * Platform
+             * @default
+             */
+            platform: string;
+            /**
+             * Python Version
+             * @default
+             */
+            python_version: string;
+        };
+        /** ComputeFramework */
+        ComputeFramework: {
+            /**
+             * Accelerated
+             * @default false
+             */
+            accelerated: boolean;
+            /**
+             * Devices
+             * @default null
+             */
+            devices: components["schemas"]["ComputeDevice"][];
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Installed
+             * @default false
+             */
+            installed: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Version
+             * @default null
+             */
+            version: string | null;
+        };
+        /**
+         * ComputePlan
+         * @description What a run would actually do, resolved before it starts.
+         *
+         *     Every field carries its `reason`, because the value alone is not actionable:
+         *     "batch size 4" is a number, and "batch size 4 - 8 GB of shared memory, and
+         *     this family needs about 1.8 GB per sample" is a thing the user can argue
+         *     with or override.
+         */
+        ComputePlan: {
+            /**
+             * Accelerated
+             * @default false
+             */
+            accelerated: boolean;
+            /**
+             * Batch Size
+             * @default 8
+             */
+            batch_size: number;
+            /** Device */
+            device: string;
+            /**
+             * Device Name
+             * @default
+             */
+            device_name: string;
+            /** Framework */
+            framework: string;
+            /** Model Family */
+            model_family: string;
+            /**
+             * Precision
+             * @default fp32
+             */
+            precision: string;
+            /**
+             * Reasons
+             * @default null
+             */
+            reasons: string[];
+            /** Task Type */
+            task_type: string;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
+        /** ComputeProvider */
+        ComputeProvider: {
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /**
+             * Docs Url
+             * @default null
+             */
+            docs_url: string | null;
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "local" | "vast" | "modal" | "runpod";
+            /** Name */
+            name: string;
+            /**
+             * Requirements
+             * @default null
+             */
+            requirements: string[];
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
         };
         /** DatasetAnnotation */
         DatasetAnnotation: {
@@ -11177,6 +11418,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    training_compute_environment_api_training_compute_get: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputeEnvironment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    training_compute_plan_api_training_compute_plan_get: {
+        parameters: {
+            query: {
+                task_type: string;
+                model_family: string;
+                device?: string | null;
+                batch_size?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputePlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    training_compute_providers_api_training_compute_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputeProvider"][];
                 };
             };
         };

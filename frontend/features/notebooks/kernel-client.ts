@@ -117,6 +117,65 @@ export class NotebookKernel {
     return { status: content.status, executionCount: content.execution_count ?? null };
   }
 
+  /**
+   * Completions from the kernel, not from a word list.
+   *
+   * This is what makes autocomplete useful rather than decorative: the kernel
+   * introspects the *live* namespace, so after `df = orinth.datasets.load(…)`
+   * it knows `df.` offers polars methods. A static Python keyword list cannot
+   * know that, and a list scraped from the buffer would offer strings that are
+   * not attributes of anything.
+   *
+   * Returns null rather than throwing when there is no kernel or the request
+   * fails — a completion popup is a convenience, and one that raises into the
+   * editor on every keystroke is worse than none.
+   */
+  async complete(
+    code: string,
+    cursor: number
+  ): Promise<{ matches: string[]; start: number; end: number } | null> {
+    const kernel = this.session?.kernel;
+    if (!kernel) return null;
+    try {
+      const reply = await kernel.requestComplete({ code, cursor_pos: cursor });
+      const content = reply.content as {
+        status: string;
+        matches?: string[];
+        cursor_start?: number;
+        cursor_end?: number;
+      };
+      if (content.status !== "ok" || !content.matches?.length) return null;
+      return {
+        matches: content.matches,
+        start: content.cursor_start ?? cursor,
+        end: content.cursor_end ?? cursor
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The docstring behind a symbol, for Shift-Tab.
+   *
+   * `detail_level: 0` is the short form — a signature and the opening lines —
+   * which is what fits in a popup. Level 1 returns the full source, which is a
+   * different feature (go-to-definition) and not this one.
+   */
+  async inspect(code: string, cursor: number): Promise<string | null> {
+    const kernel = this.session?.kernel;
+    if (!kernel) return null;
+    try {
+      const reply = await kernel.requestInspect({ code, cursor_pos: cursor, detail_level: 0 });
+      const content = reply.content as { status: string; found?: boolean; data?: Record<string, unknown> };
+      if (content.status !== "ok" || !content.found) return null;
+      const text = content.data?.["text/plain"];
+      return typeof text === "string" ? text : null;
+    } catch {
+      return null;
+    }
+  }
+
   async interrupt(): Promise<void> {
     await this.session?.kernel?.interrupt();
   }
