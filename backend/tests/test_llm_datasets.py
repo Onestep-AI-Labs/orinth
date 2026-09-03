@@ -281,7 +281,10 @@ def test_hub_import_maps_columns_and_marks_origin(settings: Settings, monkeypatc
     ]
 
     def fake_fetch(hub_id, config, split, offset, length):
-        return (rows if offset == 0 else [], list(rows[0].keys()))
+        # Third element is the per-column dtype map the viewer reads; import
+        # ignores it, but the double has to match the real arity.
+        columns = list(rows[0].keys())
+        return (rows if offset == 0 else [], columns, dict.fromkeys(columns, "string"))
 
     monkeypatch.setattr(hub, "_fetch_rows", fake_fetch)
 
@@ -322,7 +325,7 @@ def test_hub_import_atomic_leaves_no_partial_on_empty(settings: Settings, monkey
     hub = DatasetHubService(settings, service.storage, service)
     monkeypatch.setattr(hub, "_configs_and_splits", lambda hub_id, config: (["default"], ["train"]))
     monkeypatch.setattr(hub, "_revision", lambda hub_id: "main")
-    monkeypatch.setattr(hub, "_fetch_rows", lambda *a, **k: ([], []))
+    monkeypatch.setattr(hub, "_fetch_rows", lambda *a, **k: ([], [], {}))
     with pytest.raises(HTTPException):
         hub.import_hub(
             DatasetHubImportRequest(

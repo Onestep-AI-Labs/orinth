@@ -515,10 +515,17 @@ def detect_record_format(columns: list[str]) -> tuple[str | None, dict[str, str]
         return "messages", {"messages": "messages"}
     if "conversations" in cols:
         return "sharegpt", {"conversations": "conversations"}
-    if {"question", "answer"} <= cols:
-        mapping = {"question": "question", "answer": "answer"}
-        if "context" in cols:
-            mapping["context"] = "context"
+    question = _first_present(columns, QUESTION_COLUMNS)
+    answer = _first_present(columns, ANSWER_COLUMNS)
+    if question and answer:
+        # Matched through the alias tuples rather than the literal pair, because
+        # the Hub's most-downloaded QA dataset (`rajpurkar/squad`) names its
+        # column `answers`, and requiring the singular made it detect as nothing
+        # and land in manual mapping.
+        mapping = {"question": question, "answer": answer}
+        context = _first_present(columns, ("context", "passage", "document"))
+        if context:
+            mapping["context"] = context
         return "qa", mapping
     return None, {}
 

@@ -11,6 +11,7 @@ export type { BadgeProps, ButtonLinkProps, ButtonProps, IconButtonProps } from "
 export { cn } from "./cn";
 export { TaskSelect } from "./task-select";
 export { NumberCombo } from "./number-combo";
+export { Explained, InfoTip } from "./info-tip";
 
 export type ConfirmationTone = "danger" | "warning";
 export type ConfirmationDialogOptions = {

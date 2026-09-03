@@ -284,6 +284,11 @@ def test_unrecognized_files_fall_through_to_needs_input(tmp_path: Path):
         (["messages"], "messages"),
         (["conversations"], "sharegpt"),
         (["question", "answer"], "qa"),
+        # `rajpurkar/squad`, the Hub's most-downloaded QA dataset, names its
+        # column `answers`. Requiring the singular made it detect as nothing and
+        # drop into manual mapping — see the alias test below.
+        (["id", "title", "context", "question", "answers"], "qa"),
+        (["query", "answer"], "qa"),
         (["alpha", "beta"], None),
     ],
 )
@@ -291,6 +296,14 @@ def test_detect_record_format_matches_the_hub_importers_vocabulary(columns, expe
     """`DatasetHubService._detect_format` now delegates here; same answers."""
     shape, _mapping = detect_record_format(columns)
     assert shape == expected
+
+
+def test_the_qa_mapping_names_the_real_columns_not_the_canonical_roles():
+    """The mapping is what the importer reads columns by, so it has to carry the
+    dataset's own names — `answers`, not the role name `answer`."""
+    shape, mapping = detect_record_format(["id", "title", "context", "question", "answers"])
+    assert shape == "qa"
+    assert mapping == {"question": "question", "answer": "answers", "context": "context"}
 
 
 # --- prompt safety ------------------------------------------------------------

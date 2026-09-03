@@ -235,6 +235,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/hub/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Hub Facets
+         * @description The browse vocabulary and what each term means.
+         *
+         *     Served rather than hardcoded in the client so the tooltip on a filter chip
+         *     and the tooltip on the badge showing the same term on a result card come
+         *     from one string. See `services/hub_facets.py`.
+         */
+        get: operations["get_hub_facets_api_datasets_hub_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/hub/preview": {
         parameters: {
             query?: never;
@@ -259,7 +283,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search Hub Datasets */
+        /**
+         * Search Hub Datasets
+         * @description Browse the Hub with the same facets huggingface.co exposes.
+         *
+         *     The repeated-key parameters (`?modality=text&modality=tabular`) mirror the
+         *     Hub's own query shape, so a filter set here is transferable to a URL there.
+         */
         get: operations["search_hub_datasets_api_datasets_hub_search_get"];
         put?: never;
         post?: never;
@@ -2949,6 +2979,58 @@ export interface components {
              */
             question: string | null;
         };
+        /**
+         * DatasetHubFacetOption
+         * @description One filter term, with the sentence that explains it.
+         *
+         *     `hint` is rendered as the tooltip both on the filter chip and on the badge
+         *     showing the same term on a result card, so the explanation cannot drift
+         *     between the two places a user meets it. See `services/hub_facets.py`.
+         */
+        DatasetHubFacetOption: {
+            /** Hint */
+            hint: string;
+            /**
+             * Importable
+             * @default true
+             */
+            importable: boolean;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * DatasetHubFacets
+         * @description The browse vocabulary, served rather than hardcoded in the client.
+         */
+        DatasetHubFacets: {
+            /**
+             * Formats
+             * @default null
+             */
+            formats: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Modalities
+             * @default null
+             */
+            modalities: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Sizes
+             * @default null
+             */
+            sizes: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Sorts
+             * @default null
+             */
+            sorts: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Tasks
+             * @default null
+             */
+            tasks: components["schemas"]["DatasetHubFacetOption"][];
+        };
         /** DatasetHubImportRequest */
         DatasetHubImportRequest: {
             /**
@@ -3015,6 +3097,13 @@ export interface components {
         /** DatasetHubPreview */
         DatasetHubPreview: {
             /**
+             * Column Types
+             * @default null
+             */
+            column_types: {
+                [key: string]: string;
+            };
+            /**
              * Columns
              * @default null
              */
@@ -3048,6 +3137,11 @@ export interface components {
             error: string | null;
             /** Hub Id */
             hub_id: string;
+            /**
+             * Num Rows
+             * @default null
+             */
+            num_rows: number | null;
             /**
              * Rows
              * @default null
@@ -3092,22 +3186,77 @@ export interface components {
              */
             downloads: number;
             /**
+             * Formats
+             * @default null
+             */
+            formats: string[];
+            /**
              * Gated
              * @default false
              */
             gated: boolean;
+            /**
+             * Has Viewer
+             * @default true
+             */
+            has_viewer: boolean;
             /** Hub Id */
             hub_id: string;
+            /**
+             * Importable
+             * @default true
+             */
+            importable: boolean;
+            /**
+             * Languages
+             * @default null
+             */
+            languages: string[];
+            /**
+             * License
+             * @default null
+             */
+            license: string | null;
             /**
              * Likes
              * @default 0
              */
             likes: number;
             /**
+             * Modalities
+             * @default null
+             */
+            modalities: string[];
+            /**
+             * Pretty Name
+             * @default null
+             */
+            pretty_name: string | null;
+            /**
+             * Size Category
+             * @default null
+             */
+            size_category: string | null;
+            /**
+             * Summary
+             * @default null
+             */
+            summary: string | null;
+            /**
              * Tags
              * @default null
              */
             tags: string[];
+            /**
+             * Task Categories
+             * @default null
+             */
+            task_categories: string[];
+            /**
+             * Trending Score
+             * @default 0
+             */
+            trending_score: number;
             /**
              * Updated At
              * @default null
@@ -6755,6 +6904,26 @@ export interface operations {
             };
         };
     };
+    get_hub_facets_api_datasets_hub_facets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetHubFacets"];
+                };
+            };
+        };
+    };
     preview_hub_dataset_api_datasets_hub_preview_get: {
         parameters: {
             query: {
@@ -6795,6 +6964,11 @@ export interface operations {
                 query?: string | null;
                 task?: string | null;
                 limit?: number;
+                modality?: string[];
+                format?: string[];
+                size?: string[];
+                task_category?: string[];
+                sort?: string;
             };
             header?: never;
             path?: never;

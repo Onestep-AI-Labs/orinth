@@ -15,7 +15,7 @@ import { DatasetDataGrid } from "@/features/datasets/data-grid";
 import { DatasetDetailTabs, type DatasetDetailTab } from "@/features/datasets/detail-tabs";
 import { DatasetOverviewTab } from "@/features/datasets/prep/overview-tab";
 import { DatasetPrepareTab } from "@/features/datasets/prepare-tab";
-import { HubImportPanel } from "@/features/datasets/hub-import-panel";
+import { HubBrowser } from "@/features/datasets/hub/hub-browser";
 import { DatasetRecordsTab } from "@/features/datasets/records-tab";
 import {
   useBulkLabelDatasetItemsMutation,
@@ -351,7 +351,7 @@ export function DatasetPage() {
         confirmationDialog={confirmationDialog}
         canImportHub={canImportHub}
         hubImportPanel={
-          <HubImportPanel
+          <HubBrowser
             projectId={projectId}
             openDataset={openDataset}
             catalogQuery={catalogQuery}

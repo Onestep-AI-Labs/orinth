@@ -12,6 +12,7 @@ from app.schemas import (
     DatasetCreate,
     DatasetDetection,
     DatasetEdaSummary,
+    DatasetHubFacets,
     DatasetHubImportRequest,
     DatasetHubImportResponse,
     DatasetHubPreview,
@@ -48,6 +49,7 @@ from app.schemas import (
     DatasetVersionSummary,
     DeleteResponse,
 )
+from app.services import hub_facets
 from app.services.datasets.prep.apply import PrepApplyError
 from app.services.datasets.prep.service import PrepBusyError
 
@@ -252,13 +254,43 @@ def create_dataset(payload: DatasetCreate, db: Session = Depends(get_db)) -> Dat
     return dataset_service.create_dataset(payload)
 
 
+@router.get("/hub/facets", response_model=DatasetHubFacets)
+def get_hub_facets() -> DatasetHubFacets:
+    """The browse vocabulary and what each term means.
+
+    Served rather than hardcoded in the client so the tooltip on a filter chip
+    and the tooltip on the badge showing the same term on a result card come
+    from one string. See `services/hub_facets.py`.
+    """
+    return hub_facets.facets()
+
+
 @router.get("/hub/search", response_model=DatasetHubSearchResponse)
 def search_hub_datasets(
     query: str | None = Query(default=None),
     task: str | None = Query(default=None),
     limit: int = Query(default=24, ge=1, le=100),
+    modality: list[str] = Query(default_factory=list),
+    format: list[str] = Query(default_factory=list),
+    size: list[str] = Query(default_factory=list),
+    task_category: list[str] = Query(default_factory=list),
+    sort: str = Query(default="trending"),
 ) -> DatasetHubSearchResponse:
-    return dataset_hub_service.search(query, task, limit)
+    """Browse the Hub with the same facets huggingface.co exposes.
+
+    The repeated-key parameters (`?modality=text&modality=tabular`) mirror the
+    Hub's own query shape, so a filter set here is transferable to a URL there.
+    """
+    return dataset_hub_service.search(
+        query,
+        task,
+        limit,
+        modalities=modality,
+        formats=format,
+        sizes=size,
+        tasks=task_category,
+        sort=sort,
+    )
 
 
 @router.get("/hub/preview", response_model=DatasetHubPreview)

@@ -1144,6 +1144,33 @@ class LlmModelInfo(BaseModel):
     error: str | None = None
 
 
+class DatasetHubFacetOption(BaseModel):
+    """One filter term, with the sentence that explains it.
+
+    `hint` is rendered as the tooltip both on the filter chip and on the badge
+    showing the same term on a result card, so the explanation cannot drift
+    between the two places a user meets it. See `services/hub_facets.py`.
+    """
+
+    value: str
+    label: str
+    hint: str
+    #: Whether Orinth's record importer can read a dataset of this kind. Shown on
+    #: the chip, because a filter that returns only unusable results is worse
+    #: than one that says so before the click.
+    importable: bool = True
+
+
+class DatasetHubFacets(BaseModel):
+    """The browse vocabulary, served rather than hardcoded in the client."""
+
+    modalities: list[DatasetHubFacetOption] = Field(default_factory=list)
+    formats: list[DatasetHubFacetOption] = Field(default_factory=list)
+    sizes: list[DatasetHubFacetOption] = Field(default_factory=list)
+    tasks: list[DatasetHubFacetOption] = Field(default_factory=list)
+    sorts: list[DatasetHubFacetOption] = Field(default_factory=list)
+
+
 class DatasetHubSearchResult(BaseModel):
     hub_id: str
     author: str | None = None
@@ -1152,6 +1179,25 @@ class DatasetHubSearchResult(BaseModel):
     gated: bool = False
     tags: list[str] = Field(default_factory=list)
     updated_at: str | None = None
+    # Structured tags, split out of `tags` so the card can render badges without
+    # re-parsing prefixes in the client.
+    pretty_name: str | None = None
+    modalities: list[str] = Field(default_factory=list)
+    formats: list[str] = Field(default_factory=list)
+    task_categories: list[str] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
+    license: str | None = None
+    size_category: str | None = None
+    #: Whether the Hub's dataset viewer can render it. `false` means no preview
+    #: is coming, which the card says rather than leaving the user to click and
+    #: find out.
+    has_viewer: bool = True
+    #: Whether Orinth's record importer can read this modality at all.
+    importable: bool = True
+    trending_score: int = 0
+    #: First couple of sentences of the dataset card, flattened. Enough to tell
+    #: two similarly-named datasets apart without opening either.
+    summary: str | None = None
 
 
 class DatasetHubSearchResponse(BaseModel):
@@ -1173,6 +1219,12 @@ class DatasetHubPreview(BaseModel):
     # heuristics succeed, so the mapping dialog can pre-fill and show a banner.
     detected_format: str | None = None
     detected_mapping: dict[str, str] = Field(default_factory=dict)
+    #: Per-column type from the preview server's feature list ("string", "int64",
+    #: "list"), so the viewer can label a column the way the Hub's own does.
+    column_types: dict[str, str] = Field(default_factory=dict)
+    #: Rows in the selected split, when the preview server reports it. `None`
+    #: means unknown, which is different from zero and must not render as "0".
+    num_rows: int | None = None
     error: str | None = None
 
 

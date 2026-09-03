@@ -22,6 +22,7 @@ type DatasetEdaSummary = components["schemas"]["DatasetEdaSummary"];
 type DatasetAnnotation = components["schemas"]["DatasetAnnotation"];
 type DeleteResponse = components["schemas"]["DeleteResponse"];
 type DatasetHubSearchResponse = components["schemas"]["DatasetHubSearchResponse"];
+type DatasetHubFacets = components["schemas"]["DatasetHubFacets"];
 type DatasetHubPreview = components["schemas"]["DatasetHubPreview"];
 type DatasetHubImportRequest = components["schemas"]["DatasetHubImportRequest"];
 type DatasetHubImportResponse = components["schemas"]["DatasetHubImportResponse"];
@@ -257,9 +258,29 @@ export const datasetsApi = {
         body: form
       }
     ),
-  searchDatasetHub: (params: { query?: string; task?: string; limit?: number }) =>
+  /** The browse vocabulary — filter terms plus the sentence explaining each. */
+  datasetHubFacets: () => jsonFetch<DatasetHubFacets>("/datasets/hub/facets"),
+  searchDatasetHub: (params: {
+    query?: string;
+    task?: string;
+    limit?: number;
+    modality?: string[];
+    format?: string[];
+    size?: string[];
+    task_category?: string[];
+    sort?: string;
+  }) =>
     jsonFetch<DatasetHubSearchResponse>(
-      `/datasets/hub/search${query({ query: params.query, task: params.task, limit: params.limit })}`
+      `/datasets/hub/search${query({
+        query: params.query,
+        task: params.task,
+        limit: params.limit,
+        modality: params.modality,
+        format: params.format,
+        size: params.size,
+        task_category: params.task_category,
+        sort: params.sort
+      })}`
     ),
   previewDatasetHub: (params: { hub_id: string; config?: string; split?: string; limit?: number }) =>
     jsonFetch<DatasetHubPreview>(
