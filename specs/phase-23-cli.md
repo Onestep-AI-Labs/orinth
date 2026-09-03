@@ -51,10 +51,31 @@ from reading the code:
   silently a different thing and fails deep inside h11 rather than at the call site. Ingest built
   the wrong one, so no upload worked at all until it was fixed.
 
-**Deferred, and not attempted:** `train --set` and `test --fail-under` are implemented but have not
-been run against a real training job (that needs GPU time and a long run); `infer` batch mode is
-implemented but only smoke-tested for argument handling; `--wait` on a busy prep run, `--advisory-fatal`,
-and `export --version` are coded against the spec but unexercised. Shell completion (`orinth completion bash|zsh|fish`, printed rather than installed — writing into
+**Exercised against real jobs (phase 24 follow-up).** `train` and `test` were finally run end to
+end — a 2-epoch Keras classification job on MPS, then an evaluation of the model it produced. That
+surfaced four defects, none of which any unit test would have caught:
+
+1. **`--epochs 1` trained for 50.** `TrainingJobCreate` declares `epochs`, `image_size`,
+   `batch_size`, `learning_rate` and `device` at the *top level*; the CLI put all of them in
+   `hyperparameters`, where they validate, start a job, and are ignored. `_split_params` now routes
+   a key to whichever place the schema declares it, and `--set` reaches both.
+2. **Following a run printed 195 KB per poll.** `progress` is a dict on training jobs carrying
+   percent, step, ETA *and the last log lines*; `job_line` stringified it, backspace characters and
+   all. It now reads fields by name and never falls back to `str()` on a container.
+3. **`--fail-under accuracy=0.8` could never match anything.** Evaluation metrics are nested —
+   the top-level keys are `classification`, `image`, `labels`, `samples`, none of them a number.
+   Metrics are now flattened to dotted paths (`image.overall.accuracy`), a bare leaf resolves when
+   unambiguous, and an ambiguous one lists its candidates rather than gating on whichever sorted
+   first.
+4. **`train models` printed an empty `AVAILABLE` column** — the schema field is `runnable`.
+
+Verified transcripts: `--epochs 2 --batch-size 8 --set image_size=128` produced a job whose stored
+parameters were exactly those; `[running] 52% Epoch 1/2 eta 9s` replaced the flood; and the three
+threshold outcomes exit 0, 1, and 2 respectively.
+
+**Still deferred:** `infer` batch mode is implemented but only smoke-tested for argument handling;
+`--wait` on a busy prep run, `--advisory-fatal`, and `export --version` are coded against the spec
+but unexercised. `test compare` renders a table and shell completion (`orinth completion bash|zsh|fish`, printed rather than installed — writing into
 someone's shell config is a change a dataset tool has no business making) and `test compare`'s
 table rendering both landed in a follow-up pass. The thin `orinth-cli` wheel remains open. Every
 number above is measured; nothing in this section is projected.

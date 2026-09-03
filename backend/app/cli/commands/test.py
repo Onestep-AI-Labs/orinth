@@ -7,6 +7,7 @@ exists to prevent, and it is invisible in a green pipeline.
 """
 
 import argparse
+from typing import Any
 
 from app.cli import output
 from app.cli.commands._common import add_common, emit, make_client, resolve_project
@@ -14,6 +15,28 @@ from app.cli.errors import EXIT_FAILURE, EXIT_OK, EXIT_USAGE, CliError
 from app.cli.progress import follow, job_line
 
 SETTLED = {"completed", "failed", "canceled", "cancelled"}
+
+#: Leaf names worth printing without `--json`. The full tree carries ROC curves
+#: and confusion matrices, which are hundreds of numbers and not a summary.
+HEADLINE = {
+    "accuracy",
+    "balanced_accuracy",
+    "macro_f1",
+    "weighted_f1",
+    "cohen_kappa",
+    "mcc",
+    "macro_auc",
+    "micro_auc",
+    "map50",
+    "map5095",
+    "precision",
+    "recall",
+    "dice",
+    "iou",
+    "perplexity",
+    "loss",
+    "samples",
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -152,6 +175,43 @@ def _compare(client, args, globals_, project) -> int:
     return EXIT_OK
 
 
+def flatten_metrics(payload: Any, prefix: str = "") -> dict[str, float]:
+    """Every scalar in the metrics tree, keyed by its dotted path.
+
+    Evaluation metrics are nested — `image.overall.accuracy`,
+    `classification.micro_auc` — so a flat `metrics.get("accuracy")` finds
+    nothing and `--fail-under accuracy=0.8` could never match anything. Found by
+    running it against a real job: the top-level keys are `classification`,
+    `image`, `labels`, `samples`, none of which is a number.
+
+    Booleans are excluded deliberately. `scores: true` is a flag, and a
+    threshold against `True == 1.0` would pass silently and mean nothing.
+    """
+    found: dict[str, float] = {}
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            found.update(flatten_metrics(value, f"{prefix}.{key}" if prefix else str(key)))
+    elif isinstance(payload, (int, float)) and not isinstance(payload, bool):
+        found[prefix] = float(payload)
+    return found
+
+
+def resolve_metric(name: str, flat: dict[str, float]) -> tuple[str | None, list[str]]:
+    """Find a metric by dotted path, or by leaf name when that is unambiguous.
+
+    Requiring the full path for everything would make the common case
+    (`accuracy`) unnecessarily long; accepting a leaf that matches several paths
+    would silently gate on whichever happened to sort first. So an ambiguous
+    leaf is an error that lists the candidates.
+    """
+    if name in flat:
+        return name, []
+    matches = sorted(path for path in flat if path.split(".")[-1] == name)
+    if len(matches) == 1:
+        return matches[0], []
+    return None, matches
+
+
 def _thresholds(raw: list[str]) -> dict[str, float]:
     parsed: dict[str, float] = {}
     for entry in raw:
@@ -190,30 +250,62 @@ def _start(client, args, globals_, project) -> int:
         reattach=f"orinth test show {job_id}",
     )
 
-    metrics = final.get("metrics") or {}
+    flat = flatten_metrics(final.get("metrics") or {})
     if globals_.json or globals_.jsonl:
         output.emit_json(final)
+    elif flat:
+        # Scalars only, and only the headline ones by default. Printing the raw
+        # tree put ROC curves and full confusion matrices on the terminal.
+        # Depth matters as much as the name: `precision` is a headline metric
+        # at `image.overall.precision` and per-class noise at
+        # `image.report.metal.precision`. Two dots is the boundary between a
+        # summary and a breakdown.
+        headline = {
+            path: value
+            for path, value in flat.items()
+            if path.count(".") <= 1
+            or (path.count(".") == 2 and path.split(".")[-1] in HEADLINE)
+        }
+        output.key_values(sorted((headline or flat).items()))
+        if len(flat) > len(headline) and headline:
+            output.note(
+                f"{len(flat) - len(headline)} more metrics — use --json for the full tree."
+            )
     else:
-        output.key_values(sorted(metrics.items()) or [("metrics", "none reported")])
+        output.note("This job reported no numeric metrics.")
 
     if str(final.get("status")) != "completed":
         output.error(str(final.get("error") or f"Job finished {final.get('status')}."))
         return EXIT_FAILURE
 
-    missing = [name for name in thresholds if name not in metrics]
-    if missing:
-        raise CliError(
-            "Threshold names a metric this job did not report: " + ", ".join(missing),
-            code=EXIT_USAGE,
-            hint="Reported metrics: " + (", ".join(sorted(metrics)) or "none"),
-        )
+    resolved: dict[str, tuple[str, float]] = {}
+    for name, floor in thresholds.items():
+        path, ambiguous = resolve_metric(name, flat)
+        if path is None:
+            if ambiguous:
+                raise CliError(
+                    f"`{name}` matches several metrics; name one exactly.",
+                    code=EXIT_USAGE,
+                    hint="Candidates: " + ", ".join(ambiguous),
+                )
+            # Silently passing a gate that never ran is the failure mode a
+            # threshold flag exists to prevent, so this is a usage error rather
+            # than a pass.
+            raise CliError(
+                f"Threshold names a metric this job did not report: {name}",
+                code=EXIT_USAGE,
+                hint="Reported: " + (", ".join(sorted(flat)[:12]) or "none"),
+            )
+        resolved[name] = (path, floor)
 
     failed = [
-        f"{name}={metrics[name]} < {floor}"
-        for name, floor in thresholds.items()
-        if float(metrics[name]) < floor
+        f"{path}={flat[path]:.4f} < {floor}"
+        for path, floor in resolved.values()
+        if flat[path] < floor
     ]
     if failed:
         output.error("Below threshold: " + "; ".join(failed))
         return EXIT_FAILURE
+    for path, floor in resolved.values():
+        output.note(f"ok  {path}={flat[path]:.4f} >= {floor}")
     return EXIT_OK

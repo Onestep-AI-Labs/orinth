@@ -98,9 +98,17 @@ def run(argv: list[str], config, globals_) -> int:
 def _models(client, args, globals_, project) -> int:
     options = client.get("/api/training/model-options", params={"task_type": args.task}) or []
     rows = options if isinstance(options, list) else options.get("options", [])
+    # `runnable`, not `available` — the schema field is the former, and asking
+    # for the latter printed an empty column on every row.
     emit(
         rows,
-        [("ID", "id"), ("NAME", "name"), ("FAMILY", "family"), ("AVAILABLE", "available")],
+        [
+            ("ID", "id"),
+            ("NAME", "name"),
+            ("FAMILY", "family"),
+            ("RUNNABLE", "runnable"),
+            ("DOWNLOAD", "needs_download"),
+        ],
         globals_,
     )
     return EXIT_OK
@@ -170,8 +178,48 @@ def _cancel(client, args, globals_, project) -> int:
     return EXIT_OK
 
 
-def _hyperparameters(args) -> dict:
-    params: dict = {}
+#: Fields `TrainingJobCreate` declares at the top level. Putting them in
+#: `hyperparameters` instead is silently ignored — the model validates, the job
+#: starts, and it trains for the default 50 epochs no matter what was asked.
+#: Found by running it: `--epochs 1` produced a 50-epoch run.
+TOP_LEVEL = {
+    "epochs",
+    "image_size",
+    "batch_size",
+    "learning_rate",
+    "device",
+    "optimizer",
+    "patience",
+    "workers",
+    "cache",
+    "base_model",
+}
+
+
+def _overrides(args) -> dict:
+    """Parse `--set k=v`, keeping JSON types where the value is JSON."""
+    parsed: dict = {}
+    for override in args.overrides:
+        if "=" not in override:
+            raise CliError(f"--set expects k=v, got '{override}'", code=EXIT_USAGE)
+        key, _, raw = override.partition("=")
+        try:
+            parsed[key.strip()] = json.loads(raw)
+        except json.JSONDecodeError:
+            # A bare word is a string, which is what `--set finetune_method=qlora` means.
+            parsed[key.strip()] = raw
+    return parsed
+
+
+def _split_params(args) -> tuple[dict, dict]:
+    """Separate what the schema declares from what rides in `hyperparameters`.
+
+    `--set` reaches both: a key the schema declares goes to the top level where
+    the runner reads it, and everything else goes to `hyperparameters`, which is
+    how the phase-13 and phase-14 advanced parameters are addressed without a
+    flag per knob.
+    """
+    top: dict = {}
     for key, value in (
         ("epochs", args.epochs),
         ("batch_size", args.batch_size),
@@ -180,17 +228,15 @@ def _hyperparameters(args) -> dict:
         ("device", args.device),
     ):
         if value is not None:
-            params[key] = value
-    for override in args.overrides:
-        if "=" not in override:
-            raise CliError(f"--set expects k=v, got '{override}'", code=EXIT_USAGE)
-        key, _, raw = override.partition("=")
-        try:
-            params[key.strip()] = json.loads(raw)
-        except json.JSONDecodeError:
-            # A bare word is a string, which is what `--set device=mps` means.
-            params[key.strip()] = raw
-    return params
+            top[key] = value
+
+    advanced: dict = {}
+    for key, value in _overrides(args).items():
+        if key in TOP_LEVEL:
+            top[key] = value
+        else:
+            advanced[key] = value
+    return top, advanced
 
 
 def _start(client, args, globals_, project) -> int:
@@ -220,15 +266,30 @@ def _start(client, args, globals_, project) -> int:
             hint="Valid ids: " + ", ".join(sorted(valid)),
         )
 
+    top, advanced = _split_params(args)
     payload = {
         "project_id": project,
         "dataset_id": args.dataset_id,
         "task_type": args.task,
         "model_option_id": args.model_option_id,
-        "hyperparameters": _hyperparameters(args),
+        "hyperparameters": advanced,
+        **top,
     }
+    # The family comes from the option rather than the schema default, which is
+    # `yolo` — starting a Keras run under a yolo family is how a job ends up in
+    # the wrong command builder.
+    family = next(
+        (
+            str(option.get("family"))
+            for option in rows
+            if isinstance(option, dict) and option.get("id") == args.model_option_id
+        ),
+        None,
+    )
+    if family:
+        payload["model_family"] = family
     if args.name:
-        payload["name"] = args.name
+        payload["model_name"] = args.name
 
     job = client.post("/api/training/jobs", json=payload)
     job_id = job.get("id")

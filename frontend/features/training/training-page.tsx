@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TrainingJobTable } from "@/features/training/training-components";
 import { AdvancedSettings, advancedDefaults, type AdvancedValues } from "@/features/training/advanced-settings";
+import { ComputePlanBanner } from "@/features/training/compute-banner";
 import { allowedTaskTypesForProject, compactNumber, formatBytes, isLlmTask, isNlpTask, listPollInterval } from "@/features/platform/utils";
 import { Badge, Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, Select, TableSkeleton, TaskSelect, useConfirmationDialog } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
@@ -462,6 +463,14 @@ export function TrainingPage() {
               ) : null}
             </p>
           )}
+          {/* Every task, not just LLM: a Keras run on a machine where only
+              torch has a GPU is a CPU run, and that is exactly the case the
+              form has to state before someone waits out the difference. */}
+          <ComputePlanBanner
+            taskType={taskType}
+            modelFamily={option?.family}
+            batchSize={batchSize}
+          />
           {llm && environmentQuery.data && (
             <div className="llm-env-banner">
               <span className="llm-env-banner-headline">

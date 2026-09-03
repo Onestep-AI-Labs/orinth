@@ -9997,3 +9997,70 @@ td {
 .nb-cell-editor {
   position: relative;
 }
+
+/* --- Compute plan banner (phase 24) ---------------------------------------
+   States what a run will do before it starts. Neutral by default because a GPU
+   run is the expected case; the CPU variant takes the `warn` pair, since a
+   family silently falling back to CPU is the thing worth interrupting for. */
+
+.compute-banner {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.compute-banner-cpu {
+  border-color: var(--color-warn);
+  background: var(--color-warn-tint);
+}
+
+.compute-banner-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink-subtle);
+}
+
+.compute-banner-headline {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.compute-banner-cpu .compute-banner-headline {
+  color: var(--color-warn-strong);
+}
+
+.compute-banner-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 78ch;
+  color: var(--color-warn-strong);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Collapsed by default: the values answer the question; the reasoning is what
+   you open when you disagree with them. */
+.compute-banner-why summary {
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.compute-banner-why ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--color-ink-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}

@@ -121,18 +121,47 @@ def prep_line(status: dict[str, Any]) -> str:
     return f"{prefix}{percent} {body}".strip() if body else ""
 
 
+#: Hard cap on one progress line. A follow that prints a 4,000-character line
+#: per poll is unreadable in a terminal and unusable in a CI log.
+MAX_LINE = 160
+
+
 def job_line(status: dict[str, Any]) -> str:
-    """One line for a training / evaluation / inference job row."""
+    """One line for a training / evaluation / inference job row.
+
+    The first version stringified whatever `progress` held. That field is a
+    *dict* on training jobs — percent, step, ETA, **and the last log lines** —
+    so following a real run printed 195 KB of Keras progress bars, backspace
+    characters and all. Found by running one.
+
+    So this reads the fields it knows by name and never falls back to `str()` on
+    a container: an unrecognised shape prints nothing, which is the right amount
+    of noise for something whose meaning is unknown.
+    """
     state = str(status.get("status") or "").strip()
     parts = [f"[{state}]"] if state else []
-    for key, label in (("progress", ""), ("current_epoch", "epoch"), ("message", "")):
+
+    progress = status.get("progress")
+    if isinstance(progress, (int, float)):
+        # A bare number is a 0..1 fraction on some jobs and already a percentage
+        # on others; both read correctly under this.
+        percent = float(progress) * 100 if float(progress) <= 1 else float(progress)
+        parts.append(f"{percent:.0f}%")
+    elif isinstance(progress, dict):
+        if isinstance(progress.get("percent"), (int, float)):
+            parts.append(f"{float(progress['percent']):.0f}%")
+        step = progress.get("current_step")
+        if isinstance(step, str) and step:
+            parts.append(step)
+        eta = progress.get("eta_seconds")
+        if isinstance(eta, (int, float)) and eta > 0:
+            parts.append(f"eta {int(eta)}s")
+
+    for key in ("current_epoch", "message"):
         value = status.get(key)
-        if value in (None, ""):
-            continue
-        if key == "progress" and isinstance(value, (int, float)):
-            parts.append(f"{round(float(value) * 100)}%")
-        elif label:
-            parts.append(f"{label} {value}")
-        else:
-            parts.append(str(value))
-    return " ".join(parts).strip()
+        # Scalars only. `logs` and every other container stay out of the line.
+        if isinstance(value, (str, int, float)) and str(value).strip():
+            parts.append(f"epoch {value}" if key == "current_epoch" else str(value))
+
+    line = " ".join(parts).strip()
+    return line if len(line) <= MAX_LINE else line[: MAX_LINE - 1] + "…"

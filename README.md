@@ -292,12 +292,16 @@ uv run orinth dataset readiness <dataset-id>
 
 uv run orinth dataset ls --json | jq '.[].name'
 uv run orinth train <dataset-id> --task classification --model <model-id> --epochs 10
-uv run orinth test <model-id> --dataset <key> --fail-under accuracy=0.8
+uv run orinth test <model-id> --dataset <key> --fail-under image.overall.accuracy=0.8
 uv run orinth infer <model-id> ./photo.jpg
 ```
 
 Exit codes, so a pipeline can branch: `0` success · `1` runtime failure · `2` usage error ·
 `3` **not ready to train** · `4` backend unreachable · `130` interrupted.
+
+`--fail-under` takes a dotted metric path (`image.overall.accuracy`) or a bare leaf name when it is
+unambiguous. A metric the job did not report exits **2**, not 0 — silently passing a gate that never
+ran is the failure mode a threshold flag exists to prevent.
 
 Point it elsewhere with `--backend URL`, `ORINTH_BACKEND`, or an `.orinth.toml` beside your work:
 

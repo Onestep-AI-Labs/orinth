@@ -218,3 +218,141 @@ def test_backend_unreachable_exits_four():
 
     # Port 9 (discard) refuses immediately, so this does not wait on a timeout.
     assert main(["--backend", "http://127.0.0.1:9", "dataset", "ls"]) == EXIT_UNREACHABLE
+
+
+# --- evaluation thresholds ----------------------------------------------------
+#
+# All three behaviours below were verified against a real evaluation job before
+# being written down; the flattening in particular exists because
+# `--fail-under accuracy=0.8` could never match anything until it did.
+
+
+def test_metrics_flatten_to_dotted_paths():
+    """Evaluation metrics are nested, so a flat `metrics.get("accuracy")` finds
+    nothing — the top-level keys are `classification`, `image`, `labels`,
+    `samples`, none of which is a number."""
+    from app.cli.commands.test import flatten_metrics
+
+    flat = flatten_metrics(
+        {
+            "image": {"overall": {"accuracy": 0.7, "macro_f1": 0.58}},
+            "classification": {"micro_auc": 0.91, "scores": True},
+            "labels": ["a", "b"],
+            "samples": 20,
+        }
+    )
+
+    assert flat["image.overall.accuracy"] == 0.7
+    assert flat["classification.micro_auc"] == 0.91
+    assert flat["samples"] == 20.0
+    # `scores: true` is a flag; a threshold against `True == 1.0` would pass
+    # silently and mean nothing.
+    assert "classification.scores" not in flat
+    assert not any(key.startswith("labels") for key in flat)
+
+
+def test_a_leaf_name_resolves_when_it_is_unambiguous():
+    from app.cli.commands.test import resolve_metric
+
+    flat = {"image.overall.accuracy": 0.7, "classification.micro_auc": 0.9}
+    assert resolve_metric("micro_auc", flat) == ("classification.micro_auc", [])
+    assert resolve_metric("image.overall.accuracy", flat) == ("image.overall.accuracy", [])
+
+
+def test_an_ambiguous_leaf_lists_the_candidates_instead_of_guessing():
+    """Gating on whichever path happened to sort first is worse than refusing:
+    the pipeline would be green against a metric nobody chose."""
+    from app.cli.commands.test import resolve_metric
+
+    flat = {"image.overall.accuracy": 0.7, "image.report.accuracy": 0.7}
+    path, candidates = resolve_metric("accuracy", flat)
+
+    assert path is None
+    assert candidates == ["image.overall.accuracy", "image.report.accuracy"]
+
+
+def test_an_unknown_metric_resolves_to_nothing_with_no_candidates():
+    from app.cli.commands.test import resolve_metric
+
+    assert resolve_metric("nonsense", {"a.b": 1.0}) == (None, [])
+
+
+# --- training parameters ------------------------------------------------------
+
+
+def test_schema_fields_go_to_the_top_level_not_into_hyperparameters():
+    """`TrainingJobCreate` declares `epochs`, `image_size` and friends at the top
+    level. Putting them in `hyperparameters` validates, starts, and then trains
+    for the default 50 epochs regardless — which is exactly what `--epochs 1`
+    did until this split existed."""
+    import argparse
+
+    from app.cli.commands.train import _split_params
+
+    args = argparse.Namespace(
+        epochs=2,
+        batch_size=8,
+        image_size=None,
+        lr=None,
+        device=None,
+        overrides=["image_size=128", "lora_r=32"],
+    )
+    top, advanced = _split_params(args)
+
+    assert top["epochs"] == 2
+    assert top["batch_size"] == 8
+    # Reached through `--set`, and still lands at the top level because the
+    # schema declares it.
+    assert top["image_size"] == 128
+    # Genuinely advanced, so it rides in `hyperparameters`.
+    assert advanced == {"lora_r": 32}
+
+
+def test_set_keeps_json_types_and_falls_back_to_the_raw_string():
+    import argparse
+
+    from app.cli.commands.train import _overrides
+
+    parsed = _overrides(
+        argparse.Namespace(overrides=["lora_r=32", "packing=true", "method=qlora"])
+    )
+    assert parsed == {"lora_r": 32, "packing": True, "method": "qlora"}
+
+
+# --- progress lines -----------------------------------------------------------
+
+
+def test_a_progress_line_never_dumps_the_log_tail():
+    """`progress` is a dict on training jobs carrying percent, step, ETA *and*
+    the last log lines. Stringifying it printed 195 KB of Keras progress bars,
+    backspace characters and all, on every poll."""
+    from app.cli.progress import MAX_LINE, job_line
+
+    line = job_line(
+        {
+            "status": "running",
+            "progress": {
+                "percent": 83.96,
+                "current_step": "Epoch 42/50",
+                "eta_seconds": 40.0,
+                "logs": ["x" * 4000] * 20,
+            },
+        }
+    )
+
+    assert line == "[running] 84% Epoch 42/50 eta 40s"
+    assert "xxxx" not in line
+    assert len(line) <= MAX_LINE
+
+
+def test_a_bare_fraction_and_a_bare_percentage_both_read_correctly():
+    from app.cli.progress import job_line
+
+    assert "42%" in job_line({"status": "running", "progress": 0.42})
+    assert "42%" in job_line({"status": "running", "progress": 42})
+
+
+def test_an_unrecognised_progress_shape_prints_nothing_rather_than_a_repr():
+    from app.cli.progress import job_line
+
+    assert job_line({"status": "running", "progress": {"unknown": [1, 2, 3]}}) == "[running]"
