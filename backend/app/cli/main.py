@@ -43,6 +43,7 @@ GROUPS: dict[str, tuple[str, str]] = {
     "project": ("app.cli.commands.project", "List and create projects"),
     "serve": ("app.cli.commands.serve", "Start the Orinth backend"),
     "doctor": ("app.cli.commands.doctor", "Check the environment and the backend"),
+    "completion": ("app.cli.commands.completion", "Print a shell completion script"),
 }
 
 #: `eval` reads better than `test` for "score this model", and `test` reads

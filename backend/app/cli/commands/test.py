@@ -112,8 +112,43 @@ def _per_item(client, args, globals_, project) -> int:
 
 
 def _compare(client, args, globals_, project) -> int:
+    """Models down the rows, metrics across the columns.
+
+    Emitting the raw comparison payload was a placeholder: comparing two models
+    is the one thing here a person does by eye, and a nested JSON document is
+    the worst possible shape for that. The column set is derived from the
+    metrics actually present rather than hardcoded, because it differs by task —
+    a detection job reports mAP where a classifier reports F1.
+    """
     comparison = client.get(f"/api/testing/jobs/{args.job_id}/comparison")
-    output.emit_json(comparison)
+    if globals_.json or globals_.jsonl:
+        output.emit_json(comparison)
+        return EXIT_OK
+
+    entries = comparison.get("models") or comparison.get("jobs") or []
+    if not isinstance(entries, list) or not entries:
+        output.note("Nothing to compare — this job has no sibling runs.")
+        return EXIT_OK
+
+    metric_names: list[str] = []
+    for entry in entries:
+        for name in (entry.get("metrics") or {}):
+            if name not in metric_names:
+                metric_names.append(name)
+
+    rows = []
+    for entry in entries:
+        metrics = entry.get("metrics") or {}
+        row = [entry.get("model_id") or entry.get("id") or "?", entry.get("status", "")]
+        for name in metric_names:
+            value = metrics.get(name)
+            # Four places is enough to separate two models and short enough to
+            # keep the row scannable; `-` for a metric this model did not report
+            # is honest where `0.0000` would be a lie.
+            row.append(f"{float(value):.4f}" if isinstance(value, (int, float)) else "-")
+        rows.append(row)
+
+    output.table(rows, ["model", "status", *metric_names])
     return EXIT_OK
 
 

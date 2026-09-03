@@ -48,13 +48,20 @@ Three defects were found by running it, none visible from reading the code:
   raised `AttributeError` instead of being read. The list branch was unreachable. Fixed with a
   test covering both shapes.
 
+**Follow-up pass.** Markdown cells and the dataset rail landed after the first cut, along with a
+defect the first cut introduced: the editor filtered `cell_type === "code"` on load and wrote every
+cell back as `code` on save, so opening a template dropped its prose *and the next save erased it
+from the file*. That is data loss, not a missing feature — every template is 3–4 markdown cells.
+Cells now round-trip their kind, markdown renders by default and edits on double-click, and
+`execution_count`/`outputs` are omitted from markdown cells so the file stays valid nbformat in any
+other reader. Verified by reading a template through the proxy, projecting it through the editor's
+cell model, saving, and reading back: 3 markdown cells in, 3 out, prose intact.
+
 **Deferred, and not attempted:** `ipywidgets` and interactive output (out of scope by design);
 `text/html` output rendering — it falls through to `text/plain` with a note, because sanitizing
 arbitrary kernel HTML needs DOMPurify and a policy, and a half-sanitized
-`dangerouslySetInnerHTML` is a script-injection hole in the studio; the dataset/model rail on
-the editor page (the runs rail landed, the dataset picker did not); markdown cells (code cells
-only); and headless execution. Everything above is measured; nothing in this section is
-projected.
+`dangerouslySetInnerHTML` is a script-injection hole in the studio; and headless execution.
+Everything above is measured; nothing in this section is projected.
 
 ## Goal
 

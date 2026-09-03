@@ -54,8 +54,9 @@ from reading the code:
 **Deferred, and not attempted:** `train --set` and `test --fail-under` are implemented but have not
 been run against a real training job (that needs GPU time and a long run); `infer` batch mode is
 implemented but only smoke-tested for argument handling; `--wait` on a busy prep run, `--advisory-fatal`,
-and `export --version` are coded against the spec but unexercised. Shell completion, the thin
-`orinth-cli` wheel, and `test compare`'s table rendering (it currently emits JSON) remain open. Every
+and `export --version` are coded against the spec but unexercised. Shell completion (`orinth completion bash|zsh|fish`, printed rather than installed — writing into
+someone's shell config is a change a dataset tool has no business making) and `test compare`'s
+table rendering both landed in a follow-up pass. The thin `orinth-cli` wheel remains open. Every
 number above is measured; nothing in this section is projected.
 
 ## Goal

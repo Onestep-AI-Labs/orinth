@@ -9862,3 +9862,108 @@ td {
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Prose cells render by default and edit on double-click — a template that
+   opened as raw `#` headings would teach nothing, which is the whole reason
+   templates exist. The pencil is for discoverability and for keyboard users;
+   the gesture itself is the notebook convention and needs no affordance. */
+.nb-markdown {
+  position: relative;
+  padding: 8px 28px 8px 2px;
+  border-radius: var(--radius-sm);
+  cursor: text;
+}
+
+.nb-markdown:hover,
+.nb-markdown:focus-visible {
+  background: var(--color-wash);
+}
+
+.nb-markdown-edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: var(--color-ink-subtle);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.nb-markdown:hover .nb-markdown-edit,
+.nb-markdown:focus-visible .nb-markdown-edit {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb-markdown-edit {
+    transition: none;
+  }
+}
+
+.nb-add-cell-row {
+  position: absolute;
+  right: 10px;
+  bottom: -11px;
+  display: flex;
+  gap: 6px;
+}
+
+.nb-add-cell-row .nb-add-cell {
+  position: static;
+}
+
+/* --- dataset rail --------------------------------------------------------- */
+
+.nb-dataset-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.nb-dataset-list li {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.nb-dataset-list li:last-child {
+  border-bottom: 0;
+}
+
+.nb-dataset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nb-dataset-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nb-dataset-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+}
+
+/* The id is what gets pasted, so it reads in the mono stack and wraps rather
+   than ellipsing — a truncated id is useless. */
+.nb-dataset-id {
+  overflow-wrap: anywhere;
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}

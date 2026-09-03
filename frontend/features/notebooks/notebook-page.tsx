@@ -2,17 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useProject } from "@/components/app-shell";
 import {
   ArrowLeft,
   Circle,
   Play,
+  Code2,
   Plus,
   RotateCcw,
+  Text,
   Square,
   Trash2
 } from "lucide-react";
 import { CellEditor } from "@/features/notebooks/cell-editor";
 import { CellOutput } from "@/features/notebooks/cell-output";
+import { DatasetRail } from "@/features/notebooks/dataset-rail";
+import { MarkdownCell } from "@/features/notebooks/markdown-cell";
 import { NotebookKernel, type ExecutionOutput, type KernelState } from "@/features/notebooks/kernel-client";
 import { useNotebookQuery, useNotebookRunsQuery } from "@/features/notebooks/hooks";
 import { RuntimeBanner } from "@/features/notebooks/runtime-banner";
@@ -42,12 +47,19 @@ import {
  * spec explicitly does not solve.
  */
 
+type CellKind = "code" | "markdown";
+
 type Cell = {
   id: string;
+  kind: CellKind;
   source: string;
   outputs: ExecutionOutput[];
   executionCount: number | null;
   running: boolean;
+  //: Markdown renders unless it is being edited. A cell that opened in edit
+  //: mode would show every template as raw `#` headings, which is the opposite
+  //: of what a template is for.
+  editing: boolean;
 };
 
 const KERNEL_TONE = {
@@ -58,17 +70,20 @@ const KERNEL_TONE = {
   unknown: "neutral"
 } as const;
 
-function newCell(source = ""): Cell {
+function newCell(source = "", kind: CellKind = "code"): Cell {
   return {
     id: Math.random().toString(36).slice(2, 10),
+    kind,
     source,
     outputs: [],
     executionCount: null,
-    running: false
+    running: false,
+    editing: kind === "code"
   };
 }
 
 export function NotebookPage({ notebookId }: { notebookId: string }) {
+  const { projectId } = useProject();
   const notebookQuery = useNotebookQuery(notebookId);
   const runtimeQuery = useNotebookRuntimeQuery();
   const runsQuery = useNotebookRunsQuery(notebookId);
@@ -96,10 +111,16 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
           source: string | string[];
         }>;
         if (cancelled) return;
-        const code = source
-          .filter((cell) => cell.cell_type === "code")
-          .map((cell) => newCell(Array.isArray(cell.source) ? cell.source.join("") : cell.source));
-        setCells(code.length > 0 ? code : [newCell()]);
+        // Markdown cells are kept, not filtered. Dropping them lost every
+        // template's prose on open — and then wrote it out of the file on the
+        // next save, which is data loss, not a missing feature.
+        const restored = source.map((cell) =>
+          newCell(
+            Array.isArray(cell.source) ? cell.source.join("") : cell.source,
+            cell.cell_type === "markdown" ? "markdown" : "code"
+          )
+        );
+        setCells(restored.length > 0 ? restored : [newCell()]);
         setLoaded(true);
       } catch (error) {
         if (!cancelled) toast.error((error as Error).message);
@@ -155,9 +176,16 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
   }
 
   async function runCell(id: string) {
-    const client = kernel.current;
     const cell = cells.find((entry) => entry.id === id);
-    if (!client || !cell) return;
+    if (!cell) return;
+    if (cell.kind === "markdown") {
+      // "Running" a prose cell means rendering it — the same gesture, the same
+      // key, a different meaning, which is the convention every notebook uses.
+      patch(id, { editing: false });
+      return;
+    }
+    const client = kernel.current;
+    if (!client) return;
     patch(id, { outputs: [], running: true });
     try {
       const result = await client.execute(cell.source, (output) => {
@@ -181,11 +209,12 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
     if (!notebook) return;
     const document = {
       cells: cells.map((cell) => ({
-        cell_type: "code",
-        execution_count: cell.executionCount,
+        cell_type: cell.kind,
+        // nbformat forbids `execution_count` and `outputs` on a markdown cell;
+        // including them makes the file fail validation in any other reader.
+        ...(cell.kind === "code" ? { execution_count: cell.executionCount, outputs: [] } : {}),
         id: cell.id,
         metadata: {},
-        outputs: [],
         source: cell.source.split("\n").map((line, index, all) =>
           index === all.length - 1 ? line : `${line}\n`
         )
@@ -269,13 +298,13 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
                   type="button"
                   className="icon-button"
                   onClick={() => runCell(cell.id)}
-                  disabled={!kernel.current || cell.running}
-                  title="Run this cell (Shift-Enter)"
+                  disabled={cell.kind === "code" && (!kernel.current || cell.running)}
+                  title={cell.kind === "markdown" ? "Render this cell (Shift-Enter)" : "Run this cell (Shift-Enter)"}
                 >
                   <Play size={14} />
                 </button>
                 <span className="nb-cell-count">
-                  {cell.running ? "*" : (cell.executionCount ?? " ")}
+                  {cell.kind === "markdown" ? "md" : cell.running ? "*" : (cell.executionCount ?? " ")}
                 </span>
                 <button
                   type="button"
@@ -288,11 +317,19 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
                 </button>
               </div>
               <div className="nb-cell-body">
-                <CellEditor
-                  value={cell.source}
-                  onChange={(value) => patch(cell.id, { source: value })}
-                  onRun={() => runCell(cell.id)}
-                />
+                {cell.kind === "markdown" && !cell.editing ? (
+                  <MarkdownCell
+                    source={cell.source}
+                    editing={false}
+                    onEdit={() => patch(cell.id, { editing: true })}
+                  />
+                ) : (
+                  <CellEditor
+                    value={cell.source}
+                    onChange={(value) => patch(cell.id, { source: value })}
+                    onRun={() => runCell(cell.id)}
+                  />
+                )}
                 {cell.outputs.length > 0 && (
                   <div className="nb-cell-outputs">
                     {cell.outputs.map((output, outputIndex) => (
@@ -302,13 +339,22 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
                 )}
               </div>
               {index === cells.length - 1 && (
-                <button
-                  type="button"
-                  className="nb-add-cell"
-                  onClick={() => setCells((current) => [...current, newCell()])}
-                >
-                  <Plus size={13} /> Add cell
-                </button>
+                <div className="nb-add-cell-row">
+                  <button
+                    type="button"
+                    className="nb-add-cell"
+                    onClick={() => setCells((current) => [...current, newCell("", "code")])}
+                  >
+                    <Plus size={13} /> <Code2 size={12} /> Code
+                  </button>
+                  <button
+                    type="button"
+                    className="nb-add-cell"
+                    onClick={() => setCells((current) => [...current, newCell("", "markdown")])}
+                  >
+                    <Plus size={13} /> <Text size={12} /> Text
+                  </button>
+                </div>
               )}
             </article>
           ))}
@@ -316,6 +362,7 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
         </section>
 
         <aside className="nb-rail">
+          <DatasetRail projectId={projectId} />
           <section className="panel">
             <PanelTitle icon={<Play size={16} />} title="Runs" />
             {(runsQuery.data ?? []).length === 0 ? (

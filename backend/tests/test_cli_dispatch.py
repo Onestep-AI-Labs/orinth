@@ -172,6 +172,26 @@ def test_a_malformed_config_is_a_usage_error_naming_the_file(tmp_path, monkeypat
     assert str(bad) in failure.value.message
 
 
+def test_the_completion_script_lists_every_group_the_table_holds():
+    """A completion that offers a command the CLI does not have, or omits one it
+    does, is worse than none — the user trusts Tab."""
+    from app.cli.commands import completion
+
+    assert set(completion.VERBS) == set(GROUPS)
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish"])
+def test_completion_prints_a_script_and_exits_clean(shell, capsys):
+    from app.cli.commands import completion
+
+    code = completion.run([shell], None, None)
+    printed = capsys.readouterr().out
+
+    assert code == EXIT_OK
+    assert "orinth" in printed
+    assert "dataset" in printed
+
+
 def test_the_search_stops_at_home(tmp_path, monkeypatch):
     """Walking past `$HOME` would let a stray file in `/` configure every project
     on the machine, and a config nobody remembers writing is worse than none."""
