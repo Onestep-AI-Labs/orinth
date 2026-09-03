@@ -9422,3 +9422,443 @@ td {
   white-space: pre;
   tab-size: 4;
 }
+
+/* --- Notebooks (phase 22) --------------------------------------------------
+   Token-only, border-first, no resting elevation. The one place colour is used
+   categorically is the ANSI ramp below, which is the sanctioned §2 exception
+   for data — a traceback where red and green mean the same thing is not a
+   traceback. */
+
+.nb-intro {
+  max-width: 78ch;
+  margin-bottom: 12px;
+}
+
+.nb-runtime {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-ink-subtle);
+}
+
+/* A missing optional extra is an install command, not a failure. Warn tone,
+   not danger — nothing is broken. */
+.nb-runtime-missing {
+  border-color: var(--color-warn);
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+  align-items: flex-start;
+}
+
+.nb-runtime-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.nb-runtime-title {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nb-runtime-missing .nb-runtime-title {
+  color: var(--color-warn-strong);
+}
+
+.nb-runtime-error {
+  color: var(--color-danger-strong);
+  font-size: 12px;
+}
+
+/* --- list ---------------------------------------------------------------- */
+
+.nb-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.nb-template {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-ink-subtle);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease-out;
+}
+
+.nb-template:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.nb-template strong {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.nb-card {
+  position: relative;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  transition: border-color 120ms ease-out;
+}
+
+.nb-card:hover {
+  border-color: var(--color-line-strong);
+}
+
+.nb-card-main {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 40px 14px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nb-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-ink-subtle);
+}
+
+.nb-card-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nb-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb-template,
+  .nb-card {
+    transition: none;
+  }
+}
+
+/* --- editor -------------------------------------------------------------- */
+
+.nb-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.nb-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-accent-strong);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nb-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+}
+
+.nb-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nb-header-actions .badge {
+  gap: 5px;
+}
+
+.nb-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .nb-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nb-cells {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* A cell is a bordered row, not a card: they stack by the dozen and a shadow
+   each would turn the page into corduroy (DESIGN.md §5). */
+.nb-cell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.nb-cell:focus-within {
+  border-color: var(--color-accent);
+}
+
+.nb-cell-gutter {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  padding: 8px 4px;
+  border-right: 1px solid var(--color-line-soft);
+}
+
+/* `[1]`, or `*` while running — the same convention every notebook uses, and
+   the only place the execution order is visible. */
+.nb-cell-count {
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nb-cell-body {
+  min-width: 0;
+  padding: 4px 10px 10px;
+}
+
+.nb-cell-editor {
+  min-width: 0;
+}
+
+.nb-cell-outputs {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.nb-add-cell {
+  position: absolute;
+  right: 10px;
+  bottom: -11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.nb-add-cell:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
+}
+
+/* --- outputs ------------------------------------------------------------- */
+
+.nb-output-block {
+  display: grid;
+  gap: 6px;
+}
+
+/* The dark terminal block phase 15 established for `.export-log`, reused so a
+   kernel's stdout and a conversion job's stdout look like the same thing. */
+.nb-output-term {
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: oklch(var(--shadow-ink));
+  color: var(--color-surface);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.nb-output-term-error {
+  border-left: 2px solid var(--color-danger);
+}
+
+.nb-output-truncated {
+  color: var(--color-warn);
+}
+
+.nb-output-image {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.nb-output-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0 0 4px;
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.nb-output-note {
+  color: var(--color-warn-strong);
+}
+
+.nb-output-unsupported {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-ink-muted);
+  font-size: 12px;
+}
+
+.nb-output-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-accent-strong);
+  font-weight: 500;
+}
+
+/* ANSI: the `--label-*` ramp, which §2 sanctions for data. Kernel colour is
+   categorical information, not chrome. */
+.nb-ansi-bold { font-weight: 600; }
+.nb-ansi-black { color: var(--color-ink-subtle); }
+.nb-ansi-red { color: oklch(var(--label-4)); }
+.nb-ansi-green { color: oklch(var(--label-3)); }
+.nb-ansi-yellow { color: oklch(var(--label-6)); }
+.nb-ansi-blue { color: oklch(var(--label-0)); }
+.nb-ansi-magenta { color: oklch(var(--label-7)); }
+.nb-ansi-cyan { color: oklch(var(--label-5)); }
+.nb-ansi-white { color: var(--color-surface); }
+
+/* --- runs ---------------------------------------------------------------- */
+
+.nb-rail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.nb-run-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nb-run-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.nb-run-list li:last-child {
+  border-bottom: 0;
+}
+
+.nb-run-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.nb-run-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.nb-run-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.nb-run-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.nb-run-metrics dt {
+  color: var(--color-ink-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nb-run-metrics dd {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display, inherit);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}

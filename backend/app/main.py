@@ -13,6 +13,7 @@ from app.container import (
     export_service,
     inference_executor,
     inference_service,
+    notebook_runtime,
     recipe_executor,
     recipe_service,
     serving_service,
@@ -38,6 +39,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     serving_service.reap_orphans()
     yield
     serving_service.shutdown()
+    # Phase 22: kills the jupyter-server subprocess and every kernel under it,
+    # so a restart does not leave a stranded server holding its port.
+    notebook_runtime.shutdown()
     training_executor.shutdown(wait=True)
     evaluation_executor.shutdown(wait=True)
     inference_executor.shutdown(wait=True)

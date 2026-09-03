@@ -2,14 +2,59 @@
 
 ## Status
 
-**Not implemented.** The spec below is decision-complete and reviewed; no code has been
-written against it. It was scheduled alongside phase 23, which landed; this one was not
-started.
+**Implemented.** The runtime, the proxy, notebook storage, the `orinth` package, the four
+templates, and both frontend surfaces are in and exercised against a real `jupyter-server`.
 
-It is the larger of the two by some margin — a supervised `jupyter-server` subprocess, a
-proxy through FastAPI, a React notebook surface on `@jupyterlab/services` + CodeMirror 6,
-and a new top-level `backend/orinth/` package — so it wants its own pass rather than the
-tail of someone else's. Nothing in phase 23 blocks or changes it.
+Landed:
+
+- **Runtime** — `services/notebooks/runtime.py` spawns `python -m jupyter_server` on the
+  8700–8799 band with `base_url=/api/notebooks/proxy/`, provisions an `orinth` kernelspec into
+  `storage/notebooks/.jupyter`, reaps an orphan from a previous process, and stops in the app
+  lifespan beside `serving_service.shutdown()`. The presence check is `importlib.util.find_spec`,
+  so the API process never imports `jupyter_server` even to ask whether it exists.
+- **Proxy** — `services/notebooks/proxy.py`, HTTP and WebSocket, no URL rewriting, token
+  injected outbound only.
+- **Storage + CRUD** — `services/notebooks/service.py` and `runs.py`; `routers/notebooks.py`
+  with the literal paths declared ahead of `/{notebook_id}`.
+- **The SDK** — `backend/orinth/`: `datasets` (list/get/readiness/load/records/paths/images/
+  register), `models` (list/get/path/artifacts/predictor), `projects`, `settings`, `runs`.
+  `PlanSource` gained `"notebook"`.
+- **Frontend** — `/notebooks` and `/notebooks/[notebookId]`, `kernel-client.ts` over
+  `@jupyterlab/services`, a CodeMirror 6 cell editor themed from platform tokens, the MIME
+  dispatch with its allowlist, an ANSI parser, the runtime banner, and a runs rail.
+
+Verified live:
+
+- The runtime starts on port 8700 and offers the `orinth` kernelspec.
+- A kernel started **through the proxy** reaches `import orinth` and sees all 16 datasets in the
+  workspace.
+- The round trip works: a 60-row polars frame registered as `text_classification` came back
+  `Ready to train` with a 42/12/6 split and labels derived from the label column, and
+  `load()` read it back with the documented columns.
+- `load()` refuses a split over the cap (10,170 rows against a 100 cap) naming `limit=` and
+  `records()`; `limit=` then works.
+- Runs write `run.json` plus an append-only `metrics.jsonl`, artifacts land under `artifacts/`,
+  and a non-numeric metric is refused pointing at `log_text`.
+- **No token or auth header appears in any proxied response.**
+
+Three defects were found by running it, none visible from reading the code:
+
+- `orinth.datasets` shadows the builtin `list`, so `_ref` calling `list(...)` internally raised
+  `TypeError` on the first successful register. The module now uses `builtins.list` explicitly.
+- The plan `register()` builds names its mapping decision `field_mapping`, but `DecisionField`
+  calls it `mapping` — validation failed at `/prep/apply`, at the far end of an upload.
+- Unrelated but real: `format_io._read_annotation_json` called `.get` on its payload *before*
+  the `isinstance(payload, list)` fallback could pick it, so a bare-list annotation sidecar
+  raised `AttributeError` instead of being read. The list branch was unreachable. Fixed with a
+  test covering both shapes.
+
+**Deferred, and not attempted:** `ipywidgets` and interactive output (out of scope by design);
+`text/html` output rendering — it falls through to `text/plain` with a note, because sanitizing
+arbitrary kernel HTML needs DOMPurify and a policy, and a half-sanitized
+`dangerouslySetInnerHTML` is a script-injection hole in the studio; the dataset/model rail on
+the editor page (the runs rail landed, the dataset picker did not); markdown cells (code cells
+only); and headless execution. Everything above is measured; nothing in this section is
+projected.
 
 ## Goal
 

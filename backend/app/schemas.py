@@ -682,7 +682,12 @@ class DatasetCloneRequest(BaseModel):
 # Phase 21 prep-agent plan shapes. Every decision the agent makes is attributed;
 # see `app/services/datasets/prep/plan.py`.
 DatasetModality = Literal["image", "text", "record", "table", "unknown"]
-PlanSource = Literal["llm", "heuristic"]
+# `notebook` (phase 22) is a plan the user wrote in Python and handed to apply.
+# It is neither a rule nor a model, and phase 21's transparency contract is
+# explicit that heuristic output is never presented as model output — labelling
+# an author-supplied plan `heuristic` would be the same lie in the other
+# direction.
+PlanSource = Literal["llm", "heuristic", "notebook"]
 #: Where one field of the plan came from. `detected` is the deterministic file
 #: scan, `heuristic` a rule, `llm` a model, `user` an edit in the UI.
 DecisionSource = Literal["detected", "heuristic", "llm", "user"]
@@ -1756,3 +1761,110 @@ class ArchitectureCode(BaseModel):
     filename: str
     code: str
     framework: Literal["keras", "torch"] = "keras"
+
+
+# --- Phase 22: notebooks ------------------------------------------------------
+#
+# Notebooks are filesystem-native like datasets and recipes: one directory per
+# notebook under `storage/notebooks/`, holding a manifest, the `.ipynb`, and its
+# run artifacts. There is no DB table and no migration — a kernel by definition
+# does not survive a restart, so there is nothing for `reconcile_stale_jobs` to
+# reconcile and nothing a row would answer that the manifest does not.
+
+NotebookKernelState = Literal["starting", "idle", "busy", "dead", "unknown"]
+NotebookRuntimeState = Literal["stopped", "starting", "running", "failed"]
+
+
+class NotebookKernelStatus(BaseModel):
+    state: NotebookKernelState = "unknown"
+    kernel_id: str | None = None
+    connections: int = 0
+    last_activity: str | None = None
+
+
+class NotebookSummary(BaseModel):
+    id: str
+    project_id: str = DEFAULT_PROJECT_ID
+    name: str
+    #: Path relative to the `jupyter-server` root, which is what the client hands
+    #: to `@jupyterlab/services`. Never an absolute path: the browser has no
+    #: business knowing where the workspace lives on disk.
+    path: str
+    tags: list[str] = Field(default_factory=list)
+    cell_count: int = 0
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    kernel: NotebookKernelStatus | None = None
+    #: False when the `.ipynb` on disk is missing or unparseable. The notebook
+    #: still lists — hiding it would make a corrupted file look like a deleted
+    #: one, and the user cannot fix what they cannot see.
+    valid: bool = True
+
+
+class NotebookCreate(BaseModel):
+    project_id: str = DEFAULT_PROJECT_ID
+    name: str = Field(min_length=1, max_length=120)
+    template_id: str | None = None
+
+
+class NotebookUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    tags: list[str] | None = None
+
+
+class NotebookTemplate(BaseModel):
+    id: str
+    name: str
+    description: str
+    task_types: list[TaskType] = Field(default_factory=list)
+
+
+class NotebookSession(BaseModel):
+    """What the browser needs to open a kernel channel, and nothing more.
+
+    Deliberately carries no token: the `jupyter-server` credential is injected
+    by the proxy on the way out and never reaches the client, the same posture
+    the OpenRouter key has had since phase 11.
+    """
+
+    base_url: str
+    ws_url: str
+    kernel_name: str
+    notebook_path: str
+
+
+class NotebookRuntimeStatus(BaseModel):
+    #: Whether `jupyter_server` is importable at all. False is a normal state,
+    #: not an error: the notebook extra is optional and the UI explains how to
+    #: install it rather than failing a request.
+    available: bool = False
+    state: NotebookRuntimeState = "stopped"
+    port: int | None = None
+    python_version: str | None = None
+    kernel_count: int = 0
+    error: str | None = None
+    install_hint: str | None = None
+
+
+class NotebookRun(BaseModel):
+    id: str
+    notebook_id: str
+    name: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    status: str = "running"
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    dataset_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    metric_names: list[str] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)
+    text: dict[str, str] = Field(default_factory=dict)
+
+
+class NotebookRunSeries(BaseModel):
+    run: NotebookRun
+    #: One dict per logged point, always carrying `step`; the rest are the
+    #: scalars that call passed. Sparse by design — a run may log `loss` every
+    #: step and `val_accuracy` every epoch, and forcing a dense grid would
+    #: invent numbers.
+    points: list[dict[str, float]] = Field(default_factory=list)

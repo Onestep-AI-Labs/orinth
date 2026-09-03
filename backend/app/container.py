@@ -11,6 +11,8 @@ from app.services.evaluation import EvaluationService
 from app.services.inference import InferenceService
 from app.services.llm_export import ExportService
 from app.services.model_upload import ModelUploadService
+from app.services.notebooks import NotebookService
+from app.services.notebooks.runtime import NotebookRuntime
 from app.services.projects import ProjectService
 from app.services.recipes import RecipeService
 from app.services.serving import ServingService
@@ -37,6 +39,13 @@ prep_executor = ThreadPoolExecutor(
 dataset_prep_service = DatasetPrepService(
     settings, dataset_service, settings_service, prep_executor
 )
+# Phase 22. The service owns `storage/notebooks/`; the runtime supervises the
+# `jupyter-server` subprocess and is stopped in the app lifespan beside
+# `serving_service.shutdown()`. Neither imports `jupyter_server` — the runtime
+# spawns it and probes with `find_spec`, so the API process stays free of the
+# Jupyter stack even when the optional extra is installed.
+notebook_service = NotebookService(settings, storage)
+notebook_runtime = NotebookRuntime(settings, storage)
 inference_service = InferenceService(storage, registry)
 model_upload_service = ModelUploadService(settings, storage, registry)
 evaluation_service = EvaluationService(settings, storage, registry, dataset_service)

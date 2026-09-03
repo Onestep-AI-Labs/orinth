@@ -6,6 +6,7 @@ from app.api.routers import (
     health,
     inference,
     models,
+    notebooks,
     projects,
     recipes,
     serving,
@@ -21,6 +22,7 @@ router.include_router(models.router)
 router.include_router(architectures.router)
 router.include_router(projects.router)
 router.include_router(datasets.router)
+router.include_router(notebooks.router)
 router.include_router(recipes.router)
 router.include_router(inference.router)
 router.include_router(serving.router)

@@ -1208,6 +1208,203 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notebooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notebooks */
+        get: operations["list_notebooks_api_notebooks_get"];
+        put?: never;
+        /** Create Notebook */
+        post: operations["create_notebook_api_notebooks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notebook Runtime */
+        get: operations["get_notebook_runtime_api_notebooks_runtime_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Notebook Runtime */
+        post: operations["start_notebook_runtime_api_notebooks_runtime_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop Notebook Runtime */
+        post: operations["stop_notebook_runtime_api_notebooks_runtime_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notebook Templates */
+        get: operations["list_notebook_templates_api_notebooks_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notebook */
+        get: operations["get_notebook_api_notebooks__notebook_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Notebook */
+        delete: operations["delete_notebook_api_notebooks__notebook_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Notebook */
+        patch: operations["update_notebook_api_notebooks__notebook_id__patch"];
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate Notebook */
+        post: operations["duplicate_notebook_api_notebooks__notebook_id__duplicate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notebook Runs */
+        get: operations["list_notebook_runs_api_notebooks__notebook_id__runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notebook Run */
+        get: operations["get_notebook_run_api_notebooks__notebook_id__runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/runs/{run_id}/artifacts/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Notebook Artifact */
+        get: operations["download_notebook_artifact_api_notebooks__notebook_id__runs__run_id__artifacts__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Notebook Session
+         * @description What the browser needs to open a kernel channel.
+         *
+         *     Same-origin paths, not the loopback address: the client talks to this
+         *     process, which forwards. Handing out `127.0.0.1:<port>` would leak the
+         *     runtime's location and would not work through the dev proxy.
+         */
+        get: operations["get_notebook_session_api_notebooks__notebook_id__session_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects": {
         parameters: {
             query?: never;
@@ -3706,7 +3903,7 @@ export interface components {
              * @default heuristic
              * @enum {string}
              */
-            source: "llm" | "heuristic";
+            source: "llm" | "heuristic" | "notebook";
             /** @default null */
             split: components["schemas"]["DatasetSplitConfig"];
             /**
@@ -5330,6 +5527,239 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** NotebookCreate */
+        NotebookCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Template Id
+             * @default null
+             */
+            template_id: string | null;
+        };
+        /** NotebookKernelStatus */
+        NotebookKernelStatus: {
+            /**
+             * Connections
+             * @default 0
+             */
+            connections: number;
+            /**
+             * Kernel Id
+             * @default null
+             */
+            kernel_id: string | null;
+            /**
+             * Last Activity
+             * @default null
+             */
+            last_activity: string | null;
+            /**
+             * State
+             * @default unknown
+             * @enum {string}
+             */
+            state: "starting" | "idle" | "busy" | "dead" | "unknown";
+        };
+        /** NotebookRun */
+        NotebookRun: {
+            /**
+             * Artifacts
+             * @default null
+             */
+            artifacts: string[];
+            /**
+             * Dataset Id
+             * @default null
+             */
+            dataset_id: string | null;
+            /**
+             * Finished At
+             * @default null
+             */
+            finished_at: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Metric Names
+             * @default null
+             */
+            metric_names: string[];
+            /** Name */
+            name: string;
+            /** Notebook Id */
+            notebook_id: string;
+            /**
+             * Params
+             * @default null
+             */
+            params: {
+                [key: string]: unknown;
+            };
+            /**
+             * Started At
+             * @default null
+             */
+            started_at: string | null;
+            /**
+             * Status
+             * @default running
+             */
+            status: string;
+            /**
+             * Tags
+             * @default null
+             */
+            tags: string[];
+            /**
+             * Text
+             * @default null
+             */
+            text: {
+                [key: string]: string;
+            };
+        };
+        /** NotebookRunSeries */
+        NotebookRunSeries: {
+            /**
+             * Points
+             * @default null
+             */
+            points: {
+                [key: string]: number;
+            }[];
+            run: components["schemas"]["NotebookRun"];
+        };
+        /** NotebookRuntimeStatus */
+        NotebookRuntimeStatus: {
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Install Hint
+             * @default null
+             */
+            install_hint: string | null;
+            /**
+             * Kernel Count
+             * @default 0
+             */
+            kernel_count: number;
+            /**
+             * Port
+             * @default null
+             */
+            port: number | null;
+            /**
+             * Python Version
+             * @default null
+             */
+            python_version: string | null;
+            /**
+             * State
+             * @default stopped
+             * @enum {string}
+             */
+            state: "stopped" | "starting" | "running" | "failed";
+        };
+        /**
+         * NotebookSession
+         * @description What the browser needs to open a kernel channel, and nothing more.
+         *
+         *     Deliberately carries no token: the `jupyter-server` credential is injected
+         *     by the proxy on the way out and never reaches the client, the same posture
+         *     the OpenRouter key has had since phase 11.
+         */
+        NotebookSession: {
+            /** Base Url */
+            base_url: string;
+            /** Kernel Name */
+            kernel_name: string;
+            /** Notebook Path */
+            notebook_path: string;
+            /** Ws Url */
+            ws_url: string;
+        };
+        /** NotebookSummary */
+        NotebookSummary: {
+            /**
+             * Cell Count
+             * @default 0
+             */
+            cell_count: number;
+            /**
+             * Created At
+             * @default null
+             */
+            created_at: string | null;
+            /** Id */
+            id: string;
+            /** @default null */
+            kernel: components["schemas"]["NotebookKernelStatus"] | null;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Tags
+             * @default null
+             */
+            tags: string[];
+            /**
+             * Updated At
+             * @default null
+             */
+            updated_at: string | null;
+            /**
+             * Valid
+             * @default true
+             */
+            valid: boolean;
+        };
+        /** NotebookTemplate */
+        NotebookTemplate: {
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Task Types
+             * @default null
+             */
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling")[];
+        };
+        /** NotebookUpdate */
+        NotebookUpdate: {
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+            /**
+             * Tags
+             * @default null
+             */
+            tags: string[] | null;
+        };
         /** OpenRouterModel */
         OpenRouterModel: {
             /** Id */
@@ -5451,7 +5881,7 @@ export interface components {
              * @default heuristic
              * @enum {string}
              */
-            mode: "llm" | "heuristic";
+            mode: "llm" | "heuristic" | "notebook";
             /**
              * Model
              * @default null
@@ -8959,6 +9389,405 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notebooks_api_notebooks_get: {
+        parameters: {
+            query?: {
+                project_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_notebook_api_notebooks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotebookCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notebook_runtime_api_notebooks_runtime_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+        };
+    };
+    start_notebook_runtime_api_notebooks_runtime_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+        };
+    };
+    stop_notebook_runtime_api_notebooks_runtime_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+        };
+    };
+    list_notebook_templates_api_notebooks_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookTemplate"][];
+                };
+            };
+        };
+    };
+    get_notebook_api_notebooks__notebook_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_notebook_api_notebooks__notebook_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_notebook_api_notebooks__notebook_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotebookUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    duplicate_notebook_api_notebooks__notebook_id__duplicate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notebook_runs_api_notebooks__notebook_id__runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRun"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notebook_run_api_notebooks__notebook_id__runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRunSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_notebook_artifact_api_notebooks__notebook_id__runs__run_id__artifacts__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+                run_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notebook_session_api_notebooks__notebook_id__session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSession"];
                 };
             };
             /** @description Validation Error */

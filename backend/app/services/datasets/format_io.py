@@ -52,7 +52,16 @@ class FormatIoMixin:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return []
-        rows = payload.get("annotations", payload if isinstance(payload, list) else [])
+        # The list branch was unreachable: `.get` was called on `payload` before
+        # the isinstance check could pick it, so a bare-list sidecar raised
+        # `AttributeError` instead of being read. Both shapes exist on disk —
+        # the writers emit the dict form, older exports the list.
+        if isinstance(payload, list):
+            rows = payload
+        elif isinstance(payload, dict):
+            rows = payload.get("annotations", [])
+        else:
+            return []
         annotations = []
         for row in rows:
             try:

@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Database,
+  NotebookPen,
   FlaskConical,
   Folder,
   Rocket,
@@ -229,6 +230,9 @@ function ProjectSidebar({
           <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} iconOnly>
             Datasets
           </SideLink>
+          <SideLink href="/notebooks" active={pathname.startsWith("/notebooks")} icon={<NotebookPen size={17} />} iconOnly>
+            Notebooks
+          </SideLink>
           <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />} iconOnly>
             Models
           </SideLink>
@@ -293,6 +297,9 @@ function ProjectSidebar({
       <nav className="side-nav">
         <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} dataTour="nav-datasets">
           Datasets
+        </SideLink>
+        <SideLink href="/notebooks" active={pathname.startsWith("/notebooks")} icon={<NotebookPen size={17} />} dataTour="nav-notebooks">
+          Notebooks
         </SideLink>
         <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />} dataTour="nav-models">
           Models

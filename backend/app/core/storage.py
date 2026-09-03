@@ -35,6 +35,14 @@ class Storage:
         self.serving_config_file = self.serving / "config.json"
         # GGUF/MLX models downloaded from the Hub for serving (phase 15).
         self.serving_models = self.serving / "models"
+        # Phase 22: one directory per notebook holding its manifest, its
+        # `.ipynb`, and its run artifacts. `jupyter-server` is rooted here, so a
+        # kernel's filesystem view is exactly this tree and nothing above it.
+        self.notebooks = self.root / "notebooks"
+        # Kernelspecs provisioned for the managed server. Kept beside the
+        # notebooks rather than in the user's `~/.jupyter`, so the workspace
+        # stays self-contained and uninstalling is `rm -rf storage/`.
+        self.notebooks_jupyter = self.notebooks / ".jupyter"
 
     def ensure(self) -> None:
         for path in [
@@ -55,6 +63,8 @@ class Storage:
             self.tools,
             self.serving,
             self.serving_models,
+            self.notebooks,
+            self.notebooks_jupyter,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 
