@@ -65,8 +65,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => projects.find((item) => item.id === projectId) ?? null,
     [projects, projectId]
   );
+  // Every route that reads or writes something belonging to one project. A
+  // surface missing from this list still works, but loses the project sidebar
+  // and the switcher with it — which is how `/notebooks` ended up as the one
+  // project page you could not tell the project of.
   const isProjectArea =
-    ["/datasets", "/models", "/inference", "/testing", "/training"].some((prefix) =>
+    ["/datasets", "/notebooks", "/models", "/inference", "/testing", "/training"].some((prefix) =>
       pathname?.startsWith(prefix)
     ) || PROJECT_SETTINGS_PATH.test(pathname ?? "");
 

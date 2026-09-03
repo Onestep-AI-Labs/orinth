@@ -68,6 +68,173 @@ off the docstring, bracket matching and auto-close, 4-space `indentUnit` per PEP
 standard notebook operations — run all (sequential, stopping at the first error, because a notebook
 is a script), clear outputs, move up/down, insert, delete.
 
+**Templates and defect pass (this change).** Six more templates, and four defects that only came
+out of driving the real thing in a real browser:
+
+- **`orinth.runs` never worked in a kernel.** `_workspace.notebook_id()` read `ORINTH_NOTEBOOK_ID`
+  and *nothing anywhere set it* — one `jupyter-server` serves every notebook, so there is no point
+  in the lifecycle where a per-notebook variable could be written. Every `runs.start()` /
+  `runs.log()` in a real kernel raised, and the Runs rail could never fill. It now falls back to the
+  working directory, which `jupyter-server` sets per session to the notebook's own directory, and
+  confirms the identity against `storage/notebooks/<id>/manifest.json` rather than trusting `cwd`.
+  Verified in a kernel started through the proxy: cwd is the notebook directory, `notebook_id()`
+  resolves, two logged points come back through `GET /api/notebooks/{id}/runs`.
+- **A leaked kernel client polled a stopped runtime forever.** `NotebookKernel` constructs its
+  managers before `connect()` resolves, and they poll `api/kernels` from that moment. A failed
+  connect — or navigating away mid-connect — left the poller running, which against a stopped
+  runtime is `GET /api/notebooks/proxy/api/kernels → 503` on an endless backoff from a page nobody
+  is on. The connect now lives in an effect that owns and disposes everything it creates, both
+  managers are disposed (not just the session), they run `standby: "when-hidden"`, and the
+  managers' `connectionFailure` signal re-asks `/runtime` so a runtime that stops under an open page
+  turns the banner back to **stopped** instead of retrying in silence. Measured in headless Chrome:
+  0 kernel polls and 0 errors in the 12s after navigating away; stopping the runtime under an open
+  page now costs 2 requests and settles, with the banner reading `STOPPED · Start runtime`.
+- **A websocket to a stopped runtime answered with a malformed 503.** Raising `HTTPException` from a
+  websocket route makes Starlette write a denial *and* the exception middleware write another, so
+  the response went out with two `Content-Length` and two `Content-Type` headers — which Node's HTTP
+  parser rejects outright (`HPE_UNEXPECTED_CONTENT_LENGTH`), so the dev proxy in front of the app
+  could not even relay the refusal. It closes before accept now, which is a well-formed handshake
+  rejection. `test_a_websocket_to_a_stopped_runtime_closes_instead_of_raising` fails without the fix.
+- **The proxy pinned the kernel subprotocol upstream** regardless of what the client negotiated, so
+  a client that asked for no subprotocol got JSON framing on one leg and v1 binary framing on the
+  other — a silent hang. Both legs now speak whatever the client chose. Verified against both: a
+  JSON-text client and a `v1.kernel.websocket.jupyter.org` binary client each execute a cell through
+  the proxy.
+
+Alongside them, three things that were working as designed and reading as broken:
+
+- **`/notebooks` was not in the project area**, so the one page whose whole point is *this project's*
+  datasets showed the global sidebar with no project switcher. One entry in `isProjectArea`.
+- **The dataset rail looked permanently busy.** The catalog costs seconds to build (it walks every
+  split of every dataset) and the rail refetched it on the page default, so every visit spent those
+  seconds on a spinner — and showed "No datasets here yet" while the first request was still out.
+  The rail now passes its own `staleTime` (5 minutes; mutations still invalidate the key), and
+  follows the loading contract: skeleton when there is nothing yet, inline spinner only over
+  existing rows.
+- **The templates are ten, and grouped.** `NotebookTemplate` gained `category`; the service orders
+  by `CATEGORY_ORDER` (Start → Data → Vision → Text → Training → Testing → Inference) and the picker
+  splits the list at each change. Every new template was executed end to end against the real
+  workspace before shipping — the training one trains, the evaluation one scores 0.933 on
+  `reference_yolo/valid`, the batch one writes a 45-row CSV artifact.
+
+**The SDK grew three modules, and the picker grew tabs (this change).** The
+package covered *data* — read a dataset, read a model, log a run — and stopped
+where the platform's actual work starts. A notebook could describe a training
+run but not start one.
+
+- **`orinth.train`** — `options()`, `compute()`, `start()`, `get()`, `list()`,
+  `cancel()`, `wait_for()`. Starts the platform's own job, so a run begun in a
+  cell appears on `/training`, registers a model the catalog knows about, and
+  outlives the tab. `wait=False` by default (the opposite of
+  `datasets.register()`): training is minutes to hours and blocking a cell on it
+  costs the kernel for the duration. A failed run is *returned*, not raised — it
+  is a real outcome with metrics attached, and a cell comparing three runs must
+  not lose two of them to the one that diverged.
+- **`orinth.evaluate`** — `datasets()`, `start()`, `compare()`, `get()`,
+  `list()`, `per_item()`, `wait_for()`. `compare()` goes through the API's batch
+  route rather than looping `start()`, because that is what groups the jobs under
+  one `comparison_id`; a loop produces N unrelated jobs the Testing page cannot
+  line up. `per_item()` is the cell that makes a bad aggregate actionable.
+- **`orinth.inference`** — `predict()`, `list()`, `get()`. The recorded
+  counterpart to `models.predictor()`: slower per call, and the answer gets an
+  id, an overlay, and a row on `/inference`. Exactly one of `image=` or `text=`,
+  because they are different predictors and guessing is not the API's job.
+
+Types: `TrainingRun`, `Evaluation`, `Prediction`, frozen like the rest, each with
+`done` / `__bool__` so `if run:` means *finished and produced something* rather
+than *terminal*.
+
+Verified against a live backend, not mocked: `train.start()` queued a real job
+that ran three epochs and registered `trained_keras_classification_a5a0bb95`;
+`evaluate.start()` scored 0.8 on ten items and `per_item()` returned all ten;
+`evaluate.compare()` ranked two models in one comparison; `inference.predict()`
+came back with an overlay URL for an image and an `nlp_result` for a string.
+Every artifact created that way was deleted afterwards.
+
+**Templates: 10 → 22, three per category minimum.** Ten in one flat list was
+already a wall; the tabs below are what made more of them useful rather than
+worse. Added: **Tour the orinth SDK** and **Workspace report** (Start), **Merge
+two datasets** (Data), **Review detections against truth** and **Find duplicate
+images** (Vision), **Inspect an instruction dataset** and **Probe a text model**
+(Text), **Train on the platform** (Training), **Evaluate on the platform** and
+**Error analysis** (Testing), **Recorded predictions** and **Pick a confidence
+threshold** (Inference). **Compare two models** was rewritten — the first cut
+built a `rows` list and never called a predictor, so it demonstrated nothing.
+
+`test_the_sdk_modules_are_each_demonstrated_by_a_template` is the rule made
+executable: eleven public calls, each of which must appear in some shipped
+template. A module no notebook opens with is a module nobody finds.
+
+**The picker is tabbed and paged.** `All` plus one tab per category, each with a
+count, six templates to a page; the notebook list pages at nine. Tabs rather than
+stacked sections because categories are *alternatives* — you want a training
+notebook or a data one — and a tab bar says that while a stack of headings makes
+you scan every one to find out. The category list is derived from the order the
+backend sent, so a template naming a new category gets a tab with no frontend
+change. `Pager` renders nothing at all for a single page: a disabled pager under
+six cards is chrome asserting there is more.
+
+Verified in headless Chrome: eight tabs reading `All 22 · Start 3 · Data 3 ·
+Vision 3 · Text 3 · Training 3 · Testing 4 · Inference 3`, page `1 / 4` stepping
+to `2 / 4` with a different six, the Training tab showing three cards and no
+pager, and the notebook list showing `1 / 2` over twelve notebooks.
+
+**Opening, naming, watching, and choosing a machine (this change).** Five things
+the notebook surface was missing, and the SDK call that made "your own data"
+real.
+
+- **The runtime is asked for, not announced.** Opening a notebook with the
+  runtime stopped left a banner and a page of inert cells: every Run button
+  disabled, and the reason a status line you had to notice. It is a dialog now,
+  shown once per visit — dismissing it leaves the banner for a second try,
+  because a modal that returns after you dismissed it is insisting rather than
+  asking.
+- **A machine dropdown.** `GET /api/notebooks/runtime/targets` flattens phase
+  24's two sources — the per-framework device probe and the provider registry —
+  into one list: `Automatic`, each probed device, `CPU only`, and the declared
+  remote providers **listed and disabled** with their first requirement as the
+  reason. `POST /runtime/start` takes the choice and the runtime injects
+  `ORINTH_DEVICE` plus `CUDA_VISIBLE_DEVICES` into the server every kernel
+  inherits. It is offered only while stopped, and starting on a different device
+  while running is refused *by name* — a kernel's environment is fixed at spawn,
+  so a live switch would be a control that silently does nothing.
+- **Rename, in both places.** The header title is a button that becomes a field;
+  the list gains a Rename row. `useRenameNotebookMutation` already existed and
+  nothing called it.
+- **The running cell is marked and followed.** An accent left edge and a tinted
+  gutter (not a fill — the output is what you are trying to read), and
+  `scrollIntoView({block: "center"})` as each cell starts, so Run all reads as a
+  walk down the notebook. It stops *on* a failure rather than leaving the
+  viewport wherever it was, because that is how a traceback goes unread. Dropped
+  to `behavior: "auto"` under `prefers-reduced-motion`.
+- **`orinth.datasets.upload(path)`** — your own files as a dataset. `register()`
+  takes rows in memory; this takes what is on disk, which is how data actually
+  arrives. Nothing about the files is declared: the upload is staged with its
+  relative paths and handed to **the same prep agent a browser upload goes to**,
+  so a dataset made from a cell and one made by dragging the folder in are the
+  same dataset. `detect()` is the read half, for looking before applying. Sent
+  in batches of 200 files, so a large folder never has to fit in one request.
+
+Four more templates, in a new **Pipelines** category: **Image: folder to
+prediction**, **Text: table to prediction**, **LLM: records to a fine-tune**, and
+**Upload your own data** (Data). The three pipelines are the whole loop in one
+notebook — upload, train, evaluate, predict, log — with every call an `orinth`
+call. Each points at a path you supply and falls back to a small borrowed sample
+so it runs anywhere. 26 templates now, and the picker's tabs are what made more
+of them useful rather than worse.
+
+Verified in a browser and against a live backend: the dialog lists six machines
+(three remote, disabled), starting on `cpu` gives `runtime.device == "cpu"`,
+rename from the header persists, a running cell is highlighted and cleared, and
+Run all walked the page 4,406px following cells 1 → 3 → 5 → 9. The image
+pipeline uploaded a folder, trained a real model, scored it at 0.889, and
+predicted at 0.927 confidence; the text pipeline did the same from a CSV.
+
+One sharp edge found by running it, now documented where it is read:
+**`load(..., limit=N)` is a head, not a sample.** Items come back in directory
+order, so `limit=90` on a six-class image set is ninety images of the first
+class — which the prep agent then (correctly) refuses to label.
+
 **Deferred, and not attempted:** `ipywidgets` and interactive output (out of scope by design);
 `text/html` output rendering — it falls through to `text/plain` with a note, because sanitizing
 arbitrary kernel HTML needs DOMPurify and a policy, and a half-sanitized
@@ -99,11 +266,13 @@ In:
 - Notebook lifecycle: create (blank or from a template), list per project, rename, duplicate, delete.
 - A notebook editor surface at `/notebooks` and `/notebooks/{id}`: cell list, execution, kernel
   status and control, output rendering, and a dataset/model/run rail.
-- The `orinth` Python package, importable in a kernel, covering datasets, models, projects, and runs.
+- The `orinth` Python package, importable in a kernel, covering datasets, models, projects, runs,
+  and — through the platform's own job APIs — training, evaluation, and inference.
 - Round-trip registration: a dataframe or row list becomes an Orinth dataset through the phase-21
   ingest + apply path.
 - Lightweight run logging (`orinth.runs`) with a per-notebook metrics view.
-- Four starter templates that double as the SDK's documentation.
+- Twenty-two starter templates, tabbed by category and paged, that double as the SDK's
+  documentation.
 
 Out:
 
@@ -282,6 +451,7 @@ New domain router `backend/app/api/routers/notebooks.py`, prefix `/notebooks`, r
 | --- | --- | --- |
 | `GET` | `/api/notebooks?project_id=` | List notebooks, newest-modified first. |
 | `POST` | `/api/notebooks` | Create blank, or from `template_id`. |
+| `GET` | `/api/notebooks/runtime/targets` | Machines a kernel can run on (probe + providers). |
 | `GET` | `/api/notebooks/templates` | Starter notebooks (metadata only). |
 | `GET` | `/api/notebooks/{id}` | Manifest, cell count, kernel state. |
 | `PATCH` | `/api/notebooks/{id}` | Rename, retag. |
@@ -362,27 +532,72 @@ thread pool, and kernels are `jupyter-server`'s to manage.
   refusal to forward to any host that is not the loopback port this process allocated.
 - `backend/app/services/notebooks/runs.py` — reading `runs/*/run.json` and `metrics.jsonl` back for
   the API. The *writing* side lives in `orinth.runs`, in the kernel.
-- `backend/app/services/notebooks/templates/*.ipynb` — four starter notebooks, tracked in git. They
-  are source, not runtime artifacts, so they belong in `backend/` and not in `storage/`:
-  **Blank**, **Dataset EDA** (load, class balance, length distribution, sample rows), **Compare two
-  models** (run two registered predictors over a valid split and diff them), and **Register cleaned
-  dataset** (load, clean, `register()` back). They are also the SDK's documentation — a user
-  discovers `orinth` by opening one, which is why the API surface must stay small enough to fit in
-  four notebooks.
+- `backend/app/services/notebooks/templates/*.ipynb` — the starter notebooks, tracked in git. They
+  are source, not runtime artifacts, so they belong in `backend/` and not in `storage/`. Each one
+  carries its own `metadata.orinth` block (`name`, `description`, `category`, `task_types`); there is
+  no second registry to drift from the files, and `category` only decides where a template sits in
+  the picker, so adding one never means editing a list.
+
+  | Category | Template | What it does |
+  | --- | --- | --- |
+  | Start | **Blank** | An empty notebook with `orinth` imported. |
+  | Start | **Tour the orinth SDK** | One cell per module, and nothing to clean up afterwards. The map every other template is a route across. |
+  | Start | **Workspace report** | Projects, datasets, models and runs as tables — including which models nobody has ever evaluated. |
+  | Data | **Dataset EDA** | Load, class balance, length distribution, sample rows. |
+  | Data | **Register a cleaned dataset** | Load, clean in polars, `register()` back. |
+  | Data | **Merge two datasets** | Reconcile two label sets, concatenate, de-duplicate across the seam, register the union. |
+  | Vision | **Image stats and augmentation** | Resolution spread, per-class brightness (a leak check), an augmentation preview grid, and a box/polygon size census. |
+  | Vision | **Review detections against truth** | Predicted regions drawn over annotated ones, images ranked by how wrong they are, predicted vs annotated region size. |
+  | Vision | **Find duplicate images** | Average-hash over every split: exact collisions, near-duplicates, and the ones that leak across the split boundary. |
+  | Text | **Text quality and leakage** | Train/valid overlap, duplicates and inconsistently-labelled repeats, length budget. |
+  | Text | **Inspect an instruction dataset** | `llm_finetune` records: prompt/response lengths, chat roles, and the conversations that end on the wrong turn. |
+  | Text | **Probe a text model** | Hand-written probes grouped by what they test — negation, length, noise — and where confidence collapses. |
+  | Training | **Train an image classifier** | A small Keras CNN over a project dataset, one `run.log()` per epoch from a callback, weights saved as a run artifact. |
+  | Training | **Sweep a hyperparameter** | Four learning rates, one run each, ranked — one vectorizer adapted once so the arms stay comparable. |
+  | Training | **Train on the platform** | `orinth.train.start()` → `wait_for()` → the registered model, with the compute probe and the option catalog first. |
+  | Testing | **Compare two models** | Two predictors over one split, diffed item by item — agreement, and who is right where they disagree. |
+  | Testing | **Evaluate a model on a split** | Confusion matrix and per-class precision/recall/F1 computed in the kernel, logged as a run. |
+  | Testing | **Evaluate on the platform** | `orinth.evaluate.start()` / `compare()` / `per_item()` — the recorded score, and the rows behind it. |
+  | Testing | **Error analysis** | A finished evaluation turned into worst classes, confusion pairs, and the confidently-wrong items. |
+  | Inference | **Batch inference to CSV** | A whole split through a kernel-loaded predictor, one row per detection, exported as a run artifact. |
+  | Inference | **Recorded predictions** | `orinth.inference.predict()` — an id, an overlay, and a row on `/inference` per answer, for images and for text. |
+  | Inference | **Pick a confidence threshold** | Predict once at the floor, threshold many times, and read precision against recall instead of taking 0.65 on faith. |
+
+  They are also the SDK's documentation — a user discovers `orinth` by opening one, which is why the
+  API surface must stay small enough to fit in them — which
+  `test_the_sdk_modules_are_each_demonstrated_by_a_template` now enforces, by asserting that every
+  public call appears in some template. Two calls were added *because* the templates needed them
+  and importing `app.schemas` from a user's cell is not documentation:
+  `orinth.models.parameters(**overrides)` (the options `/inference` sends, with the platform's
+  defaults) and `orinth.models.image_label(detections)` (the largest-mask verdict, through the
+  platform's own function rather than restated).
+- `backend/orinth/train.py`, `evaluate.py`, `inference.py` — HTTP clients for the platform's job
+  APIs (`/api/training/jobs`, `/api/testing/jobs`, `/api/inference`). They start the *same* jobs the
+  Training, Testing and Inference pages start, which is the point: a run begun in a cell is on the
+  page, in the registry, and alive after the tab closes. Fitting a model inside the kernel instead
+  produces an artifact nothing recorded, on a process that dies with the notebook.
 - Singletons `notebook_service` and `notebook_runtime` in `backend/app/container.py`;
   `notebook_runtime.shutdown()` added to the lifespan teardown next to `serving_service.shutdown()`.
 
 ### Frontend surfaces
 
 - `frontend/app/(platform)/notebooks/page.tsx` and `.../[notebookId]/page.tsx` — thin entrypoints.
-- `frontend/features/notebooks/` — `notebooks-page.tsx` (list + template gallery),
-  `notebook-page.tsx` (editor shell), `cell-list.tsx`, `cell-editor.tsx` (CodeMirror 6),
+- `frontend/features/platform/code/` — the Python editor, shared with the architecture studio:
+  `python-editor.tsx` (the CodeMirror 6 setup, theme from tokens, 4-space `indentUnit`, bracket
+  matching, a diagnostic margin), `syntax.ts` (the highlight style, moved here from
+  `features/notebooks/`), and `python-api.ts` (static Keras/torch completion, used only where there
+  is no kernel to ask). See `specs/phase-17-model-architecture-studio.md`.
+- `frontend/features/notebooks/` — `notebooks-page.tsx` (list + grouped template gallery),
+  `notebook-page.tsx` (editor shell), `cell-list.tsx`, `cell-editor.tsx` (kernel completion,
+  Shift-Enter, Shift-Tab inspect, over the shared editor),
   `cell-output.tsx` (MIME dispatch), `ansi.ts` (SGR → token spans), `kernel-status.tsx`,
   `dataset-rail.tsx`, `runs-panel.tsx`, `kernel-client.ts` (`@jupyterlab/services` wiring),
   `templates.ts`, `hooks.ts`.
 - `frontend/lib/api/notebooks.ts`, re-exported from `frontend/lib/api/index.ts` so
   `import { api } from "@/lib/api"` keeps working.
-- `frontend/components/app-shell.tsx` — one nav entry at both rail widths.
+- `frontend/components/app-shell.tsx` — one nav entry at both rail widths, and `/notebooks` in
+  `isProjectArea` so the page carries the project sidebar and switcher like every other
+  project-scoped route.
 - `frontend/app/styles/platform.css` — selectors under a `.nb-` prefix.
 - `frontend/DESIGN.md` — one §6 glyph row and one §8 pattern paragraph.
 

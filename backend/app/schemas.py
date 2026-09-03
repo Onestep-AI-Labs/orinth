@@ -1813,9 +1813,17 @@ class NotebookUpdate(BaseModel):
 
 
 class NotebookTemplate(BaseModel):
+    """One shipped `.ipynb`, described by its own `metadata.orinth` block.
+
+    `category` groups the picker. With four templates a flat grid was the right
+    answer; past that the user is scanning a wall, and "which of these is about
+    training" is the question the grouping answers.
+    """
+
     id: str
     name: str
     description: str
+    category: str = "General"
     task_types: list[TaskType] = Field(default_factory=list)
 
 
@@ -1844,6 +1852,16 @@ class NotebookRuntimeStatus(BaseModel):
     kernel_count: int = 0
     error: str | None = None
     install_hint: str | None = None
+    #: The target the *running* server was started with. A kernel inherits its
+    #: environment at spawn, so changing this takes a restart — which is why the
+    #: requested value is reported separately from what is live.
+    device: str = "auto"
+
+
+class NotebookRuntimeStart(BaseModel):
+    """`device` is a `NotebookComputeTarget.id`, not a free-form string."""
+
+    device: str = "auto"
 
 
 class NotebookRun(BaseModel):
@@ -1952,6 +1970,27 @@ class ComputePlan(BaseModel):
 # `specs/phase-24-compute-targets.md`. They are listed rather than hidden so the
 # roadmap is visible and, more importantly, so `available: false` is a fact the
 # UI reads rather than a state it invents.
+# Declared here rather than beside the other notebook schemas because it is
+# built from `ComputeKind` and the provider registry below — the notebook
+# runtime borrows phase 24's vocabulary rather than inventing a parallel one.
+class NotebookComputeTarget(BaseModel):
+    """One machine a kernel could run on, as the runtime dropdown shows it.
+
+    Flattens two sources that answer different halves of the question: the
+    per-framework device probe (what *this* machine has) and the provider
+    registry (where a run could go instead). A remote provider that is not built
+    yet is listed with `available: false` and its `detail` — the phase-24 rule
+    that a roadmap the UI cannot see is a roadmap nobody can plan against.
+    """
+
+    id: str
+    label: str
+    kind: ComputeKind | Literal["auto", "remote"] = "auto"
+    available: bool = True
+    #: Why it is unavailable, or what it resolves to. Shown under the option.
+    detail: str = ""
+
+
 ComputeProviderId = Literal["local", "vast", "modal", "runpod"]
 
 

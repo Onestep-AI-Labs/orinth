@@ -131,10 +131,95 @@ def test_every_shipped_template_is_valid_and_self_describing(service):
     """
     templates = service.templates()
     ids = {template.id for template in templates}
-    assert {"blank", "dataset-eda", "compare-models", "register-cleaned-dataset"} <= ids
+    assert {
+        "blank",
+        "tour-of-orinth",
+        "workspace-report",
+        "pipeline-image",
+        "pipeline-text",
+        "pipeline-llm",
+        "upload-your-data",
+        "dataset-eda",
+        "register-cleaned-dataset",
+        "merge-datasets",
+        "image-augmentation",
+        "detection-review",
+        "image-dedupe",
+        "text-quality",
+        "llm-dataset-shape",
+        "text-model-probe",
+        "train-classifier",
+        "hyperparameter-sweep",
+        "platform-training-run",
+        "compare-models",
+        "evaluate-model",
+        "platform-evaluation",
+        "error-analysis",
+        "batch-inference",
+        "recorded-inference",
+        "threshold-tuning",
+    } <= ids
     for template in templates:
         assert template.name
         assert len(template.description) > 20, f"{template.id} needs a real description"
+        assert template.category, f"{template.id} needs a category for the picker"
+
+
+def test_templates_come_back_in_the_order_the_work_happens(service):
+    """Alphabetical would open the picker on "Batch inference", which is the
+    last thing anyone does."""
+    templates = service.templates()
+    categories = [template.category for template in templates]
+
+    assert categories[0] == "Start"
+    # Every category is contiguous, so the picker can group by walking the list.
+    assert len(set(categories)) == len([
+        category for index, category in enumerate(categories)
+        if index == 0 or categories[index - 1] != category
+    ])
+    assert categories.index("Training") < categories.index("Inference")
+    # A pipeline is the whole loop, so it sits with the entry points rather than
+    # under the one step it happens to start with.
+    assert categories.index("Pipelines") < categories.index("Data")
+
+
+def test_every_category_offers_more_than_one_way_in(service):
+    """A tab with one card in it is a tab that did not need to exist."""
+    from collections import Counter
+
+    counts = Counter(template.category for template in service.templates())
+    thin = {category: count for category, count in counts.items() if count < 2}
+    assert not thin, f"these categories need another template: {thin}"
+
+
+def test_the_sdk_modules_are_each_demonstrated_by_a_template(service):
+    """The templates are the SDK's documentation, so a module nothing opens with
+    is a module nobody will find. This is the check that keeps that true."""
+    import json
+
+    from app.services.notebooks.service import TEMPLATE_DIR
+
+    corpus = "\n".join(
+        path.read_text(encoding="utf-8") for path in TEMPLATE_DIR.glob("*.ipynb")
+    )
+    for call in (
+        "orinth.datasets.load",
+        "orinth.datasets.register",
+        "orinth.datasets.upload",
+        "orinth.datasets.detect",
+        "orinth.models.predictor",
+        "orinth.models.parameters",
+        "orinth.train.start",
+        "orinth.train.wait_for",
+        "orinth.evaluate.start",
+        "orinth.evaluate.compare",
+        "orinth.evaluate.per_item",
+        "orinth.inference.predict",
+        "orinth.runs.start",
+    ):
+        assert call in corpus, f"no template shows {call}()"
+    # Guard against the corpus check passing on prose alone.
+    assert json.loads((TEMPLATE_DIR / "tour-of-orinth.ipynb").read_text())["cells"]
 
 
 def test_creating_from_a_template_copies_its_cells(service):
@@ -275,3 +360,86 @@ def test_an_artifact_name_cannot_traverse_out_of_its_run(service):
 def test_a_missing_run_reads_as_none_rather_than_raising(service):
     notebook = make(service)
     assert runs_module.get_run(service.runs_dir(notebook.id), notebook.id, "nope") is None
+
+
+# --- refusing cleanly when the runtime is down --------------------------------
+
+
+def test_a_websocket_to_a_stopped_runtime_closes_instead_of_raising(settings: Settings):
+    """An `HTTPException` from a websocket route produces a *malformed* 503.
+
+    Starlette writes the denial response and the exception middleware writes
+    another, so the message goes out with two `Content-Length` and two
+    `Content-Type` headers. Node's HTTP parser rejects that outright
+    (`HPE_UNEXPECTED_CONTENT_LENGTH`), which meant the dev proxy in front of the
+    app could not relay the refusal at all — what the user saw was the proxy
+    erroring, not the 503. Closing before accept sends a well-formed handshake
+    rejection instead, so nothing here may raise and nothing may accept.
+    """
+    import asyncio
+
+    from app.services.notebooks import proxy as proxy_module
+
+    class FakeWebSocket:
+        def __init__(self) -> None:
+            self.accepted = False
+            self.closed: tuple[int, str] | None = None
+            self.headers: dict[str, str] = {}
+            self.url = None
+
+        async def accept(self, subprotocol=None):  # noqa: ANN001 - test double
+            self.accepted = True
+
+        async def close(self, code=1000, reason=""):  # noqa: ANN001 - test double
+            self.closed = (code, reason)
+
+    storage = Storage(settings)
+    storage.ensure()
+    runtime = NotebookRuntime(settings, storage)
+    socket = FakeWebSocket()
+
+    asyncio.run(proxy_module.forward_websocket(runtime, socket, "api/kernels/x/channels", ""))
+
+    assert socket.closed is not None, "a stopped runtime must close the socket, not raise"
+    assert not socket.accepted, "refusing after accept would leave a half-open connection"
+    assert "not running" in socket.closed[1]
+
+
+# --- which machine a kernel runs on -------------------------------------------
+
+
+def test_a_device_choice_reaches_the_kernel_environment():
+    """The dropdown has to *do* something. `CUDA_VISIBLE_DEVICES` is the one
+    variable both torch and TensorFlow honour at import, so it is what makes a
+    CPU choice actually mean CPU rather than a label on a GPU run."""
+    from app.services.notebooks.runtime import device_environment
+
+    assert device_environment("cpu")["CUDA_VISIBLE_DEVICES"] == "-1"
+    assert device_environment("cuda:1")["CUDA_VISIBLE_DEVICES"] == "1"
+    assert device_environment("cuda")["CUDA_VISIBLE_DEVICES"] == "0"
+    # `auto` constrains nothing: each framework picks what it can reach, which
+    # on a machine where torch sees MPS and TensorFlow does not is the only
+    # answer that is right for both.
+    assert "CUDA_VISIBLE_DEVICES" not in device_environment("auto")
+    assert device_environment("mps") == {"ORINTH_DEVICE": "mps"}
+
+
+def test_switching_device_under_a_running_runtime_is_refused_by_name(settings: Settings):
+    """Silently ignoring it would be a dropdown that appears to work and does
+    nothing until the next restart."""
+    from app.services.notebooks.runtime import NotebookRuntimeError
+
+    storage = Storage(settings)
+    storage.ensure()
+    runtime = NotebookRuntime(settings, storage)
+
+    class FakeProcess:
+        def poll(self):
+            return None
+
+    runtime.process = FakeProcess()  # type: ignore[assignment]
+    runtime.device = "cpu"
+
+    with pytest.raises(NotebookRuntimeError) as failure:
+        runtime.start("mps")
+    assert "already running on 'cpu'" in str(failure.value)

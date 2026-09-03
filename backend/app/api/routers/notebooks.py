@@ -19,9 +19,11 @@ from app.container import notebook_runtime, notebook_service
 from app.core.defaults import DEFAULT_PROJECT_ID
 from app.schemas import (
     DeleteResponse,
+    NotebookComputeTarget,
     NotebookCreate,
     NotebookRun,
     NotebookRunSeries,
+    NotebookRuntimeStart,
     NotebookRuntimeStatus,
     NotebookSession,
     NotebookSummary,
@@ -30,6 +32,7 @@ from app.schemas import (
 )
 from app.services.notebooks import proxy as proxy_module
 from app.services.notebooks import runs as runs_module
+from app.services.notebooks import runtime as runtime_module
 from app.services.notebooks.runtime import KERNEL_NAME, NotebookRuntimeError
 
 router = APIRouter(prefix="/notebooks", tags=["notebooks"])
@@ -48,10 +51,21 @@ def get_notebook_runtime() -> NotebookRuntimeStatus:
     return notebook_runtime.status()
 
 
+@router.get("/runtime/targets", response_model=list[NotebookComputeTarget])
+def list_notebook_compute_targets() -> list[NotebookComputeTarget]:
+    """What the runtime's machine dropdown offers.
+
+    Declared **above** `/runtime/start` for the reason at the top of this file,
+    and built in the service so the roadmap (`available: false` providers) has
+    one owner rather than one per client.
+    """
+    return runtime_module.compute_targets()
+
+
 @router.post("/runtime/start", response_model=NotebookRuntimeStatus)
-def start_notebook_runtime() -> NotebookRuntimeStatus:
+def start_notebook_runtime(payload: NotebookRuntimeStart | None = None) -> NotebookRuntimeStatus:
     try:
-        return notebook_runtime.start()
+        return notebook_runtime.start((payload or NotebookRuntimeStart()).device)
     except NotebookRuntimeError as error:
         # 503, not 500: a missing optional extra is an expected state with an
         # obvious remedy, and the UI turns this into an install hint.

@@ -5,6 +5,7 @@ type NotebookSummary = components["schemas"]["NotebookSummary"];
 type NotebookTemplate = components["schemas"]["NotebookTemplate"];
 type NotebookSession = components["schemas"]["NotebookSession"];
 type NotebookRuntimeStatus = components["schemas"]["NotebookRuntimeStatus"];
+type NotebookComputeTarget = components["schemas"]["NotebookComputeTarget"];
 type NotebookRun = components["schemas"]["NotebookRun"];
 type NotebookRunSeries = components["schemas"]["NotebookRunSeries"];
 type DeleteResponse = components["schemas"]["DeleteResponse"];
@@ -37,8 +38,16 @@ export const notebooksApi = {
     jsonFetch<NotebookSession>(`/notebooks/${notebookId}/session`),
 
   notebookRuntime: () => jsonFetch<NotebookRuntimeStatus>("/notebooks/runtime"),
-  startNotebookRuntime: () =>
-    jsonFetch<NotebookRuntimeStatus>("/notebooks/runtime/start", { method: "POST" }),
+  notebookComputeTargets: () =>
+    jsonFetch<NotebookComputeTarget[]>("/notebooks/runtime/targets"),
+  // `device` is fixed for the life of the server, because a kernel inherits its
+  // environment at spawn — which is why it is a start argument and not a
+  // setting that can be changed underneath a running kernel.
+  startNotebookRuntime: (device = "auto") =>
+    jsonFetch<NotebookRuntimeStatus>("/notebooks/runtime/start", {
+      method: "POST",
+      body: JSON.stringify({ device })
+    }),
   stopNotebookRuntime: () =>
     jsonFetch<NotebookRuntimeStatus>("/notebooks/runtime/stop", { method: "POST" }),
 

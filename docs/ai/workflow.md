@@ -45,9 +45,11 @@ Applies to any change that adds or alters a UI surface. Skip only for pure backe
 - CLI changes go under `backend/app/cli/`. Adding a command group means one row in `main.GROUPS`
   (a module *path string*, never an import), one module with `build_parser()` and `run()`, and one
   row in `commands/completion.VERBS`.
-- Notebook SDK changes go under `backend/orinth/`. Its public surface is documented by the four
+- Notebook SDK changes go under `backend/orinth/`. Its public surface is documented by the shipped
   templates in `backend/app/services/notebooks/templates/` — if a new call does not fit in one of
   them, that is a signal the surface is growing past what a user can discover.
+  `test_the_sdk_modules_are_each_demonstrated_by_a_template` enforces it: a new public call needs a
+  template that opens with it, or the test fails.
 - Shared backend service singletons live in `backend/app/container.py`.
 - Large domain services may be packages under `backend/app/services/`; preserve compatibility exports from each package `__init__.py`.
 - Frontend changes go under `frontend`.

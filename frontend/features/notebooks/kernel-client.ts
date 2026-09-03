@@ -36,7 +36,9 @@ function settingsFor(baseUrl: string, wsUrl: string): ServerConnection.ISettings
 
 export class NotebookKernel {
   private manager: SessionManager;
+  private kernels: KernelManager;
   private session: ISessionConnection | null = null;
+  private disposed = false;
 
   constructor(
     private readonly baseUrl: string,
@@ -45,9 +47,17 @@ export class NotebookKernel {
     private readonly kernelName: string
   ) {
     const serverSettings = settingsFor(baseUrl, wsUrl);
+    // Both managers poll from the moment they are constructed, which is why
+    // they are held: disposing the session alone left a `KernelManager` polling
+    // `api/kernels` forever, and against a stopped runtime that is an endless
+    // stream of 503s from a page the user has already navigated away from.
+    this.kernels = new KernelManager({ serverSettings, standby: "when-hidden" });
     this.manager = new SessionManager({
-      kernelManager: new KernelManager({ serverSettings }),
-      serverSettings
+      kernelManager: this.kernels,
+      serverSettings,
+      // A background tab does not need to know a kernel list changed. This is
+      // `@jupyterlab/services`' own switch for it.
+      standby: "when-hidden"
     });
   }
 
@@ -80,6 +90,25 @@ export class NotebookKernel {
     // `restarting`, `autorestarting`, `terminating`, `connected`, `unknown` all
     // mean "not ready for input yet", which `busy` already communicates.
     return status === "unknown" ? "unknown" : "busy";
+  }
+
+  /**
+   * The managers gave up talking to the server.
+   *
+   * Which, here, almost always means the runtime stopped — a backend restart,
+   * or someone pressing Stop. Without this the page keeps a dead session and
+   * `@jupyterlab/services` keeps retrying on its own backoff, so the banner goes
+   * on saying `running` while every request answers 503. The page uses it to
+   * re-ask the runtime and tear the client down.
+   */
+  onConnectionFailure(listener: () => void): () => void {
+    const handler = () => listener();
+    this.manager.connectionFailure.connect(handler);
+    this.kernels.connectionFailure.connect(handler);
+    return () => {
+      this.manager.connectionFailure.disconnect(handler);
+      this.kernels.connectionFailure.disconnect(handler);
+    };
   }
 
   onStatusChange(listener: (state: KernelState) => void): () => void {
@@ -184,11 +213,19 @@ export class NotebookKernel {
     await this.session?.kernel?.restart();
   }
 
+  /**
+   * Drop every client-side handle, including the pollers.
+   *
+   * Only the *connection* is dropped: the kernel keeps running so a page reload
+   * reattaches to live state, and `cull_idle_timeout` reaps it when it
+   * genuinely goes idle. Idempotent, because the page disposes on unmount and
+   * again when a connect that was already in flight resolves.
+   */
   async dispose(): Promise<void> {
-    // Only the client connection is dropped. The kernel keeps running so a
-    // page reload reattaches to live state, and `cull_idle_timeout` reaps it
-    // when it genuinely goes idle.
+    if (this.disposed) return;
+    this.disposed = true;
     this.session?.dispose();
     this.manager.dispose();
+    this.kernels.dispose();
   }
 }

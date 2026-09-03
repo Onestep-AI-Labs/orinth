@@ -1277,6 +1277,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notebooks/runtime/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notebook Compute Targets
+         * @description What the runtime's machine dropdown offers.
+         *
+         *     Declared **above** `/runtime/start` for the reason at the top of this file,
+         *     and built in the service so the roadmap (`available: false` providers) has
+         *     one owner rather than one per client.
+         */
+        get: operations["list_notebook_compute_targets_api_notebooks_runtime_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notebooks/templates": {
         parameters: {
             query?: never;
@@ -5768,6 +5792,37 @@ export interface components {
             /** Type */
             type: string;
         };
+        /**
+         * NotebookComputeTarget
+         * @description One machine a kernel could run on, as the runtime dropdown shows it.
+         *
+         *     Flattens two sources that answer different halves of the question: the
+         *     per-framework device probe (what *this* machine has) and the provider
+         *     registry (where a run could go instead). A remote provider that is not built
+         *     yet is listed with `available: false` and its `detail` — the phase-24 rule
+         *     that a roadmap the UI cannot see is a roadmap nobody can plan against.
+         */
+        NotebookComputeTarget: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @default auto
+             */
+            kind: ("cuda" | "mps" | "metal" | "rocm" | "cpu") | ("auto" | "remote");
+            /** Label */
+            label: string;
+        };
         /** NotebookCreate */
         NotebookCreate: {
             /** Name */
@@ -5876,6 +5931,17 @@ export interface components {
             }[];
             run: components["schemas"]["NotebookRun"];
         };
+        /**
+         * NotebookRuntimeStart
+         * @description `device` is a `NotebookComputeTarget.id`, not a free-form string.
+         */
+        NotebookRuntimeStart: {
+            /**
+             * Device
+             * @default auto
+             */
+            device: string;
+        };
         /** NotebookRuntimeStatus */
         NotebookRuntimeStatus: {
             /**
@@ -5883,6 +5949,11 @@ export interface components {
              * @default false
              */
             available: boolean;
+            /**
+             * Device
+             * @default auto
+             */
+            device: string;
             /**
              * Error
              * @default null
@@ -5974,8 +6045,20 @@ export interface components {
              */
             valid: boolean;
         };
-        /** NotebookTemplate */
+        /**
+         * NotebookTemplate
+         * @description One shipped `.ipynb`, described by its own `metadata.orinth` block.
+         *
+         *     `category` groups the picker. With four templates a flat grid was the right
+         *     answer; past that the user is scanning a wall, and "which of these is about
+         *     training" is the question the grouping answers.
+         */
         NotebookTemplate: {
+            /**
+             * Category
+             * @default General
+             */
+            category: string;
             /** Description */
             description: string;
             /** Id */
@@ -9734,7 +9817,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NotebookRuntimeStart"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9743,6 +9830,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9763,6 +9859,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+        };
+    };
+    list_notebook_compute_targets_api_notebooks_runtime_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookComputeTarget"][];
                 };
             };
         };

@@ -6,8 +6,13 @@ Resolved once per kernel. The kernel is spawned by the notebook runtime with
 exactly the paths the server is using — the SDK never guesses a location and
 never needs a config file of its own.
 
-`ORINTH_NOTEBOOK_ID` is set the same way, which is how `orinth.runs` knows where
-to write and `orinth.project()` knows which project it is in without being told.
+Which notebook this is, though, is **not** in the environment. The runtime spawns
+one `jupyter-server` for the whole workspace and it spawns every kernel, so a
+per-notebook variable has nowhere to be set. It is read from the working
+directory instead: `jupyter-server` starts a kernel in the directory of the
+session path, which for `<notebook_id>/notebook.ipynb` is the notebook's own
+directory. `ORINTH_NOTEBOOK_ID` still wins when something sets it, which is what
+tests and a headless runner use.
 """
 
 import functools
@@ -41,9 +46,32 @@ def notebook_id() -> str | None:
     None is a normal state — the SDK is importable from a plain `python -c` for
     testing — and every caller that needs an id says so with its own error
     rather than assuming.
+
+    The working-directory branch is what makes `orinth.runs` work at all. The
+    first cut read only `ORINTH_NOTEBOOK_ID`, and nothing anywhere set it: one
+    `jupyter-server` serves every notebook in the workspace, so there is no
+    point in the lifecycle where a per-notebook variable could be written. Every
+    `orinth.runs.log(...)` in a real kernel therefore raised, and the Runs rail
+    could never fill. A kernel's cwd, by contrast, *is* per notebook —
+    `jupyter-server` starts it in the session path's directory.
+
+    The identity is confirmed against the workspace rather than trusted: the
+    directory has to sit directly under `storage/notebooks/` and hold a
+    `manifest.json`, so a kernel started somewhere else reports None instead of
+    inventing a notebook out of whatever `cwd` happened to be.
     """
     value = (os.environ.get("ORINTH_NOTEBOOK_ID") or "").strip()
-    return value or None
+    if value:
+        return value
+    try:
+        directory = Path.cwd().resolve()
+    except OSError:
+        # A deleted cwd is possible and is not this function's problem.
+        return None
+    root = storage().notebooks.resolve()
+    if directory.parent == root and (directory / "manifest.json").is_file():
+        return directory.name
+    return None
 
 
 def notebook_dir() -> Path | None:

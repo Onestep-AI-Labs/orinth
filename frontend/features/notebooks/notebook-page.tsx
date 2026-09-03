@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useProject } from "@/components/app-shell";
 import {
@@ -12,6 +12,7 @@ import {
   Code2,
   Eraser,
   FastForward,
+  Pencil,
   Plus,
   RotateCcw,
   Text,
@@ -25,7 +26,11 @@ import { MarkdownCell } from "@/features/notebooks/markdown-cell";
 import { NotebookKernel, type ExecutionOutput, type KernelState } from "@/features/notebooks/kernel-client";
 import { useNotebookQuery, useNotebookRunsQuery } from "@/features/notebooks/hooks";
 import { RuntimeBanner } from "@/features/notebooks/runtime-banner";
-import { useNotebookRuntimeQuery } from "@/features/notebooks/hooks";
+import { RuntimeStartDialog } from "@/features/notebooks/runtime-dialog";
+import {
+  useNotebookRuntimeQuery,
+  useRenameNotebookMutation
+} from "@/features/notebooks/hooks";
 import { api } from "@/lib/api";
 import { toast } from "@/features/platform/toast";
 import {
@@ -92,17 +97,48 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
   const runtimeQuery = useNotebookRuntimeQuery();
   const runsQuery = useNotebookRunsQuery(notebookId);
 
+  const renameMutation = useRenameNotebookMutation();
+
   const [cells, setCells] = useState<Cell[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [kernelState, setKernelState] = useState<KernelState>("unknown");
   const [connecting, setConnecting] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  //: Asked once per visit. A modal that returns after you dismissed it is not
+  //: asking, it is insisting — so this latches rather than tracking the runtime.
+  const [runtimePrompted, setRuntimePrompted] = useState(false);
+  const [runtimeDialogOpen, setRuntimeDialogOpen] = useState(false);
   const kernel = useRef<NotebookKernel | null>(null);
+  //: Cell id -> its article node, for scrolling the running one into view.
+  const cellNodes = useRef(new Map<string, HTMLElement>());
   //: `runAll` awaits between cells, so a closed-over `cells` would be the array
   //: as it stood when the loop started — stale by the second iteration.
   const cellsRef = useRef<Cell[]>([]);
   cellsRef.current = cells;
 
   const runtimeRunning = runtimeQuery.data?.state === "running";
+
+  // --- ask to start the runtime, once ------------------------------------
+  useEffect(() => {
+    if (runtimePrompted || runtimeQuery.isLoading || !runtimeQuery.data) return;
+    setRuntimePrompted(true);
+    if (runtimeQuery.data.state !== "running") setRuntimeDialogOpen(true);
+  }, [runtimePrompted, runtimeQuery.data, runtimeQuery.isLoading]);
+
+  /**
+   * Bring a cell into view, and keep it there while it runs.
+   *
+   * `block: "center"` rather than `"nearest"`: a running cell parked at the very
+   * bottom edge shows its first output line and nothing else, which is the one
+   * thing you opened it to watch. `behavior: "smooth"` is dropped under
+   * `prefers-reduced-motion`, per DESIGN.md §4.
+   */
+  function scrollToCell(id: string) {
+    const node = cellNodes.current.get(id);
+    if (!node) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+  }
 
   // --- load the document once the notebook exists -------------------------
   useEffect(() => {
@@ -140,41 +176,68 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
   }, [loaded, notebookQuery.data, runtimeRunning]);
 
   // --- connect the kernel -------------------------------------------------
-  const connect = useCallback(async () => {
-    if (kernel.current || !notebookQuery.data) return;
-    setConnecting(true);
-    try {
-      const session = await api.notebookSession(notebookId);
-      const client = new NotebookKernel(
-        session.base_url,
-        session.ws_url,
-        session.notebook_path,
-        session.kernel_name
-      );
-      await client.connect();
-      kernel.current = client;
-      setKernelState(client.state);
-      client.onStatusChange(setKernelState);
-    } catch (error) {
-      toast.error(`Could not start a kernel: ${(error as Error).message}`);
-    } finally {
-      setConnecting(false);
-    }
-  }, [notebookId, notebookQuery.data]);
-
+  /**
+   * One kernel client, owned by this effect.
+   *
+   * The connect used to live outside an effect, and leaked: a client is
+   * constructed *before* `connect()` resolves and starts polling `api/kernels`
+   * the moment it exists, so a failed connect — or a navigation away mid-flight
+   * — left a poller running against a page nobody was on. Against a stopped
+   * runtime that is `GET /api/notebooks/proxy/api/kernels → 503` forever, on a
+   * backoff that never gives up. Everything the effect creates, the effect
+   * disposes.
+   */
   useEffect(() => {
-    if (runtimeRunning && loaded) void connect();
-  }, [connect, loaded, runtimeRunning]);
-
-  useEffect(
-    () => () => {
+    if (!runtimeRunning || !loaded || !notebookQuery.data) return;
+    let client: NotebookKernel | null = null;
+    let cancelled = false;
+    setConnecting(true);
+    (async () => {
+      try {
+        const session = await api.notebookSession(notebookId);
+        client = new NotebookKernel(
+          session.base_url,
+          session.ws_url,
+          session.notebook_path,
+          session.kernel_name
+        );
+        await client.connect();
+        if (cancelled) {
+          void client.dispose();
+          return;
+        }
+        kernel.current = client;
+        setKernelState(client.state);
+        client.onStatusChange(setKernelState);
+        // A runtime that stops under an open page is the other half of the same
+        // bug: without this the client keeps retrying on its own backoff and the
+        // banner keeps saying `running`. Re-asking flips `runtimeRunning`, and
+        // this effect's own cleanup then disposes the client.
+        client.onConnectionFailure(() => void runtimeQuery.refetch());
+      } catch (error) {
+        void client?.dispose();
+        if (cancelled) return;
+        // The usual cause is a runtime that stopped under us — a backend
+        // restart leaves this page holding a status that says `running`. Re-ask
+        // rather than leaving the banner claiming everything is fine.
+        void runtimeQuery.refetch();
+        toast.error(`Could not start a kernel: ${(error as Error).message}`);
+      } finally {
+        if (!cancelled) setConnecting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
       // Drops the client connection only; the kernel keeps running so a page
       // reload reattaches to live state rather than losing it.
-      void kernel.current?.dispose();
+      void (kernel.current ?? client)?.dispose();
       kernel.current = null;
-    },
-    []
-  );
+      setKernelState("unknown");
+    };
+    // `runtimeQuery` is a react-query result object and changes identity on
+    // every render; depending on it would tear the kernel down on each one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, notebookId, notebookQuery.data, runtimeRunning]);
 
   // --- actions ------------------------------------------------------------
   function patch(id: string, update: Partial<Cell>) {
@@ -195,6 +258,9 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
     }
     const client = kernel.current;
     if (!client) return false;
+    // Before the request, not after: a cell that takes ten seconds to start
+    // should already be on screen while it does.
+    scrollToCell(id);
     patch(id, { outputs: [], running: true });
     try {
       const result = await client.execute(cell.source, (output) => {
@@ -247,8 +313,15 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
         patch(cell.id, { editing: false });
         continue;
       }
+      // `runCell` scrolls to each one as it starts, so a long run reads as a
+      // walk down the notebook rather than as a page that stopped responding.
       const failed = await runCell(cell.id);
-      if (failed) break;
+      if (failed) {
+        // Stop *on* the failure, in view. Leaving the viewport wherever it
+        // happened to be is how a traceback goes unread.
+        scrollToCell(cell.id);
+        break;
+      }
     }
   }
 
@@ -312,7 +385,44 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
         <Link className="nb-back" href="/notebooks">
           <ArrowLeft size={15} /> Notebooks
         </Link>
-        <h2 className="nb-title">{notebook.name}</h2>
+        {renaming === null ? (
+          <h2 className="nb-title">
+            <button
+              type="button"
+              className="nb-title-button"
+              onClick={() => setRenaming(notebook.name)}
+              title="Rename this notebook"
+            >
+              {notebook.name}
+              <Pencil size={13} aria-hidden="true" />
+            </button>
+          </h2>
+        ) : (
+          <form
+            className="nb-title-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = renaming.trim();
+              setRenaming(null);
+              // An unchanged or emptied name is a cancel, not a request. The
+              // API would take "" and leave the list with a blank row.
+              if (!name || name === notebook.name) return;
+              renameMutation.mutate({ notebookId: notebook.id, name });
+            }}
+          >
+            <input
+              className="text-input nb-title-input"
+              value={renaming}
+              autoFocus
+              aria-label="Notebook name"
+              onChange={(event) => setRenaming(event.target.value)}
+              onBlur={(event) => event.currentTarget.form?.requestSubmit()}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setRenaming(null);
+              }}
+            />
+          </form>
+        )}
         <div className="nb-header-actions">
           <Badge tone={KERNEL_TONE[kernelState] ?? "neutral"} title="Kernel status">
             <Circle size={8} /> {kernelState}
@@ -359,11 +469,22 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
       </div>
 
       {!runtimeRunning && <RuntimeBanner compact />}
+      <RuntimeStartDialog open={runtimeDialogOpen} onClose={() => setRuntimeDialogOpen(false)} />
 
       <div className="nb-layout">
         <section className="nb-cells">
           {cells.map((cell, index) => (
-            <article className="nb-cell" key={cell.id}>
+            <article
+              className={`nb-cell ${cell.running ? "nb-cell-running" : ""}`}
+              key={cell.id}
+              ref={(node) => {
+                // A map rather than an array of refs: cells are inserted,
+                // deleted and moved, so an index would point at the wrong one
+                // the moment anything reorders.
+                if (node) cellNodes.current.set(cell.id, node);
+                else cellNodes.current.delete(cell.id);
+              }}
+            >
               <div className="nb-cell-gutter">
                 <button
                   type="button"

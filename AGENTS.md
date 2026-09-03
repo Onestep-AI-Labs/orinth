@@ -19,8 +19,9 @@ If local skills are available, invoke `$orinth` for repository work.
 - Backend: `backend/` using FastAPI, `uv`, Python 3.11, SQLite, SQLAlchemy, TensorFlow/Keras, and Ultralytics.
 - CLI: `backend/app/cli/` — the `orinth` command. An **HTTP client of the backend**; it never
   imports `app.services`, `app.container`, or `app.core.database`. See `specs/phase-23-cli.md`.
-- Notebook SDK: `backend/orinth/` — the package a kernel imports. May import `app`; **`app` must
-  never import it**. See `specs/phase-22-notebooks.md`.
+- Notebook SDK: `backend/orinth/` — the package a kernel imports. One module per thing the platform
+  does (`datasets`, `models`, `train`, `evaluate`, `inference`, `runs`, `projects`, `settings`).
+  May import `app`; **`app` must never import it**. See `specs/phase-22-notebooks.md`.
 - Frontend: `frontend/` using Next.js, TypeScript, Tailwind, and pnpm.
 - Desktop: `desktop/` using Tauri v2 (Rust), packaged as a macOS `.dmg`.
 - Runtime artifacts: `storage/`, ignored.

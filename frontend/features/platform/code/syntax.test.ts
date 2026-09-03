@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { python } from "@codemirror/lang-python";
 import { highlightTree } from "@lezer/highlight";
 import { syntaxTree } from "@codemirror/language";
-import { orinthHighlight } from "@/features/notebooks/syntax";
+import { orinthHighlight } from "@/features/platform/code/syntax";
 
 /**
  * The first cut shipped `python()` with no HighlightStyle, so the parser built

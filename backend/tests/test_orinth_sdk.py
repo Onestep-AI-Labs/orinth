@@ -318,26 +318,110 @@ def test_the_backend_never_imports_the_sdk():
 
 
 def test_the_sdk_exposes_exactly_the_documented_surface():
-    """The templates are the SDK's documentation, so the surface has to stay
-    small enough to fit in four notebooks. A new public name is a decision."""
+    """The templates are the SDK's documentation, so every public name here has
+    to be reachable by opening one. A new name is a decision, and this is where
+    it gets made."""
     import orinth
 
     assert sorted(name for name in orinth.__all__ if not name.startswith("_")) == [
         "DatasetBusyError",
         "DatasetRef",
         "DatasetTooLargeError",
+        "Evaluation",
         "ModelRef",
         "OrinthError",
+        "Prediction",
         "ProjectRef",
         "ProjectTaskNotAllowed",
         "Readiness",
+        "TrainingRun",
         "datasets",
+        "evaluate",
+        "inference",
         "models",
         "project",
         "projects",
         "runs",
         "settings",
+        "train",
     ]
+
+
+# --- driving the platform's own jobs ------------------------------------------
+
+
+def test_a_training_job_maps_onto_the_run_a_notebook_reads():
+    """`promoted_model_id` is the field that matters: it is the join from "the
+    run finished" to every other module, all of which take a model id."""
+    from orinth.train import _run
+
+    run = _run(
+        {
+            "id": "job-1",
+            "project_id": "p",
+            "task_type": "classification",
+            "model_family": "keras_classification",
+            "status": "completed",
+            "progress": {"percent": 100.0, "current_step": "Completed"},
+            "metrics": {"accuracy": 0.9},
+            "promoted_model_id": "trained_keras_classification_job1",
+        }
+    )
+
+    assert run.model_id == "trained_keras_classification_job1"
+    assert run.done and bool(run) and run.percent == 100.0
+
+    failed = _run({"id": "job-2", "status": "failed", "error": "diverged"})
+    # Terminal, but not a success — a template that branches on truthiness must
+    # not treat a crash as a finished model.
+    assert failed.done and not bool(failed)
+
+
+def test_an_evaluation_that_is_still_running_is_not_truthy():
+    from orinth.evaluate import _evaluation
+
+    running = _evaluation({"id": "e", "status": "running", "progress": {"percent": 40.0}})
+    assert not running.done and not bool(running)
+
+
+def test_predict_refuses_both_an_image_and_a_text():
+    """They are different predictors. Guessing which the caller meant is not the
+    API's job and is not this function's either."""
+    from orinth import inference
+
+    with pytest.raises(OrinthError) as both:
+        inference.predict("m", "a.jpg", text="hello")
+    assert "exactly one" in str(both.value)
+
+    with pytest.raises(OrinthError):
+        inference.predict("m")
+
+
+def test_predict_names_a_missing_image_before_uploading_nothing(tmp_path):
+    from orinth import inference
+
+    with pytest.raises(OrinthError) as failure:
+        inference.predict("m", tmp_path / "nope.jpg")
+    assert "No such image" in str(failure.value)
+
+
+def test_a_prediction_carries_the_verdict_and_the_geometry():
+    from orinth.inference import _prediction
+
+    prediction = _prediction(
+        {
+            "id": "i1",
+            "model_id": "m",
+            "image_level_label": "kista",
+            "class_scores": {"kista": 0.8, "granuloma": 0.2},
+            "detections": [{"class_name": "kista"}],
+            "overlay_url": "/media/overlays/i1.jpg",
+        }
+    )
+
+    assert prediction.label == "kista"
+    assert prediction.scores["kista"] == 0.8
+    assert prediction.overlay_url.endswith("i1.jpg")
 
 
 def test_runs_outside_a_kernel_say_so_rather_than_writing_somewhere_odd(workspace, monkeypatch):
@@ -415,3 +499,67 @@ def test_an_artifact_name_cannot_escape_its_run(workspace, monkeypatch, tmp_path
     written = run.log_artifact(b"data", name="../../escaped.txt")
     assert written.parent.name == "artifacts"
     assert written.name == "escaped.txt"
+
+
+# --- which notebook a kernel is in --------------------------------------------
+
+
+def test_a_kernel_finds_its_notebook_from_its_working_directory(workspace, monkeypatch):
+    """The first cut read only `ORINTH_NOTEBOOK_ID`, which nothing ever set.
+
+    One `jupyter-server` serves the whole workspace, so there is no point in the
+    lifecycle where a per-notebook variable could be written — and every
+    `orinth.runs.log(...)` in a real kernel raised as a result. The cwd is the
+    per-notebook fact that actually exists.
+    """
+    from orinth import _workspace
+
+    monkeypatch.delenv("ORINTH_NOTEBOOK_ID", raising=False)
+    directory = workspace.notebooks / "demo-notebook"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "manifest.json").write_text('{"id": "demo-notebook"}', encoding="utf-8")
+    monkeypatch.chdir(directory)
+
+    assert _workspace.notebook_id() == "demo-notebook"
+    assert _workspace.notebook_dir() == directory
+
+
+def test_a_kernel_outside_the_workspace_claims_no_notebook(workspace, monkeypatch, tmp_path):
+    """Trusting the cwd unconditionally would invent a notebook out of whatever
+    directory a stray kernel happened to start in."""
+    from orinth import _workspace
+
+    monkeypatch.delenv("ORINTH_NOTEBOOK_ID", raising=False)
+    monkeypatch.chdir(tmp_path)
+    assert _workspace.notebook_id() is None
+
+    # Under the right root, but with no manifest: still not a notebook.
+    stray = workspace.notebooks / "not-a-notebook"
+    stray.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(stray)
+    assert _workspace.notebook_id() is None
+
+
+# --- reproducing what /inference does -----------------------------------------
+
+
+def test_inference_parameters_carry_the_platforms_own_defaults():
+    """A template that hardcoded 0.65 would drift the day the default moves."""
+    from orinth import models
+
+    defaults = models.parameters()
+    assert (defaults.confidence_threshold, defaults.iou_threshold) == (0.65, 0.7)
+    assert models.parameters(confidence_threshold=0.4).confidence_threshold == 0.4
+
+
+def test_image_label_is_the_verdict_inference_derives():
+    from app.schemas import Box, Detection
+    from orinth import models
+
+    box = Box(x=0, y=0, width=1, height=1)
+    small = Detection(class_id=0, class_name="granuloma", confidence=0.9, bbox=box, mask_area=1.0)
+    large = Detection(class_id=1, class_name="kista", confidence=0.5, bbox=box, mask_area=9.0)
+
+    assert models.image_label([]) == "Normal"
+    # Largest mask wins, not highest confidence — the rule /inference uses.
+    assert models.image_label([small, large]) == "kista"

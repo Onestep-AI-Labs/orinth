@@ -40,6 +40,20 @@ RUNS_DIRNAME = "runs"
 #: by us and tracked in git, where `storage/` is generated and ignored.
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
+#: Picker order. A category is free text in the template's own metadata; this
+#: only decides where a known one sits, so adding a template never requires
+#: editing a registry to make it visible.
+CATEGORY_ORDER = [
+    "Start",
+    "Pipelines",
+    "Data",
+    "Vision",
+    "Text",
+    "Training",
+    "Testing",
+    "Inference",
+]
+
 _SLUG = re.compile(r"[^a-z0-9]+")
 
 
@@ -255,10 +269,24 @@ class NotebookService:
                     id=path.stem,
                     name=meta.get("name") or path.stem.replace("-", " ").title(),
                     description=meta.get("description") or "",
+                    category=meta.get("category") or "General",
                     task_types=list(meta.get("task_types") or []),
                 )
             )
-        return found
+        # Ordered the way the work is ordered — look at data, train, test,
+        # serve — rather than alphabetically, which would open the picker on
+        # "Batch inference". An unrecognised category sorts last rather than
+        # being dropped, so a template added without touching this list still
+        # appears.
+        return sorted(
+            found,
+            key=lambda template: (
+                CATEGORY_ORDER.index(template.category)
+                if template.category in CATEGORY_ORDER
+                else len(CATEGORY_ORDER),
+                template.name,
+            ),
+        )
 
     def _template_content(self, template_id: str | None) -> dict:
         if template_id:

@@ -5,7 +5,7 @@ import { ClipboardCopy, Database } from "lucide-react";
 import { useDatasetCatalogQuery } from "@/features/datasets/hooks";
 import { ReadinessBadge } from "@/features/datasets/readiness-badge";
 import { toast } from "@/features/platform/toast";
-import { EmptyState, InlineSpinner, PanelTitle } from "@/features/platform/ui";
+import { EmptyState, InlineSpinner, ListSkeleton, PanelTitle } from "@/features/platform/ui";
 import { formatDatasetTask } from "@/features/platform/utils";
 
 /**
@@ -19,11 +19,26 @@ import { formatDatasetTask } from "@/features/platform/utils";
  * Readiness rides along because it is the thing worth knowing before loading:
  * a dataset that is not trainable will still `load()`, and finding that out
  * from a badge beats finding it out from a confusing frame.
+ *
+ * The catalog costs seconds to build — it walks every split of every dataset —
+ * so this rail asks for a long stale window. The first cut used the page
+ * default and re-fetched on every visit, which meant the panel spent those
+ * seconds showing a spinner (or, worse, "No datasets here yet") for a list that
+ * had not changed since the last time it was looked at.
  */
+
+//: Five minutes. Any mutation that changes the catalog invalidates the key, so
+//: this only governs how often an *unchanged* list is rebuilt from scratch.
+const RAIL_STALE_TIME = 5 * 60_000;
+
 export function DatasetRail({ projectId }: { projectId: string }) {
-  const catalogQuery = useDatasetCatalogQuery(projectId);
+  const catalogQuery = useDatasetCatalogQuery(projectId, { staleTime: RAIL_STALE_TIME });
   const [copied, setCopied] = useState("");
   const datasets = catalogQuery.data ?? [];
+  //: The contract: nothing yet is a skeleton, a refresh over existing rows is
+  //: the inline spinner. Showing the empty state while the first request is
+  //: still out told the user there were no datasets when nobody had looked.
+  const loading = catalogQuery.isPending || (catalogQuery.isFetching && datasets.length === 0);
 
   async function copy(datasetId: string) {
     const snippet = `orinth.datasets.load("${datasetId}", "train")`;
@@ -43,9 +58,11 @@ export function DatasetRail({ projectId }: { projectId: string }) {
     <section className="panel">
       <div className="mb-3 flex items-center justify-between gap-2">
         <PanelTitle icon={<Database size={16} />} title="Datasets" />
-        {catalogQuery.isFetching && <InlineSpinner label="Loading" />}
+        {catalogQuery.isFetching && datasets.length > 0 && <InlineSpinner label="Refreshing" />}
       </div>
-      {datasets.length === 0 ? (
+      {loading ? (
+        <ListSkeleton rows={3} />
+      ) : datasets.length === 0 ? (
         <EmptyState
           icon={<Database size={22} />}
           label="No datasets here yet."

@@ -72,3 +72,72 @@ class RunRef:
     status: str
     started_at: str | None = None
     finished_at: str | None = None
+
+
+@dataclass(frozen=True)
+class TrainingRun:
+    """One training job, as the platform's own Training page sees it.
+
+    Carries `model_id` because that is the question a notebook asks next: a
+    finished run has registered a model, and everything downstream —
+    `evaluate.start()`, `inference.predict()`, `models.predictor()` — takes that
+    id and not this one.
+    """
+
+    id: str
+    project_id: str
+    task_type: str
+    model_family: str
+    status: str
+    percent: float
+    step: str
+    metrics: dict
+    model_id: str | None
+    error: str | None = None
+
+    @property
+    def done(self) -> bool:
+        return self.status in {"completed", "failed", "canceled"}
+
+    def __bool__(self) -> bool:
+        """`if run:` means it finished and produced something."""
+        return self.status == "completed"
+
+
+@dataclass(frozen=True)
+class Evaluation:
+    """One evaluation job. `metrics` is per task type — see the Testing page."""
+
+    id: str
+    model_id: str
+    dataset_key: str
+    status: str
+    percent: float
+    metrics: dict
+    error: str | None = None
+
+    @property
+    def done(self) -> bool:
+        return self.status in {"completed", "failed", "canceled"}
+
+    def __bool__(self) -> bool:
+        return self.status == "completed"
+
+
+@dataclass(frozen=True)
+class Prediction:
+    """One inference result, recorded by the platform exactly as the studio does.
+
+    `label` is the image-level verdict, `detections` the raw boxes and polygons,
+    `scores` the class probabilities where the model produces them. A text model
+    fills `text` with its own result shape — label + scores, a summary, or an
+    answer — and leaves the geometry empty.
+    """
+
+    id: str
+    model_id: str
+    label: str
+    scores: dict[str, float]
+    detections: list[dict]
+    text: dict | None = None
+    overlay_url: str | None = None

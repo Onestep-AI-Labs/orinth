@@ -105,12 +105,30 @@ async def forward_websocket(
 
     from websockets.exceptions import ConnectionClosed
 
-    base = _require_running(runtime).replace("http://", "ws://")
+    try:
+        base = runtime.base_url().replace("http://", "ws://")
+    except NotebookRuntimeError as error:
+        # Closed, not raised. An `HTTPException` from a websocket route makes
+        # Starlette write a denial response *and* the exception middleware write
+        # another, so the 503 goes out with two `Content-Length` and two
+        # `Content-Type` headers — a malformed message that Node's HTTP parser
+        # rejects outright (`HPE_UNEXPECTED_CONTENT_LENGTH`). Which means that
+        # with the runtime stopped, the dev proxy in front of the app failed to
+        # parse the refusal rather than passing it on.
+        await websocket.close(code=1011, reason=str(error)[:120])
+        return
+
     url = f"{base}/api/notebooks/proxy/{path.lstrip('/')}"
     if query:
         url = f"{url}?{query}"
 
-    await websocket.accept(subprotocol=_negotiated_subprotocol(websocket))
+    # Whatever the client negotiated is what the upstream leg speaks. The two
+    # legs have to agree: `v1.kernel.websocket.jupyter.org` frames messages as
+    # binary with an offset table, and no subprotocol means JSON text. Pinning
+    # v1 upstream regardless left a client that asked for neither reading binary
+    # frames as JSON, which fails as a silent hang rather than as an error.
+    subprotocol = _negotiated_subprotocol(websocket)
+    await websocket.accept(subprotocol=subprotocol)
 
     try:
         import websockets
@@ -122,9 +140,7 @@ async def forward_websocket(
         async with websockets.connect(
             url,
             additional_headers=runtime.headers(),
-            # Jupyter's kernel protocol negotiates this; declining it silently
-            # makes message framing subtly wrong rather than failing loudly.
-            subprotocols=["v1.kernel.websocket.jupyter.org"],
+            subprotocols=[subprotocol] if subprotocol else [],
             max_size=None,
             open_timeout=30,
         ) as upstream:

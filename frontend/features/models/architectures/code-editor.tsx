@@ -1,20 +1,25 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { PrismAsync as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { useMemo } from "react";
 import { AlertTriangle, Info } from "lucide-react";
+import { PythonEditor } from "@/features/platform/code/python-editor";
+import { pythonApiCompletions } from "@/features/platform/code/python-api";
 
 export type LintFinding = { line: number; severity: "error" | "warning"; message: string };
 
 /**
- * An editable Python field with real syntax highlighting.
+ * The Python field for a custom layer or a custom function.
  *
- * A transparent textarea sits exactly on top of a highlighted `<pre>`, both
- * sharing one font metric and scroll offset. The user types into the textarea
- * and reads the highlighted layer beneath — the standard way to get syntax
- * colour without shipping a full editor engine, which for a twenty-line layer
- * body would be far more weight than the job needs.
+ * This was a transparent `<textarea>` over a highlighted `<pre>` — enough for
+ * colour, and nothing else. Which meant the one place in the product where you
+ * write Python *by hand, against an API you half-remember* had no completion,
+ * no bracket matching, and a Tab key that inserted four spaces wherever the
+ * caret happened to be, including at the start of a `return`. The notebook next
+ * door had all of it. Now they are the same editor: `PythonEditor` supplies the
+ * mechanics, and this supplies the two things specific to a layer body —
+ * completion over the Keras and torch surface (there is no kernel here to ask,
+ * so the table in `python-api.ts` is the only source available) and the lint
+ * findings, marked in the gutter and listed underneath.
  */
 export function CodeEditor({
   value,
@@ -29,81 +34,23 @@ export function CodeEditor({
   minRows?: number;
   ariaLabel: string;
 }) {
-  const [scroll, setScroll] = useState({ top: 0, left: 0 });
-  const textarea = useRef<HTMLTextAreaElement>(null);
-  const lines = value.split("\n");
-  const rows = Math.min(Math.max(lines.length + 1, minRows), 40);
-
-  // Tab should indent rather than leave the field — the single thing that most
-  // makes a textarea feel unusable for code.
-  const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Tab") return;
-    event.preventDefault();
-    const element = event.currentTarget;
-    const { selectionStart, selectionEnd } = element;
-    const next = `${value.slice(0, selectionStart)}    ${value.slice(selectionEnd)}`;
-    onChange(next);
-    requestAnimationFrame(() => {
-      element.selectionStart = element.selectionEnd = selectionStart + 4;
-    });
-  };
+  const completions = useMemo(() => [pythonApiCompletions()], []);
 
   return (
     <div className="code-editor">
-      <div className="code-editor-frame" style={{ height: `${rows * 1.55}em` }}>
-        <div className="code-editor-gutter" style={{ transform: `translateY(-${scroll.top}px)` }}>
-          {lines.map((_line, index) => (
-            <span
-              key={index}
-              className={
-                findings.some((finding) => finding.line === index + 1)
-                  ? "code-editor-line code-editor-line-flagged"
-                  : "code-editor-line"
-              }
-            >
-              {index + 1}
-            </span>
-          ))}
-        </div>
-        <div className="code-editor-surface">
-          <div
-            className="code-editor-highlight"
-            aria-hidden
-            style={{ transform: `translate(-${scroll.left}px, -${scroll.top}px)` }}
-          >
-            <SyntaxHighlighter
-              language="python"
-              style={oneLight}
-              customStyle={{
-                margin: 0,
-                padding: 0,
-                background: "transparent",
-                fontSize: "0.75rem",
-                lineHeight: 1.55,
-                overflow: "visible"
-              }}
-            >
-              {`${value}\n`}
-            </SyntaxHighlighter>
-          </div>
-          <textarea
-            ref={textarea}
-            className="code-editor-input"
-            aria-label={ariaLabel}
-            value={value}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-            onKeyDown={onKeyDown}
-            onScroll={(event) =>
-              setScroll({
-                top: event.currentTarget.scrollTop,
-                left: event.currentTarget.scrollLeft
-              })
-            }
-            onChange={(event) => onChange(event.target.value)}
-          />
-        </div>
+      <div className="code-editor-frame">
+        <PythonEditor
+          value={value}
+          onChange={onChange}
+          completions={completions}
+          diagnostics={findings}
+          ariaLabel={ariaLabel}
+          placeholder={minRows > 4 ? "class MyLayer(tf.keras.layers.Layer): ..." : "tf.nn.gelu(x)"}
+          // A one-expression function does not need ten lines of empty field,
+          // and a layer body cannot be written in three.
+          minHeight={`${Math.max(minRows, 3) * 1.55}em`}
+          maxHeight="40em"
+        />
       </div>
       {findings.length > 0 && (
         <ul className="code-editor-findings">

@@ -4848,6 +4848,40 @@ tr:last-child td {
   border-bottom: 0;
 }
 
+/* Previous / next, sitting with the list it pages rather than centred beneath
+   it — a centred pager reads as the end of the page, which it is not. */
+.pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pager-status {
+  min-width: 46px;
+  color: var(--color-ink-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Rail-width loading rows. Two lines, not three columns: at 280px a table
+   skeleton reads as a broken table rather than as pending content. */
+.skeleton-list {
+  display: grid;
+  gap: 0;
+}
+
+.skeleton-list-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.skeleton-list-row:last-child {
+  border-bottom: 0;
+}
+
 .inline-spinner {
   display: inline-flex;
   align-items: center;
@@ -8014,8 +8048,11 @@ td {
   gap: 8px;
 }
 
+/* The frame is the chrome; CodeMirror owns everything inside it. The gutter,
+   the highlight layer and the textarea that used to live here went with the
+   textarea implementation they belonged to. */
 .code-editor-frame {
-  display: flex;
+  display: grid;
   min-height: 0;
   border: 1px solid var(--color-line-input);
   border-radius: var(--radius-sm);
@@ -8028,77 +8065,38 @@ td {
   box-shadow: var(--ring-accent);
 }
 
-.code-editor-gutter {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0;
-  border-right: 1px solid var(--color-line);
-  background: var(--color-surface);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.55;
-  color: var(--color-ink-subtle);
-  user-select: none;
-  flex-shrink: 0;
-}
-
-.code-editor-line {
-  padding: 0 8px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.code-editor-line-flagged {
-  color: var(--color-danger-strong);
-  background: var(--color-danger-tint);
-}
-
-/* The highlighted layer and the textarea are stacked and must share one font
-   metric exactly, or the caret drifts from the glyphs beneath it. */
-.code-editor-surface {
-  position: relative;
-  flex: 1;
+/* The CodeMirror host, shared by the notebook cell and the studio's layer
+   field. Colours come from the editor theme, which is built from tokens. */
+.code-surface {
   min-width: 0;
-  overflow: hidden;
 }
 
-.code-editor-highlight,
-.code-editor-input {
-  padding: 8px 10px;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.55;
-  tab-size: 4;
-  white-space: pre;
-  word-break: normal;
-}
-
-.code-editor-highlight {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: visible;
-}
-
-.code-editor-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
+.code-surface .cm-editor {
   height: 100%;
-  border: 0;
-  resize: none;
-  background: transparent;
-  color: transparent;
-  caret-color: var(--color-ink);
-  overflow: auto;
 }
 
-.code-editor-input:focus {
-  outline: none;
+/* A dot in the margin, not a squiggle under the text: at 13px in a narrow
+   inspector an underline is indistinguishable from a selection, and the message
+   itself is already listed below the field. */
+.cm-diagnostic-gutter {
+  padding-left: 4px;
+  width: 12px;
 }
 
-.code-editor-input::selection {
-  background: var(--color-accent-tint-strong);
+.cm-diagnostic-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: var(--radius-pill);
+}
+
+.cm-diagnostic-error {
+  background: var(--color-danger);
+}
+
+.cm-diagnostic-warning {
+  background: var(--color-warn);
 }
 
 .code-editor-findings {
@@ -8679,7 +8677,7 @@ td {
 
 /* --- settings dialog ------------------------------------------------------ */
 
-.arch-modal-overlay {
+.modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 950;
@@ -8690,7 +8688,7 @@ td {
   backdrop-filter: blur(2px);
 }
 
-.arch-modal {
+.modal-panel {
   display: flex;
   flex-direction: column;
   width: min(560px, 100%);
@@ -8702,11 +8700,11 @@ td {
   overflow: hidden;
 }
 
-.arch-modal:focus {
+.modal-panel:focus {
   outline: none;
 }
 
-.arch-modal-head {
+.modal-head {
   display: flex;
   align-items: start;
   justify-content: space-between;
@@ -8715,26 +8713,46 @@ td {
   border-bottom: 1px solid var(--color-line);
 }
 
-.arch-modal-heading h2 {
+.modal-heading h2 {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-ink);
 }
 
-.arch-modal-heading p {
+.modal-heading p {
   margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   color: var(--color-ink-subtle);
 }
 
-.arch-modal-head .icon-button {
+/* The studio's subtitle is an identifier — `Conv2D · conv_1` — so it reads as
+   one. Prose subtitles elsewhere stay in the body face. */
+.modal-panel-mono-subtitle .modal-heading p {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+/* A dialog whose body is prose and controls rather than a full-bleed panel. */
+.modal-body-padded {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 18px 18px;
+}
+
+.modal-head .icon-button {
   min-height: 32px;
   width: 32px;
   padding: 0;
 }
 
-.arch-modal-body {
+.modal-body {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -8742,7 +8760,7 @@ td {
 
 /* The inspector is the dialog's body, so it sheds the rail's border and radius
    and fills the panel it is now inside of. */
-.arch-modal .arch-inspector {
+.modal-panel .arch-inspector {
   flex: 1;
   min-width: 0;
   border: 0;
@@ -9473,6 +9491,79 @@ td {
   color: var(--color-warn-strong);
 }
 
+/* The title is a control, so it reads as text until you point at it. A field
+   sitting there permanently would say "type here" on a page whose job is code. */
+.nb-title-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+}
+
+.nb-title-button svg {
+  opacity: 0;
+  color: var(--color-ink-subtle);
+  transition: opacity 120ms ease-out;
+}
+
+.nb-title-button:hover svg,
+.nb-title-button:focus-visible svg {
+  opacity: 1;
+}
+
+.nb-title-form {
+  min-width: 0;
+  flex: 1;
+}
+
+.nb-title-input {
+  width: min(420px, 100%);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.nb-card-rename {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+/* The machine dropdown: icon, select, and the reason under it. */
+.nb-device-picker {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.nb-device-picker svg {
+  color: var(--color-ink-subtle);
+}
+
+.nb-device-picker .form-caption {
+  grid-column: 2;
+}
+
+.nb-runtime-explainer {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  color: var(--color-ink-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.nb-runtime-explainer svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-ink-subtle);
+}
+
 .nb-runtime-error {
   color: var(--color-danger-strong);
   font-size: 12px;
@@ -9480,11 +9571,38 @@ td {
 
 /* --- list ---------------------------------------------------------------- */
 
+/* Category tabs on the left, the pager on the right, sharing one baseline. At
+   narrow widths the tabs wrap and the pager drops below them rather than
+   squeezing — eight categories do not fit on a laptop half-screen. */
+.nb-template-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.nb-template-tabs {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* The list header carries its own pager, so the panel title cannot be the only
+   thing on that line. */
+.nb-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 .nb-template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .nb-template {
@@ -9645,6 +9763,23 @@ td {
 
 .nb-cell:focus-within {
   border-color: var(--color-accent);
+}
+
+/* The running cell. An accent left edge and a tinted gutter, not a fill: the
+   cell's own content is what you are trying to read, and a wash over it makes
+   the output harder to see at exactly the moment it appears. */
+.nb-cell-running {
+  border-color: var(--color-accent);
+  box-shadow: inset 3px 0 0 0 var(--color-accent);
+}
+
+.nb-cell-running .nb-cell-gutter {
+  background: var(--color-accent-tint);
+}
+
+.nb-cell-running .nb-cell-count {
+  color: var(--color-accent-strong);
+  font-weight: 600;
 }
 
 .nb-cell-gutter {

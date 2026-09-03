@@ -1,15 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Copy, FileCode2, MoreVertical, NotebookPen, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Copy, FileCode2, MoreVertical, NotebookPen, Pencil, Trash2 } from "lucide-react";
 import { useProject } from "@/components/app-shell";
 import {
   useCreateNotebookMutation,
   useDeleteNotebookMutation,
   useDuplicateNotebookMutation,
   useNotebookTemplatesQuery,
-  useNotebooksQuery
+  useNotebooksQuery,
+  useRenameNotebookMutation
 } from "@/features/notebooks/hooks";
 import { RuntimeBanner } from "@/features/notebooks/runtime-banner";
 import {
@@ -20,20 +21,37 @@ import {
   Field,
   MutationError,
   PageHeader,
+  Pager,
   PanelTitle,
   useConfirmationDialog
 } from "@/features/platform/ui";
 import type { NotebookSummary, NotebookTemplate } from "@/types/api";
 
 /**
- * The notebooks in this project, and the four ways to start one.
+ * The notebooks in this project, and the ways to start one.
  *
  * Templates lead rather than sitting behind a "new from template" menu, because
  * they are the SDK's documentation: a user discovers what `orinth` can do by
- * opening "Dataset EDA", not by reading a signature list. That is also the
- * constraint that keeps the SDK small — if it does not fit in four notebooks,
- * it is too big.
+ * opening "Dataset EDA", not by reading a signature list.
+ *
+ * Twenty-two of them stacked in category sections was a wall to scroll, so they
+ * are **tabbed** by category with an All tab in front, and paged six at a time.
+ * Tabs rather than sections because the categories are alternatives — you are
+ * looking for a training notebook *or* a data one — and a tab bar says that
+ * while a stack of headings makes you scan all of them to find out.
+ *
+ * The category list is derived from what the backend sent, in the order it sent
+ * it. A template that names a new category appears under a new tab with no
+ * change here.
  */
+
+//: Six fills two rows of the card grid at most widths, which is the point where
+//: a page of options stops being scannable at a glance.
+const TEMPLATES_PER_PAGE = 6;
+//: Nine is three rows of cards. The notebook list grows without bound — one per
+//: experiment — and an unpaged list of forty is a scroll, not a chooser.
+const NOTEBOOKS_PER_PAGE = 9;
+const ALL_TAB = "All";
 
 function relative(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -45,6 +63,30 @@ function relative(iso: string | null | undefined): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+/**
+ * The category tabs, in the order the backend sent the templates.
+ *
+ * Derived rather than declared: the server owns the ordering (it is the order
+ * the work happens in, not alphabetical), and a hardcoded list here would be a
+ * second definition to keep in sync — and would silently drop a category the
+ * next template introduces.
+ */
+export function categoriesOf(templates: NotebookTemplate[]): string[] {
+  const seen: string[] = [];
+  for (const template of templates) {
+    if (!seen.includes(template.category)) seen.push(template.category);
+  }
+  return seen;
+}
+
+export function pageOf<T>(items: T[], page: number, size: number): T[] {
+  return items.slice(page * size, page * size + size);
+}
+
+export function pageCountOf(total: number, size: number): number {
+  return Math.max(1, Math.ceil(total / size));
 }
 
 function TemplateCard({
@@ -70,6 +112,12 @@ export function NotebooksPage() {
   const { projectId, project } = useProject();
   const [name, setName] = useState("");
   const [menuId, setMenuId] = useState("");
+  const [tab, setTab] = useState(ALL_TAB);
+  //: The notebook being renamed inline, and its draft name. One at a time —
+  //: two open editors on one list is a state nobody asked for.
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [templatePage, setTemplatePage] = useState(0);
+  const [notebookPage, setNotebookPage] = useState(0);
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const notebooksQuery = useNotebooksQuery(projectId);
@@ -77,11 +125,25 @@ export function NotebooksPage() {
   const createMutation = useCreateNotebookMutation((id) => router.push(`/notebooks/${id}`));
   const duplicateMutation = useDuplicateNotebookMutation();
   const deleteMutation = useDeleteNotebookMutation();
+  const renameMutation = useRenameNotebookMutation();
 
   const notebooks = notebooksQuery.data ?? [];
+  const templates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data]);
+  const categories = useMemo(() => categoriesOf(templates), [templates]);
+  const visibleTemplates = useMemo(
+    () => (tab === ALL_TAB ? templates : templates.filter((entry) => entry.category === tab)),
+    [tab, templates]
+  );
+
+  // A tab with fewer pages than the one before it would otherwise leave the
+  // pager pointing past the end, which renders as an empty grid.
+  const templatePages = pageCountOf(visibleTemplates.length, TEMPLATES_PER_PAGE);
+  const currentTemplatePage = Math.min(templatePage, templatePages - 1);
+  const notebookPages = pageCountOf(notebooks.length, NOTEBOOKS_PER_PAGE);
+  const currentNotebookPage = Math.min(notebookPage, notebookPages - 1);
 
   function create(templateId?: string) {
-    const template = (templatesQuery.data ?? []).find((entry) => entry.id === templateId);
+    const template = templates.find((entry) => entry.id === templateId);
     createMutation.mutate({
       project_id: projectId,
       // A template-started notebook is named after the template unless the user
@@ -93,6 +155,37 @@ export function NotebooksPage() {
   }
 
   function renderCard(notebook: NotebookSummary) {
+    if (renaming?.id === notebook.id) {
+      return (
+        <article className="nb-card" key={notebook.id}>
+          <form
+            className="nb-card-rename"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = renaming.name.trim();
+              setRenaming(null);
+              // Empty or unchanged is a cancel. The API would accept "" and
+              // leave a blank row in the list.
+              if (!name || name === notebook.name) return;
+              renameMutation.mutate({ notebookId: notebook.id, name });
+            }}
+          >
+            <input
+              className="text-input"
+              value={renaming.name}
+              autoFocus
+              aria-label={`Rename ${notebook.name}`}
+              onChange={(event) => setRenaming({ id: notebook.id, name: event.target.value })}
+              onBlur={(event) => event.currentTarget.form?.requestSubmit()}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setRenaming(null);
+              }}
+            />
+            <p className="form-caption">Enter to save · Esc to cancel</p>
+          </form>
+        </article>
+      );
+    }
     return (
       <article className="nb-card" key={notebook.id}>
         <button
@@ -128,6 +221,15 @@ export function NotebooksPage() {
           </button>
           {menuId === notebook.id && (
             <div className="option-menu" role="menu">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuId("");
+                  setRenaming({ id: notebook.id, name: notebook.name });
+                }}
+              >
+                <Pencil size={15} /> Rename
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -186,21 +288,73 @@ export function NotebooksPage() {
             onChange={(event) => setName(event.target.value)}
           />
         </Field>
-        <div className="nb-template-grid">
-          {(templatesQuery.data ?? []).map((template) => (
-            <TemplateCard
-              key={template.id}
-              template={template}
-              pending={createMutation.isPending}
-              onPick={() => create(template.id)}
-            />
-          ))}
-        </div>
-        <MutationError mutations={[createMutation, duplicateMutation, deleteMutation]} />
+        {templatesQuery.isLoading ? (
+          <CardGridSkeleton count={3} />
+        ) : (
+          <>
+            <div className="nb-template-bar">
+              <nav
+                className="segmented-control nb-template-tabs"
+                aria-label="Template categories"
+              >
+                {[ALL_TAB, ...categories].map((category) => {
+                  const count =
+                    category === ALL_TAB
+                      ? templates.length
+                      : templates.filter((entry) => entry.category === category).length;
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      className={tab === category ? "segmented-active" : ""}
+                      aria-current={tab === category ? "true" : undefined}
+                      onClick={() => {
+                        setTab(category);
+                        setTemplatePage(0);
+                      }}
+                    >
+                      {category}
+                      <span className="segmented-count">{count}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+              <Pager
+                page={currentTemplatePage}
+                pageCount={templatePages}
+                onChange={setTemplatePage}
+                label="Template pages"
+                unit="templates"
+              />
+            </div>
+            <div className="nb-template-grid">
+              {pageOf(visibleTemplates, currentTemplatePage, TEMPLATES_PER_PAGE).map((template) => (
+                <TemplateCard
+                  key={template.id}
+                  template={template}
+                  pending={createMutation.isPending}
+                  onPick={() => create(template.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        <MutationError
+          mutations={[createMutation, duplicateMutation, deleteMutation, renameMutation]}
+        />
       </section>
 
       <section className="panel">
-        <PanelTitle icon={<NotebookPen size={18} />} title="Your notebooks" />
+        <div className="nb-list-head">
+          <PanelTitle icon={<NotebookPen size={18} />} title="Your notebooks" />
+          <Pager
+            page={currentNotebookPage}
+            pageCount={notebookPages}
+            onChange={setNotebookPage}
+            label="Notebook pages"
+            unit="notebooks"
+          />
+        </div>
         {notebooksQuery.isLoading ? (
           <CardGridSkeleton count={3} />
         ) : notebooks.length === 0 ? (
@@ -210,7 +364,9 @@ export function NotebooksPage() {
             description="Pick a template above — Dataset EDA is the shortest way to see what is in your data."
           />
         ) : (
-          <div className="nb-grid">{notebooks.map(renderCard)}</div>
+          <div className="nb-grid">
+            {pageOf(notebooks, currentNotebookPage, NOTEBOOKS_PER_PAGE).map(renderCard)}
+          </div>
         )}
       </section>
 

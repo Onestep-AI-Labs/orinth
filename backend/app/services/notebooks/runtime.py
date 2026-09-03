@@ -51,6 +51,89 @@ class NotebookRuntimeError(RuntimeError):
     """The runtime could not start, or is not installed."""
 
 
+#: What a kernel inherits when the user picks a device. `ORINTH_DEVICE` is the
+#: platform's statement of intent, which `orinth.settings.workspace()` reports
+#: and a notebook can read; `CUDA_VISIBLE_DEVICES` is the one that actually
+#: constrains a framework, because both torch and TensorFlow honour it at import.
+#:
+#: A kernel still has to *put its tensors somewhere* — this makes a device
+#: visible or invisible, it does not move a model. Pretending otherwise would be
+#: a dropdown that silently does nothing on half the choices.
+def device_environment(device: str) -> dict[str, str]:
+    environment = {"ORINTH_DEVICE": device}
+    if device == "cpu":
+        # -1 rather than "": TensorFlow reads the empty string as "unset" on
+        # some versions and would keep the GPU.
+        environment["CUDA_VISIBLE_DEVICES"] = "-1"
+    elif device.startswith("cuda"):
+        _, _, index = device.partition(":")
+        environment["CUDA_VISIBLE_DEVICES"] = index or "0"
+    return environment
+
+
+def compute_targets() -> "list":
+    """Every machine a kernel could run on, flattened for one dropdown.
+
+    Built from the two sources phase 24 already owns — the per-framework device
+    probe and the provider registry — rather than a third list here. `auto`
+    leads because it is the honest default: nothing is constrained and each
+    framework picks what it can reach, which on a machine where torch sees MPS
+    and TensorFlow does not is the only answer that is right for both.
+    """
+    from app.ml.compute import probe  # noqa: PLC0415 - heavy, and only needed here
+    from app.ml.compute_providers import PROVIDERS  # noqa: PLC0415
+    from app.schemas import NotebookComputeTarget  # noqa: PLC0415
+
+    targets = [
+        NotebookComputeTarget(
+            id="auto",
+            label="Automatic",
+            kind="auto",
+            detail="Each framework uses whatever it can reach. Nothing is hidden from it.",
+        )
+    ]
+    environment = probe()
+    seen: set[str] = set()
+    for framework in environment.frameworks:
+        for device in framework.devices:
+            identifier = f"{device.kind}:{device.index}" if device.kind == "cuda" else device.kind
+            if identifier in seen:
+                continue
+            seen.add(identifier)
+            memory = f" · {device.total_memory_mb // 1024} GB" if device.total_memory_mb else ""
+            targets.append(
+                NotebookComputeTarget(
+                    id=identifier,
+                    label=f"{device.name}{memory}",
+                    kind=device.kind,
+                    detail=f"Reported by {framework.name}.",
+                )
+            )
+    targets.append(
+        NotebookComputeTarget(
+            id="cpu",
+            label="CPU only",
+            kind="cpu",
+            detail="Hides every GPU from the kernel. Slower, and reproducible.",
+        )
+    )
+    for provider in PROVIDERS:
+        if provider.id == "local":
+            continue
+        targets.append(
+            NotebookComputeTarget(
+                id=provider.id,
+                label=provider.name,
+                kind="remote",
+                available=provider.available,
+                # Listed, disabled, with the reason — the phase-24 rule. Hiding
+                # it would put the roadmap in the frontend's head instead.
+                detail=provider.requirements[0] if provider.requirements else provider.summary,
+            )
+        )
+    return targets
+
+
 class NotebookRuntime:
     def __init__(self, settings: Settings, storage: Storage) -> None:
         self.settings = settings
@@ -59,6 +142,9 @@ class NotebookRuntime:
         self.port: int | None = None
         self.token: str | None = None
         self.error: str | None = None
+        #: The target the *running* server was started with, not the one most
+        #: recently asked for — a kernel's environment is fixed at spawn.
+        self.device = "auto"
         self._state = "stopped"
         self._lock = threading.Lock()
 
@@ -97,6 +183,7 @@ class NotebookRuntime:
             python_version=sys.version.split()[0],
             kernel_count=self._kernel_count() if alive else 0,
             error=self.error,
+            device=self.device if alive else "auto",
         )
 
     def _kernel_count(self) -> int:
@@ -108,15 +195,24 @@ class NotebookRuntime:
 
     # ---- lifecycle -----------------------------------------------------
 
-    def start(self) -> NotebookRuntimeStatus:
+    def start(self, device: str = "auto") -> NotebookRuntimeStatus:
         with self._lock:
             if self.process is not None and self.process.poll() is None:
+                # Already up. Starting again with a different device would be a
+                # no-op that looks like it worked, so it is refused by name.
+                if device != self.device:
+                    raise NotebookRuntimeError(
+                        f"The runtime is already running on '{self.device}'. "
+                        f"Stop it first to move to '{device}' — a kernel's environment "
+                        "is fixed when it spawns."
+                    )
                 return self.status()
             if not self.available():
                 raise NotebookRuntimeError(INSTALL_HINT)
 
             self._reap_orphan()
             self.error = None
+            self.device = device
             self._state = "starting"
             try:
                 self._spawn()
@@ -149,6 +245,9 @@ class NotebookRuntime:
             "PYTHONPATH": os.pathsep.join(
                 filter(None, [str(Path(__file__).resolve().parents[3]), os.environ.get("PYTHONPATH")])
             ),
+            # Every kernel this server spawns inherits it, which is why the
+            # device is fixed for the life of the runtime rather than per cell.
+            **device_environment(self.device),
         }
         if self.settings.database_url:
             environment["DATABASE_URL"] = self.settings.database_url
@@ -212,6 +311,7 @@ class NotebookRuntime:
                 process.kill()
         self.port = None
         self.token = None
+        self.device = "auto"
         if self._state != "failed":
             self._state = "stopped"
         self._clear_state()

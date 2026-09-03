@@ -173,7 +173,8 @@ Primitives live in `@/features/platform/ui`. Reach for a primitive before raw cl
 | `StatusBadge` | job states | Maps run states to Badge tones |
 | `ConfirmationDialog` | — | Display-face title, `--radius-xl`, `--shadow-overlay`; destructive confirm uses `danger` |
 | `toast` | `success` `error` | Bottom-right, max 3, 6s, `aria-live` |
-| Skeletons | `PageSkeleton` `CardGridSkeleton` `TableSkeleton` `InlineSpinner` | See loading contract |
+| `Pager` | — | Previous / next over a paged list, with `n / m` between them. **Renders nothing for a single page** — a disabled pager under six cards is chrome asserting there is more. Numbered page links are deliberately absent: they only help when a page number means something, and on a category-ordered grid it does not |
+| Skeletons | `PageSkeleton` `CardGridSkeleton` `TableSkeleton` `ListSkeleton` `InlineSpinner` | See loading contract. `ListSkeleton` is the rail/narrow-panel shape — two lines per row, hairline-separated; `TableSkeleton`'s three columns read as a broken table at 280px |
 | `MultiSelect` / `TaskSelect` | — | Custom dropdowns: the closed trigger reads as a `<select>`, the open `--shadow-overlay` panel as a listbox. `MultiSelect` is checkbox multi-select; `TaskSelect` is single-select with Vision / NLP / LLM tabs + a search field (see §8) |
 | `PlatformTour` / `.tour-launch` | — | Guided tours (react-joyride) in `@/features/platform/tour`. The launcher is a pill that **floats over the working app**, so it carries `--shadow-overlay` (a control over content, not a resting surface) with a `--line-strong` border and an accent icon. Tooltip colors resolve from tokens via `oklch(var(--…))`. Route-aware and mounted once in the shell; see `specs/phase-16-guided-tours.md` |
 
@@ -194,7 +195,11 @@ An icon button sitting beside a `sm` button matches that button's height rather 
 
 ## 8. Patterns
 
-**Loading contract:** initial query → skeleton scoped to the data component; refetch of visible data → `InlineSpinner`; long mutation → global overlay (automatic via `useIsMutating`); route transition → segment `loading.tsx` renders `PageSkeleton`.
+**Loading contract:** initial query → skeleton scoped to the data component; refetch of visible data → `InlineSpinner`; long mutation → global overlay (automatic via `useIsMutating`); route transition → segment `loading.tsx` renders `PageSkeleton`. **An empty state is never a loading state** — showing "No datasets here yet" while the first request is still out asserts something nobody has checked. And a spinner over an expensive query is a design decision about *staleness*, not only about rendering: react-query's `staleTime` is per observer, so a panel that only needs a convenience list (the notebook dataset rail) asks for a long window rather than re-paying seconds of spinner on every visit.
+
+**Long option lists:** a `.segmented-control` of tabs (each with a `.segmented-count`) plus a `Pager`, not a stack of headed sections. Tabs when the groups are *alternatives* the user picks between; sections when they are all meant to be read. The tab list is derived from the data's own order — never a hardcoded array, which is a second definition that goes stale the moment the data grows a category. Page size is whatever fills about two rows of the grid.
+
+**Code fields:** anything that edits Python renders `features/platform/code/python-editor.tsx` — CodeMirror 6, themed from tokens, 4-space indent, bracket matching, completion, and a diagnostic margin. A `<textarea>` for code is not a smaller version of this; it is a different editor with different Tab semantics, and Python is whitespace-significant. Syntax colour rides the `--label-*` ramp (the sanctioned §2 functional-colour exception), so a keyword reads the same in a notebook cell and in an architecture custom layer.
 
 **Errors:** every mutation shows inline `MutationError` in its panel *and* an error toast (automatic via the mutation cache). Never swallow a failure.
 

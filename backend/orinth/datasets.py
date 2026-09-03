@@ -21,8 +21,8 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from orinth import _workspace
-from orinth.errors import DatasetBusyError, DatasetTooLargeError
+from orinth import _http, _workspace
+from orinth.errors import DatasetBusyError, DatasetTooLargeError, OrinthError
 from orinth.types import DatasetRef, Readiness
 
 Split = str
@@ -121,6 +121,12 @@ def load(
 
     Raises `DatasetTooLargeError` past `NOTEBOOK_LOAD_MAX_ROWS` rather than
     truncating — a frame that looks complete and is not is the worse failure.
+
+    **`limit=` is a head, not a sample.** Items come back in directory order,
+    which for an image dataset means class order, so `limit=90` on a six-class
+    set is ninety images of the first class. Fine for "what do the columns look
+    like"; wrong for anything that reads the label. Take the frame and sample it
+    yourself when the distribution matters.
     """
     import polars
 
@@ -278,6 +284,124 @@ def images(dataset_id: str, split: Split = "train") -> Iterator[tuple]:
 
 
 # --- write --------------------------------------------------------------------
+
+
+def detect(dataset_id: str) -> dict:
+    """What the deterministic scan concluded about a staged upload.
+
+    The read half of `upload(..., auto_apply=False)`: modality, task type,
+    format, candidate labels, and the signals behind each. Worth looking at
+    before applying anything, because a wrong `task_type` here becomes a wrong
+    dataset that has to be rebuilt.
+    """
+    return _http.get(f"/api/datasets/{dataset_id}/prep/detect") or {}
+
+
+def upload(
+    path: "str | Path",
+    *,
+    name: str | None = None,
+    project_id: str | None = None,
+    include: Sequence[str] | None = None,
+    auto_apply: bool = True,
+    wait: bool = True,
+) -> DatasetRef:
+    """Your own files — a folder, a single table, an archive — as a dataset.
+
+    `register()` takes rows you already have in memory. This takes what is on
+    disk, which is how data actually arrives: a folder of images with one
+    subdirectory per class, a CSV someone exported, a YOLO export with its
+    `data.yaml`.
+
+    Nothing about the files is declared here, and that is deliberate. The upload
+    is staged and handed to the **same prep agent a browser upload goes to**,
+    which reads the directory layout and the file contents to decide the task,
+    the format and the labels. A second detector living in the SDK would
+    disagree with the first one the week after it was written.
+
+    The directory structure is preserved (`relative_paths`), because for an
+    image dataset the structure *is* the labelling.
+
+    `auto_apply=False` stages and detects without committing, for when you want
+    to look at `detect()` first.
+    """
+    root = Path(path).expanduser().resolve()
+    if not root.exists():
+        raise OrinthError(f"No such path: {root}")
+
+    files = _files_under(root, include)
+    if not files:
+        raise OrinthError(f"Nothing to upload under {root} — no readable files matched.")
+
+    project = project_id or _workspace.default_project_id()
+    dataset_id = _stage(files, root, name=name or root.stem, project_id=project)
+
+    if not auto_apply:
+        return get(dataset_id)
+
+    _http.post(f"/api/datasets/{dataset_id}/prep", json={"auto_apply": True})
+    if wait:
+        from orinth import _register
+
+        _register._wait(dataset_id)
+    return get(dataset_id)
+
+
+#: Files a dataset never wants, and that a `**/*` walk always finds.
+_SKIP_NAMES = {".DS_Store", "Thumbs.db", ".gitkeep"}
+#: One request per batch. A folder of ten thousand images in a single multipart
+#: body is a request nothing survives — not the server's memory, not the proxy's
+#: body limit, and not the user's patience with no progress at all.
+UPLOAD_BATCH = 200
+
+
+def _files_under(root: "Path", include: Sequence[str] | None) -> builtins.list["Path"]:
+    if root.is_file():
+        return [root]
+    patterns = builtins.list(include or ["**/*"])
+    found: dict[str, Path] = {}
+    for pattern in patterns:
+        for candidate in sorted(root.glob(pattern)):
+            if not candidate.is_file():
+                continue
+            if candidate.name in _SKIP_NAMES or candidate.name.startswith("._"):
+                continue
+            found[str(candidate)] = candidate
+    return builtins.list(found.values())
+
+
+def _stage(files: Sequence["Path"], root: "Path", *, name: str, project_id: str) -> str:
+    """Create the draft with the first batch, then add the rest to it."""
+    dataset_id = ""
+    for start in range(0, len(files), UPLOAD_BATCH):
+        batch = files[start : start + UPLOAD_BATCH]
+        payload = []
+        # `relative_paths` is a repeated form field, which httpx expresses as a
+        # list value rather than repeated tuples. Sent in the same order as the
+        # files: the layout is what detection reads, and without it every upload
+        # looks like a flat pile.
+        data: dict[str, Any] = {"relative_paths": []}
+        for item in batch:
+            relative = item.name if root.is_file() else str(item.relative_to(root))
+            payload.append(("files", (item.name, item.read_bytes())))
+            data["relative_paths"].append(relative)
+        if not dataset_id:
+            data["project_id"] = project_id
+            data["name"] = name
+            created = _http.post(
+                "/api/datasets/ingest", files=payload, data=data, timeout=_http.UPLOAD_TIMEOUT
+            )
+            dataset_id = (created or {}).get("id", "")
+            if not dataset_id:
+                raise OrinthError("The API accepted the upload but returned no dataset id.")
+        else:
+            _http.post(
+                f"/api/datasets/{dataset_id}/ingest",
+                files=payload,
+                data=data,
+                timeout=_http.UPLOAD_TIMEOUT,
+            )
+    return dataset_id
 
 
 def register(

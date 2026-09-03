@@ -31,10 +31,25 @@ import type {
 /** Prep states that mean the agent is still working on a dataset. */
 const PREP_IN_FLIGHT = new Set(["detecting", "planning", "applying"]);
 
-export function useDatasetCatalogQuery(projectId: string) {
+/**
+ * The dataset catalog for one project.
+ *
+ * `staleTime` is a per-observer setting on a shared cache entry, which is what
+ * the parameter is for: the Datasets page wants a fresh answer whenever it
+ * opens, while the notebook rail — where this is a convenience list of ids to
+ * copy — does not, and paying seconds of spinner for it on every visit is how
+ * the rail came to look permanently busy. Mutations invalidate the key either
+ * way, so a longer window never shows a stale list after an edit.
+ */
+export function useDatasetCatalogQuery(projectId: string, options?: { staleTime?: number }) {
   return useQuery({
     queryKey: ["dataset-catalog", projectId],
     queryFn: () => api.datasetCatalog(projectId),
+    // The project id settles a beat after mount (it is read from
+    // localStorage), so without this the list blanks and reloads on the first
+    // render of every page that shows it.
+    placeholderData: keepPreviousData,
+    ...(options?.staleTime === undefined ? {} : { staleTime: options.staleTime }),
     // A prep run outlives the click that started it, so a reload mid-run must
     // still converge. Only while one is actually in flight: building this
     // response walks every split of every dataset and costs seconds on a large

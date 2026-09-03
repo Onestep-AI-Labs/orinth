@@ -80,3 +80,29 @@ def artifacts(model_id: str) -> dict:
         if info.id == model_id:
             return dict(info.paths or {})
     raise OrinthError(f"No model '{model_id}' in this workspace.")
+
+
+def parameters(**overrides):
+    """The inference options `/inference` sends, with the platform's defaults.
+
+    Exists so a notebook can call `predictor.predict(path, params)` without
+    importing `app.schemas` — the SDK is allowed to reach into the backend, and
+    the point of that permission is that the user's cells do not have to.
+    `confidence_threshold` defaults to 0.65 and `iou_threshold` to 0.7, which
+    are the numbers `docs/ai/rules.md` fixes for this platform.
+    """
+    from app.schemas import InferenceParameters
+
+    return InferenceParameters(**overrides)
+
+
+def image_label(detections) -> str:
+    """The image-level verdict `/inference` derives from a detection list.
+
+    The largest mask wins, and an empty list is `Normal`. Reproduced through the
+    platform's own function rather than restated here, so a notebook comparing
+    two models scores them exactly the way the studio will.
+    """
+    from app.ml.common.base import image_level_from_detections
+
+    return image_level_from_detections(builtins.list(detections))

@@ -48,11 +48,26 @@ export function useNotebookRuntimeQuery() {
   });
 }
 
+/**
+ * What a kernel can run on. Probed hardware plus the declared remote providers.
+ *
+ * `staleTime: Infinity` because a machine does not grow a GPU while the tab is
+ * open, and the probe behind this costs a subprocess and a TensorFlow import on
+ * the backend's side of the cache.
+ */
+export function useComputeTargetsQuery() {
+  return useQuery({
+    queryKey: ["notebook-compute-targets"],
+    queryFn: () => api.notebookComputeTargets(),
+    staleTime: Infinity
+  });
+}
+
 export function useStartRuntimeMutation() {
   const client = useQueryClient();
   return useMutation({
     mutationKey: ["notebook-runtime-start"],
-    mutationFn: () => api.startNotebookRuntime(),
+    mutationFn: (device: string = "auto") => api.startNotebookRuntime(device),
     onSuccess: (status) => {
       client.setQueryData(["notebook-runtime"], status);
       if (status.state === "running") toast.success("Notebook runtime started.");
