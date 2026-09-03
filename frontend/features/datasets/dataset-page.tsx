@@ -4,14 +4,17 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileJson, FileText, ImageIcon } from "lucide-react";
+import { FileJson, FileText, ImageIcon, Table2 } from "lucide-react";
 import { useProject } from "@/components/app-shell";
 import { DatasetAnnotateTab } from "@/features/datasets/annotate-tab";
 import { DatasetCatalogView } from "@/features/datasets/catalog-view";
 import { DatasetConfigTab } from "@/features/datasets/config-tab";
 import { EdaPanel } from "@/features/datasets/dataset-components";
 import { DatasetDetailHeader } from "@/features/datasets/detail-header";
+import { DatasetDataGrid } from "@/features/datasets/data-grid";
 import { DatasetDetailTabs, type DatasetDetailTab } from "@/features/datasets/detail-tabs";
+import { DatasetOverviewTab } from "@/features/datasets/prep/overview-tab";
+import { DatasetPrepareTab } from "@/features/datasets/prepare-tab";
 import { HubImportPanel } from "@/features/datasets/hub-import-panel";
 import { DatasetRecordsTab } from "@/features/datasets/records-tab";
 import {
@@ -55,14 +58,18 @@ export function DatasetPage() {
   const { projectId, project } = useProject();
   const datasetParam = searchParams?.get("dataset") ?? "";
   const [selectedDatasetId, setSelectedDatasetId] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [showHub, setShowHub] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showDatasetOptions, setShowDatasetOptions] = useState(false);
   const [catalogMenuDatasetId, setCatalogMenuDatasetId] = useState("");
   const [catalogRenameDatasetId, setCatalogRenameDatasetId] = useState("");
   const [showRename, setShowRename] = useState(false);
-  const [detailTab, setDetailTab] = useState<DatasetDetailTab>("images");
+  const [detailTab, setDetailTab] = useState<DatasetDetailTab>("overview");
+  // The Data tab shows one dataset two ways. The table is the default because it
+  // is the only view that works for every modality and the only one that answers
+  // "what is in here" without scrolling; the gallery/records view is where the
+  // annotation editor and the record drawer live, and those are still the right
+  // tools for editing one item properly.
+  const [dataView, setDataView] = useState<"table" | "detail">("table");
   const [split, setSplit] = useState<DatasetSplitFilter>("all");
   const [imagePage, setImagePage] = useState(0);
   const [imagesPerPage, setImagesPerPage] = useState(50);
@@ -142,7 +149,7 @@ export function DatasetPage() {
   const versionsQuery = useDatasetVersionsQuery(selectedDataset?.id);
   const edaQuery = useDatasetEdaQuery(selectedDataset?.id, split);
 
-  const createMutation = useCreateDatasetMutation({ openDataset, setShowCreate, setNewDatasetName, catalogQuery });
+  const createMutation = useCreateDatasetMutation({ openDataset, setNewDatasetName, catalogQuery });
   const updateDatasetMutation = useUpdateDatasetMutation({
     setEditName,
     setPreprocessConfig,
@@ -253,7 +260,9 @@ export function DatasetPage() {
     setShowRename(false);
     setShowDuplicate(false);
     setCatalogRenameDatasetId("");
-    setDetailTab(isLlmTask(selectedDataset.task_type) ? "records" : "images");
+    // Overview leads: a dataset the agent just touched should say what it did
+    // and whether it worked before showing rows.
+    setDetailTab("overview");
     setSplit("all");
     setImagePage(0);
   }, [selectedDataset]);
@@ -295,7 +304,9 @@ export function DatasetPage() {
   function selectDatasetItem(item: DatasetItemSummary, openAnnotate = false) {
     setSelectedItemId(item.id);
     setSelectedItemSplit(item.split);
-    if (openAnnotate) setDetailTab("annotate");
+    // Annotating is no longer a separate tab; the editor sits beside the grid in
+    // Data, so selecting an item is already all the navigation there is.
+    if (openAnnotate) setDetailTab("data");
   }
 
   function confirmDeleteDataset(dataset: DatasetSummary) {
@@ -318,8 +329,6 @@ export function DatasetPage() {
         projectId={projectId}
         datasets={datasets}
         catalogQuery={catalogQuery}
-        showCreate={showCreate}
-        setShowCreate={setShowCreate}
         newDatasetName={newDatasetName}
         setNewDatasetName={setNewDatasetName}
         taskType={taskType}
@@ -340,15 +349,15 @@ export function DatasetPage() {
         deleteDatasetMutation={deleteDatasetMutation}
         onDeleteDataset={confirmDeleteDataset}
         confirmationDialog={confirmationDialog}
-        showHub={showHub}
-        setShowHub={setShowHub}
         canImportHub={canImportHub}
         hubImportPanel={
           <HubImportPanel
             projectId={projectId}
             openDataset={openDataset}
             catalogQuery={catalogQuery}
-            onImported={() => setShowHub(false)}
+            // Importing navigates into the new dataset, so there is nothing left
+            // on this screen for the panel to close.
+            onImported={() => undefined}
           />
         }
       />
@@ -408,68 +417,94 @@ export function DatasetPage() {
         activeTab={detailTab}
         setActiveTab={setDetailTab}
         isLlm={selectedDatasetIsLlm}
+        readiness={selectedDataset.readiness}
       />
-      {detailTab === "records" ? (
-        <DatasetRecordsTab
-          dataset={selectedDataset}
-          items={items}
-          itemsQuery={itemsQuery}
-          itemPage={itemPage}
-          split={split}
-          setSplit={setSplit}
-          imagesPerPage={imagesPerPage}
-          imagePage={imagePage}
-          setImagePage={setImagePage}
-          detailQuery={detailQuery}
-          onSelectItem={selectDatasetItem}
-          selectedItemId={selectedItemId}
-          createRecordMutation={createRecordMutation}
-          saveRecordMutation={saveRecordMutation}
-          uploadRecordsMutation={uploadRecordsMutation}
-          deleteItemsMutation={deleteItemsMutation}
-          confirm={confirm}
-        />
-      ) : detailTab === "images" ? (
-        <DatasetImagesTab
-          {...sharedTabProps}
-          uploadFiles={uploadFiles}
-          setUploadFiles={setUploadFiles}
-          uploadClassId={uploadClassId}
-          setUploadClassId={setUploadClassId}
-          uploadErrors={uploadErrors}
-          uploadMutation={uploadMutation}
-          moveTarget={moveTarget}
-          setMoveTarget={setMoveTarget}
-          moveItemsMutation={moveItemsMutation}
-          deleteItemsMutation={deleteItemsMutation}
-          bulkClassId={bulkClassId}
-          setBulkClassId={setBulkClassId}
-          bulkLabelMutation={bulkLabelMutation}
-        />
-      ) : detailTab === "annotate" ? (
-        <DatasetAnnotateTab
-          {...sharedTabProps}
-          bulkClassId={bulkClassId}
-          setBulkClassId={setBulkClassId}
-          bulkLabelMutation={bulkLabelMutation}
-          catalogQuery={catalogQuery}
-          detailQuery={detailQuery}
-          edaQuery={edaQuery}
-        />
-      ) : detailTab === "eda" ? (
-        <section className="panel">
-          <EdaPanel
-            eda={edaQuery.data}
-            loading={edaQuery.isLoading}
+      {detailTab === "overview" ? (
+        <DatasetOverviewTab dataset={selectedDataset} onGoToData={() => setDetailTab("data")} />
+      ) : detailTab === "data" ? (
+        <div className="space-y-5">
+          <div className="segmented-control" role="tablist" aria-label="Data view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={dataView === "table"}
+              className={dataView === "table" ? "segmented-active" : ""}
+              onClick={() => setDataView("table")}
+            >
+              <Table2 size={15} /> Table
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={dataView === "detail"}
+              className={dataView === "detail" ? "segmented-active" : ""}
+              onClick={() => setDataView("detail")}
+            >
+              <ItemIcon size={15} /> {selectedDatasetIsLlm ? "Records" : "Gallery"}
+            </button>
+          </div>
+          {dataView === "table" ? (
+            <DatasetDataGrid dataset={selectedDataset} />
+          ) : selectedDatasetIsLlm ? (
+          <DatasetRecordsTab
             dataset={selectedDataset}
+            items={items}
+            itemsQuery={itemsQuery}
+            itemPage={itemPage}
             split={split}
             setSplit={setSplit}
+            imagesPerPage={imagesPerPage}
+            imagePage={imagePage}
+            setImagePage={setImagePage}
+            detailQuery={detailQuery}
+            onSelectItem={selectDatasetItem}
+            selectedItemId={selectedItemId}
+            createRecordMutation={createRecordMutation}
+            saveRecordMutation={saveRecordMutation}
+            uploadRecordsMutation={uploadRecordsMutation}
+            deleteItemsMutation={deleteItemsMutation}
+            confirm={confirm}
           />
-        </section>
+        ) : (
+          <div className="space-y-5">
+            <DatasetImagesTab
+              {...sharedTabProps}
+              uploadFiles={uploadFiles}
+              setUploadFiles={setUploadFiles}
+              uploadClassId={uploadClassId}
+              setUploadClassId={setUploadClassId}
+              uploadErrors={uploadErrors}
+              uploadMutation={uploadMutation}
+              moveTarget={moveTarget}
+              setMoveTarget={setMoveTarget}
+              moveItemsMutation={moveItemsMutation}
+              deleteItemsMutation={deleteItemsMutation}
+              bulkClassId={bulkClassId}
+              setBulkClassId={setBulkClassId}
+              bulkLabelMutation={bulkLabelMutation}
+            />
+            {/* Labelling used to be its own tab showing a second copy of the same
+                grid. It is the same work on the same items, so it belongs under
+                the items: the editor appears once something is selected. */}
+            <DatasetAnnotateTab
+              {...sharedTabProps}
+              bulkClassId={bulkClassId}
+              setBulkClassId={setBulkClassId}
+              bulkLabelMutation={bulkLabelMutation}
+              catalogQuery={catalogQuery}
+              detailQuery={detailQuery}
+              edaQuery={edaQuery}
+            />
+          </div>
+          )}
+        </div>
       ) : (
-        <DatasetConfigTab
+        <DatasetPrepareTab
           dataset={selectedDataset}
           nlp={selectedDatasetIsNlp || selectedDatasetIsLlm}
+          split={split}
+          setSplit={setSplit}
+          edaQuery={edaQuery}
           catalogQuery={catalogQuery}
           preprocessConfig={preprocessConfig}
           setPreprocessConfig={setPreprocessConfig}
@@ -487,7 +522,6 @@ export function DatasetPage() {
           confirm={confirm}
         />
       )}
-      {confirmationDialog}
     </div>
   );
 }

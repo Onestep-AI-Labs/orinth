@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # LLM export jobs (phase 15) run on their own single-worker pool so a long
     # merge/GGUF conversion can't starve evaluations (or vice versa).
     export_executor_workers: int = Field(default=1, alias="EXPORT_EXECUTOR_WORKERS")
+    prep_executor_workers: int = Field(default=1, alias="PREP_EXECUTOR_WORKERS")
     # llama.cpp serving (phase 15). The port range is walked for the first free
     # port; the server binds localhost only. Idle timeout stops the subprocess
     # after no chat activity; the ready timeout bounds startup (model load can

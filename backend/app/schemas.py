@@ -465,6 +465,106 @@ class DatasetSplitSummary(BaseModel):
     annotation_count: int = 0
 
 
+# Phase 21. Whether a dataset can actually be trained on, and if not, the one
+# sentence that says why. Computed on every `DatasetSummary`, so it must stay a
+# pure function of the fields already gathered there — see
+# `app/services/datasets/prep/readiness.py`.
+ReadinessState = Literal["ready", "needs_prep", "needs_input", "blocked"]
+# What the user should do next. `run_prep` is fixable by the agent; `label` and
+# `upload` need a human; `wait` means a job is already working on it.
+ReadinessAction = Literal["upload", "run_prep", "label", "split", "wait", "none"]
+# Lifecycle of the prep agent over one dataset, stored at `metadata.prep.state`.
+PrepState = Literal[
+    "draft",
+    "detecting",
+    "planning",
+    "planned",
+    "applying",
+    "ready",
+    "failed",
+    "cancelled",
+]
+# The stage a run is *inside*, which is finer than its lifecycle state and is the
+# thing worth showing a waiting user. `state` answers "can this be trained on
+# yet"; `step` answers "what is happening right now". They are separate fields
+# because readiness reads the first and must not care about the second.
+PrepStep = Literal[
+    "idle",
+    "staging",
+    "detecting",
+    "planning",
+    "transforming",
+    "applying",
+    "splitting",
+    "done",
+]
+
+
+class DatasetReadinessCheck(BaseModel):
+    """One condition, named so the UI can list what passed and what did not.
+
+    `blocking` checks decide `trainable`; `advisory` ones are warnings that never
+    stop a run (an undrained inbox, a skewed class balance).
+    """
+
+    id: str
+    label: str
+    passed: bool
+    severity: Literal["blocking", "advisory"] = "blocking"
+    detail: str = ""
+
+
+class DatasetReadiness(BaseModel):
+    """Structural readiness only.
+
+    Checks that would need to read item files (empty LLM outputs, duplicate
+    records, class imbalance) belong to `DatasetEdaSummary` instead: `summary()`
+    runs for every dataset on every catalog list, and a second filesystem walk
+    there would double the cost of listing.
+    """
+
+    state: ReadinessState
+    trainable: bool
+    # The single sentence the training page renders under a blocked dataset.
+    summary: str
+    next_action: ReadinessAction = "none"
+    checks: list[DatasetReadinessCheck] = Field(default_factory=list)
+    #: A non-destructive prep run (detect/plan) is in flight. Deliberately not a
+    #: `state`: those stages only read the staging directory, so the dataset the
+    #: user can see is exactly as trainable as it was a second ago. Folding this
+    #: into `state` is what made an already-ready dataset report "Preparing…" —
+    #: and then "Needs prep" — the moment someone asked Orinth to look at it
+    #: again. Only `applying` rewrites the splits, and only that blocks.
+    busy: bool = False
+
+
+class DatasetPrepStatus(BaseModel):
+    """Prep-agent state carried on the dataset manifest.
+
+    Kept on the manifest rather than only in `data_prep_jobs` so a dataset stays
+    self-describing: reference and shared sample datasets have no job row, and
+    readiness still has to compute for them.
+    """
+
+    state: PrepState = "ready"
+    job_id: str | None = None
+    staged_files: int = 0
+    applied_at: datetime | None = None
+    #: Why the last run stopped, when it stopped badly. A background run has no
+    #: response to raise into, so the reason is carried here instead.
+    error: str | None = None
+    #: What the run is doing right now, and how far through it is. Written on
+    #: every stage transition so a client polling `/prep/status` can name the
+    #: work rather than render an unlabelled spinner for forty seconds.
+    step: PrepStep = "idle"
+    #: One sentence, written for the person waiting: "Reading 312 files", not
+    #: "detect". Carries counts where they are known, because a number moving is
+    #: the difference between "working" and "hung".
+    detail: str = ""
+    #: 0..1 where the stage sequence gives a meaningful fraction, else None.
+    progress: float | None = None
+
+
 class DatasetSummary(BaseModel):
     id: str
     project_id: str = DEFAULT_PROJECT_ID
@@ -483,6 +583,12 @@ class DatasetSummary(BaseModel):
     classes: list[str]
     splits: dict[str, DatasetSplitSummary]
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # Phase 21. Always present, computed in `DatasetService.summary`; the catalog
+    # card, the studio header, and the training dataset select all read it.
+    readiness: DatasetReadiness
+    # Absent on every dataset that predates the prep agent, and on reference and
+    # shared samples, which never pass through it.
+    prep: DatasetPrepStatus | None = None
 
     # Manifests on disk outlive the schema. A dataset written by a build whose
     # task type or format has since been removed must still list, or one stale
@@ -493,6 +599,28 @@ class DatasetSummary(BaseModel):
     _normalize_format = field_validator("format", mode="before")(
         _normalize_dataset_format_field
     )
+
+
+class DatasetPrepStartRequest(BaseModel):
+    """Options for one prep run.
+
+    `auto_apply` is the whole review-gate decision, kept as one flag: false stops
+    at `planned` and `/prep/apply` finishes the job later, running exactly the
+    same code.
+    """
+
+    auto_apply: bool = True
+
+
+class DatasetPrepApplyRequest(BaseModel):
+    plan: "DatasetPrepPlan"
+
+
+class DatasetPrepResponse(BaseModel):
+    """The dataset as it now stands, plus the plan that got it there."""
+
+    dataset: DatasetSummary
+    plan: "DatasetPrepPlan"
 
 
 class DatasetCreate(BaseModel):
@@ -551,6 +679,151 @@ class DatasetCloneRequest(BaseModel):
     name: str | None = Field(default=None, max_length=120)
 
 
+# Phase 21 prep-agent plan shapes. Every decision the agent makes is attributed;
+# see `app/services/datasets/prep/plan.py`.
+DatasetModality = Literal["image", "text", "record", "table", "unknown"]
+PlanSource = Literal["llm", "heuristic"]
+#: Where one field of the plan came from. `detected` is the deterministic file
+#: scan, `heuristic` a rule, `llm` a model, `user` an edit in the UI.
+DecisionSource = Literal["detected", "heuristic", "llm", "user"]
+DecisionField = Literal[
+    "task_type",
+    "format",
+    "labels",
+    "split",
+    "preprocess",
+    "mapping",
+    # Phase 21b: the generated Python that reshaped the raw rows, when one ran.
+    "transform",
+]
+#: Which engine wrote the sandboxed transform script. `builtin` is a
+#: deterministic template with the chosen columns baked in and always available;
+#: `llm` is code an OpenRouter model wrote for this specific table.
+TransformEngine = Literal["builtin", "llm"]
+
+
+class PrepDecision(BaseModel):
+    """One field of the plan, plus why it holds that value.
+
+    `evidence` is the load-bearing part. "classification, 85% confident" asks the
+    user to trust the agent; "312 files across 3 folders: normal, kista,
+    granuloma" can be checked against what they actually uploaded. Auto-apply is
+    only defensible because every decision carries one.
+    """
+
+    field: DecisionField
+    value: Any = None
+    source: DecisionSource
+    confidence: float | None = None
+    #: One plain sentence, no jargon.
+    rationale: str = ""
+    #: The raw signal behind it, drawn from `Detection.signals`.
+    evidence: str | None = None
+
+
+class PrepEngine(BaseModel):
+    """Which engine produced the plan, and what it cost.
+
+    `mode` is surfaced as a badge. Presenting heuristic output as model output
+    would misrepresent how much the user should trust it, so the distinction is
+    carried in the data rather than left to the copy.
+    """
+
+    mode: PlanSource = "heuristic"
+    model: str | None = None
+    #: Why it degraded, when it did. Shown verbatim.
+    notice: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    estimated_cost_usd: float | None = None
+
+
+class DatasetDetection(BaseModel):
+    """What the deterministic file scan concluded."""
+
+    modality: DatasetModality = "unknown"
+    task_type: TaskType | None = None
+    format: DatasetFormat | None = None
+    confidence: float = 0.0
+    candidate_labels: list[str] = Field(default_factory=list)
+    columns: list[str] = Field(default_factory=list)
+    sample_rows: list[dict[str, Any]] = Field(default_factory=list)
+    file_counts: dict[str, int] = Field(default_factory=dict)
+    #: Human-readable evidence, e.g. "`data.yaml` names 2 class(es)".
+    signals: list[str] = Field(default_factory=list)
+    #: Set when structure is recognized but something only a human can supply is
+    #: missing — most often class labels for unlabelled images.
+    needs_input: str | None = None
+
+
+class DatasetFieldMapping(BaseModel):
+    """Which column or key feeds which part of a training example."""
+
+    text: str | None = None
+    label: str | None = None
+    summary: str | None = None
+    question: str | None = None
+    answer: str | None = None
+    instruction: str | None = None
+    input: str | None = None
+    output: str | None = None
+    messages: str | None = None
+
+
+class PrepTransform(BaseModel):
+    """A Python script that reshaped the raw rows, and what it produced.
+
+    Detection can only name tasks it has a rule for. A feature table — sixteen
+    clinical yes/no columns and a `class` column, a gradebook, a survey export —
+    matches no rule, and the deterministic answer is "ask the user", which is
+    the friction this phase exists to remove. Code generalizes where a
+    vocabulary cannot: the script below is written for *this* table's columns
+    and run in `prep/sandbox.py`, and it is kept on the plan because a user who
+    is told their spreadsheet became a text classifier is owed the twenty lines
+    that did it.
+    """
+
+    engine: TransformEngine = "builtin"
+    #: The full script, shown verbatim in the Prepare tab.
+    code: str = ""
+    #: Why it degraded from `llm` to `builtin`, when it did.
+    notice: str | None = None
+    source_files: list[str] = Field(default_factory=list)
+    input_rows: int = 0
+    output_rows: int = 0
+    #: The column the labels came from, and the columns folded into the text.
+    target_column: str | None = None
+    feature_columns: list[str] = Field(default_factory=list)
+    rationale: str = ""
+    model: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    estimated_cost_usd: float | None = None
+
+
+class DatasetPrepPlan(BaseModel):
+    """Everything the agent proposes to do to a dataset."""
+
+    source: PlanSource = "heuristic"
+    notice: str = ""
+    confidence: float = 0.0
+    task_type: TaskType | None = None
+    format: DatasetFormat | None = None
+    labels: list[str] = Field(default_factory=list)
+    field_mapping: DatasetFieldMapping = Field(default_factory=DatasetFieldMapping)
+    preprocess: DatasetPreprocessConfig = Field(default_factory=lambda: DatasetPreprocessConfig())
+    split: DatasetSplitConfig = Field(default_factory=lambda: DatasetSplitConfig())
+    rationale: str = ""
+    warnings: list[str] = Field(default_factory=list)
+    decisions: list[PrepDecision] = Field(default_factory=list)
+    engine: PrepEngine = Field(default_factory=lambda: PrepEngine())
+    #: Set when a sandboxed script reshaped the raw rows before import. Apply
+    #: reads the script's output from `_derived/` instead of the raw upload.
+    transform: PrepTransform | None = None
+    #: Blocks apply when set: the plan is incomplete in a way only a human closes.
+    needs_input: str | None = None
+
+
 class DatasetAnnotation(BaseModel):
     class_id: int = Field(default=0, ge=0)
     class_name: str = ""
@@ -585,6 +858,38 @@ class DatasetItemSummary(BaseModel):
     label: str | None = None
     is_labeled: bool = False
     annotations: list[DatasetAnnotation] = Field(default_factory=list)
+
+
+# Phase 21. The grid projection of a dataset — one shape for every modality, so
+# the studio has a single table component instead of one per task type. Built by
+# projecting `DatasetItemSummary`, which the paged item read already produces;
+# see `services/datasets/table.py` for why this is not a second storage format.
+DatasetCellKind = Literal["image", "text", "label", "number", "split", "json"]
+
+
+class DatasetTableColumn(BaseModel):
+    key: str
+    label: str
+    kind: DatasetCellKind = "text"
+    #: Whether this cell can be changed in place. Only the columns backed by a
+    #: real write route say yes — a filename or an annotation count is derived,
+    #: and an editable-looking cell that silently drops the edit is worse than a
+    #: read-only one.
+    editable: bool = False
+
+
+class DatasetTableRow(BaseModel):
+    id: str
+    split: SplitName
+    cells: dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasetTablePage(BaseModel):
+    columns: list[DatasetTableColumn]
+    rows: list[DatasetTableRow] = Field(default_factory=list)
+    total: int
+    limit: int
+    offset: int
 
 
 class DatasetItemDetail(DatasetItemSummary):

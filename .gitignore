@@ -60,3 +60,7 @@ graphify-out/
 /desktop/src-tauri/resources/
 /desktop/src-tauri/gen/
 /desktop/.cache/
+
+# Agent worktrees created by Claude Code (`Agent` with isolation: worktree).
+# Each is a real git worktree on its own branch; the directory itself is scratch.
+.claude/worktrees/

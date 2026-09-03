@@ -61,8 +61,13 @@ class PreprocessMixin:
         missing_annotation_count = 0
         for split_name in splits:
             for image_path in self._image_paths(location, split_name):
-                with Image.open(image_path) as image:
-                    width, height = image.size
+                try:
+                    with Image.open(image_path) as image:
+                        width, height = image.size
+                except FileNotFoundError:
+                    # See `_text_eda_summary`: the listing is a snapshot of a
+                    # directory a prep run may be rebuilding underneath it.
+                    continue
                 widths.append(width)
                 heights.append(height)
                 aspect_ratios.append(width / height if height else 0)
@@ -470,7 +475,13 @@ class PreprocessMixin:
         item_count = 0
         for split_name in splits:
             for text_path in self._text_paths(location, split_name):
-                text = text_path.read_text(encoding="utf-8", errors="replace")
+                try:
+                    text = text_path.read_text(encoding="utf-8", errors="replace")
+                except FileNotFoundError:
+                    # Listed a moment ago, gone now: a prep run rebuilding the
+                    # splits from staging deleted it between the two. Summarize
+                    # what is still there rather than failing the whole request.
+                    continue
                 lengths.append(len(text))
                 token_counts.append(len(text.split()))
                 item_count += 1

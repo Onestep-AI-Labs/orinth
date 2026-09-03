@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Copy, Database, MoreVertical, Save, Trash2 } from "lucide-react";
 import type { useCloneDatasetMutation, useDeleteDatasetMutation, useUpdateDatasetMutation } from "@/features/datasets/hooks";
+import { ReadinessBadge } from "@/features/datasets/readiness-badge";
 import { Field, PageHeader } from "@/features/platform/ui";
 import type { DatasetPreprocessConfig, DatasetSummary } from "@/types/api";
 
@@ -62,6 +63,10 @@ export function DatasetDetailHeader({
       <div className="dataset-detail-header" data-tour="dataset-studio-header">
         <PageHeader title={dataset.name} subtitle="Dataset workspace" icon={<Database size={20} />} />
         <div className="dataset-header-actions">
+          {/* The one place the studio says whether this dataset can be trained
+              on. `summary` rides along as the title so the reason is one hover
+              away without spending a row on it. */}
+          <ReadinessBadge readiness={dataset.readiness} />
           <button className="secondary-button" onClick={onBackToCatalog}>
             Back to catalog
           </button>

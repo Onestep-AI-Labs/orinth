@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { Cloud, Copy, Database, FilePlus2, FileText, FolderOpen, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Copy, Database, FolderOpen, MoreVertical, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { DatasetCreatePanel } from "@/features/datasets/dataset-components";
 import type {
   useCloneDatasetMutation,
@@ -12,15 +11,21 @@ import type {
   useUpdateDatasetMutation
 } from "@/features/datasets/hooks";
 import { SPLITS, TRAINING_SPLITS } from "@/features/platform/constants";
+import { NewDatasetPanel } from "@/features/datasets/new-dataset-panel";
+import { ReadinessBadge } from "@/features/datasets/readiness-badge";
 import { formatDatasetFormat, formatDatasetTask, isLlmTask, isNlpTask } from "@/features/platform/utils";
 import { EmptyState, Field, InlineSpinner, MutationError, PageHeader, PanelTitle, StatusBadge } from "@/features/platform/ui";
 import type { DatasetFormat, DatasetSummary, TaskType } from "@/types/api";
 
 /**
- * Dataset catalog (no dataset selected) view. Owns the create-dataset
- * form toggle, the per-card options menu, and the inline rename
- * popover; the underlying state and mutations stay with DatasetPage so
- * they behave identically whether the catalog is currently mounted.
+ * Dataset catalog (no dataset selected) view. Owns the per-card options menu
+ * and the inline rename popover; the underlying state and mutations stay with
+ * DatasetPage so they behave identically whether the catalog is currently
+ * mounted.
+ *
+ * The create-form toggles it used to own are gone: `NewDatasetPanel` decides
+ * which source is showing, so there is no longer a pair of booleans on the page
+ * that have to be kept mutually exclusive by hand.
  */
 type CatalogSection = { key: string; label: string; datasets: DatasetSummary[] };
 
@@ -55,8 +60,6 @@ export function DatasetCatalogView({
   projectId,
   datasets,
   catalogQuery,
-  showCreate,
-  setShowCreate,
   newDatasetName,
   setNewDatasetName,
   taskType,
@@ -77,8 +80,6 @@ export function DatasetCatalogView({
   deleteDatasetMutation,
   onDeleteDataset,
   confirmationDialog,
-  showHub,
-  setShowHub,
   hubImportPanel,
   canImportHub
 }: {
@@ -86,10 +87,6 @@ export function DatasetCatalogView({
   projectId: string;
   datasets: DatasetSummary[];
   catalogQuery: ReturnType<typeof useDatasetCatalogQuery>;
-  showCreate: boolean;
-  setShowCreate: Dispatch<SetStateAction<boolean>>;
-  showHub: boolean;
-  setShowHub: Dispatch<SetStateAction<boolean>>;
   hubImportPanel: ReactNode;
   canImportHub: boolean;
   newDatasetName: string;
@@ -190,6 +187,7 @@ export function DatasetCatalogView({
             </div>
           </div>
           <div className="dataset-card-summary">
+            <ReadinessBadge readiness={dataset.readiness} />
             <span><strong>{totalItems}</strong> {itemNoun}</span>
             {isLlmTask(dataset.task_type) ? (
               <span className="dataset-card-origin">{dataset.origin === "imported_hf" ? "HuggingFace" : "Local"}</span>
@@ -270,45 +268,16 @@ export function DatasetCatalogView({
   return (
     <div className="space-y-5">
       <PageHeader title="Datasets" subtitle={projectName ?? "Project"} icon={<Database size={20} />} />
-      <section className="panel">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={<Database size={18} />} title="Dataset Catalog" dataTour="datasets-catalog" />
-          <div className="flex flex-wrap gap-2">
-            {catalogQuery.isFetching && <InlineSpinner label="Refreshing" />}
-            <button className="secondary-button" onClick={() => catalogQuery.refetch()}>
-              <RefreshCw size={16} /> Refresh
-            </button>
-            {canImportHub && (
-              <Link className="secondary-button" href="/datasets/recipes">
-                <FileText size={16} /> New from documents
-              </Link>
-            )}
-            {canImportHub && (
-              <button
-                className="secondary-button"
-                onClick={() => {
-                  setShowHub((value) => !value);
-                  setShowCreate(false);
-                }}
-                aria-pressed={showHub}
-                data-tour="datasets-import"
-              >
-                <Cloud size={16} /> Browse HuggingFace
-              </button>
-            )}
-            <button
-              className="primary-button"
-              onClick={() => {
-                setShowCreate((value) => !value);
-                setShowHub(false);
-              }}
-              data-tour="datasets-add"
-            >
-              <FilePlus2 size={16} /> Add Dataset
-            </button>
-          </div>
-        </div>
-        {showCreate && (
+      {/* One entry point. The four that used to compete here — a drop card, an
+          "Add Dataset" toggle, "Browse HuggingFace", and "New from documents" —
+          are the same four flows, now behind one question about where the data
+          is rather than four buttons of equal weight. */}
+      <NewDatasetPanel
+        projectId={projectId}
+        onCreated={openDataset}
+        canImportHub={canImportHub}
+        hubImportPanel={hubImportPanel}
+        createPanel={
           <DatasetCreatePanel
             newDatasetName={newDatasetName}
             setNewDatasetName={setNewDatasetName}
@@ -320,8 +289,18 @@ export function DatasetCatalogView({
             onCreate={createDataset}
             pending={createMutation.isPending}
           />
-        )}
-        {showHub && hubImportPanel}
+        }
+      />
+      <section className="panel">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <PanelTitle icon={<Database size={18} />} title="Dataset Catalog" dataTour="datasets-catalog" />
+          <div className="flex flex-wrap gap-2">
+            {catalogQuery.isFetching && <InlineSpinner label="Refreshing" />}
+            <button className="secondary-button" onClick={() => catalogQuery.refetch()}>
+              <RefreshCw size={16} /> Refresh
+            </button>
+          </div>
+        </div>
         {datasets.length === 0 ? (
           <EmptyState label="No datasets yet." icon={<Database size={30} />} centered description="Create a dataset or import one from the HuggingFace Hub to start annotating and training models." />
         ) : (

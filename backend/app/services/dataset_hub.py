@@ -29,6 +29,7 @@ from app.schemas import (
 )
 from app.services.datasets import DatasetService
 from app.services.datasets.constants import LLM_FORMATS
+from app.services.datasets.prep.detect import detect_record_format
 from app.services.datasets.types import DatasetLocation
 
 DATASETS_SERVER = "https://datasets-server.huggingface.co"
@@ -171,22 +172,9 @@ class DatasetHubService:
     # ---- format detection ---------------------------------------------
 
     def _detect_format(self, columns: list[str]) -> tuple[str | None, dict[str, str]]:
-        cols = set(columns)
-        if {"instruction", "output"} <= cols:
-            mapping = {"instruction": "instruction", "output": "output"}
-            if "input" in cols:
-                mapping["input"] = "input"
-            return "alpaca", mapping
-        if "messages" in cols:
-            return "messages", {"messages": "messages"}
-        if "conversations" in cols:
-            return "sharegpt", {"conversations": "conversations"}
-        if {"question", "answer"} <= cols:
-            mapping = {"question": "question", "answer": "answer"}
-            if "context" in cols:
-                mapping["context"] = "context"
-            return "qa", mapping
-        return None, {}
+        # Phase 21 moved the body to `prep/detect.py` so hub import and the prep
+        # agent cannot drift into disagreeing about what an alpaca file is.
+        return detect_record_format(columns)
 
     # ---- import --------------------------------------------------------
 

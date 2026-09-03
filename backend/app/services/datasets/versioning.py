@@ -302,6 +302,14 @@ class VersioningMixin:
         total = config.train + config.valid + config.test
         if total <= 0:
             raise HTTPException(status_code=400, detail="Dataset split proportions must be greater than zero")
+        # Ratios that already sum to 1 are returned untouched. `0.7 + 0.2 + 0.1`
+        # is `0.9999999999999999` in binary floating point, so rescaling by it
+        # perturbs each ratio in the last bits — enough to flip the tie-break in
+        # `_targets_for_count`'s largest-remainder pass. On a 2-item class that
+        # is the whole difference between a valid split and an empty one, and an
+        # empty valid split makes an image dataset untrainable.
+        if abs(total - 1.0) < 1e-9:
+            return config
         return DatasetSplitConfig(
             train=config.train / total,
             valid=config.valid / total,

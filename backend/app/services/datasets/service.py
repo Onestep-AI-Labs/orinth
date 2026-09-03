@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 from pathlib import Path
 from uuid import uuid4
@@ -11,6 +12,7 @@ from app.core.storage import Storage
 from app.schemas import (
     DatasetCreate,
     DatasetImportRequest,
+    DatasetPrepStatus,
     DatasetSplitConfig,
     DatasetSummary,
     DatasetUpdate,
@@ -25,6 +27,7 @@ from app.services.datasets.constants import (
 )
 from app.services.datasets.format_io import FormatIoMixin
 from app.services.datasets.items import ItemsMixin
+from app.services.datasets.prep.readiness import readiness_for
 from app.services.datasets.preprocess import PreprocessMixin
 from app.services.datasets.records import RecordsMixin
 from app.services.datasets.types import DatasetLocation
@@ -87,6 +90,7 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
 
     def summary(self, dataset_id: str) -> DatasetSummary:
         location = self._location(dataset_id)
+        splits = {split: self._split_summary(location, split) for split in SPLITS}
         return DatasetSummary(
             id=location.id,
             project_id=location.project_id,
@@ -101,9 +105,34 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
             path=str(location.root),
             labels=location.labels,
             classes=location.labels,
-            splits={split: self._split_summary(location, split) for split in SPLITS},
+            splits=splits,
             metadata=location.metadata,
+            readiness=readiness_for(
+                task_type=location.task_type,
+                format=location.format,
+                labels=location.labels,
+                splits=splits,
+                metadata=location.metadata,
+            ),
+            prep=self._prep_status(location.metadata),
         )
+
+    @staticmethod
+    def _prep_status(metadata: dict | None) -> DatasetPrepStatus | None:
+        """Read `metadata.prep` off a manifest, tolerating anything written there.
+
+        Datasets that predate the prep agent, plus reference and shared samples,
+        carry no `prep` key at all — and a manifest written by a future build
+        could carry a state this one does not know. Neither may break the
+        catalog, so an unreadable value simply reads as absent.
+        """
+        raw = (metadata or {}).get("prep")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            return DatasetPrepStatus.model_validate(raw)
+        except ValueError:
+            return None
 
     def create_dataset(self, payload: DatasetCreate) -> DatasetSummary:
         task_type = self._normalize_task_type(payload.task_type)
@@ -293,9 +322,20 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
                 except (json.JSONDecodeError, KeyError):
                     continue
                 task_type = self._normalize_task_type(manifest.get("task_type", DEFAULT_TASK_TYPE))
-                labels = self._normalize_labels(
-                    manifest.get("labels") or manifest.get("classes") or self._default_labels_for_task(task_type),
-                    task_type,
+                # An *absent* `labels` key is a legacy manifest that predates the
+                # field, and gets the task's defaults. An explicitly empty one is
+                # a statement — a dataset the prep agent has not typed yet — and
+                # must stay empty, or an unlabelled upload silently inherits the
+                # reference dental classes and reads as ready to train.
+                raw_labels = manifest.get("labels")
+                if raw_labels is None:
+                    raw_labels = manifest.get("classes")
+                labels = (
+                    self._normalize_labels(raw_labels, task_type, allow_empty=True)
+                    if raw_labels is not None
+                    else self._normalize_labels(
+                        self._default_labels_for_task(task_type), task_type
+                    )
                 )
                 origin = manifest.get("origin", "created")
                 locations.append(
@@ -406,23 +446,46 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
         origin_ref: str | None = None,
     ) -> None:
         root.mkdir(parents=True, exist_ok=True)
-        (root / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "id": dataset_id,
-                    "project_id": project_id,
-                    "name": name,
-                    "task_type": task_type,
-                    "format": format_name,
-                    "labels": labels,
-                    "origin": origin,
-                    "origin_ref": origin_ref,
-                    "metadata": metadata,
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
+        self._write_manifest_json(
+            root / "manifest.json",
+            {
+                "id": dataset_id,
+                "project_id": project_id,
+                "name": name,
+                "task_type": task_type,
+                "format": format_name,
+                "labels": labels,
+                "origin": origin,
+                "origin_ref": origin_ref,
+                "metadata": metadata,
+            },
         )
+
+    @staticmethod
+    def _write_manifest_json(manifest_path: Path, payload: dict) -> None:
+        """Write a manifest so a concurrent reader never sees it half-written.
+
+        `write_text` truncates and *then* writes, while `_locations` re-reads
+        every manifest on almost every request. A prep run rewrites its
+        manifest several times as it moves through `planning` → `applying` →
+        `ready`, and the studio polls throughout — a reader landing in that gap
+        got a `JSONDecodeError`, which `_locations` handles by skipping the
+        dataset. The dataset simply vanished from the catalog and the request
+        404'd. Writing a sibling temp file and renaming makes the swap atomic,
+        so a reader sees the old manifest or the new one and never neither.
+
+        The temp file is dot-prefixed so the `*/manifest.json` glob cannot pick
+        it up, and lives in the same directory so the rename stays on one
+        filesystem, which is what makes it atomic.
+        """
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = manifest_path.with_name(f".{manifest_path.name}.{uuid4().hex}.tmp")
+        try:
+            temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            os.replace(temporary, manifest_path)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
 
     def _update_manifest(self, location: DatasetLocation, **updates) -> None:
         manifest_path = location.root / "manifest.json"
@@ -440,7 +503,7 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
         if manifest_path.exists():
             manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
         manifest.update(updates)
-        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        self._write_manifest_json(manifest_path, manifest)
 
     def _is_nlp_task(self, task_type: str) -> bool:
         return self._normalize_task_type(task_type) in NLP_TASK_TYPES
@@ -478,7 +541,13 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
             return []
         return DEFAULT_LABELS.copy()
 
-    def _normalize_labels(self, labels: list[str], task_type: str = DEFAULT_TASK_TYPE) -> list[str]:
+    def _normalize_labels(
+        self,
+        labels: list[str],
+        task_type: str = DEFAULT_TASK_TYPE,
+        *,
+        allow_empty: bool = False,
+    ) -> list[str]:
         normalized = []
         for label in labels or []:
             cleaned = self._clean_label(label)
@@ -486,6 +555,10 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
                 normalized.append(cleaned)
         # LLM datasets legitimately have no labels; keep the empty list.
         if not normalized and self._is_llm_task(task_type):
+            return []
+        # `allow_empty` is set when the caller read an explicit `[]` off a
+        # manifest and means it (phase 21 drafts).
+        if not normalized and allow_empty:
             return []
         return normalized or self._default_labels_for_task(task_type)
 

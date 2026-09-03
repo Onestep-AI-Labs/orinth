@@ -8727,3 +8727,453 @@ td {
   border: 0;
   background: var(--color-line);
 }
+
+/* --- Prep agent (phase 21) -------------------------------------------------
+   Token-only, border-first, no new tokens and no resting elevation, per
+   DESIGN.md §2/§5/§11. */
+
+/* A dataset that can train earns one dot on the Overview tab. */
+.detail-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-success-strong);
+  margin-left: 2px;
+}
+
+.detail-tab-active .detail-tab-dot {
+  background: var(--color-surface);
+}
+
+/* The ingest card is the first thing on the catalog, so it reads as a target
+   rather than a panel: a dashed hairline says "put something here" where a solid
+   one would say "this is a region". */
+.ingest-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 28px 20px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  color: var(--color-ink-muted);
+  transition: border-color 160ms ease-out, background 160ms ease-out;
+}
+
+.ingest-drop-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ingest-drop {
+    transition: none;
+  }
+}
+
+.ingest-drop-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.ingest-drop .form-caption {
+  max-width: 62ch;
+}
+
+.ingest-review {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+.ingest-error {
+  color: var(--color-danger-strong);
+}
+
+.prep-summary {
+  max-width: 78ch;
+}
+
+/* --- Prep progress ---------------------------------------------------------
+   A run is four ordered stages, so it is drawn as a ladder rather than a
+   spinner. `--accent` marks the rung in progress and nothing else; completed
+   rungs fall back to the neutral ink ramp, which keeps the accent budget at one
+   element per panel (DESIGN.md §2). */
+
+.prep-progress {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.prep-progress-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prep-progress-spinner {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.prep-progress-detail {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.prep-progress-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prep-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-ink-subtle);
+}
+
+/* The mark is a ring that fills in, so the row reads as a checklist even with
+   the colour removed — the stage state is never carried by hue alone. */
+.prep-stage-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-surface);
+}
+
+.prep-stage-done {
+  color: var(--color-ink-muted);
+}
+
+.prep-stage-done .prep-stage-mark {
+  border-color: var(--color-success-strong);
+  background: var(--color-success-strong);
+}
+
+.prep-stage-active {
+  color: var(--color-ink);
+}
+
+.prep-stage-active .prep-stage-mark {
+  border-color: var(--color-accent);
+  border-width: 2px;
+}
+
+.prep-progress-track {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.prep-progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prep-progress-fill {
+    transition: none;
+  }
+}
+
+/* --- Dataset data grid -----------------------------------------------------
+   The base `table` rules already give a sticky micro-label header and hairline
+   rows, so this adds only what a grid needs on top: the scroll container, the
+   thumbnail column, and in-cell controls sized to the row rather than to a form.
+   Nothing here restyles `table` itself — a second table style is how two tables
+   in one app stop looking like one app. */
+
+.grid-scroll {
+  max-height: 62vh;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+}
+
+.data-grid tr:hover td {
+  background: var(--color-wash);
+}
+
+.grid-thumb {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-canvas);
+}
+
+.data-grid td.grid-cell-image {
+  width: 60px;
+  padding: 6px 12px;
+}
+
+.data-grid td.grid-cell-number {
+  text-align: right;
+}
+
+.grid-cell-number {
+  color: var(--color-ink-muted);
+}
+
+.grid-cell-empty {
+  color: var(--color-ink-subtle);
+}
+
+.grid-cell-text {
+  display: block;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In-cell selects sit inside a 13px row, so they drop the form-control padding
+   and the heavy `--line-input` border that exists to make a standalone input
+   read darker than its container. At one per row that weight would tile. */
+.grid-cell-select {
+  min-height: 28px;
+  border-color: var(--color-line);
+  padding: 2px 24px 2px 8px;
+  font-size: 12px;
+}
+
+.grid-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* The Documents source hands off to the recipe builder, which needs a screen of
+   its own. Left-aligned and quiet: it is an explanation, not a pitch. */
+.source-handoff {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.source-handoff .form-caption {
+  max-width: 64ch;
+}
+
+/* Icons inside the source segmented control. The base rule predates icon
+   segments, so it sets no display mode of its own. */
+.segmented-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prep-actions {
+  margin-top: 14px;
+}
+
+.prep-check-list,
+.prep-decision-list,
+.prep-warning-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prep-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.prep-check:first-child {
+  border-top: 0;
+}
+
+.prep-check-icon {
+  display: inline-flex;
+  color: var(--color-success-strong);
+  margin-top: 1px;
+}
+
+.prep-check-failed .prep-check-icon {
+  color: var(--color-danger-strong);
+}
+
+.prep-check-body {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+/* One row per agent decision. `evidence` is set in mono because it quotes the
+   data itself — file counts, folder names, column names — and reads as a
+   citation rather than prose. */
+.prep-decision {
+  display: grid;
+  gap: 3px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.prep-decision:first-child {
+  border-top: 0;
+}
+
+.prep-decision-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prep-decision-field {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.prep-decision-value {
+  font-size: 13px;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.prep-decision-evidence {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.prep-verdict {
+  font-size: 14px;
+  color: var(--color-ink);
+  margin-bottom: 12px;
+}
+
+.prep-notice,
+.prep-needs-input {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.prep-notice {
+  background: var(--color-info-tint);
+  color: var(--color-info-strong);
+}
+
+.prep-needs-input {
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+  font-size: 13px;
+}
+
+.prep-warning-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-line);
+  font-size: 13px;
+  color: var(--color-warn-strong);
+}
+
+.prep-staged {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+  justify-items: start;
+}
+
+/* Phase 21b — the generated transform.
+   A metadata row over a collapsed code block. The code is `--color-surface-2`
+   inside a hairline border rather than a raised card: DESIGN.md §4 keeps
+   elevation off resting surfaces, and a scrolling region reads as recessed
+   from the border alone. */
+.prep-transform-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 20px;
+  margin: 14px 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.prep-transform-meta dt {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.prep-transform-meta dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.prep-transform-share {
+  color: var(--color-ink-muted);
+}
+
+.prep-transform-column {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Horizontal scroll stays inside the block: a long generated line must never
+   widen the studio column. */
+.prep-transform-code {
+  max-height: 420px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--color-ink);
+  white-space: pre;
+  tab-size: 4;
+}

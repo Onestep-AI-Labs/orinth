@@ -6,6 +6,7 @@ from app.ml.model_registry import ModelRegistry
 from app.services.architectures import ArchitectureService
 from app.services.dataset_hub import DatasetHubService
 from app.services.datasets import DatasetService
+from app.services.datasets.prep.service import DatasetPrepService
 from app.services.evaluation import EvaluationService
 from app.services.inference import InferenceService
 from app.services.llm_export import ExportService
@@ -24,6 +25,18 @@ project_service = ProjectService()
 settings_service = SettingsService(settings)
 dataset_service = DatasetService(settings, storage)
 dataset_hub_service = DatasetHubService(settings, storage, dataset_service)
+# Phase 21. Reuses the OpenRouter key/model the user already configured for
+# recipes, so there is one place a model is chosen.
+# The prep agent (phase 21) runs off the request path for the same reason
+# recipes do: applying a plan to a 15,000-row upload is ~90,000 file operations,
+# which is far longer than a proxy will hold a request open.
+prep_executor = ThreadPoolExecutor(
+    max_workers=settings.prep_executor_workers,
+    thread_name_prefix="prep-executor",
+)
+dataset_prep_service = DatasetPrepService(
+    settings, dataset_service, settings_service, prep_executor
+)
 inference_service = InferenceService(storage, registry)
 model_upload_service = ModelUploadService(settings, storage, registry)
 evaluation_service = EvaluationService(settings, storage, registry, dataset_service)
@@ -76,6 +89,7 @@ def refresh_settings() -> None:
     model_upload_service.settings = settings
     dataset_service.settings = settings
     dataset_hub_service.settings = settings
+    dataset_prep_service.settings = settings
     recipe_service.settings = settings
     evaluation_service.settings = settings
     training_service.settings = settings

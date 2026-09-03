@@ -15,6 +15,11 @@ dependencies = [
     "alembic>=1.13.2",
     "pillow>=10.4.0",
     "numpy>=1.26.4",
+    # Phase 21: reading Parquet during dataset detection. Most Hugging Face
+    # datasets ship no other format, so the prep agent needs it to see them at
+    # all. Present transitively before this; declared because it is now used
+    # directly.
+    "polars>=1.0.0",
     "opencv-python>=4.10.0.84",
     "scikit-learn>=1.5.1",
     "pycocotools>=2.0.8",

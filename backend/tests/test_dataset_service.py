@@ -754,3 +754,159 @@ def test_sample_datasets_are_absent_when_the_directory_is_missing(
     service = DatasetService(missing, Storage(missing))
     listed = {dataset.id for dataset in service.list_datasets(DEFAULT_PROJECT_ID)}
     assert "sample_image_classification" not in listed
+
+
+# --- reads race the prep agent rebuilding the dataset -------------------------
+
+
+def test_a_listing_skips_an_item_that_vanished_under_it(settings: Settings, monkeypatch):
+    """The studio polls `/items` while a prep run is in flight, and apply
+    rebuilds every split from staging — so a path listed a moment earlier can be
+    gone by the time it is opened. That used to 500 the whole listing."""
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(DatasetCreate(name="Racing"))
+    write_image(storage.datasets / dataset.id / "train" / "images" / "a.jpg")
+
+    listed = DatasetService._item_paths
+
+    def with_a_ghost(self, location, split):
+        paths = listed(self, location, split)
+        return [*paths, location.root / split / "images" / "gone.jpg"] if paths else paths
+
+    monkeypatch.setattr(DatasetService, "_item_paths", with_a_ghost)
+
+    page = service.list_items_page(dataset.id, "all", limit=50, offset=0)
+
+    # The ghost still counts toward `total` — that comes from the listing, which
+    # is the only cheap source of it — but it no longer takes the request down.
+    assert [item.filename for item in page.items] == ["a.jpg"]
+
+
+def test_eda_skips_an_item_that_vanished_under_it(settings: Settings, monkeypatch):
+    """Same race, the other endpoint the studio polls."""
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(DatasetCreate(name="Racing EDA"))
+    write_image(storage.datasets / dataset.id / "train" / "images" / "a.jpg")
+
+    listed = DatasetService._image_paths
+
+    def with_a_ghost(self, location, split):
+        paths = listed(self, location, split)
+        return [*paths, location.root / split / "images" / "gone.jpg"] if paths else paths
+
+    monkeypatch.setattr(DatasetService, "_image_paths", with_a_ghost)
+
+    summary = service.eda_summary(dataset.id, "all")
+
+    assert summary.image_count == 1
+
+
+def test_asking_for_one_item_that_is_gone_still_reports_it(settings: Settings):
+    """Skipping is for listings. A request naming one item wants an answer."""
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(DatasetCreate(name="Missing"))
+
+    with pytest.raises((HTTPException, FileNotFoundError)):
+        service.item_detail(dataset.id, "train", "gone.jpg")
+
+
+def test_paging_reads_only_the_page_it_returns(settings: Settings, monkeypatch):
+    """Building a summary opens the item and its annotation sidecar. Doing that
+    for every item in order to return fifty made browsing a 15,000-row upload
+    cost a 4.3s full scan on every poll."""
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(DatasetCreate(name="Paged"))
+    for index in range(12):
+        write_image(storage.datasets / dataset.id / "train" / "images" / f"{index:02d}.jpg")
+
+    opened: list[Path] = []
+    read_one = DatasetService._item_from_path
+
+    def counted(self, location, split, item_path, include_annotations):
+        opened.append(item_path)
+        return read_one(self, location, split, item_path, include_annotations)
+
+    monkeypatch.setattr(DatasetService, "_item_from_path", counted)
+
+    page = service.list_items_page(dataset.id, "all", limit=3, offset=0)
+
+    assert len(page.items) == 3
+    assert page.total == 12
+    assert len(opened) == 3, f"read {len(opened)} items to return 3"
+
+
+def test_a_filtered_page_still_searches_the_whole_dataset(settings: Settings):
+    """The fast path is only sound without a filter: which items match is
+    decided by their annotations, and only reading supplies those."""
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(DatasetCreate(name="Filtered"))
+    for index in range(6):
+        write_image(storage.datasets / dataset.id / "train" / "images" / f"{index:02d}.jpg")
+    service.save_annotations(
+        dataset.id,
+        "train",
+        "05.jpg",
+        DatasetAnnotationSave(
+            annotations=[
+                DatasetAnnotation(
+                    class_id=0,
+                    class_name="granuloma",
+                    kind="polygon",
+                    polygon=[[5, 5], [40, 5], [40, 30], [5, 30]],
+                )
+            ]
+        ),
+    )
+
+    page = service.list_items_page(dataset.id, "all", class_filter="granuloma", limit=50)
+
+    assert [item.filename for item in page.items] == ["05.jpg"]
+    assert page.total == 1
+
+
+def test_the_catalog_stays_readable_while_a_manifest_is_rewritten(settings: Settings):
+    """A prep run rewrites its manifest as it moves through planning → applying
+    → ready, while the studio polls throughout. `write_text` truncates first, so
+    a reader landing in that window got a JSONDecodeError — which `_locations`
+    handles by skipping the dataset, making it 404 mid-run."""
+    import threading
+
+    storage = Storage(settings)
+    storage.ensure()
+    service = DatasetService(settings, storage)
+    dataset = service.create_dataset(DatasetCreate(name="Rewritten"))
+
+    stop = threading.Event()
+    failures: list[Exception] = []
+
+    def rewrite() -> None:
+        while not stop.is_set():
+            try:
+                location = service._location(dataset.id)
+                service._update_manifest(location, metadata={"prep": {"state": "applying"}})
+            except Exception as error:  # noqa: BLE001 - recorded, then asserted on
+                failures.append(error)
+                return
+
+    writer = threading.Thread(target=rewrite)
+    writer.start()
+    try:
+        for _ in range(300):
+            found = [item for item in service.list_datasets() if item.id == dataset.id]
+            assert found, "the dataset vanished from the catalog mid-write"
+    finally:
+        stop.set()
+        writer.join(timeout=10)
+
+    assert not failures, f"writer failed: {failures[0]}"
+

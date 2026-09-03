@@ -1,41 +1,83 @@
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ImageIcon } from "lucide-react";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { DatasetDetailTabs } from "@/features/datasets/detail-tabs";
+import type { DatasetReadiness } from "@/types/api";
+
+function readiness(trainable: boolean): DatasetReadiness {
+  return {
+    state: trainable ? "ready" : "needs_prep",
+    trainable,
+    summary: trainable ? "Ready to train." : "The train split is empty.",
+    next_action: trainable ? "none" : "run_prep",
+    checks: [],
+    busy: false
+  } as DatasetReadiness;
+}
+
+function renderTabs(overrides: Partial<Parameters<typeof DatasetDetailTabs>[0]> = {}) {
+  const setActiveTab = vi.fn();
+  render(
+    <DatasetDetailTabs
+      itemIcon={ImageIcon}
+      itemLabel="Images"
+      activeTab="overview"
+      setActiveTab={setActiveTab}
+      {...overrides}
+    />
+  );
+  return { setActiveTab };
+}
 
 describe("DatasetDetailTabs", () => {
-  it("renders all four tabs with the active tab marked", () => {
-    render(
-      <DatasetDetailTabs itemIcon={ImageIcon} itemLabel="Images" activeTab="annotate" setActiveTab={vi.fn()} />
-    );
-
-    expect(screen.getByRole("button", { name: /Images/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Annotate/ })).toHaveClass("detail-tab-active");
-    expect(screen.getByRole("button", { name: /EDA/ })).not.toHaveClass("detail-tab-active");
-    expect(screen.getByRole("button", { name: /Config/ })).not.toHaveClass("detail-tab-active");
+  it("leads with Overview, then the data, then Prepare", () => {
+    renderTabs();
+    const labels = screen.getAllByRole("button").map((button) => button.textContent?.trim());
+    expect(labels).toEqual(["Overview", "Images", "Prepare"]);
   });
 
-  it("uses the itemLabel prop for the first tab (e.g. 'Texts' for NLP datasets)", () => {
-    render(<DatasetDetailTabs itemIcon={ImageIcon} itemLabel="Texts" activeTab="images" setActiveTab={vi.fn()} />);
-
-    expect(screen.getByRole("button", { name: /Texts/ })).toBeInTheDocument();
+  it("names the data tab after the item kind", () => {
+    renderTabs({ itemLabel: "Texts" });
+    expect(screen.getByText("Texts")).toBeInTheDocument();
   });
 
-  it("calls setActiveTab with the clicked tab's key", async () => {
-    const user = userEvent.setup();
-    const setActiveTab = vi.fn();
-    render(
-      <DatasetDetailTabs itemIcon={ImageIcon} itemLabel="Images" activeTab="images" setActiveTab={setActiveTab} />
+  it("calls it Records for llm_finetune datasets", () => {
+    renderTabs({ isLlm: true });
+    expect(screen.getByText("Records")).toBeInTheDocument();
+    expect(screen.queryByText("Images")).not.toBeInTheDocument();
+  });
+
+  it("marks the active tab", () => {
+    renderTabs({ activeTab: "prepare" });
+    expect(screen.getByText("Prepare").closest("button")).toHaveClass("detail-tab-active");
+  });
+
+  it("selects a tab on click", () => {
+    const { setActiveTab } = renderTabs();
+    fireEvent.click(screen.getByText("Prepare"));
+    expect(setActiveTab).toHaveBeenCalledWith("prepare");
+  });
+
+  it("shows a readiness dot only once the dataset can actually train", () => {
+    const { unmount } = render(
+      <DatasetDetailTabs
+        itemIcon={ImageIcon}
+        itemLabel="Images"
+        activeTab="overview"
+        setActiveTab={vi.fn()}
+        readiness={readiness(true)}
+      />
     );
+    expect(screen.getByLabelText("Ready to train")).toBeInTheDocument();
+    unmount();
 
-    await user.click(screen.getByRole("button", { name: /Config/ }));
-    expect(setActiveTab).toHaveBeenCalledWith("config");
+    renderTabs({ readiness: readiness(false) });
+    expect(screen.queryByLabelText("Ready to train")).not.toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole("button", { name: /EDA/ }));
-    expect(setActiveTab).toHaveBeenCalledWith("eda");
-
-    await user.click(screen.getByRole("button", { name: /Annotate/ }));
-    expect(setActiveTab).toHaveBeenCalledWith("annotate");
+  it("renders without readiness at all", () => {
+    // Reference and sample datasets reach the studio before anything computes.
+    renderTabs({ readiness: null });
+    expect(screen.getByText("Overview")).toBeInTheDocument();
   });
 });

@@ -303,6 +303,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ingest Dataset
+         * @description Create a dataset from raw files, with nothing declared about them.
+         *
+         *     No task type, no format, no labels — that is the point. `relative_paths`
+         *     carries each file's path inside the folder the user dropped, because the
+         *     directory layout is what detection reads; without it every upload looks like
+         *     a flat pile of files.
+         */
+        post: operations["ingest_dataset_api_datasets_ingest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}": {
         parameters: {
             query?: never;
@@ -349,6 +374,23 @@ export interface paths {
         get: operations["dataset_eda_api_datasets__dataset_id__eda_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest Into Dataset */
+        post: operations["ingest_into_dataset_api_datasets__dataset_id__ingest_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -578,6 +620,139 @@ export interface paths {
         patch: operations["rename_dataset_label_api_datasets__dataset_id__labels__label_index__patch"];
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/prep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dataset Prep */
+        get: operations["get_dataset_prep_api_datasets__dataset_id__prep_get"];
+        put?: never;
+        /**
+         * Run Dataset Prep
+         * @description Start a prep run: detect, plan, and (by default) apply.
+         *
+         *     Returns as soon as the run is queued, with the dataset already reading
+         *     `prep.state == "planning"`. Applying a plan to a large upload is tens of
+         *     thousands of file operations — 37 seconds on a real 15,000-row table — which
+         *     is longer than a dev proxy will hold a request open, and it competes with
+         *     the studio's own polling of the same dataset. The client polls
+         *     `GET /datasets/{id}` (or `/prep` for the plan) until the state settles.
+         *
+         *     The project's declared task types gate the plan, so the agent never proposes
+         *     a task that apply would reject with a 409.
+         */
+        post: operations["run_dataset_prep_api_datasets__dataset_id__prep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Dataset Prep
+         * @description Apply a plan the user may have edited.
+         *
+         *     The project gate lands here rather than at ingest: this is the moment the
+         *     dataset claims a task, which is what the gate is about.
+         */
+        post: operations["apply_dataset_prep_api_datasets__dataset_id__prep_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/detect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detect Dataset
+         * @description What the deterministic scan sees, with no plan and no model call.
+         */
+        get: operations["detect_dataset_api_datasets__dataset_id__prep_detect_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/discard-staged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discard Staged Files
+         * @description Reclaim the raw upload once the prepared dataset looks right.
+         */
+        post: operations["discard_staged_files_api_datasets__dataset_id__prep_discard_staged_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataset Prep Status
+         * @description The run state alone, cheap enough to poll while a run is in flight.
+         *
+         *     Declared before `/{dataset_id}/prep` so the literal segment wins the match.
+         */
+        get: operations["get_dataset_prep_status_api_datasets__dataset_id__prep_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo Dataset Prep */
+        post: operations["undo_dataset_prep_api_datasets__dataset_id__prep_undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}/process": {
         parameters: {
             query?: never;
@@ -589,6 +764,30 @@ export interface paths {
         put?: never;
         /** Process Dataset */
         post: operations["process_dataset_api_datasets__dataset_id__process_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dataset Readiness
+         * @description Readiness alone, for polling after a mutation.
+         *
+         *     The same value rides on every `DatasetSummary`; this route exists so a client
+         *     that only wants to know whether the Train button should light up does not
+         *     have to refetch the whole catalog to find out.
+         */
+        get: operations["dataset_readiness_api_datasets__dataset_id__readiness_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -639,6 +838,32 @@ export interface paths {
         get?: never;
         /** Save Dataset Record */
         put: operations["save_dataset_record_api_datasets__dataset_id__records__split___item_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataset Table
+         * @description The dataset as a grid: same rows as `/items`, projected into columns.
+         *
+         *     Deliberately built on `list_items_page` rather than on a materialized index.
+         *     That read already decides the page from the file paths and opens only the
+         *     window, so a page here costs what a page of the image browser costs — and
+         *     there is no second copy of the data that can drift from what the training
+         *     runners actually load. See `services/datasets/table.py`.
+         */
+        get: operations["get_dataset_table_api_datasets__dataset_id__table_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -2151,6 +2376,36 @@ export interface components {
              */
             project_id: string | null;
         };
+        /** Body_ingest_dataset_api_datasets_ingest_post */
+        Body_ingest_dataset_api_datasets_ingest_post: {
+            /** Files */
+            files: string[];
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Relative Paths
+             * @default null
+             */
+            relative_paths: string[] | null;
+        };
+        /** Body_ingest_into_dataset_api_datasets__dataset_id__ingest_post */
+        Body_ingest_into_dataset_api_datasets__dataset_id__ingest_post: {
+            /** Files */
+            files: string[];
+            /**
+             * Relative Paths
+             * @default null
+             */
+            relative_paths: string[] | null;
+        };
         /** Body_upload_dataset_item_api_datasets__dataset_id__items_post */
         Body_upload_dataset_item_api_datasets__dataset_id__items_post: {
             /**
@@ -2456,6 +2711,67 @@ export interface components {
              */
             task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
         };
+        /**
+         * DatasetDetection
+         * @description What the deterministic file scan concluded.
+         */
+        DatasetDetection: {
+            /**
+             * Candidate Labels
+             * @default null
+             */
+            candidate_labels: string[];
+            /**
+             * Columns
+             * @default null
+             */
+            columns: string[];
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * File Counts
+             * @default null
+             */
+            file_counts: {
+                [key: string]: number;
+            };
+            /**
+             * Format
+             * @default null
+             */
+            format: ("yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl") | null;
+            /**
+             * Modality
+             * @default unknown
+             * @enum {string}
+             */
+            modality: "image" | "text" | "record" | "table" | "unknown";
+            /**
+             * Needs Input
+             * @default null
+             */
+            needs_input: string | null;
+            /**
+             * Sample Rows
+             * @default null
+             */
+            sample_rows: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Signals
+             * @default null
+             */
+            signals: string[];
+            /**
+             * Task Type
+             * @default null
+             */
+            task_type: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling") | null;
+        };
         /** DatasetEdaSummary */
         DatasetEdaSummary: {
             /**
@@ -2538,6 +2854,57 @@ export interface components {
              * @default null
              */
             warnings: string[];
+        };
+        /**
+         * DatasetFieldMapping
+         * @description Which column or key feeds which part of a training example.
+         */
+        DatasetFieldMapping: {
+            /**
+             * Answer
+             * @default null
+             */
+            answer: string | null;
+            /**
+             * Input
+             * @default null
+             */
+            input: string | null;
+            /**
+             * Instruction
+             * @default null
+             */
+            instruction: string | null;
+            /**
+             * Label
+             * @default null
+             */
+            label: string | null;
+            /**
+             * Messages
+             * @default null
+             */
+            messages: string | null;
+            /**
+             * Output
+             * @default null
+             */
+            output: string | null;
+            /**
+             * Question
+             * @default null
+             */
+            question: string | null;
+            /**
+             * Summary
+             * @default null
+             */
+            summary: string | null;
+            /**
+             * Text
+             * @default null
+             */
+            text: string | null;
         };
         /** DatasetHubColumnMapping */
         DatasetHubColumnMapping: {
@@ -3080,6 +3447,152 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** DatasetPrepApplyRequest */
+        DatasetPrepApplyRequest: {
+            plan: components["schemas"]["DatasetPrepPlan"];
+        };
+        /**
+         * DatasetPrepPlan
+         * @description Everything the agent proposes to do to a dataset.
+         */
+        DatasetPrepPlan: {
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * Decisions
+             * @default null
+             */
+            decisions: components["schemas"]["PrepDecision"][];
+            /** @default null */
+            engine: components["schemas"]["PrepEngine"];
+            /** @default null */
+            field_mapping: components["schemas"]["DatasetFieldMapping"];
+            /**
+             * Format
+             * @default null
+             */
+            format: ("yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl") | null;
+            /**
+             * Labels
+             * @default null
+             */
+            labels: string[];
+            /**
+             * Needs Input
+             * @default null
+             */
+            needs_input: string | null;
+            /**
+             * Notice
+             * @default
+             */
+            notice: string;
+            /** @default null */
+            preprocess: components["schemas"]["DatasetPreprocessConfig"];
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+            /**
+             * Source
+             * @default heuristic
+             * @enum {string}
+             */
+            source: "llm" | "heuristic";
+            /** @default null */
+            split: components["schemas"]["DatasetSplitConfig"];
+            /**
+             * Task Type
+             * @default null
+             */
+            task_type: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling") | null;
+            /** @default null */
+            transform: components["schemas"]["PrepTransform"] | null;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
+        /**
+         * DatasetPrepResponse
+         * @description The dataset as it now stands, plus the plan that got it there.
+         */
+        DatasetPrepResponse: {
+            dataset: components["schemas"]["DatasetSummary"];
+            plan: components["schemas"]["DatasetPrepPlan"];
+        };
+        /**
+         * DatasetPrepStartRequest
+         * @description Options for one prep run.
+         *
+         *     `auto_apply` is the whole review-gate decision, kept as one flag: false stops
+         *     at `planned` and `/prep/apply` finishes the job later, running exactly the
+         *     same code.
+         */
+        DatasetPrepStartRequest: {
+            /**
+             * Auto Apply
+             * @default true
+             */
+            auto_apply: boolean;
+        };
+        /**
+         * DatasetPrepStatus
+         * @description Prep-agent state carried on the dataset manifest.
+         *
+         *     Kept on the manifest rather than only in `data_prep_jobs` so a dataset stays
+         *     self-describing: reference and shared sample datasets have no job row, and
+         *     readiness still has to compute for them.
+         */
+        DatasetPrepStatus: {
+            /**
+             * Applied At
+             * @default null
+             */
+            applied_at: string | null;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Job Id
+             * @default null
+             */
+            job_id: string | null;
+            /**
+             * Progress
+             * @default null
+             */
+            progress: number | null;
+            /**
+             * Staged Files
+             * @default 0
+             */
+            staged_files: number;
+            /**
+             * State
+             * @default ready
+             * @enum {string}
+             */
+            state: "draft" | "detecting" | "planning" | "planned" | "applying" | "ready" | "failed" | "cancelled";
+            /**
+             * Step
+             * @default idle
+             * @enum {string}
+             */
+            step: "idle" | "staging" | "detecting" | "planning" | "transforming" | "applying" | "splitting" | "done";
+        };
         /** DatasetPreprocessConfig */
         DatasetPreprocessConfig: {
             /**
@@ -3177,6 +3690,68 @@ export interface components {
                 [key: string]: number;
             };
             split_config: components["schemas"]["DatasetSplitConfig"];
+        };
+        /**
+         * DatasetReadiness
+         * @description Structural readiness only.
+         *
+         *     Checks that would need to read item files (empty LLM outputs, duplicate
+         *     records, class imbalance) belong to `DatasetEdaSummary` instead: `summary()`
+         *     runs for every dataset on every catalog list, and a second filesystem walk
+         *     there would double the cost of listing.
+         */
+        DatasetReadiness: {
+            /**
+             * Busy
+             * @default false
+             */
+            busy: boolean;
+            /**
+             * Checks
+             * @default null
+             */
+            checks: components["schemas"]["DatasetReadinessCheck"][];
+            /**
+             * Next Action
+             * @default none
+             * @enum {string}
+             */
+            next_action: "upload" | "run_prep" | "label" | "split" | "wait" | "none";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "needs_prep" | "needs_input" | "blocked";
+            /** Summary */
+            summary: string;
+            /** Trainable */
+            trainable: boolean;
+        };
+        /**
+         * DatasetReadinessCheck
+         * @description One condition, named so the UI can list what passed and what did not.
+         *
+         *     `blocking` checks decide `trainable`; `advisory` ones are warnings that never
+         *     stop a run (an undrained inbox, a skewed class balance).
+         */
+        DatasetReadinessCheck: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Passed */
+            passed: boolean;
+            /**
+             * Severity
+             * @default blocking
+             * @enum {string}
+             */
+            severity: "blocking" | "advisory";
         };
         /** DatasetRecordCreate */
         DatasetRecordCreate: {
@@ -3314,11 +3889,14 @@ export interface components {
             origin_ref: string | null;
             /** Path */
             path: string;
+            /** @default null */
+            prep: components["schemas"]["DatasetPrepStatus"] | null;
             /**
              * Project Id
              * @default default-research-project
              */
             project_id: string;
+            readiness: components["schemas"]["DatasetReadiness"];
             /**
              * Shared
              * @default false
@@ -3339,6 +3917,57 @@ export interface components {
              * @enum {string}
              */
             task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
+        };
+        /** DatasetTableColumn */
+        DatasetTableColumn: {
+            /**
+             * Editable
+             * @default false
+             */
+            editable: boolean;
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @default text
+             * @enum {string}
+             */
+            kind: "image" | "text" | "label" | "number" | "split" | "json";
+            /** Label */
+            label: string;
+        };
+        /** DatasetTablePage */
+        DatasetTablePage: {
+            /** Columns */
+            columns: components["schemas"]["DatasetTableColumn"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /**
+             * Rows
+             * @default null
+             */
+            rows: components["schemas"]["DatasetTableRow"][];
+            /** Total */
+            total: number;
+        };
+        /** DatasetTableRow */
+        DatasetTableRow: {
+            /**
+             * Cells
+             * @default null
+             */
+            cells: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "unassigned" | "train" | "valid" | "test";
         };
         /** DatasetUpdate */
         DatasetUpdate: {
@@ -4552,6 +5181,169 @@ export interface components {
              * @default null
              */
             openrouter_model: string | null;
+        };
+        /**
+         * PrepDecision
+         * @description One field of the plan, plus why it holds that value.
+         *
+         *     `evidence` is the load-bearing part. "classification, 85% confident" asks the
+         *     user to trust the agent; "312 files across 3 folders: normal, kista,
+         *     granuloma" can be checked against what they actually uploaded. Auto-apply is
+         *     only defensible because every decision carries one.
+         */
+        PrepDecision: {
+            /**
+             * Confidence
+             * @default null
+             */
+            confidence: number | null;
+            /**
+             * Evidence
+             * @default null
+             */
+            evidence: string | null;
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "task_type" | "format" | "labels" | "split" | "preprocess" | "mapping" | "transform";
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "detected" | "heuristic" | "llm" | "user";
+            /**
+             * Value
+             * @default null
+             */
+            value: unknown;
+        };
+        /**
+         * PrepEngine
+         * @description Which engine produced the plan, and what it cost.
+         *
+         *     `mode` is surfaced as a badge. Presenting heuristic output as model output
+         *     would misrepresent how much the user should trust it, so the distinction is
+         *     carried in the data rather than left to the copy.
+         */
+        PrepEngine: {
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /**
+             * Estimated Cost Usd
+             * @default null
+             */
+            estimated_cost_usd: number | null;
+            /**
+             * Mode
+             * @default heuristic
+             * @enum {string}
+             */
+            mode: "llm" | "heuristic";
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
+            /**
+             * Notice
+             * @default null
+             */
+            notice: string | null;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+        };
+        /**
+         * PrepTransform
+         * @description A Python script that reshaped the raw rows, and what it produced.
+         *
+         *     Detection can only name tasks it has a rule for. A feature table — sixteen
+         *     clinical yes/no columns and a `class` column, a gradebook, a survey export —
+         *     matches no rule, and the deterministic answer is "ask the user", which is
+         *     the friction this phase exists to remove. Code generalizes where a
+         *     vocabulary cannot: the script below is written for *this* table's columns
+         *     and run in `prep/sandbox.py`, and it is kept on the plan because a user who
+         *     is told their spreadsheet became a text classifier is owed the twenty lines
+         *     that did it.
+         */
+        PrepTransform: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /**
+             * Engine
+             * @default builtin
+             * @enum {string}
+             */
+            engine: "builtin" | "llm";
+            /**
+             * Estimated Cost Usd
+             * @default null
+             */
+            estimated_cost_usd: number | null;
+            /**
+             * Feature Columns
+             * @default null
+             */
+            feature_columns: string[];
+            /**
+             * Input Rows
+             * @default 0
+             */
+            input_rows: number;
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
+            /**
+             * Notice
+             * @default null
+             */
+            notice: string | null;
+            /**
+             * Output Rows
+             * @default 0
+             */
+            output_rows: number;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+            /**
+             * Source Files
+             * @default null
+             */
+            source_files: string[];
+            /**
+             * Target Column
+             * @default null
+             */
+            target_column: string | null;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -6096,6 +6888,39 @@ export interface operations {
             };
         };
     };
+    ingest_dataset_api_datasets_ingest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_ingest_dataset_api_datasets_ingest_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_dataset_api_datasets__dataset_id__delete: {
         parameters: {
             query?: never;
@@ -6217,6 +7042,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetEdaSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_into_dataset_api_datasets__dataset_id__ingest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_ingest_into_dataset_api_datasets__dataset_id__ingest_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
                 };
             };
             /** @description Validation Error */
@@ -6758,6 +7618,231 @@ export interface operations {
             };
         };
     };
+    get_dataset_prep_api_datasets__dataset_id__prep_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPrepPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_dataset_prep_api_datasets__dataset_id__prep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DatasetPrepStartRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_dataset_prep_api_datasets__dataset_id__prep_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetPrepApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPrepResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detect_dataset_api_datasets__dataset_id__prep_detect_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetDetection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_staged_files_api_datasets__dataset_id__prep_discard_staged_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataset_prep_status_api_datasets__dataset_id__prep_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPrepStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_dataset_prep_api_datasets__dataset_id__prep_undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     process_dataset_api_datasets__dataset_id__process_post: {
         parameters: {
             query?: never;
@@ -6780,6 +7865,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dataset_readiness_api_datasets__dataset_id__readiness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetReadiness"];
                 };
             };
             /** @description Validation Error */
@@ -6887,6 +8003,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataset_table_api_datasets__dataset_id__table_get: {
+        parameters: {
+            query?: {
+                split?: string;
+                class_name?: string | null;
+                unlabeled?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetTablePage"];
                 };
             };
             /** @description Validation Error */
