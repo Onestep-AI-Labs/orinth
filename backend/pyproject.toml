@@ -46,6 +46,11 @@ dependencies = [
     "httpx>=0.27.0",
 ]
 
+# The `orinth` CLI (phase 23). `[tool.hatch.build.targets.wheel]` already
+# packages `app`, so `app/cli/` ships with no build-config change.
+[project.scripts]
+orinth = "app.cli.main:main"
+
 [project.optional-dependencies]
 # LLM fine-tuning (phase 14). Installable on every platform, including macOS —
 # the CUDA-only packages are deliberately split into `llm-cuda` below so a Mac

@@ -311,6 +311,41 @@ def import_hub_dataset(
     return dataset_hub_service.import_hub(payload)
 
 
+@router.get("/{dataset_id}", response_model=DatasetSummary)
+def get_dataset(dataset_id: str) -> DatasetSummary:
+    """One dataset, without building the whole catalog to find it.
+
+    The studio gets a single dataset by fetching `GET /datasets` and filtering,
+    which is fine for a page that wants the catalog anyway and wrong for anything
+    that wants one: `_split_summary` walks items and reads annotation JSON per
+    item, *for every dataset*, which phase 21 measured at seconds on a real
+    workspace. `orinth dataset show` and every post-job readiness re-read go
+    through here instead.
+
+    **Declaration order is load-bearing.** This must stay below `/ingest`,
+    `/hub/*`, and `/import/*`, or the path parameter swallows those literals.
+    """
+    return dataset_service.summary(dataset_id)
+
+
+@router.get("/{dataset_id}/download")
+def download_dataset(
+    dataset_id: str,
+    splits: str | None = Query(default=None, description="Comma-separated subset"),
+) -> FileResponse:
+    """The dataset as a zip.
+
+    Cannot be built from what already exists: `POST /{id}/versions` writes a
+    snapshot to a server-side path and nothing streams it back. This mirrors
+    `GET /api/models/{model_id}/download`, which already bundles a multi-asset
+    model the same way, and gives the dataset catalog the download action the
+    model catalog has had since phase 12.
+    """
+    wanted = [part.strip() for part in (splits or "").split(",") if part.strip()]
+    archive = dataset_service.archive_dataset(dataset_id, splits=wanted or None)
+    return FileResponse(archive, media_type="application/zip", filename=archive.name)
+
+
 @router.patch("/{dataset_id}", response_model=DatasetSummary)
 def update_dataset(dataset_id: str, payload: DatasetUpdate) -> DatasetSummary:
     return dataset_service.update_dataset(dataset_id, payload)

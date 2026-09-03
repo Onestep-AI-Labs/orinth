@@ -365,7 +365,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Dataset
+         * @description One dataset, without building the whole catalog to find it.
+         *
+         *     The studio gets a single dataset by fetching `GET /datasets` and filtering,
+         *     which is fine for a page that wants the catalog anyway and wrong for anything
+         *     that wants one: `_split_summary` walks items and reads annotation JSON per
+         *     item, *for every dataset*, which phase 21 measured at seconds on a real
+         *     workspace. `orinth dataset show` and every post-job readiness re-read go
+         *     through here instead.
+         *
+         *     **Declaration order is load-bearing.** This must stay below `/ingest`,
+         *     `/hub/*`, and `/import/*`, or the path parameter swallows those literals.
+         */
+        get: operations["get_dataset_api_datasets__dataset_id__get"];
         put?: never;
         post?: never;
         /** Delete Dataset */
@@ -387,6 +401,32 @@ export interface paths {
         put?: never;
         /** Clone Dataset */
         post: operations["clone_dataset_api_datasets__dataset_id__clone_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Dataset
+         * @description The dataset as a zip.
+         *
+         *     Cannot be built from what already exists: `POST /{id}/versions` writes a
+         *     snapshot to a server-side path and nothing streams it back. This mirrors
+         *     `GET /api/models/{model_id}/download`, which already bundles a multi-asset
+         *     model the same way, and gives the dataset catalog the download action the
+         *     model catalog has had since phase 12.
+         */
+        get: operations["download_dataset_api_datasets__dataset_id__download_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -926,7 +966,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description Liveness, plus enough to tell two builds apart.
+         *
+         *     `orinth version` exists to answer "is the CLI I am running the same build as
+         *     the server it is talking to", which it cannot do without this. Additive:
+         *     phase 18's desktop supervisor polls this for a 200 and ignores the body.
+         */
         get: operations["health_api_health_get"];
         put?: never;
         post?: never;
@@ -1929,7 +1976,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Root Health */
+        /**
+         * Root Health
+         * @description Liveness, plus enough to tell two builds apart.
+         *
+         *     `orinth version` and `orinth doctor` exist to answer "is the CLI I am running
+         *     the same build as the server it is talking to", which they cannot do without
+         *     the version here. Additive: phase 18's desktop supervisor polls this for a
+         *     200 and ignores the body.
+         */
         get: operations["root_health_health_get"];
         put?: never;
         post?: never;
@@ -7095,6 +7150,37 @@ export interface operations {
             };
         };
     };
+    get_dataset_api_datasets__dataset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_dataset_api_datasets__dataset_id__delete: {
         parameters: {
             query?: never;
@@ -7183,6 +7269,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_dataset_api_datasets__dataset_id__download_get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated subset */
+                splits?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

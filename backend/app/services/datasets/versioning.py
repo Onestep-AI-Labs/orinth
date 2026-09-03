@@ -13,6 +13,7 @@ class.
 import json
 import random
 import shutil
+import zipfile
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,7 +40,7 @@ from app.schemas import (
     DatasetVersionCreate,
     DatasetVersionSummary,
 )
-from app.services.datasets.constants import SPLITS, TRAINING_SPLITS
+from app.services.datasets.constants import SPLITS, TRAINING_SPLITS, UNDO_FILENAME
 from app.services.datasets.types import DatasetLocation
 
 
@@ -47,6 +48,42 @@ class VersioningMixin:
     """Item moves, train/valid/test split processing, and dataset version snapshots."""
 
     storage: Storage
+
+    def archive_dataset(self, dataset_id: str, *, splits: list[str] | None = None) -> Path:
+        """Zip a dataset for download, into ignored temp storage.
+
+        Written under `storage/` rather than streamed on the fly because
+        `zipfile` needs a seekable target for its central directory, and holding
+        the whole archive in memory is not an option at dataset sizes. The file
+        is disposable — a fresh export per request — so it lands beside the other
+        generated artifacts the workspace already ignores.
+
+        `_staging/`, `_derived/`, and the undo snapshot are excluded: they are
+        the prep agent's working state, often larger than the dataset itself, and
+        never what someone asking for a dataset means.
+        """
+        location = self._location(dataset_id)
+        wanted = [split for split in (splits or SPLITS) if split in SPLITS]
+        if splits and not wanted:
+            raise HTTPException(status_code=422, detail=f"Unknown split(s): {', '.join(splits)}")
+
+        exports = self.storage.root / "exports"
+        exports.mkdir(parents=True, exist_ok=True)
+        archive = exports / f"{dataset_id}-{uuid4().hex[:8]}.zip"
+
+        skip_roots = {"_staging", "_derived"}
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+            for path in sorted(location.root.rglob("*")):
+                if not path.is_file():
+                    continue
+                relative = path.relative_to(location.root)
+                head = relative.parts[0]
+                if head in skip_roots or relative.name == UNDO_FILENAME:
+                    continue
+                if head in SPLITS and head not in wanted:
+                    continue
+                bundle.write(path, arcname=str(relative))
+        return archive
 
 
     def move_items(self, dataset_id: str, payload: DatasetItemMoveRequest) -> DatasetItemMoveResponse:

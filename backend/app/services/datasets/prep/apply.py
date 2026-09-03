@@ -36,6 +36,7 @@ from app.services.datasets.constants import (
     LLM_TASK_TYPES,
     NLP_TASK_TYPES,
     SPLITS,
+    UNDO_FILENAME,
 )
 from app.services.datasets.prep.detect import TABLE_SUFFIXES, _read_rows
 from app.services.datasets.prep.staging import (
@@ -47,8 +48,6 @@ from app.services.datasets.prep.staging import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.services.datasets.service import DatasetService
-
-UNDO_FILENAME = "prep_undo.json"
 
 #: Rows ingested from any one tabular or record source.
 #:

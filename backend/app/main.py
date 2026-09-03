@@ -63,4 +63,13 @@ app.include_router(router, prefix=settings.api_prefix)
 
 @app.get("/health")
 def root_health() -> dict[str, str]:
-    return {"status": "ok"}
+    """Liveness, plus enough to tell two builds apart.
+
+    `orinth version` and `orinth doctor` exist to answer "is the CLI I am running
+    the same build as the server it is talking to", which they cannot do without
+    the version here. Additive: phase 18's desktop supervisor polls this for a
+    200 and ignores the body.
+    """
+    from app.cli import __version__
+
+    return {"status": "ok", "app": "orinth", "version": __version__}
