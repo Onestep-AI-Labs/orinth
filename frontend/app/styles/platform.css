@@ -4857,9 +4857,9 @@ tr:last-child td {
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  padding: 4px;
+  padding: 5px;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 
@@ -4869,7 +4869,7 @@ tr:last-child td {
   gap: 6px;
   padding: 6px 10px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: transparent;
   color: var(--color-ink-muted);
   font-size: 12px;
@@ -4906,9 +4906,9 @@ tr:last-child td {
   align-items: center;
   gap: 7px;
   min-height: 34px;
-  padding: 0 10px;
+  padding: 0 12px;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-ink);
   font-size: 12px;
@@ -4935,7 +4935,7 @@ tr:last-child td {
   width: 320px;
   padding: 14px;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-overlay);
 }
@@ -4987,7 +4987,7 @@ tr:last-child td {
   display: grid;
   gap: 0;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -8301,7 +8301,7 @@ td {
   display: grid;
   min-height: 0;
   border: 1px solid var(--color-line-input);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--color-surface-2);
   overflow: hidden;
 }
@@ -10010,7 +10010,10 @@ td {
 
 .nb-cells {
   display: grid;
-  gap: 10px;
+  /* Room for the insert row, which straddles a cell's bottom border. The cell
+     tools do *not* live here — they sit inside the cell, because two overlays
+     in one gap is a collision by construction. */
+  gap: 22px;
   min-width: 0;
 }
 
@@ -10021,8 +10024,13 @@ td {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius);
+  /* `--radius-lg`, not `--radius`: a cell is a large surface with content
+     running to its corners, and 8px on a 900px-wide box reads as a sharp
+     rectangle that someone rounded by accident. The nested chrome inside it
+     steps down from here rather than matching it. */
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
 }
 
 .nb-cell:focus-within {
@@ -10032,13 +10040,18 @@ td {
 /* The running cell. An accent left edge and a tinted gutter, not a fill: the
    cell's own content is what you are trying to read, and a wash over it makes
    the output harder to see at exactly the moment it appears. */
+/* Running. Heavier than the first cut — a 3px inset edge on a hairline border
+   was easy to miss on a long notebook — but still an edge and a tint rather
+   than a fill, because the output appearing inside is what you are reading. */
 .nb-cell-running {
   border-color: var(--color-accent);
-  box-shadow: inset 3px 0 0 0 var(--color-accent);
+  box-shadow: inset 4px 0 0 0 var(--color-accent), var(--ring-accent);
 }
 
 .nb-cell-running .nb-cell-gutter {
   background: var(--color-accent-tint);
+  border-top-left-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-lg);
 }
 
 .nb-cell-running .nb-cell-count {
@@ -10088,18 +10101,25 @@ td {
   cursor: not-allowed;
 }
 
-/* Top-right, on hover or focus. Present in the DOM at all times so keyboard
-   users reach it by tab; invisible until wanted so a notebook at rest is cells
-   and nothing else. */
+/* Inside the cell, top-right, above everything.
+ *
+ * Two things went wrong before. Straddling the top border put it in the same
+ * gap as the previous cell's insert row — two overlays, one space. And inside
+ * the cell it was *painted over* by the code: `.nb-cell-tools` comes before
+ * `.nb-cell-body` in the DOM, and among positioned siblings the later one wins,
+ * so the editor's active-line band ran straight across the buttons. `z-index`
+ * is what settles that; the opaque background is what makes it readable.
+ */
 .nb-cell-tools {
   position: absolute;
-  top: 4px;
-  right: 6px;
+  top: 6px;
+  right: 8px;
+  z-index: 3;
   display: flex;
   gap: 2px;
-  padding: 2px;
+  padding: 3px;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-subtle);
   opacity: 0;
@@ -10120,13 +10140,15 @@ td {
   padding: 0;
 }
 
-/* The gap between two cells is where you look when you want one there. */
+/* The gap between two cells is where you look when you want one there. On the
+   bottom border for the same reason the tools are on the top one. */
 .nb-insert-row {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -12px;
-  z-index: 2;
+  bottom: 0;
+  transform: translateY(50%);
+  z-index: 3;
   display: flex;
   justify-content: center;
   gap: 6px;
@@ -10177,16 +10199,143 @@ td {
   min-width: 0;
 }
 
+/* --- cell output --------------------------------------------------------- */
+/*
+ * The MIME renderer shipped with none of this, so a `<pre>` of `white-space:
+ * pre` sat unstyled in a grid — and a grid item's automatic minimum is its
+ * content, so one long `repr()` widened the column, then the layout, and the
+ * text painted straight over the dataset rail. `min-width: 0` at every step of
+ * the chain is what stops a child from resizing its own container; the scroll
+ * bar goes on the block that actually holds the long line.
+ */
 .nb-cell-outputs {
   display: grid;
   gap: 8px;
+  min-width: 0;
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--color-line-soft);
 }
 
+.nb-output-block {
+  min-width: 0;
+}
+
+.nb-output-term {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  /* `pre-wrap` would be kinder to prose and wrong for output: a wrapped
+     traceback loses the column alignment that makes a stack readable, and a
+     wrapped dataframe stops being a table. It scrolls instead. */
+  white-space: pre;
+  tab-size: 4;
+}
+
+/* stderr and tracebacks. Tinted rather than fully coloured — a red block of
+   twenty lines is unreadable, and the point is to find the message in it. */
+.nb-output-term-error {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+.nb-output-truncated {
+  color: var(--color-ink-subtle);
+  font-style: italic;
+}
+
+.nb-output-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.nb-output-json {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nb-output-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 2px 6px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nb-output-toggle:hover {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+/* A MIME type outside the allowlist. Never silence: a labelled row and a
+   download, because a user who cannot see their output cannot tell whether the
+   cell worked. */
+.nb-output-unsupported {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius);
+  background: var(--color-wash);
+  color: var(--color-ink-muted);
+  font-size: 12px;
+}
+
+.nb-output-unsupported svg {
+  color: var(--color-warn-strong);
+}
+
+.nb-output-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+.nb-output-note {
+  margin-top: 4px;
+}
+
+/* SGR colours, from the `--label` ramp — the sanctioned functional-colour
+ * exception, same basis as syntax highlighting.
+ *
+ * Seven of the nine were unstyled, so a coloured traceback rendered flat; and
+ * `white` resolved to `--color-surface`, which on a light background is
+ * invisible ink on its own paper. A terminal's "white" means *bright default*,
+ * so on this surface it is the strong ink, and "black" is the muted one.
+ */
+.nb-ansi-black { color: var(--color-ink-muted); }
+.nb-ansi-red { color: var(--color-danger-strong); }
+.nb-ansi-green { color: oklch(var(--label-3)); }
+.nb-ansi-yellow { color: var(--color-warn-strong); }
+.nb-ansi-blue { color: oklch(var(--label-0)); }
+.nb-ansi-magenta { color: oklch(var(--label-6)); }
 .nb-ansi-cyan { color: oklch(var(--label-5)); }
-.nb-ansi-white { color: var(--color-surface); }
+.nb-ansi-white { color: var(--color-ink); }
+.nb-ansi-bold { font-weight: 700; }
 
 /* --- runs ---------------------------------------------------------------- */
 
@@ -10275,26 +10424,6 @@ td {
 .nb-markdown:hover,
 .nb-markdown:focus-visible {
   background: var(--color-wash);
-}
-
-.nb-markdown-edit {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  color: var(--color-ink-subtle);
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-
-.nb-markdown:hover .nb-markdown-edit,
-.nb-markdown:focus-visible .nb-markdown-edit {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nb-markdown-edit {
-    transition: none;
-  }
 }
 
 /* --- dataset rail --------------------------------------------------------- */

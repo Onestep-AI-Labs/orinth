@@ -13,7 +13,6 @@ import {
   List,
   ListOrdered,
   Minus,
-  Pencil,
   Quote,
   Sigma,
   Table
@@ -135,9 +134,6 @@ export function MarkdownCell({
       ) : (
         <p className="form-caption">Empty text cell — double-click to write something.</p>
       )}
-      <span className="nb-markdown-edit" aria-hidden="true">
-        <Pencil size={12} />
-      </span>
     </div>
   );
 }

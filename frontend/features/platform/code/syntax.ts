@@ -19,25 +19,40 @@ import { tags } from "@lezer/highlight";
  * hold.
  */
 
+//: Weight, not only hue. The first cut coloured eight token classes at 400 and
+//: leaned entirely on the ramp, which reads as washed at 13px on a light
+//: surface — and disappears altogether for anyone with reduced colour vision.
+//: 600 is the floor for anything that carries structure; comments and
+//: punctuation stay light on purpose, because their job is to recede.
+const STRUCTURE = "600";
+const EMPHASIS = "700";
+
 export const orinthHighlight = HighlightStyle.define([
   // Keywords and operators carry the structure, so they get weight as well as
   // hue — the distinction survives when someone turns colour down.
-  { tag: [tags.keyword, tags.modifier], color: "oklch(var(--label-7))", fontWeight: "600" },
-  { tag: [tags.controlKeyword, tags.moduleKeyword], color: "oklch(var(--label-7))", fontWeight: "600" },
-  { tag: [tags.definitionKeyword], color: "oklch(var(--label-7))", fontWeight: "600" },
+  // `def`, `class`, `import`, `return` — the words that carry the shape of the
+  // file, so they get the heaviest weight as well as the strongest hue.
+  { tag: [tags.keyword, tags.modifier], color: "oklch(var(--label-7))", fontWeight: EMPHASIS },
+  { tag: [tags.controlKeyword, tags.moduleKeyword], color: "oklch(var(--label-7))", fontWeight: EMPHASIS },
+  { tag: [tags.definitionKeyword], color: "oklch(var(--label-7))", fontWeight: EMPHASIS },
 
   // A string is the one token type a reader scans for by shape as much as by
   // colour, and green is the near-universal convention for it.
-  { tag: [tags.string, tags.special(tags.string)], color: "oklch(var(--label-3))" },
-  { tag: [tags.number, tags.bool, tags.null], color: "oklch(var(--label-1))" },
+  { tag: [tags.string, tags.special(tags.string)], color: "oklch(var(--label-3))", fontWeight: STRUCTURE },
+  { tag: [tags.number, tags.bool, tags.null], color: "oklch(var(--label-1))", fontWeight: STRUCTURE },
 
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "oklch(var(--label-0))" },
-  { tag: [tags.definition(tags.variableName)], color: "oklch(var(--label-0))" },
-  { tag: [tags.className, tags.typeName], color: "oklch(var(--label-5))", fontWeight: "600" },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "oklch(var(--label-0))", fontWeight: STRUCTURE },
+  { tag: [tags.definition(tags.variableName)], color: "oklch(var(--label-0))", fontWeight: STRUCTURE },
+  { tag: [tags.className, tags.typeName], color: "oklch(var(--label-5))", fontWeight: EMPHASIS },
 
   // Decorators are how a reader spots `@app.route` and `@dataclass` at a
   // glance; they behave like keywords and are coloured like them.
-  { tag: [tags.meta], color: "oklch(var(--label-6))" },
+  { tag: [tags.meta], color: "oklch(var(--label-6))", fontWeight: STRUCTURE },
+
+  // `self`, `None`, `True` — named constants and the receiver read as fixed
+  // points in a body, so they are marked rather than left as plain identifiers.
+  { tag: [tags.self, tags.standard(tags.variableName)], color: "oklch(var(--label-6))", fontWeight: STRUCTURE },
+  { tag: [tags.propertyName], color: "var(--color-ink)" },
 
   // Comments recede rather than compete. Italic because prose inside code is
   // the one place the distinction is worth a second axis.
