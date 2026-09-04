@@ -235,6 +235,70 @@ One sharp edge found by running it, now documented where it is read:
 order, so `limit=90` on a six-class image set is ninety images of the first
 class — which the prep agent then (correctly) refuses to label.
 
+**A notebook that reads like a notebook (this change).** The surface worked and
+the chrome did not: the runtime was controlled from the page you are not using
+it on, the dialog could be dismissed onto a dead editor, adding a text cell gave
+you an empty rendered block, and every cell action was crammed into the gutter
+beside the one button anyone presses.
+
+- **The runtime moved into the notebook.** The list page shows nothing about it
+  now — you start a runtime because you are about to run something, and that is
+  in the editor. `RuntimeMenu` is a trigger carrying the state (`● auto`) over a
+  panel with the machine picker and Start / Stop / **Restart**. Rare controls
+  fold away; the information they are about stays visible.
+- **`POST /api/notebooks/runtime/restart`.** One call rather than stop-then-start
+  from the client, because the interesting case is *changing the device*: two
+  calls leave a gap another tab can start the old one in.
+- **The start dialog cannot be dismissed.** No close, no Escape, no backdrop
+  click, and the body does not scroll behind it. Dismissing left the user on a
+  notebook where every cell was inert — a page that looks like an editor and is
+  not one. The honest choice is not "keep the dialog or not" but *start it, or
+  leave*, so it offers exactly those: **Start runtime** and **Back to notebooks**.
+- **A Colab-shaped toolbar.** One row of named verbs — `+ Code`, `+ Text` |
+  Run all, Interrupt | Restart kernel, Clear outputs — with everything that
+  resets state on the far side of a divider from everything that does not. Text
+  buttons, not icons: a toolbar you have to guess at is not simpler, it is
+  quieter.
+- **Cell chrome, rearranged.** The gutter holds the run button and `[3]` and
+  nothing else; move / edit / delete became a hover toolbar at the cell's
+  top-right; and inserting a cell happens *in the gap between two cells*, which
+  is where you are looking when you want one. All of it is in the DOM at rest
+  and revealed on hover or focus, so keyboard users reach it by tab and a
+  notebook at rest is cells and nothing else.
+- **Text cells get a formatting toolbar and a live preview** — heading, bold,
+  italic, code, link, image, quote, lists, rule, LaTeX, table, and Close —
+  because markdown is a language people half-know, and someone who cannot
+  remember whether a link is `[]()` or `()[]` should not have to leave to find
+  out. Actions act on the *selection*: wrapping wraps it, prefixes toggle across
+  every line it touches. A **new** text cell opens in the editor while one
+  **loaded from a file** renders, which is the distinction that matters: you
+  pressed Text in order to write some.
+- **Templates open in a modal.** The list page is now `New notebook` and
+  `Open a template · 26`; the tabs, the pager and the name field moved inside it.
+  Twenty-six cards permanently occupying the page above your own notebooks had
+  the ratio backwards.
+
+**And the dataset rail's constant refreshing had a cause, on disk.** The catalog
+query polls every four seconds while any dataset reads `detecting` / `planning` /
+`applying` — and a prep state is a string on a manifest with no liveness behind
+it, so a backend killed mid-run leaves one `planning` **forever**. This
+workspace had one from a crash weeks earlier, which meant every page mounting
+the rail re-read the whole catalog (a walk of every split of every dataset)
+every four seconds, indefinitely. Two fixes, both needed:
+
+- `DatasetPrepService.reconcile_stale_preps()` at startup, beside
+  `reconcile_stale_jobs` and `reconcile_stale_recipes` and for the same reason:
+  nothing this process did not start is running.
+- The rail passes `poll: false`. It lists ids to copy; a prep run's progress
+  belongs to the Datasets page.
+
+Verified in a browser: the list page carries no runtime UI and two buttons; the
+template modal shows nine tabs and pages 1/5; the start dialog survives Escape
+with the body locked and no close button; the runtime menu opens on six
+machines with Restart and Stop; `+ Text` opens an editor with twelve toolbar
+buttons and a preview, and Bold over a selection produces `**heading text**`
+that renders as `<strong>` on Close.
+
 **Deferred, and not attempted:** `ipywidgets` and interactive output (out of scope by design);
 `text/html` output rendering — it falls through to `text/plain` with a note, because sanitizing
 arbitrary kernel HTML needs DOMPurify and a policy, and a half-sanitized
@@ -452,6 +516,7 @@ New domain router `backend/app/api/routers/notebooks.py`, prefix `/notebooks`, r
 | `GET` | `/api/notebooks?project_id=` | List notebooks, newest-modified first. |
 | `POST` | `/api/notebooks` | Create blank, or from `template_id`. |
 | `GET` | `/api/notebooks/runtime/targets` | Machines a kernel can run on (probe + providers). |
+| `POST` | `/api/notebooks/runtime/restart` | Stop and start, on `device`. The only way to move machines. |
 | `GET` | `/api/notebooks/templates` | Starter notebooks (metadata only). |
 | `GET` | `/api/notebooks/{id}` | Manifest, cell count, kernel state. |
 | `PATCH` | `/api/notebooks/{id}` | Rename, retag. |
@@ -587,7 +652,10 @@ thread pool, and kernels are `jupyter-server`'s to manage.
   matching, a diagnostic margin), `syntax.ts` (the highlight style, moved here from
   `features/notebooks/`), and `python-api.ts` (static Keras/torch completion, used only where there
   is no kernel to ask). See `specs/phase-17-model-architecture-studio.md`.
-- `frontend/features/notebooks/` — `notebooks-page.tsx` (list + grouped template gallery),
+- `frontend/features/notebooks/` — `notebooks-page.tsx` (list + the template modal),
+  `runtime-menu.tsx` (machine + start/stop/restart, in the editor),
+  `runtime-dialog.tsx` (the undismissable start prompt),
+  `markdown-cell.tsx` (render, plus the formatting editor),
   `notebook-page.tsx` (editor shell), `cell-list.tsx`, `cell-editor.tsx` (kernel completion,
   Shift-Enter, Shift-Tab inspect, over the shared editor),
   `cell-output.tsx` (MIME dispatch), `ansi.ts` (SGR → token spans), `kernel-status.tsx`,

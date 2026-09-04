@@ -4848,6 +4848,244 @@ tr:last-child td {
   border-bottom: 0;
 }
 
+/* --- notebook toolbar, runtime menu, markdown editor --------------------- */
+
+/* One row of verbs under the header. Text buttons, not icons: these are read
+   before they are clicked, and an icon-only toolbar makes a new user guess. */
+.nb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.nb-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.nb-tool:hover:not(:disabled) {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+.nb-tool:disabled {
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+.nb-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--color-line);
+}
+
+/* The runtime folds into a menu: rare controls that must not sit at the same
+   weight as Run all, over information that has to stay visible. */
+.nb-runtime-menu {
+  position: relative;
+}
+
+.nb-runtime-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nb-runtime-trigger:hover {
+  border-color: var(--color-line-strong);
+}
+
+.nb-runtime-trigger-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.nb-runtime-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  display: grid;
+  gap: 12px;
+  width: 320px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.nb-runtime-panel-head {
+  display: grid;
+  gap: 2px;
+}
+
+.nb-runtime-field {
+  display: grid;
+  gap: 6px;
+}
+
+.nb-runtime-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink-subtle);
+}
+
+.nb-runtime-moved {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+}
+
+.nb-runtime-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* The start dialog is the whole screen's business until it is answered. */
+.nb-start-modal {
+  width: min(520px, 100%);
+}
+
+/* Source beside preview, with the toolbar over both — the shape every notebook
+   editor converged on, because markdown is a language people half-know. */
+.nb-md-editor {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.nb-md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface-2);
+}
+
+.nb-md-toolbar .icon-button {
+  min-height: 28px;
+  width: 28px;
+  padding: 0;
+}
+
+.nb-md-close {
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 5px 10px;
+  color: var(--color-accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nb-md-close:hover {
+  background: var(--color-accent-tint);
+}
+
+.nb-md-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 120px;
+}
+
+@media (max-width: 900px) {
+  .nb-md-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nb-md-source {
+  border: 0;
+  border-right: 1px solid var(--color-line);
+  background: transparent;
+  padding: 10px 12px;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.nb-md-source:focus {
+  outline: none;
+  background: var(--color-wash);
+}
+
+.nb-md-preview {
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+/* The list page: what it is on the left, the two ways in on the right. */
+.nb-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nb-start-copy {
+  min-width: min(420px, 100%);
+  flex: 1;
+}
+
+.nb-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nb-start-count {
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-wash);
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wide enough for two rows of template cards without the modal scrolling. */
+.nb-template-modal {
+  width: min(880px, 100%);
+}
+
 /* Previous / next, sitting with the list it pages rather than centred beneath
    it — a centred pager reads as the end of the page, which it is not. */
 .pager {
@@ -9755,7 +9993,7 @@ td {
 .nb-cell {
   position: relative;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
   background: var(--color-surface);
@@ -9782,13 +10020,116 @@ td {
   font-weight: 600;
 }
 
+/* Two things only: the button you press and the number it produces. Everything
+   else moved to the hover toolbar — in the gutter it competed with the one
+   control anyone actually uses. */
 .nb-cell-gutter {
   display: grid;
   justify-items: center;
   align-content: start;
-  gap: 4px;
+  gap: 2px;
   padding: 8px 4px;
-  border-right: 1px solid var(--color-line-soft);
+}
+
+.nb-run-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.nb-cell:hover .nb-run-button,
+.nb-cell:focus-within .nb-run-button {
+  border-color: var(--color-line);
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+}
+
+.nb-run-button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
+.nb-run-button:disabled {
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+/* Top-right, on hover or focus. Present in the DOM at all times so keyboard
+   users reach it by tab; invisible until wanted so a notebook at rest is cells
+   and nothing else. */
+.nb-cell-tools {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.nb-cell:hover .nb-cell-tools,
+.nb-cell:focus-within .nb-cell-tools,
+.nb-cell-tools:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.nb-cell-tools .icon-button {
+  min-height: 28px;
+  width: 28px;
+  padding: 0;
+}
+
+/* The gap between two cells is where you look when you want one there. */
+.nb-insert-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -12px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.nb-insert-row:hover,
+.nb-cell:hover .nb-insert-row,
+.nb-insert-row:focus-within {
+  opacity: 1;
+}
+
+.nb-insert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.nb-insert:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
 }
 
 /* `[1]`, or `*` while running — the same convention every notebook uses, and
@@ -9796,8 +10137,9 @@ td {
 .nb-cell-count {
   color: var(--color-ink-subtle);
   font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 .nb-cell-body {
@@ -9817,111 +10159,6 @@ td {
   border-top: 1px solid var(--color-line-soft);
 }
 
-.nb-add-cell {
-  position: absolute;
-  right: 10px;
-  bottom: -11px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-ink-subtle);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.nb-add-cell:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent-strong);
-}
-
-/* --- outputs ------------------------------------------------------------- */
-
-.nb-output-block {
-  display: grid;
-  gap: 6px;
-}
-
-/* The dark terminal block phase 15 established for `.export-log`, reused so a
-   kernel's stdout and a conversion job's stdout look like the same thing. */
-.nb-output-term {
-  max-height: 420px;
-  overflow: auto;
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: oklch(var(--shadow-ink));
-  color: var(--color-surface);
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.nb-output-term-error {
-  border-left: 2px solid var(--color-danger);
-}
-
-.nb-output-truncated {
-  color: var(--color-warn);
-}
-
-.nb-output-image {
-  max-width: 100%;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-}
-
-.nb-output-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  background: transparent;
-  padding: 0 0 4px;
-  color: var(--color-accent-strong);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.nb-output-note {
-  color: var(--color-warn-strong);
-}
-
-.nb-output-unsupported {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-  color: var(--color-ink-muted);
-  font-size: 12px;
-}
-
-.nb-output-download {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-accent-strong);
-  font-weight: 500;
-}
-
-/* ANSI: the `--label-*` ramp, which §2 sanctions for data. Kernel colour is
-   categorical information, not chrome. */
-.nb-ansi-bold { font-weight: 600; }
-.nb-ansi-black { color: var(--color-ink-subtle); }
-.nb-ansi-red { color: oklch(var(--label-4)); }
-.nb-ansi-green { color: oklch(var(--label-3)); }
-.nb-ansi-yellow { color: oklch(var(--label-6)); }
-.nb-ansi-blue { color: oklch(var(--label-0)); }
-.nb-ansi-magenta { color: oklch(var(--label-7)); }
 .nb-ansi-cyan { color: oklch(var(--label-5)); }
 .nb-ansi-white { color: var(--color-surface); }
 
@@ -10032,18 +10269,6 @@ td {
   .nb-markdown-edit {
     transition: none;
   }
-}
-
-.nb-add-cell-row {
-  position: absolute;
-  right: 10px;
-  bottom: -11px;
-  display: flex;
-  gap: 6px;
-}
-
-.nb-add-cell-row .nb-add-cell {
-  position: static;
 }
 
 /* --- dataset rail --------------------------------------------------------- */

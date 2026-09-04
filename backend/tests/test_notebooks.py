@@ -443,3 +443,25 @@ def test_switching_device_under_a_running_runtime_is_refused_by_name(settings: S
     with pytest.raises(NotebookRuntimeError) as failure:
         runtime.start("mps")
     assert "already running on 'cpu'" in str(failure.value)
+
+
+def test_restarting_moves_the_runtime_to_another_machine(settings: Settings, monkeypatch):
+    """One call, not stop-then-start from the client: the device only changes
+    across a restart, and two calls leave a gap another tab can start the old
+    one in."""
+    storage = Storage(settings)
+    storage.ensure()
+    runtime = NotebookRuntime(settings, storage)
+
+    started: list[str] = []
+    monkeypatch.setattr(NotebookRuntime, "_spawn", lambda self: None)
+    monkeypatch.setattr(NotebookRuntime, "_wait_ready", lambda self: started.append(self.device))
+    monkeypatch.setattr(NotebookRuntime, "available", staticmethod(lambda: True))
+
+    runtime.start("cpu")
+    assert started == ["cpu"]
+    # `start` on a live runtime with a different device is refused; `restart` is
+    # the operation that is allowed to change it.
+    runtime.restart("auto")
+    assert started == ["cpu", "auto"]
+    assert runtime.device == "auto"

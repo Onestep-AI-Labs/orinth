@@ -1,95 +1,140 @@
 "use client";
 
-import { useState } from "react";
-import { Play, Terminal } from "lucide-react";
-import { ComputeTargetPicker } from "@/features/notebooks/runtime-banner";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Cpu, Play, Terminal } from "lucide-react";
 import {
+  useComputeTargetsQuery,
   useNotebookRuntimeQuery,
   useStartRuntimeMutation
 } from "@/features/notebooks/hooks";
-import { Button, InlineSpinner, Modal } from "@/features/platform/ui";
+import { Button, ButtonLink, InlineSpinner, Select } from "@/features/platform/ui";
 
 /**
- * Asked on the way in, once: start the kernel runtime, on which machine.
+ * Start the runtime, on which machine — asked on the way in, and not dismissed.
  *
- * Opening a notebook with the runtime stopped used to leave a banner above the
- * cells and nothing else — every cell was inert, the Run buttons were disabled,
- * and the reason was a status line you had to notice. The one thing the user
- * came here to do was blocked by a state they had not been asked about.
+ * There is no close button, no Escape, and no backdrop click. Dismissing it
+ * left the user on a notebook where every cell was inert and every Run button
+ * disabled: a page that looks like an editor and is not one. The honest choice
+ * is not "keep the dialog or not" — it is *start it, or leave* — so those are
+ * the two things it offers.
  *
- * So it is a dialog, and it is the *only* dialog: it appears when the page opens
- * to a stopped runtime, and dismissing it leaves the banner behind for a second
- * try. It does not reappear while the page stays open, because a modal that
- * comes back after you dismissed it is not asking, it is insisting.
- *
- * The machine picker lives here rather than after the fact because a kernel
- * inherits its environment when it spawns — this is the moment the choice is
- * still free.
+ * The machine picker is here rather than after the fact because a kernel
+ * inherits its environment when it spawns. This is the moment the choice is
+ * still free; afterwards it costs a restart, which the runtime menu says.
  */
-export function RuntimeStartDialog({
-  open,
-  onClose
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+export function RuntimeStartDialog({ open }: { open: boolean }) {
   const runtimeQuery = useNotebookRuntimeQuery();
+  const targetsQuery = useComputeTargetsQuery();
   const startMutation = useStartRuntimeMutation();
   const [device, setDevice] = useState("auto");
   const runtime = runtimeQuery.data;
 
+  // Nothing behind the dialog is reachable, so nothing behind it should scroll.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
   if (!open || !runtime) return null;
 
-  // A missing extra is an install command, not a dialog with a Start button
-  // that cannot work. The banner already says it well; this stays out of the way.
-  if (!runtime.available) return null;
-
+  const targets = targetsQuery.data ?? [];
+  const selected = targets.find((target) => target.id === device);
   const busy = startMutation.isPending || runtime.state === "starting";
+  const installed = runtime.available;
 
   return (
-    <Modal
-      title="Start the kernel runtime"
-      subtitle="Nothing in this notebook can run until it is up."
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
-            Not now
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() =>
-              startMutation.mutate(device, {
-                // Closes only on success. A failed start with the dialog gone
-                // would leave the error in a toast and the page unexplained.
-                onSuccess: (status) => {
-                  if (status.state === "running") onClose();
-                }
-              })
-            }
-            disabled={busy}
-          >
-            {busy ? <InlineSpinner label="Starting" /> : (<><Play size={15} /> Start runtime</>)}
-          </Button>
-        </>
-      }
-    >
-      <div className="modal-body-padded">
-        <p className="nb-runtime-explainer">
-          <Terminal size={15} aria-hidden="true" />
-          <span>
-            Orinth runs your cells in a local Python process on this machine — the same
-            environment the platform trains in. It costs memory while it is up, so it is
-            started on demand and can be stopped from the Notebooks page.
-          </span>
-        </p>
-        <ComputeTargetPicker value={device} onChange={setDevice} disabled={busy} />
-        <p className="form-caption">
-          Every kernel inherits this. Changing it later means stopping the runtime, so it is
-          asked now.
-        </p>
-        {runtime.error && <p className="nb-runtime-error">{runtime.error}</p>}
-      </div>
-    </Modal>
+    <div className="modal-overlay" role="presentation">
+      <section
+        className="modal-panel nb-start-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nb-start-title"
+      >
+        <header className="modal-head">
+          <div className="modal-heading">
+            <h2 id="nb-start-title">
+              {installed ? "Start the kernel runtime" : "Notebooks are not installed"}
+            </h2>
+            <p>
+              {installed
+                ? "Nothing in this notebook can run until it is up."
+                : "The optional extra is missing, so no kernel can start."}
+            </p>
+          </div>
+        </header>
+
+        <div className="modal-body">
+          <div className="modal-body-padded">
+            {installed ? (
+              <>
+                <p className="nb-runtime-explainer">
+                  <Terminal size={15} aria-hidden="true" />
+                  <span>
+                    Cells run in a local Python process on this machine — the same environment
+                    the platform trains in. It costs memory while it is up, so it starts on
+                    demand and can be stopped from the Runtime menu.
+                  </span>
+                </p>
+
+                <label className="nb-runtime-field">
+                  <span className="advanced-group-label">Machine</span>
+                  <span className="nb-runtime-select">
+                    <Cpu size={15} aria-hidden="true" />
+                    <Select
+                      value={device}
+                      disabled={busy || targetsQuery.isLoading}
+                      aria-label="Machine to run kernels on"
+                      onChange={(event) => setDevice(event.target.value)}
+                    >
+                      {targets.map((target) => (
+                        <option key={target.id} value={target.id} disabled={!target.available}>
+                          {target.label}
+                          {target.available ? "" : " — not available yet"}
+                        </option>
+                      ))}
+                    </Select>
+                  </span>
+                  {selected?.detail && <span className="form-caption">{selected.detail}</span>}
+                </label>
+
+                <p className="form-caption">
+                  Every kernel inherits this. Changing it later means restarting the runtime,
+                  so it is asked now.
+                </p>
+              </>
+            ) : (
+              <p className="nb-runtime-explainer">
+                <Terminal size={15} aria-hidden="true" />
+                <span>{runtime.install_hint}</span>
+              </p>
+            )}
+            {runtime.error && <p className="nb-runtime-error">{runtime.error}</p>}
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          {/* Not a dismiss. The way out of a notebook you cannot run is the
+              notebook list, and saying so beats a Cancel that leaves you on a
+              dead page. */}
+          <ButtonLink variant="secondary" href="/notebooks">
+            <ArrowLeft size={15} /> Back to notebooks
+          </ButtonLink>
+          {installed && (
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={() => startMutation.mutate(device)}
+              autoFocus
+            >
+              {busy ? <InlineSpinner label="Starting" /> : (<><Play size={15} /> Start runtime</>)}
+            </Button>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }

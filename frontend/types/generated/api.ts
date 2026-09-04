@@ -1243,6 +1243,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notebooks/runtime/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart Notebook Runtime
+         * @description Stop and start in one call — the only way to change the device.
+         *
+         *     A kernel inherits its environment at spawn, so moving from CPU to GPU means
+         *     a new server. Doing it here rather than as two client calls closes the gap
+         *     another tab could start the old one in.
+         */
+        post: operations["restart_notebook_runtime_api_notebooks_runtime_restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notebooks/runtime/start": {
         parameters: {
             query?: never;
@@ -9806,6 +9830,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+        };
+    };
+    restart_notebook_runtime_api_notebooks_runtime_restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NotebookRuntimeStart"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

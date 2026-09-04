@@ -48,6 +48,13 @@ export const notebooksApi = {
       method: "POST",
       body: JSON.stringify({ device })
     }),
+  // One call, not stop-then-start: the device only changes across a restart,
+  // and two calls leave a gap another tab can start the old one in.
+  restartNotebookRuntime: (device = "auto") =>
+    jsonFetch<NotebookRuntimeStatus>("/notebooks/runtime/restart", {
+      method: "POST",
+      body: JSON.stringify({ device })
+    }),
   stopNotebookRuntime: () =>
     jsonFetch<NotebookRuntimeStatus>("/notebooks/runtime/stop", { method: "POST" }),
 

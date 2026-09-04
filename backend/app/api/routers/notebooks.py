@@ -72,6 +72,20 @@ def start_notebook_runtime(payload: NotebookRuntimeStart | None = None) -> Noteb
         raise HTTPException(status_code=503, detail=str(error)) from error
 
 
+@router.post("/runtime/restart", response_model=NotebookRuntimeStatus)
+def restart_notebook_runtime(payload: NotebookRuntimeStart | None = None) -> NotebookRuntimeStatus:
+    """Stop and start in one call — the only way to change the device.
+
+    A kernel inherits its environment at spawn, so moving from CPU to GPU means
+    a new server. Doing it here rather than as two client calls closes the gap
+    another tab could start the old one in.
+    """
+    try:
+        return notebook_runtime.restart((payload or NotebookRuntimeStart()).device)
+    except NotebookRuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+
 @router.post("/runtime/stop", response_model=NotebookRuntimeStatus)
 def stop_notebook_runtime() -> NotebookRuntimeStatus:
     return notebook_runtime.stop()

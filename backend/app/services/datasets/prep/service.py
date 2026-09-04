@@ -121,6 +121,44 @@ class DatasetPrepService:
         self._running: set[str] = set()
         self._lock = threading.Lock()
 
+    # ---- restart reconciliation ----------------------------------------
+
+    #: States that mean "a worker is on it". None of them survives the process
+    #: that was doing the work, which is what makes them reconcilable.
+    IN_FLIGHT_STATES = ("detecting", "planning", "applying")
+
+    def reconcile_stale_preps(self) -> int:
+        """Fail every prep run left mid-flight by a process that is gone.
+
+        A prep state is a string on a manifest with no liveness behind it, so a
+        backend killed during a run leaves `planning` on disk *forever*. That is
+        not only a wrong label: `PREP_IN_FLIGHT` in the frontend polls the
+        dataset catalog every four seconds while any dataset reads that way, and
+        the catalog walks every split of every dataset to build. One interrupted
+        run three weeks ago becomes a permanent four-second poll of the most
+        expensive read in the app.
+
+        Same posture as `reconcile_stale_jobs` and `reconcile_stale_recipes`,
+        and for the same reason: at startup, nothing this process did not start
+        is running.
+        """
+        reconciled = 0
+        for location in self.datasets._locations():
+            metadata = dict(location.metadata or {})
+            prep = dict(metadata.get("prep") or {})
+            if prep.get("state") not in self.IN_FLIGHT_STATES:
+                continue
+            prep["state"] = "failed"
+            prep["error"] = "Backend restarted before preparation completed"
+            prep["updated_at"] = datetime.now(UTC).replace(tzinfo=None).isoformat()
+            metadata["prep"] = prep
+            try:
+                self.datasets._update_manifest(location, metadata=metadata)
+            except Exception:  # noqa: BLE001 - one unreadable manifest must not stop startup
+                continue
+            reconciled += 1
+        return reconciled
+
     # ---- ingest --------------------------------------------------------
 
     def create_draft(self, *, project_id: str = DEFAULT_PROJECT_ID, name: str | None = None) -> str:

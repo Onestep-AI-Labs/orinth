@@ -2,7 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Copy, FileCode2, MoreVertical, NotebookPen, Pencil, Trash2 } from "lucide-react";
+import {
+  Copy,
+  FileCode2,
+  LayoutTemplate,
+  MoreVertical,
+  NotebookPen,
+  Pencil,
+  Plus,
+  Trash2
+} from "lucide-react";
 import { useProject } from "@/components/app-shell";
 import {
   useCreateNotebookMutation,
@@ -12,13 +21,13 @@ import {
   useNotebooksQuery,
   useRenameNotebookMutation
 } from "@/features/notebooks/hooks";
-import { RuntimeBanner } from "@/features/notebooks/runtime-banner";
 import {
   Badge,
   Button,
   CardGridSkeleton,
   EmptyState,
   Field,
+  Modal,
   MutationError,
   PageHeader,
   Pager,
@@ -116,6 +125,7 @@ export function NotebooksPage() {
   //: The notebook being renamed inline, and its draft name. One at a time —
   //: two open editors on one list is a state nobody asked for.
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [templatePage, setTemplatePage] = useState(0);
   const [notebookPage, setNotebookPage] = useState(0);
   const { confirm, confirmationDialog } = useConfirmationDialog();
@@ -144,6 +154,7 @@ export function NotebooksPage() {
 
   function create(templateId?: string) {
     const template = templates.find((entry) => entry.id === templateId);
+    setTemplatesOpen(false);
     createMutation.mutate({
       project_id: projectId,
       // A template-started notebook is named after the template unless the user
@@ -272,77 +283,113 @@ export function NotebooksPage() {
         icon={<NotebookPen size={20} />}
       />
 
-      <RuntimeBanner />
-
-      <section className="panel">
-        <PanelTitle icon={<FileCode2 size={18} />} title="Start a notebook" />
-        <p className="form-caption nb-intro">
-          Cells run in this workspace&apos;s own Python. <code>import orinth</code> reaches every
-          dataset and model here, and a cleaned dataframe registers back as a trainable dataset.
-        </p>
-        <Field label="Name" hint="optional">
-          <input
-            className="text-input"
-            value={name}
-            placeholder="Named after the template if left blank"
-            onChange={(event) => setName(event.target.value)}
-          />
-        </Field>
-        {templatesQuery.isLoading ? (
-          <CardGridSkeleton count={3} />
-        ) : (
-          <>
-            <div className="nb-template-bar">
-              <nav
-                className="segmented-control nb-template-tabs"
-                aria-label="Template categories"
-              >
-                {[ALL_TAB, ...categories].map((category) => {
-                  const count =
-                    category === ALL_TAB
-                      ? templates.length
-                      : templates.filter((entry) => entry.category === category).length;
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      className={tab === category ? "segmented-active" : ""}
-                      aria-current={tab === category ? "true" : undefined}
-                      onClick={() => {
-                        setTab(category);
-                        setTemplatePage(0);
-                      }}
-                    >
-                      {category}
-                      <span className="segmented-count">{count}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-              <Pager
-                page={currentTemplatePage}
-                pageCount={templatePages}
-                onChange={setTemplatePage}
-                label="Template pages"
-                unit="templates"
-              />
-            </div>
-            <div className="nb-template-grid">
-              {pageOf(visibleTemplates, currentTemplatePage, TEMPLATES_PER_PAGE).map((template) => (
-                <TemplateCard
-                  key={template.id}
-                  template={template}
-                  pending={createMutation.isPending}
-                  onPick={() => create(template.id)}
-                />
-              ))}
-            </div>
-          </>
-        )}
+      {/* Two ways in, side by side. The runtime lives in the notebook now —
+          you start one because you are about to run something, and that is
+          there, not here. */}
+      <section className="panel nb-start">
+        <div className="nb-start-copy">
+          <PanelTitle icon={<FileCode2 size={18} />} title="Start a notebook" />
+          <p className="form-caption nb-intro">
+            Cells run in this workspace&apos;s own Python. <code>import orinth</code> reaches
+            every dataset and model here, and a cleaned dataframe registers back as a trainable
+            dataset.
+          </p>
+        </div>
+        <div className="nb-start-actions">
+          <Button
+            variant="primary"
+            onClick={() => create()}
+            disabled={createMutation.isPending}
+            title="An empty notebook with orinth imported"
+          >
+            <Plus size={16} /> New notebook
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => setTemplatesOpen(true)}
+            disabled={createMutation.isPending}
+          >
+            <LayoutTemplate size={16} /> Open a template
+            <span className="nb-start-count">{templates.length}</span>
+          </Button>
+        </div>
         <MutationError
           mutations={[createMutation, duplicateMutation, deleteMutation, renameMutation]}
         />
       </section>
+
+      {templatesOpen && (
+        <Modal
+          title="Start from a template"
+          subtitle="Each one runs against this workspace — they are the SDK's documentation."
+          onClose={() => setTemplatesOpen(false)}
+          className="nb-template-modal"
+        >
+          <div className="modal-body-padded">
+            <Field label="Name" hint="optional">
+              <input
+                className="text-input"
+                value={name}
+                placeholder="Named after the template if left blank"
+                onChange={(event) => setName(event.target.value)}
+              />
+            </Field>
+            {templatesQuery.isLoading ? (
+              <CardGridSkeleton count={3} />
+            ) : (
+              <>
+                <div className="nb-template-bar">
+                  <nav
+                    className="segmented-control nb-template-tabs"
+                    aria-label="Template categories"
+                  >
+                    {[ALL_TAB, ...categories].map((category) => {
+                      const count =
+                        category === ALL_TAB
+                          ? templates.length
+                          : templates.filter((entry) => entry.category === category).length;
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          className={tab === category ? "segmented-active" : ""}
+                          aria-current={tab === category ? "true" : undefined}
+                          onClick={() => {
+                            setTab(category);
+                            setTemplatePage(0);
+                          }}
+                        >
+                          {category}
+                          <span className="segmented-count">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </nav>
+                  <Pager
+                    page={currentTemplatePage}
+                    pageCount={templatePages}
+                    onChange={setTemplatePage}
+                    label="Template pages"
+                    unit="templates"
+                  />
+                </div>
+                <div className="nb-template-grid">
+                  {pageOf(visibleTemplates, currentTemplatePage, TEMPLATES_PER_PAGE).map(
+                    (template) => (
+                      <TemplateCard
+                        key={template.id}
+                        template={template}
+                        pending={createMutation.isPending}
+                        onPick={() => create(template.id)}
+                      />
+                    )
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
 
       <section className="panel">
         <div className="nb-list-head">

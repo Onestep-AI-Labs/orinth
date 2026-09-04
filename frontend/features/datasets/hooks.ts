@@ -41,7 +41,10 @@ const PREP_IN_FLIGHT = new Set(["detecting", "planning", "applying"]);
  * the rail came to look permanently busy. Mutations invalidate the key either
  * way, so a longer window never shows a stale list after an edit.
  */
-export function useDatasetCatalogQuery(projectId: string, options?: { staleTime?: number }) {
+export function useDatasetCatalogQuery(
+  projectId: string,
+  options?: { staleTime?: number; poll?: boolean }
+) {
   return useQuery({
     queryKey: ["dataset-catalog", projectId],
     queryFn: () => api.datasetCatalog(projectId),
@@ -54,7 +57,13 @@ export function useDatasetCatalogQuery(projectId: string, options?: { staleTime?
     // still converge. Only while one is actually in flight: building this
     // response walks every split of every dataset and costs seconds on a large
     // one, which is why the run itself is watched through `/prep/status`.
+    //
+    // `poll: false` turns it off entirely, for consumers that show the catalog
+    // as a convenience list rather than to watch a run — the notebook rail.
+    // Watching someone else's prep run from there is a four-second poll of the
+    // most expensive read in the app, for a panel nobody is looking at.
     refetchInterval: (query) =>
+      options?.poll !== false &&
       query.state.data?.some((dataset) => PREP_IN_FLIGHT.has(dataset.prep?.state ?? ""))
         ? 4000
         : false

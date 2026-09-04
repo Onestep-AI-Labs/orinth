@@ -682,3 +682,33 @@ def test_a_failed_run_records_the_reason_as_its_detail(prep, monkeypatch):
     assert status.state == "failed"
     assert status.step == "idle"
     assert status.detail
+
+
+def test_a_prep_left_mid_flight_by_a_restart_is_reconciled(settings, tmp_path):
+    """A prep state is a string on a manifest with nothing running behind it.
+
+    An interrupted run therefore reads `planning` forever — and the studio polls
+    the dataset catalog every four seconds for as long as any dataset does,
+    which is the most expensive read in the app. Found on a real workspace: one
+    dataset had been `planning` since a crash weeks earlier.
+    """
+    from app.core.storage import Storage
+    from app.services.datasets import DatasetService
+    from app.services.datasets.prep.service import DatasetPrepService
+
+    storage = Storage(settings)
+    storage.ensure()
+    datasets = DatasetService(settings, storage)
+    prep = DatasetPrepService(settings, datasets)
+
+    dataset_id = prep.create_draft(name="interrupted")
+    prep._set_state(dataset_id, "planning")
+    assert (datasets._location(dataset_id).metadata or {})["prep"]["state"] == "planning"
+
+    assert prep.reconcile_stale_preps() == 1
+
+    after = (datasets._location(dataset_id).metadata or {})["prep"]
+    assert after["state"] == "failed"
+    assert "restarted" in after["error"]
+    # Idempotent: a second startup has nothing left to do.
+    assert prep.reconcile_stale_preps() == 0

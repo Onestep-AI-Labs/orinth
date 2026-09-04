@@ -32,7 +32,14 @@ import { formatDatasetTask } from "@/features/platform/utils";
 const RAIL_STALE_TIME = 5 * 60_000;
 
 export function DatasetRail({ projectId }: { projectId: string }) {
-  const catalogQuery = useDatasetCatalogQuery(projectId, { staleTime: RAIL_STALE_TIME });
+  const catalogQuery = useDatasetCatalogQuery(projectId, {
+    staleTime: RAIL_STALE_TIME,
+    // No polling. The rail lists ids to copy; a prep run's progress belongs to
+    // the Datasets page, and watching one from here re-read the whole catalog
+    // every four seconds for as long as *any* dataset was mid-prep — including
+    // one left mid-prep by a backend restart weeks ago.
+    poll: false
+  });
   const [copied, setCopied] = useState("");
   const datasets = catalogQuery.data ?? [];
   //: The contract: nothing yet is a skeleton, a refresh over existing rows is

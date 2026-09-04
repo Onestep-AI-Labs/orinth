@@ -76,6 +76,19 @@ export function useStartRuntimeMutation() {
   });
 }
 
+export function useRestartRuntimeMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: ["notebook-runtime-restart"],
+    mutationFn: (device: string = "auto") => api.restartNotebookRuntime(device),
+    onSuccess: (status) => {
+      client.setQueryData(["notebook-runtime"], status);
+      if (status.state === "running") toast.success(`Runtime restarted on ${status.device}.`);
+    },
+    onError: (error: Error) => toast.error(error.message)
+  });
+}
+
 export function useStopRuntimeMutation() {
   const client = useQueryClient();
   return useMutation({

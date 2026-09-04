@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useProject } from "@/components/app-shell";
 import {
   ArrowLeft,
-  Circle,
   Play,
   ChevronDown,
   ChevronUp,
@@ -15,6 +14,7 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Save,
   Text,
   Square,
   Trash2
@@ -22,10 +22,10 @@ import {
 import { CellEditor } from "@/features/notebooks/cell-editor";
 import { CellOutput } from "@/features/notebooks/cell-output";
 import { DatasetRail } from "@/features/notebooks/dataset-rail";
-import { MarkdownCell } from "@/features/notebooks/markdown-cell";
+import { MarkdownCell, MarkdownEditor } from "@/features/notebooks/markdown-cell";
 import { NotebookKernel, type ExecutionOutput, type KernelState } from "@/features/notebooks/kernel-client";
 import { useNotebookQuery, useNotebookRunsQuery } from "@/features/notebooks/hooks";
-import { RuntimeBanner } from "@/features/notebooks/runtime-banner";
+import { RuntimeMenu } from "@/features/notebooks/runtime-menu";
 import { RuntimeStartDialog } from "@/features/notebooks/runtime-dialog";
 import {
   useNotebookRuntimeQuery,
@@ -35,8 +35,8 @@ import { api } from "@/lib/api";
 import { toast } from "@/features/platform/toast";
 import {
   Badge,
-  Button,
   EmptyState,
+  IconButton,
   PageSkeleton,
   PanelTitle
 } from "@/features/platform/ui";
@@ -79,7 +79,17 @@ const KERNEL_TONE = {
   unknown: "neutral"
 } as const;
 
-function newCell(source = "", kind: CellKind = "code"): Cell {
+/**
+ * `editing` differs by *where the cell came from*, which is why it is a
+ * parameter rather than a rule about markdown.
+ *
+ * A markdown cell **loaded from a file** renders — a template that opened as raw
+ * `#` headings teaches nothing. A markdown cell you just **inserted** opens in
+ * the editor, because you pressed Text in order to write some: adding one and
+ * getting an empty rendered block that says "double-click to edit" is a click
+ * that did not do what it said.
+ */
+function newCell(source = "", kind: CellKind = "code", editing = kind === "code"): Cell {
   return {
     id: Math.random().toString(36).slice(2, 10),
     kind,
@@ -87,7 +97,7 @@ function newCell(source = "", kind: CellKind = "code"): Cell {
     outputs: [],
     executionCount: null,
     running: false,
-    editing: kind === "code"
+    editing
   };
 }
 
@@ -282,11 +292,25 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
   }
 
   function insertAfter(index: number, kind: CellKind) {
+    const cell = newCell("", kind, true);
     setCells((current) => [
       ...current.slice(0, index + 1),
-      newCell("", kind),
+      cell,
       ...current.slice(index + 1)
     ]);
+    // A new cell you cannot see is a click that appeared to do nothing —
+    // inserting near the top of a long notebook is exactly when that happens.
+    requestAnimationFrame(() => scrollToCell(cell.id));
+  }
+
+  function append(kind: CellKind) {
+    const cell = newCell("", kind, true);
+    setCells((current) => [...current, cell]);
+    requestAnimationFrame(() => scrollToCell(cell.id));
+  }
+
+  function remove(id: string) {
+    setCells((current) => (current.length === 1 ? current : current.filter((cell) => cell.id !== id)));
   }
 
   function move(index: number, delta: number) {
@@ -425,51 +449,66 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
         )}
         <div className="nb-header-actions">
           <Badge tone={KERNEL_TONE[kernelState] ?? "neutral"} title="Kernel status">
-            <Circle size={8} /> {kernelState}
+            {kernelState}
           </Badge>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => kernel.current?.interrupt()}
-            disabled={!busy}
-            title="Send KeyboardInterrupt to the running cell."
-          >
-            <Square size={14} /> Interrupt
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => kernel.current?.restart()}
-            disabled={!kernel.current}
-            title="Restart the kernel. Every variable is lost."
-          >
-            <RotateCcw size={14} /> Restart
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={runAll}
-            disabled={!kernel.current || busy}
-            title="Run every cell in order, stopping at the first error"
-          >
-            <FastForward size={14} /> Run all
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={clearOutputs}
-            title="Clear every output. Variables in the kernel are untouched."
-          >
-            <Eraser size={14} /> Clear outputs
-          </Button>
-          <Button variant="secondary" size="sm" onClick={save}>
-            Save
-          </Button>
+          <RuntimeMenu />
+          <IconButton aria-label="Save the notebook" title="Save (the .ipynb on disk)" onClick={save}>
+            <Save size={17} />
+          </IconButton>
         </div>
       </div>
 
-      {!runtimeRunning && <RuntimeBanner compact />}
-      <RuntimeStartDialog open={runtimeDialogOpen} onClose={() => setRuntimeDialogOpen(false)} />
+      {/* One row of verbs, in the order they are reached for. Colab's shape,
+          and the reason it works: insert is what you do most, run is what you do
+          next, and everything that resets state is on the far side of a divider
+          from everything that does not. */}
+      <div className="nb-toolbar" role="toolbar" aria-label="Notebook actions">
+        <button type="button" className="nb-tool" onClick={() => append("code")}>
+          <Plus size={14} aria-hidden /> <Code2 size={14} aria-hidden /> Code
+        </button>
+        <button type="button" className="nb-tool" onClick={() => append("markdown")}>
+          <Plus size={14} aria-hidden /> <Text size={14} aria-hidden /> Text
+        </button>
+        <span className="nb-toolbar-divider" aria-hidden />
+        <button
+          type="button"
+          className="nb-tool"
+          onClick={runAll}
+          disabled={!kernel.current || busy}
+          title="Run every cell in order, stopping at the first error"
+        >
+          <FastForward size={14} aria-hidden /> Run all
+        </button>
+        <button
+          type="button"
+          className="nb-tool"
+          onClick={() => kernel.current?.interrupt()}
+          disabled={!busy}
+          title="Send KeyboardInterrupt to the running cell"
+        >
+          <Square size={14} aria-hidden /> Interrupt
+        </button>
+        <span className="nb-toolbar-divider" aria-hidden />
+        <button
+          type="button"
+          className="nb-tool"
+          onClick={() => kernel.current?.restart()}
+          disabled={!kernel.current}
+          title="Restart the kernel. Every variable is lost; the runtime stays up."
+        >
+          <RotateCcw size={14} aria-hidden /> Restart kernel
+        </button>
+        <button
+          type="button"
+          className="nb-tool"
+          onClick={clearOutputs}
+          title="Clear every output. Variables in the kernel are untouched."
+        >
+          <Eraser size={14} aria-hidden /> Clear outputs
+        </button>
+      </div>
+
+      <RuntimeStartDialog open={runtimeDialogOpen} />
 
       <div className="nb-layout">
         <section className="nb-cells">
@@ -488,59 +527,78 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
               <div className="nb-cell-gutter">
                 <button
                   type="button"
-                  className="icon-button"
+                  className="nb-run-button"
                   onClick={() => runCell(cell.id)}
                   disabled={cell.kind === "code" && (!kernel.current || cell.running)}
-                  title={cell.kind === "markdown" ? "Render this cell (Shift-Enter)" : "Run this cell (Shift-Enter)"}
+                  title={
+                    cell.kind === "markdown"
+                      ? "Render this cell (Shift-Enter)"
+                      : "Run this cell (Shift-Enter)"
+                  }
+                  aria-label={cell.kind === "markdown" ? "Render this cell" : "Run this cell"}
                 >
                   <Play size={14} />
                 </button>
                 <span className="nb-cell-count">
-                  {cell.kind === "markdown" ? "md" : cell.running ? "*" : (cell.executionCount ?? " ")}
+                  {cell.kind === "markdown" ? "" : cell.running ? "[*]" : cell.executionCount ? `[${cell.executionCount}]` : "[ ]"}
                 </span>
-                <button
-                  type="button"
-                  className="icon-button"
+              </div>
+
+              {/* The cell's own actions, top-right, appearing on hover or focus
+                  — the shape Colab uses. In the gutter they competed with the
+                  run button for the one control anyone presses. */}
+              <div className="nb-cell-tools">
+                <IconButton
+                  aria-label="Move cell up"
+                  title="Move up"
                   onClick={() => move(index, -1)}
                   disabled={index === 0}
-                  title="Move up"
                 >
-                  <ChevronUp size={13} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
+                  <ChevronUp size={16} />
+                </IconButton>
+                <IconButton
+                  aria-label="Move cell down"
+                  title="Move down"
                   onClick={() => move(index, 1)}
                   disabled={index === cells.length - 1}
-                  title="Move down"
                 >
-                  <ChevronDown size={13} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => insertAfter(index, "code")}
-                  title="Insert a code cell below"
-                >
-                  <Plus size={13} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => setCells((current) => current.filter((entry) => entry.id !== cell.id))}
-                  disabled={cells.length === 1}
+                  <ChevronDown size={16} />
+                </IconButton>
+                {cell.kind === "markdown" && (
+                  <IconButton
+                    aria-label={cell.editing ? "Render this cell" : "Edit this cell"}
+                    title={cell.editing ? "Render (Shift-Enter)" : "Edit (double-click)"}
+                    onClick={() => patch(cell.id, { editing: !cell.editing })}
+                  >
+                    <Pencil size={16} />
+                  </IconButton>
+                )}
+                <IconButton
+                  aria-label="Delete this cell"
                   title="Delete this cell"
+                  danger
+                  onClick={() => remove(cell.id)}
+                  disabled={cells.length === 1}
                 >
-                  <Trash2 size={13} />
-                </button>
+                  <Trash2 size={16} />
+                </IconButton>
               </div>
+
               <div className="nb-cell-body">
-                {cell.kind === "markdown" && !cell.editing ? (
-                  <MarkdownCell
-                    source={cell.source}
-                    editing={false}
-                    onEdit={() => patch(cell.id, { editing: true })}
-                  />
+                {cell.kind === "markdown" ? (
+                  cell.editing ? (
+                    <MarkdownEditor
+                      value={cell.source}
+                      onChange={(value) => patch(cell.id, { source: value })}
+                      onDone={() => patch(cell.id, { editing: false })}
+                    />
+                  ) : (
+                    <MarkdownCell
+                      source={cell.source}
+                      editing={false}
+                      onEdit={() => patch(cell.id, { editing: true })}
+                    />
+                  )
                 ) : (
                   <CellEditor
                     value={cell.source}
@@ -560,24 +618,23 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
                   </div>
                 )}
               </div>
-              {index === cells.length - 1 && (
-                <div className="nb-add-cell-row">
-                  <button
-                    type="button"
-                    className="nb-add-cell"
-                    onClick={() => setCells((current) => [...current, newCell("", "code")])}
-                  >
-                    <Plus size={13} /> <Code2 size={12} /> Code
-                  </button>
-                  <button
-                    type="button"
-                    className="nb-add-cell"
-                    onClick={() => setCells((current) => [...current, newCell("", "markdown")])}
-                  >
-                    <Plus size={13} /> <Text size={12} /> Text
-                  </button>
-                </div>
-              )}
+
+              {/* Insert between two cells, where you are actually looking when
+                  you want one. Hidden until the gap is hovered, so a notebook at
+                  rest is cells and nothing else. */}
+              <div className="nb-insert-row">
+                <button type="button" className="nb-insert" onClick={() => insertAfter(index, "code")}>
+                  <Plus size={12} aria-hidden /> <Code2 size={12} aria-hidden /> Code
+                </button>
+                <button
+                  type="button"
+                  className="nb-insert"
+                  onClick={() => insertAfter(index, "markdown")}
+                >
+                  <Plus size={12} aria-hidden /> <Text size={12} aria-hidden /> Text
+                </button>
+              </div>
+
             </article>
           ))}
           {connecting && <p className="form-caption">Starting a kernel…</p>}

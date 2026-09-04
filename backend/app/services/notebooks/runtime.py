@@ -301,6 +301,19 @@ class NotebookRuntime:
             f"{self.settings.notebook_ready_timeout_seconds}s."
         )
 
+    def restart(self, device: str = "auto") -> NotebookRuntimeStatus:
+        """Stop and start again, optionally on a different machine.
+
+        A first-class operation rather than two calls from the client, because
+        the interesting case is *changing the device*: stop and start are only
+        equivalent to a restart if nothing gets in between them, and a second
+        tab pressing Start in that gap would bring the runtime back on the old
+        one. Every kernel dies either way — that is what changing the device
+        means, and the UI says so before asking.
+        """
+        self.stop()
+        return self.start(device)
+
     def stop(self) -> NotebookRuntimeStatus:
         process, self.process = self.process, None
         if process is not None and process.poll() is None:
