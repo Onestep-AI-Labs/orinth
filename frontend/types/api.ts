@@ -100,6 +100,7 @@ export type NotebookSummary = components["schemas"]["NotebookSummary"];
 export type NotebookTemplate = components["schemas"]["NotebookTemplate"];
 export type NotebookSession = components["schemas"]["NotebookSession"];
 export type NotebookRuntimeStatus = components["schemas"]["NotebookRuntimeStatus"];
+export type NotebookComputeTarget = components["schemas"]["NotebookComputeTarget"];
 export type NotebookRun = components["schemas"]["NotebookRun"];
 export type NotebookRunSeries = components["schemas"]["NotebookRunSeries"];
 export type NotebookKernelStatus = components["schemas"]["NotebookKernelStatus"];

@@ -114,10 +114,6 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
   const [kernelState, setKernelState] = useState<KernelState>("unknown");
   const [connecting, setConnecting] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
-  //: Asked once per visit. A modal that returns after you dismissed it is not
-  //: asking, it is insisting — so this latches rather than tracking the runtime.
-  const [runtimePrompted, setRuntimePrompted] = useState(false);
-  const [runtimeDialogOpen, setRuntimeDialogOpen] = useState(false);
   const kernel = useRef<NotebookKernel | null>(null);
   //: Cell id -> its article node, for scrolling the running one into view.
   const cellNodes = useRef(new Map<string, HTMLElement>());
@@ -128,12 +124,17 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
 
   const runtimeRunning = runtimeQuery.data?.state === "running";
 
-  // --- ask to start the runtime, once ------------------------------------
-  useEffect(() => {
-    if (runtimePrompted || runtimeQuery.isLoading || !runtimeQuery.data) return;
-    setRuntimePrompted(true);
-    if (runtimeQuery.data.state !== "running") setRuntimeDialogOpen(true);
-  }, [runtimePrompted, runtimeQuery.data, runtimeQuery.isLoading]);
+  /**
+   * The start dialog is *derived*, not latched.
+   *
+   * It used to open from an effect and close from a handler — and after the
+   * dialog lost its dismiss (there is nowhere to dismiss it to), nothing set
+   * that flag back, so it stayed up over a perfectly running kernel. State the
+   * rule instead: the dialog is exactly "the runtime is not up". Starting one
+   * closes it because the condition stops being true, and a runtime that stops
+   * later brings it back, which is correct — nothing can run then either.
+   */
+  const needsRuntime = !runtimeQuery.isLoading && Boolean(runtimeQuery.data) && !runtimeRunning;
 
   /**
    * Bring a cell into view, and keep it there while it runs.
@@ -508,7 +509,7 @@ export function NotebookPage({ notebookId }: { notebookId: string }) {
         </button>
       </div>
 
-      <RuntimeStartDialog open={runtimeDialogOpen} />
+      <RuntimeStartDialog open={needsRuntime} />
 
       <div className="nb-layout">
         <section className="nb-cells">

@@ -116,7 +116,7 @@ export function RuntimeMenu() {
                   <Cpu size={15} aria-hidden />
                   <Select
                     value={device}
-                    disabled={busy || targetsQuery.isLoading}
+                    disabled={busy}
                     aria-label="Machine to run kernels on"
                     onChange={(event) => setDevice(event.target.value)}
                   >
@@ -129,6 +129,9 @@ export function RuntimeMenu() {
                   </Select>
                 </span>
                 {selected?.detail && <span className="form-caption">{selected.detail}</span>}
+                {targetsQuery.isPlaceholderData && (
+                  <span className="form-caption">Still looking for GPUs…</span>
+                )}
               </label>
 
               {moved && (

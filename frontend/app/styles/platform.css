@@ -4970,9 +4970,15 @@ tr:last-child td {
   gap: 8px;
 }
 
-/* The start dialog is the whole screen's business until it is answered. */
-.nb-start-modal {
+/* The start dialog is the whole screen's business until it is answered. Short,
+   because it asks one question — `height: auto` opts out of the shared fixed
+   box for a dialog whose content genuinely does not change size.
+
+   Two classes deliberately: `.modal-panel` sets both, and at equal specificity
+   the winner would be whichever block a later edit happened to move lower. */
+.modal-panel.nb-start-modal {
   width: min(520px, 100%);
+  height: auto;
 }
 
 /* Source beside preview, with the toolbar over both — the shape every notebook
@@ -5081,9 +5087,11 @@ tr:last-child td {
   font-variant-numeric: tabular-nums;
 }
 
-/* Wide enough for two rows of template cards without the modal scrolling. */
-.nb-template-modal {
+/* Wide enough for two rows of template cards, and tall enough that switching
+   between a three-card tab and a six-card one does not resize the dialog. */
+.modal-panel.nb-template-modal {
   width: min(880px, 100%);
+  height: min(720px, 90vh);
 }
 
 /* Previous / next, sitting with the list it pages rather than centred beneath
@@ -8930,7 +8938,12 @@ td {
   display: flex;
   flex-direction: column;
   width: min(560px, 100%);
-  max-height: min(720px, 88vh);
+  /* Fixed, not content-sized. A dialog whose height follows its body jumps
+     every time the body changes — switching a template tab from four cards to
+     six moved the buttons under the cursor. `height` plus a `max-height` for
+     short viewports gives one stable box. */
+  height: min(680px, 88vh);
+  max-height: 88vh;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background: var(--color-surface);
@@ -8990,10 +9003,23 @@ td {
   padding: 0;
 }
 
+/* The one scrolling region. The panel is `overflow: hidden` so its corners
+   stay round and the header and actions stay put; without this the body was
+   simply clipped and the bottom of a long dialog was unreachable. */
 .modal-body {
   display: flex;
   min-height: 0;
   flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The padded body is a grid, and a grid child in a scroll container needs this
+   or its own content refuses to shrink. */
+.modal-body > .modal-body-padded {
+  flex: 1;
+  min-width: 0;
+  align-content: start;
 }
 
 /* The inspector is the dialog's body, so it sheds the rail's border and radius

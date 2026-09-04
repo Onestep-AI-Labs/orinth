@@ -299,6 +299,30 @@ machines with Restart and Stop; `+ Text` opens an editor with twelve toolbar
 buttons and a preview, and Bold over a selection produces `**heading text**`
 that renders as `<strong>` on Close.
 
+**Four follow-ups from using it.**
+
+- **The start dialog never closed.** It opened from an effect and closed from a
+  handler — and once the dialog lost its dismiss (there is nowhere to dismiss it
+  *to*), nothing set that flag back, so it sat over a perfectly running kernel.
+  Visibility is now *derived*: the dialog is exactly "the runtime is not up".
+  Starting one closes it because the condition stops being true.
+- **Modals could not scroll.** `.modal-panel` is `overflow: hidden` so its
+  corners and header stay put; without `overflow-y: auto` on `.modal-body` a
+  long dialog was simply clipped and its bottom unreachable.
+- **Modal sizing is fixed, not content-sized.** Switching a template tab from
+  six cards to three resized the dialog and moved its own buttons under the
+  cursor. The panel now has a height; the body scrolls inside it. The per-dialog
+  modifiers are written `.modal-panel.nb-template-modal` — as single classes
+  they tied with the base rule and lost on source order, which is how the wide
+  template dialog rendered at 560px.
+- **The machine list was empty for seven seconds.** `GET /runtime/targets`
+  spawns the device probe, measured at **7.1s cold** and 1.7ms warm, because it
+  imports torch and TensorFlow in a subprocess — the right place for it, and the
+  reason the dropdown had nothing in it on a cold backend. The query now carries
+  `Automatic` as `placeholderData`: not a placeholder for a real device but *the
+  default*, and the one choice correct on every machine, so the picker works
+  from the first paint with a caption saying the rest is still being found.
+
 **Deferred, and not attempted:** `ipywidgets` and interactive output (out of scope by design);
 `text/html` output rendering — it falls through to `text/plain` with a note, because sanitizing
 arbitrary kernel HTML needs DOMPurify and a policy, and a half-sanitized

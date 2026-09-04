@@ -86,7 +86,7 @@ export function RuntimeStartDialog({ open }: { open: boolean }) {
                     <Cpu size={15} aria-hidden="true" />
                     <Select
                       value={device}
-                      disabled={busy || targetsQuery.isLoading}
+                      disabled={busy}
                       aria-label="Machine to run kernels on"
                       onChange={(event) => setDevice(event.target.value)}
                     >
@@ -99,6 +99,12 @@ export function RuntimeStartDialog({ open }: { open: boolean }) {
                     </Select>
                   </span>
                   {selected?.detail && <span className="form-caption">{selected.detail}</span>}
+                  {targetsQuery.isPlaceholderData && (
+                    <span className="form-caption">
+                      Still looking for GPUs — the probe imports torch and TensorFlow in a
+                      subprocess and takes a few seconds. Automatic works either way.
+                    </span>
+                  )}
                 </label>
 
                 <p className="form-caption">

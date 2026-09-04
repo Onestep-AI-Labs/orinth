@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "@/features/platform/toast";
-import type { NotebookRuntimeStatus } from "@/types/api";
+import type { NotebookComputeTarget, NotebookRuntimeStatus } from "@/types/api";
 
 /** Notebook list, templates, runtime, and runs. */
 
@@ -48,17 +48,38 @@ export function useNotebookRuntimeQuery() {
   });
 }
 
+//: What the picker offers before the probe has answered. `auto` is not a
+//: placeholder for a real device — it *is* the default, and the one choice that
+//: is correct on every machine — so the dropdown is usable from the first
+//: paint instead of empty for seven seconds.
+const AUTO_TARGET: NotebookComputeTarget[] = [
+  {
+    id: "auto",
+    label: "Automatic",
+    kind: "auto",
+    available: true,
+    detail: "Each framework uses whatever it can reach. Nothing is hidden from it."
+  }
+];
+
 /**
  * What a kernel can run on. Probed hardware plus the declared remote providers.
  *
+ * **The probe is slow the first time — measured at 7.1s cold on this machine**,
+ * because it spawns a subprocess that imports torch and TensorFlow. That is the
+ * right place for it (`docs/ai/rules.md` forbids importing either into the API),
+ * but it meant a dropdown with nothing in it for seven seconds on a cold
+ * backend. `placeholderData` gives it the one answer that is always true while
+ * the rest arrives.
+ *
  * `staleTime: Infinity` because a machine does not grow a GPU while the tab is
- * open, and the probe behind this costs a subprocess and a TensorFlow import on
- * the backend's side of the cache.
+ * open, and the backend caches the probe for ten minutes anyway.
  */
 export function useComputeTargetsQuery() {
   return useQuery({
     queryKey: ["notebook-compute-targets"],
     queryFn: () => api.notebookComputeTargets(),
+    placeholderData: AUTO_TARGET,
     staleTime: Infinity
   });
 }
