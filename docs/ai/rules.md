@@ -17,6 +17,17 @@
 - Keep settings path-safe and relative to the workspace root.
 - Keep predictors behind `backend/app/ml/predictors`.
 - Avoid importing TensorFlow, Ultralytics, OpenCV, or PyTorch at module import unless unavoidable.
+- Keep the `orinth` CLI (`backend/app/cli/`) an HTTP client. Dispatch is two-phase over a static
+  table of module *path strings*, so `orinth --help` imports no command module. Only
+  `commands/serve.py` may import uvicorn, and only inside its handler.
+- Keep the notebook SDK (`backend/orinth/`) importable by a kernel and invisible to the server:
+  `orinth` may import `app`, `app` may never import `orinth`. Reads go direct to the filesystem;
+  writes go over HTTP so the project gate, the manifest write, and readiness run exactly once.
+- Probe hardware out of process. `app/ml/compute.py` runs `sys.executable -c` and parses one JSON
+  line; importing torch or TensorFlow into the API to ask about devices is the rule above in
+  another costume. Device detection is per *framework*, never per machine — they disagree.
+- Keep `jupyter_server` out of the API process. `services/notebooks/runtime.py` spawns it and
+  checks for it with `find_spec`; nothing under `app/` imports it.
 - Manage schema changes with Alembic migrations under `backend/migrations/`, not `Base.metadata.create_all` or hand-written `ALTER TABLE` patches. When you change `backend/app/db/models.py`, generate a matching migration with `uv run alembic revision --autogenerate -m "..."`, review it, and commit it alongside the model change. See `backend/README.md` for the full workflow.
 
 ## Frontend
@@ -43,6 +54,9 @@
 - Pair status colors as `-tint` background with `-strong` text. The base status hues fail WCAG AA at badge sizes.
 - The `--label-0..7` ramp is for data visualization only (annotation classes, EDA bars, ROC curves) and is the sole exception to the single-accent rule. Consume it through `labelColor` / `labelFill`, never by string-concatenating a hex alpha suffix.
 - Avoid hiding errors. Surface backend failures in the relevant panel and the toast layer.
+- Kernel output renders through an explicit MIME allowlist. Anything outside it gets a labelled
+  row with a download, never silence — a user who cannot see their output cannot tell whether the
+  cell worked. `text/html` is deliberately not rendered; see `frontend/DESIGN.md`.
 
 ## ML and Data
 

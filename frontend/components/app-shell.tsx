@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Database,
+  NotebookPen,
   FlaskConical,
   Folder,
   Rocket,
@@ -64,8 +65,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => projects.find((item) => item.id === projectId) ?? null,
     [projects, projectId]
   );
+  // Every route that reads or writes something belonging to one project. A
+  // surface missing from this list still works, but loses the project sidebar
+  // and the switcher with it — which is how `/notebooks` ended up as the one
+  // project page you could not tell the project of.
   const isProjectArea =
-    ["/datasets", "/models", "/inference", "/testing", "/training"].some((prefix) =>
+    ["/datasets", "/notebooks", "/models", "/inference", "/testing", "/training"].some((prefix) =>
       pathname?.startsWith(prefix)
     ) || PROJECT_SETTINGS_PATH.test(pathname ?? "");
 
@@ -229,6 +234,9 @@ function ProjectSidebar({
           <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} iconOnly>
             Datasets
           </SideLink>
+          <SideLink href="/notebooks" active={pathname.startsWith("/notebooks")} icon={<NotebookPen size={17} />} iconOnly>
+            Notebooks
+          </SideLink>
           <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />} iconOnly>
             Models
           </SideLink>
@@ -293,6 +301,9 @@ function ProjectSidebar({
       <nav className="side-nav">
         <SideLink href="/datasets" active={pathname.startsWith("/datasets")} icon={<Database size={17} />} dataTour="nav-datasets">
           Datasets
+        </SideLink>
+        <SideLink href="/notebooks" active={pathname.startsWith("/notebooks")} icon={<NotebookPen size={17} />} dataTour="nav-notebooks">
+          Notebooks
         </SideLink>
         <SideLink href="/models" active={pathname.startsWith("/models")} icon={<Boxes size={17} />} dataTour="nav-models">
           Models

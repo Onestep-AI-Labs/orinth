@@ -4848,6 +4848,286 @@ tr:last-child td {
   border-bottom: 0;
 }
 
+/* --- notebook toolbar, runtime menu, markdown editor --------------------- */
+
+/* One row of verbs under the header. Text buttons, not icons: these are read
+   before they are clicked, and an icon-only toolbar makes a new user guess. */
+.nb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.nb-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.nb-tool:hover:not(:disabled) {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+.nb-tool:disabled {
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+.nb-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--color-line);
+}
+
+/* The runtime folds into a menu: rare controls that must not sit at the same
+   weight as Run all, over information that has to stay visible. */
+.nb-runtime-menu {
+  position: relative;
+}
+
+.nb-runtime-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nb-runtime-trigger:hover {
+  border-color: var(--color-line-strong);
+}
+
+.nb-runtime-trigger-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.nb-runtime-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  display: grid;
+  gap: 12px;
+  width: 320px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.nb-runtime-panel-head {
+  display: grid;
+  gap: 2px;
+}
+
+.nb-runtime-field {
+  display: grid;
+  gap: 6px;
+}
+
+.nb-runtime-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink-subtle);
+}
+
+.nb-runtime-moved {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+}
+
+.nb-runtime-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* The start dialog is the whole screen's business until it is answered. Short,
+   because it asks one question — `height: auto` opts out of the shared fixed
+   box for a dialog whose content genuinely does not change size.
+
+   Two classes deliberately: `.modal-panel` sets both, and at equal specificity
+   the winner would be whichever block a later edit happened to move lower. */
+.modal-panel.nb-start-modal {
+  width: min(520px, 100%);
+  height: auto;
+}
+
+/* Source beside preview, with the toolbar over both — the shape every notebook
+   editor converged on, because markdown is a language people half-know. */
+.nb-md-editor {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.nb-md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface-2);
+}
+
+.nb-md-toolbar .icon-button {
+  min-height: 28px;
+  width: 28px;
+  padding: 0;
+}
+
+.nb-md-close {
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 5px 10px;
+  color: var(--color-accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nb-md-close:hover {
+  background: var(--color-accent-tint);
+}
+
+.nb-md-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 120px;
+}
+
+@media (max-width: 900px) {
+  .nb-md-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nb-md-source {
+  border: 0;
+  border-right: 1px solid var(--color-line);
+  background: transparent;
+  padding: 10px 12px;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.nb-md-source:focus {
+  outline: none;
+  background: var(--color-wash);
+}
+
+.nb-md-preview {
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+/* The list page: what it is on the left, the two ways in on the right. */
+.nb-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nb-start-copy {
+  min-width: min(420px, 100%);
+  flex: 1;
+}
+
+.nb-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nb-start-count {
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-wash);
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wide enough for two rows of template cards, and tall enough that switching
+   between a three-card tab and a six-card one does not resize the dialog. */
+.modal-panel.nb-template-modal {
+  width: min(880px, 100%);
+  height: min(720px, 90vh);
+}
+
+/* Previous / next, sitting with the list it pages rather than centred beneath
+   it — a centred pager reads as the end of the page, which it is not. */
+.pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pager-status {
+  min-width: 46px;
+  color: var(--color-ink-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Rail-width loading rows. Two lines, not three columns: at 280px a table
+   skeleton reads as a broken table rather than as pending content. */
+.skeleton-list {
+  display: grid;
+  gap: 0;
+}
+
+.skeleton-list-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.skeleton-list-row:last-child {
+  border-bottom: 0;
+}
+
 .inline-spinner {
   display: inline-flex;
   align-items: center;
@@ -5973,63 +6253,6 @@ td {
   color: var(--color-ink);
 }
 
-.hub-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  gap: 16px;
-}
-
-@media (max-width: 900px) {
-  .hub-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.hub-results {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 420px;
-  overflow-y: auto;
-}
-
-.hub-result {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  text-align: left;
-  cursor: pointer;
-}
-
-.hub-result:hover {
-  border-color: var(--color-line-strong);
-}
-
-.hub-result-active {
-  border-color: var(--color-accent);
-  background: var(--color-accent-tint);
-}
-
-.hub-result-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.86rem;
-  word-break: break-all;
-}
-
-.hub-result-meta {
-  display: flex;
-  gap: 12px;
-  color: var(--color-ink-subtle);
-  font-size: 0.76rem;
-  font-variant-numeric: tabular-nums;
-}
-
 .hub-detail {
   min-width: 0;
 }
@@ -6062,44 +6285,346 @@ td {
   color: var(--color-info-strong);
 }
 
-.hub-preview-table,
 .records-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
 }
 
-.hub-preview-table th {
-  padding: 8px;
+/* --- Hub browse ------------------------------------------------------------
+   Faceted browse in the shape huggingface.co uses, in platform tokens. The rail
+   is a fixed 200px because its content is short chip words, and letting it flex
+   only ever makes the result grid narrower for no gain. */
+
+.hub-browse {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .hub-browse {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hub-rail {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.hub-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hub-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.hub-facet {
+  display: grid;
+  gap: 8px;
+}
+
+.hub-facet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Border-first like every other resting control: an inactive chip is a hairline,
+   an active one is the accent, and nothing lifts (DESIGN.md §5). */
+.hub-chip {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  padding: 4px 10px;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 120ms ease-out, background 120ms ease-out;
+}
+
+.hub-chip:hover {
+  border-color: var(--color-line-strong);
+}
+
+.hub-chip-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
+/* A term Orinth can browse but not import. Dimmed rather than disabled: the
+   filter still works, and hiding it would leave the user wondering where image
+   datasets went. */
+.hub-chip-muted {
+  color: var(--color-ink-subtle);
+  border-style: dashed;
+}
+
+.hub-chip-muted.hub-chip-active {
+  color: var(--color-accent-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-chip {
+    transition: none;
+  }
+}
+
+.hub-main {
+  min-width: 0;
+}
+
+.hub-result-count {
+  min-height: 20px;
+  margin-bottom: 10px;
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.hub-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease-out;
+}
+
+.hub-card:hover {
+  border-color: var(--color-line-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-card {
+    transition: none;
+  }
+}
+
+.hub-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-ink-subtle);
+}
+
+/* The id is the identifier and is often long, so it clamps to two lines rather
+   than ellipsing at one — same reasoning as the model card title (DESIGN.md §8).
+   `min-width: 0` on both the flex parent and this child is what keeps an
+   unbroken `author/name` inside its track. */
+.hub-card-head strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hub-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hub-card-badges .badge {
+  gap: 4px;
+}
+
+.hub-card-summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.hub-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* --- Hub dataset detail --------------------------------------------------- */
+
+.hub-detail-view {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.hub-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hub-back,
+.hub-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--color-accent-strong);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.hub-detail-title h3 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+  overflow-wrap: anywhere;
+}
+
+.hub-detail-summary {
+  max-width: 82ch;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.hub-viewer,
+.hub-import {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+.hub-viewer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hub-viewer-head .section-microlabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hub-viewer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-viewer-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.hub-viewer-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface-2);
   vertical-align: top;
   text-align: left;
 }
 
 .hub-col-name {
   display: block;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.hub-col-select {
-  margin-top: 4px;
-  width: 100%;
-  min-width: 110px;
-}
-
-.hub-preview-table td {
-  padding: 8px;
-  border-bottom: 1px solid var(--color-line-soft);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* The column's dtype, in the micro-label register — it is metadata about the
+   name above it, not a second name. */
+.hub-col-type {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-ink-subtle);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hub-viewer-table td {
+  max-width: 280px;
+  overflow: hidden;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--color-line-soft);
   color: var(--color-ink-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-mapping {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.hub-mapping .form-caption {
+  margin-top: 4px;
+}
+
+/* The one term the user is not expected to already know, and its sentence. */
+.info-tip {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink-subtle);
+  cursor: help;
 }
 
 .hub-import-footer {
@@ -7769,11 +8294,14 @@ td {
   gap: 8px;
 }
 
+/* The frame is the chrome; CodeMirror owns everything inside it. The gutter,
+   the highlight layer and the textarea that used to live here went with the
+   textarea implementation they belonged to. */
 .code-editor-frame {
-  display: flex;
+  display: grid;
   min-height: 0;
   border: 1px solid var(--color-line-input);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--color-surface-2);
   overflow: hidden;
 }
@@ -7783,77 +8311,38 @@ td {
   box-shadow: var(--ring-accent);
 }
 
-.code-editor-gutter {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0;
-  border-right: 1px solid var(--color-line);
-  background: var(--color-surface);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.55;
-  color: var(--color-ink-subtle);
-  user-select: none;
-  flex-shrink: 0;
-}
-
-.code-editor-line {
-  padding: 0 8px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.code-editor-line-flagged {
-  color: var(--color-danger-strong);
-  background: var(--color-danger-tint);
-}
-
-/* The highlighted layer and the textarea are stacked and must share one font
-   metric exactly, or the caret drifts from the glyphs beneath it. */
-.code-editor-surface {
-  position: relative;
-  flex: 1;
+/* The CodeMirror host, shared by the notebook cell and the studio's layer
+   field. Colours come from the editor theme, which is built from tokens. */
+.code-surface {
   min-width: 0;
-  overflow: hidden;
 }
 
-.code-editor-highlight,
-.code-editor-input {
-  padding: 8px 10px;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.55;
-  tab-size: 4;
-  white-space: pre;
-  word-break: normal;
-}
-
-.code-editor-highlight {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: visible;
-}
-
-.code-editor-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
+.code-surface .cm-editor {
   height: 100%;
-  border: 0;
-  resize: none;
-  background: transparent;
-  color: transparent;
-  caret-color: var(--color-ink);
-  overflow: auto;
 }
 
-.code-editor-input:focus {
-  outline: none;
+/* A dot in the margin, not a squiggle under the text: at 13px in a narrow
+   inspector an underline is indistinguishable from a selection, and the message
+   itself is already listed below the field. */
+.cm-diagnostic-gutter {
+  padding-left: 4px;
+  width: 12px;
 }
 
-.code-editor-input::selection {
-  background: var(--color-accent-tint-strong);
+.cm-diagnostic-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: var(--radius-pill);
+}
+
+.cm-diagnostic-error {
+  background: var(--color-danger);
+}
+
+.cm-diagnostic-warning {
+  background: var(--color-warn);
 }
 
 .code-editor-findings {
@@ -8434,7 +8923,7 @@ td {
 
 /* --- settings dialog ------------------------------------------------------ */
 
-.arch-modal-overlay {
+.modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 950;
@@ -8445,11 +8934,16 @@ td {
   backdrop-filter: blur(2px);
 }
 
-.arch-modal {
+.modal-panel {
   display: flex;
   flex-direction: column;
   width: min(560px, 100%);
-  max-height: min(720px, 88vh);
+  /* Fixed, not content-sized. A dialog whose height follows its body jumps
+     every time the body changes — switching a template tab from four cards to
+     six moved the buttons under the cursor. `height` plus a `max-height` for
+     short viewports gives one stable box. */
+  height: min(680px, 88vh);
+  max-height: 88vh;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background: var(--color-surface);
@@ -8457,11 +8951,11 @@ td {
   overflow: hidden;
 }
 
-.arch-modal:focus {
+.modal-panel:focus {
   outline: none;
 }
 
-.arch-modal-head {
+.modal-head {
   display: flex;
   align-items: start;
   justify-content: space-between;
@@ -8470,34 +8964,67 @@ td {
   border-bottom: 1px solid var(--color-line);
 }
 
-.arch-modal-heading h2 {
+.modal-heading h2 {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-ink);
 }
 
-.arch-modal-heading p {
+.modal-heading p {
   margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   color: var(--color-ink-subtle);
 }
 
-.arch-modal-head .icon-button {
+/* The studio's subtitle is an identifier — `Conv2D · conv_1` — so it reads as
+   one. Prose subtitles elsewhere stay in the body face. */
+.modal-panel-mono-subtitle .modal-heading p {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+/* A dialog whose body is prose and controls rather than a full-bleed panel. */
+.modal-body-padded {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 18px 18px;
+}
+
+.modal-head .icon-button {
   min-height: 32px;
   width: 32px;
   padding: 0;
 }
 
-.arch-modal-body {
+/* The one scrolling region. The panel is `overflow: hidden` so its corners
+   stay round and the header and actions stay put; without this the body was
+   simply clipped and the bottom of a long dialog was unreachable. */
+.modal-body {
   display: flex;
   min-height: 0;
   flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The padded body is a grid, and a grid child in a scroll container needs this
+   or its own content refuses to shrink. */
+.modal-body > .modal-body-padded {
+  flex: 1;
+  min-width: 0;
+  align-content: start;
 }
 
 /* The inspector is the dialog's body, so it sheds the rail's border and radius
    and fills the panel it is now inside of. */
-.arch-modal .arch-inspector {
+.modal-panel .arch-inspector {
   flex: 1;
   min-width: 0;
   border: 0;
@@ -8726,4 +9253,1329 @@ td {
   margin: 4px 6px;
   border: 0;
   background: var(--color-line);
+}
+
+/* --- Prep agent (phase 21) -------------------------------------------------
+   Token-only, border-first, no new tokens and no resting elevation, per
+   DESIGN.md §2/§5/§11. */
+
+/* A dataset that can train earns one dot on the Overview tab. */
+.detail-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-success-strong);
+  margin-left: 2px;
+}
+
+.detail-tab-active .detail-tab-dot {
+  background: var(--color-surface);
+}
+
+/* The ingest card is the first thing on the catalog, so it reads as a target
+   rather than a panel: a dashed hairline says "put something here" where a solid
+   one would say "this is a region". */
+.ingest-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 28px 20px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  color: var(--color-ink-muted);
+  transition: border-color 160ms ease-out, background 160ms ease-out;
+}
+
+.ingest-drop-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ingest-drop {
+    transition: none;
+  }
+}
+
+.ingest-drop-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.ingest-drop .form-caption {
+  max-width: 62ch;
+}
+
+.ingest-review {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+.ingest-error {
+  color: var(--color-danger-strong);
+}
+
+.prep-summary {
+  max-width: 78ch;
+}
+
+/* --- Prep progress ---------------------------------------------------------
+   A run is four ordered stages, so it is drawn as a ladder rather than a
+   spinner. `--accent` marks the rung in progress and nothing else; completed
+   rungs fall back to the neutral ink ramp, which keeps the accent budget at one
+   element per panel (DESIGN.md §2). */
+
+.prep-progress {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.prep-progress-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prep-progress-spinner {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.prep-progress-detail {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.prep-progress-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prep-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-ink-subtle);
+}
+
+/* The mark is a ring that fills in, so the row reads as a checklist even with
+   the colour removed — the stage state is never carried by hue alone. */
+.prep-stage-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-surface);
+}
+
+.prep-stage-done {
+  color: var(--color-ink-muted);
+}
+
+.prep-stage-done .prep-stage-mark {
+  border-color: var(--color-success-strong);
+  background: var(--color-success-strong);
+}
+
+.prep-stage-active {
+  color: var(--color-ink);
+}
+
+.prep-stage-active .prep-stage-mark {
+  border-color: var(--color-accent);
+  border-width: 2px;
+}
+
+.prep-progress-track {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.prep-progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prep-progress-fill {
+    transition: none;
+  }
+}
+
+/* --- Dataset data grid -----------------------------------------------------
+   The base `table` rules already give a sticky micro-label header and hairline
+   rows, so this adds only what a grid needs on top: the scroll container, the
+   thumbnail column, and in-cell controls sized to the row rather than to a form.
+   Nothing here restyles `table` itself — a second table style is how two tables
+   in one app stop looking like one app. */
+
+.grid-scroll {
+  max-height: 62vh;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+}
+
+.data-grid tr:hover td {
+  background: var(--color-wash);
+}
+
+.grid-thumb {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-canvas);
+}
+
+.data-grid td.grid-cell-image {
+  width: 60px;
+  padding: 6px 12px;
+}
+
+.data-grid td.grid-cell-number {
+  text-align: right;
+}
+
+.grid-cell-number {
+  color: var(--color-ink-muted);
+}
+
+.grid-cell-empty {
+  color: var(--color-ink-subtle);
+}
+
+.grid-cell-text {
+  display: block;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In-cell selects sit inside a 13px row, so they drop the form-control padding
+   and the heavy `--line-input` border that exists to make a standalone input
+   read darker than its container. At one per row that weight would tile. */
+.grid-cell-select {
+  min-height: 28px;
+  border-color: var(--color-line);
+  padding: 2px 24px 2px 8px;
+  font-size: 12px;
+}
+
+.grid-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* The Documents source hands off to the recipe builder, which needs a screen of
+   its own. Left-aligned and quiet: it is an explanation, not a pitch. */
+.source-handoff {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.source-handoff .form-caption {
+  max-width: 64ch;
+}
+
+/* Icons inside the source segmented control. The base rule predates icon
+   segments, so it sets no display mode of its own. */
+.segmented-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prep-actions {
+  margin-top: 14px;
+}
+
+.prep-check-list,
+.prep-decision-list,
+.prep-warning-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prep-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.prep-check:first-child {
+  border-top: 0;
+}
+
+.prep-check-icon {
+  display: inline-flex;
+  color: var(--color-success-strong);
+  margin-top: 1px;
+}
+
+.prep-check-failed .prep-check-icon {
+  color: var(--color-danger-strong);
+}
+
+.prep-check-body {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+/* One row per agent decision. `evidence` is set in mono because it quotes the
+   data itself — file counts, folder names, column names — and reads as a
+   citation rather than prose. */
+.prep-decision {
+  display: grid;
+  gap: 3px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.prep-decision:first-child {
+  border-top: 0;
+}
+
+.prep-decision-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prep-decision-field {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.prep-decision-value {
+  font-size: 13px;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.prep-decision-evidence {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.prep-verdict {
+  font-size: 14px;
+  color: var(--color-ink);
+  margin-bottom: 12px;
+}
+
+.prep-notice,
+.prep-needs-input {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.prep-notice {
+  background: var(--color-info-tint);
+  color: var(--color-info-strong);
+}
+
+.prep-needs-input {
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+  font-size: 13px;
+}
+
+.prep-warning-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-line);
+  font-size: 13px;
+  color: var(--color-warn-strong);
+}
+
+.prep-staged {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+  justify-items: start;
+}
+
+/* Phase 21b — the generated transform.
+   A metadata row over a collapsed code block. The code is `--color-surface-2`
+   inside a hairline border rather than a raised card: DESIGN.md §4 keeps
+   elevation off resting surfaces, and a scrolling region reads as recessed
+   from the border alone. */
+.prep-transform-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 20px;
+  margin: 14px 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.prep-transform-meta dt {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.prep-transform-meta dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.prep-transform-share {
+  color: var(--color-ink-muted);
+}
+
+.prep-transform-column {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Horizontal scroll stays inside the block: a long generated line must never
+   widen the studio column. */
+.prep-transform-code {
+  max-height: 420px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--color-ink);
+  white-space: pre;
+  tab-size: 4;
+}
+
+/* --- Notebooks (phase 22) --------------------------------------------------
+   Token-only, border-first, no resting elevation. The one place colour is used
+   categorically is the ANSI ramp below, which is the sanctioned §2 exception
+   for data — a traceback where red and green mean the same thing is not a
+   traceback. */
+
+.nb-intro {
+  max-width: 78ch;
+  margin-bottom: 12px;
+}
+
+.nb-runtime {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-ink-subtle);
+}
+
+/* A missing optional extra is an install command, not a failure. Warn tone,
+   not danger — nothing is broken. */
+.nb-runtime-missing {
+  border-color: var(--color-warn);
+  background: var(--color-warn-tint);
+  color: var(--color-warn-strong);
+  align-items: flex-start;
+}
+
+.nb-runtime-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.nb-runtime-title {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nb-runtime-missing .nb-runtime-title {
+  color: var(--color-warn-strong);
+}
+
+/* The title is a control, so it reads as text until you point at it. A field
+   sitting there permanently would say "type here" on a page whose job is code. */
+.nb-title-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+}
+
+.nb-title-button svg {
+  opacity: 0;
+  color: var(--color-ink-subtle);
+  transition: opacity 120ms ease-out;
+}
+
+.nb-title-button:hover svg,
+.nb-title-button:focus-visible svg {
+  opacity: 1;
+}
+
+.nb-title-form {
+  min-width: 0;
+  flex: 1;
+}
+
+.nb-title-input {
+  width: min(420px, 100%);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.nb-card-rename {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+/* The machine dropdown: icon, select, and the reason under it. */
+.nb-device-picker {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.nb-device-picker svg {
+  color: var(--color-ink-subtle);
+}
+
+.nb-device-picker .form-caption {
+  grid-column: 2;
+}
+
+.nb-runtime-explainer {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  color: var(--color-ink-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.nb-runtime-explainer svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-ink-subtle);
+}
+
+.nb-runtime-error {
+  color: var(--color-danger-strong);
+  font-size: 12px;
+}
+
+/* --- list ---------------------------------------------------------------- */
+
+/* Category tabs on the left, the pager on the right, sharing one baseline. At
+   narrow widths the tabs wrap and the pager drops below them rather than
+   squeezing — eight categories do not fit on a laptop half-screen. */
+.nb-template-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.nb-template-tabs {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* The list header carries its own pager, so the panel title cannot be the only
+   thing on that line. */
+.nb-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.nb-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.nb-template {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-ink-subtle);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease-out;
+}
+
+.nb-template:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.nb-template strong {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.nb-card {
+  position: relative;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  transition: border-color 120ms ease-out;
+}
+
+.nb-card:hover {
+  border-color: var(--color-line-strong);
+}
+
+.nb-card-main {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 40px 14px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nb-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-ink-subtle);
+}
+
+.nb-card-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nb-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb-template,
+  .nb-card {
+    transition: none;
+  }
+}
+
+/* --- editor -------------------------------------------------------------- */
+
+.nb-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.nb-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-accent-strong);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nb-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
+}
+
+.nb-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nb-header-actions .badge {
+  gap: 5px;
+}
+
+.nb-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .nb-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nb-cells {
+  display: grid;
+  /* Room for the insert row, which straddles a cell's bottom border. The cell
+     tools do *not* live here — they sit inside the cell, because two overlays
+     in one gap is a collision by construction. */
+  gap: 22px;
+  min-width: 0;
+}
+
+/* A cell is a bordered row, not a card: they stack by the dozen and a shadow
+   each would turn the page into corduroy (DESIGN.md §5). */
+.nb-cell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  border: 1px solid var(--color-line);
+  /* `--radius-lg`, not `--radius`: a cell is a large surface with content
+     running to its corners, and 8px on a 900px-wide box reads as a sharp
+     rectangle that someone rounded by accident. The nested chrome inside it
+     steps down from here rather than matching it. */
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
+}
+
+.nb-cell:focus-within {
+  border-color: var(--color-accent);
+}
+
+/* The running cell. An accent left edge and a tinted gutter, not a fill: the
+   cell's own content is what you are trying to read, and a wash over it makes
+   the output harder to see at exactly the moment it appears. */
+/* Running. Heavier than the first cut — a 3px inset edge on a hairline border
+   was easy to miss on a long notebook — but still an edge and a tint rather
+   than a fill, because the output appearing inside is what you are reading. */
+.nb-cell-running {
+  border-color: var(--color-accent);
+  box-shadow: inset 4px 0 0 0 var(--color-accent), var(--ring-accent);
+}
+
+.nb-cell-running .nb-cell-gutter {
+  background: var(--color-accent-tint);
+  border-top-left-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-lg);
+}
+
+.nb-cell-running .nb-cell-count {
+  color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+/* Two things only: the button you press and the number it produces. Everything
+   else moved to the hover toolbar — in the gutter it competed with the one
+   control anyone actually uses. */
+.nb-cell-gutter {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding: 8px 4px;
+}
+
+.nb-run-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.nb-cell:hover .nb-run-button,
+.nb-cell:focus-within .nb-run-button {
+  border-color: var(--color-line);
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+}
+
+.nb-run-button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
+.nb-run-button:disabled {
+  color: var(--color-ink-subtle);
+  cursor: not-allowed;
+}
+
+/* Inside the cell, top-right, above everything.
+ *
+ * Two things went wrong before. Straddling the top border put it in the same
+ * gap as the previous cell's insert row — two overlays, one space. And inside
+ * the cell it was *painted over* by the code: `.nb-cell-tools` comes before
+ * `.nb-cell-body` in the DOM, and among positioned siblings the later one wins,
+ * so the editor's active-line band ran straight across the buttons. `z-index`
+ * is what settles that; the opaque background is what makes it readable.
+ */
+.nb-cell-tools {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.nb-cell:hover .nb-cell-tools,
+.nb-cell:focus-within .nb-cell-tools,
+.nb-cell-tools:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.nb-cell-tools .icon-button {
+  min-height: 28px;
+  width: 28px;
+  padding: 0;
+}
+
+/* The gap between two cells is where you look when you want one there. On the
+   bottom border for the same reason the tools are on the top one. */
+.nb-insert-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateY(50%);
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.nb-insert-row:hover,
+.nb-cell:hover .nb-insert-row,
+.nb-insert-row:focus-within {
+  opacity: 1;
+}
+
+.nb-insert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.nb-insert:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
+}
+
+/* `[1]`, or `*` while running — the same convention every notebook uses, and
+   the only place the execution order is visible. */
+.nb-cell-count {
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.nb-cell-body {
+  min-width: 0;
+  padding: 4px 10px 10px;
+}
+
+.nb-cell-editor {
+  min-width: 0;
+}
+
+/* --- cell output --------------------------------------------------------- */
+/*
+ * The MIME renderer shipped with none of this, so a `<pre>` of `white-space:
+ * pre` sat unstyled in a grid — and a grid item's automatic minimum is its
+ * content, so one long `repr()` widened the column, then the layout, and the
+ * text painted straight over the dataset rail. `min-width: 0` at every step of
+ * the chain is what stops a child from resizing its own container; the scroll
+ * bar goes on the block that actually holds the long line.
+ */
+.nb-cell-outputs {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.nb-output-block {
+  min-width: 0;
+}
+
+.nb-output-term {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  /* `pre-wrap` would be kinder to prose and wrong for output: a wrapped
+     traceback loses the column alignment that makes a stack readable, and a
+     wrapped dataframe stops being a table. It scrolls instead. */
+  white-space: pre;
+  tab-size: 4;
+}
+
+/* stderr and tracebacks. Tinted rather than fully coloured — a red block of
+   twenty lines is unreadable, and the point is to find the message in it. */
+.nb-output-term-error {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+.nb-output-truncated {
+  color: var(--color-ink-subtle);
+  font-style: italic;
+}
+
+.nb-output-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.nb-output-json {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nb-output-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 2px 6px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nb-output-toggle:hover {
+  background: var(--color-wash);
+  color: var(--color-ink);
+}
+
+/* A MIME type outside the allowlist. Never silence: a labelled row and a
+   download, because a user who cannot see their output cannot tell whether the
+   cell worked. */
+.nb-output-unsupported {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius);
+  background: var(--color-wash);
+  color: var(--color-ink-muted);
+  font-size: 12px;
+}
+
+.nb-output-unsupported svg {
+  color: var(--color-warn-strong);
+}
+
+.nb-output-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+.nb-output-note {
+  margin-top: 4px;
+}
+
+/* SGR colours, from the `--label` ramp — the sanctioned functional-colour
+ * exception, same basis as syntax highlighting.
+ *
+ * Seven of the nine were unstyled, so a coloured traceback rendered flat; and
+ * `white` resolved to `--color-surface`, which on a light background is
+ * invisible ink on its own paper. A terminal's "white" means *bright default*,
+ * so on this surface it is the strong ink, and "black" is the muted one.
+ */
+.nb-ansi-black { color: var(--color-ink-muted); }
+.nb-ansi-red { color: var(--color-danger-strong); }
+.nb-ansi-green { color: oklch(var(--label-3)); }
+.nb-ansi-yellow { color: var(--color-warn-strong); }
+.nb-ansi-blue { color: oklch(var(--label-0)); }
+.nb-ansi-magenta { color: oklch(var(--label-6)); }
+.nb-ansi-cyan { color: oklch(var(--label-5)); }
+.nb-ansi-white { color: var(--color-ink); }
+.nb-ansi-bold { font-weight: 700; }
+
+/* --- runs ---------------------------------------------------------------- */
+
+.nb-rail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.nb-run-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nb-run-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.nb-run-list li:last-child {
+  border-bottom: 0;
+}
+
+.nb-run-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.nb-run-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.nb-run-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.nb-run-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.nb-run-metrics dt {
+  color: var(--color-ink-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nb-run-metrics dd {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display, inherit);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Prose cells render by default and edit on double-click — a template that
+   opened as raw `#` headings would teach nothing, which is the whole reason
+   templates exist. The pencil is for discoverability and for keyboard users;
+   the gesture itself is the notebook convention and needs no affordance. */
+.nb-markdown {
+  position: relative;
+  padding: 8px 28px 8px 2px;
+  border-radius: var(--radius-sm);
+  cursor: text;
+}
+
+.nb-markdown:hover,
+.nb-markdown:focus-visible {
+  background: var(--color-wash);
+}
+
+/* --- dataset rail --------------------------------------------------------- */
+
+.nb-dataset-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.nb-dataset-list li {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.nb-dataset-list li:last-child {
+  border-bottom: 0;
+}
+
+.nb-dataset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nb-dataset-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nb-dataset-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink-subtle);
+  font-size: 11px;
+}
+
+/* The id is what gets pasted, so it reads in the mono stack and wraps rather
+   than ellipsing — a truncated id is useless. */
+.nb-dataset-id {
+  overflow-wrap: anywhere;
+  color: var(--color-ink-subtle);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+/* Shift-Tab docstring. An overlay over the cell, so it carries the sanctioned
+   overlay elevation rather than the border-only treatment a resting panel gets
+   (DESIGN.md §5). */
+.nb-inspect {
+  position: absolute;
+  z-index: 20;
+  right: 12px;
+  bottom: 12px;
+  max-width: min(560px, 90%);
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-ink);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  cursor: pointer;
+}
+
+/* The editor host has to establish a containing block for the popup above. */
+.nb-cell-editor {
+  position: relative;
+}
+
+/* --- Compute plan banner (phase 24) ---------------------------------------
+   States what a run will do before it starts. Neutral by default because a GPU
+   run is the expected case; the CPU variant takes the `warn` pair, since a
+   family silently falling back to CPU is the thing worth interrupting for. */
+
+.compute-banner {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.compute-banner-cpu {
+  border-color: var(--color-warn);
+  background: var(--color-warn-tint);
+}
+
+.compute-banner-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink-subtle);
+}
+
+.compute-banner-headline {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.compute-banner-cpu .compute-banner-headline {
+  color: var(--color-warn-strong);
+}
+
+.compute-banner-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 78ch;
+  color: var(--color-warn-strong);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Collapsed by default: the values answer the question; the reasoning is what
+   you open when you disagree with them. */
+.compute-banner-why summary {
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.compute-banner-why ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--color-ink-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }

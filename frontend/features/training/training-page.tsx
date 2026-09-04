@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useProject } from "@/components/app-shell";
 import { TrainingJobTable } from "@/features/training/training-components";
 import { AdvancedSettings, advancedDefaults, type AdvancedValues } from "@/features/training/advanced-settings";
+import { ComputePlanBanner } from "@/features/training/compute-banner";
 import { allowedTaskTypesForProject, compactNumber, formatBytes, isLlmTask, isNlpTask, listPollInterval } from "@/features/platform/utils";
 import { Badge, Button, ButtonLink, CardGridSkeleton, EmptyState, Field, HistoryHeader, MutationError, NumberInput, PageHeader, PanelTitle, Select, TableSkeleton, TaskSelect, useConfirmationDialog } from "@/features/platform/ui";
 import type { TaskType, TrainingJob } from "@/types/api";
@@ -231,13 +232,46 @@ export function TrainingPage() {
   const showRecommendedLearningRate =
     recommendedLearningRate !== null && learningRate !== recommendedLearningRate;
 
+  const selectedDataset = useMemo(
+    () => datasets.find((dataset) => dataset.id === datasetId) ?? null,
+    [datasetId, datasets]
+  );
+
   useEffect(() => {
     if (datasets.length === 0) {
       setDatasetId("");
       return;
     }
-    if (!datasets.some((dataset) => dataset.id === datasetId)) setDatasetId(datasets[0].id);
+    if (datasets.some((dataset) => dataset.id === datasetId)) return;
+    // Prefer a dataset that can actually train. This is not the auto-selection
+    // the model select refuses to do: a dataset is already auto-picked here, and
+    // picking a trainable one over an unprepared one only makes that existing
+    // choice better. A model, by contrast, silently decides how a run is
+    // configured, which is why it stays unselected.
+    const trainable = datasets.find((dataset) => dataset.readiness?.trainable);
+    setDatasetId((trainable ?? datasets[0]).id);
   }, [datasetId, datasets]);
+
+  /**
+   * Why Start is disabled, or null when it is not.
+   *
+   * These six conditions used to be one `disabled={a || b || c || d}` expression
+   * that greyed the button out and explained nothing, so a user with an
+   * unprepared dataset and a gated model could not tell which was stopping them.
+   * Evaluated in the order the form is filled, so the message names the next
+   * thing to do rather than the last thing checked.
+   */
+  const startBlockedReason = useMemo<string | null>(() => {
+    if (!option) return "Choose a base model.";
+    if (customHfMissing) return "Enter the Hugging Face model id.";
+    if (architectureMissing) return "Choose an architecture.";
+    if (!datasetId) return "Choose a dataset.";
+    if (selectedDataset && !selectedDataset.readiness?.trainable) {
+      return selectedDataset.readiness?.summary ?? "This dataset is not ready to train.";
+    }
+    if (!option.runnable) return "This model is gated; accept its license first.";
+    return null;
+  }, [architectureMissing, customHfMissing, datasetId, option, selectedDataset]);
 
   async function runTraining() {
     // No falling back to options[0]: training against a model the user did not
@@ -429,6 +463,14 @@ export function TrainingPage() {
               ) : null}
             </p>
           )}
+          {/* Every task, not just LLM: a Keras run on a machine where only
+              torch has a GPU is a CPU run, and that is exactly the case the
+              form has to state before someone waits out the difference. */}
+          <ComputePlanBanner
+            taskType={taskType}
+            modelFamily={option?.family}
+            batchSize={batchSize}
+          />
           {llm && environmentQuery.data && (
             <div className="llm-env-banner">
               <span className="llm-env-banner-headline">
@@ -460,13 +502,30 @@ export function TrainingPage() {
                 />
               ) : (
                 <Field label="Dataset" hint={`${datasets.length} available`}>
+                  {/* Not-ready datasets stay listed and selectable. Filtering them
+                      out is what produced "No dataset for this task" while three
+                      sat on disk, and it hid the one thing the user needed to
+                      know: which of them is nearly ready, and what it still wants. */}
                   <Select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
                     {datasets.map((dataset) => (
                       <option value={dataset.id} key={dataset.id}>
                         {dataset.name}
+                        {dataset.readiness?.trainable ? "" : " — not ready"}
                       </option>
                     ))}
                   </Select>
+                  {selectedDataset && !selectedDataset.readiness?.trainable && (
+                    <div className="form-caption">
+                      {selectedDataset.readiness?.summary ?? "This dataset is not ready to train."}{" "}
+                      <ButtonLink
+                        variant="secondary"
+                        size="sm"
+                        href={`/datasets?dataset=${encodeURIComponent(selectedDataset.id)}`}
+                      >
+                        Prepare it
+                      </ButtonLink>
+                    </div>
+                  )}
                 </Field>
               )}
             </section>
@@ -499,11 +558,12 @@ export function TrainingPage() {
                   variant="primary"
                   className="flex-1"
                   onClick={runTraining}
-                  disabled={createMutation.isPending || !option?.runnable || !datasetId || customHfMissing || architectureMissing}
+                  disabled={createMutation.isPending || startBlockedReason !== null}
                 >
                   <Play size={17} /> Start training
                 </Button>
               </div>
+              {startBlockedReason && <p className="form-caption">{startBlockedReason}</p>}
               {prepareMutation.data && (
                 <p className="form-caption">
                   {prepareMutation.data.status}: {prepareMutation.data.message ?? prepareMutation.data.path}

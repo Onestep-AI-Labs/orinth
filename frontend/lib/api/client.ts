@@ -58,9 +58,21 @@ export async function jsonFetchChecked<T>(path: string, schema: SchemaLike, init
   return data;
 }
 
-export function query(params: Record<string, string | number | null | undefined>): string {
+export function query(
+  params: Record<string, string | number | boolean | null | undefined | string[]>
+): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
+    // An array becomes repeated keys (`?modality=text&modality=tabular`), which
+    // is what FastAPI's `list[str] = Query(...)` reads and what the Hub's own
+    // facet URLs look like — so a filter set in Orinth transfers to a
+    // huggingface.co URL unchanged.
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (entry !== "") search.append(key, entry);
+      }
+      continue;
+    }
     if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
   }
   const value = search.toString();

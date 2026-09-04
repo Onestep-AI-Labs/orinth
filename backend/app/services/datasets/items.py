@@ -29,8 +29,12 @@ from app.schemas import (
     DatasetItemSummary,
     DatasetSplitSummary,
     DatasetSummary,
+    DatasetTablePage,
     DeleteResponse,
+    _normalize_dataset_format_field,
+    _normalize_task_type_field,
 )
+from app.services.datasets import table
 from app.services.datasets.constants import IMAGE_SUFFIXES, SPLITS, TEXT_SUFFIXES
 from app.services.datasets.types import DatasetLocation
 
@@ -278,41 +282,78 @@ class ItemsMixin:
         for split_name in splits:
             self._validate_split(split_name)
         location = self._location(dataset_id)
+        listed = [
+            (split_name, item_path)
+            for split_name in splits
+            for item_path in self._item_paths(location, split_name)
+        ]
+
+        # Without a filter, which items are on the page is decided by the paths
+        # alone — so only that window is read. Building a summary opens the item
+        # *and* its annotation sidecar, and doing that for the whole dataset in
+        # order to return fifty rows made browsing cost a full scan: 4.3s on a
+        # 15,000-row upload, on every poll, against the same thread pool a prep
+        # run is using.
+        if not unlabeled and not class_filter:
+            page = [
+                summary
+                for split_name, item_path in listed[offset : offset + limit]
+                if (summary := self._item_summary_if_present(location, split_name, item_path))
+                is not None
+            ]
+            return DatasetItemPage(
+                items=page, total=len(listed), limit=limit, offset=offset
+            )
+
+        # A filter is decided by the annotations, and only reading supplies those.
         items = []
-        for split_name in splits:
-            for item_path in self._item_paths(location, split_name):
-                detail = self._item_from_path(location, split_name, item_path, include_annotations=True)
-                if unlabeled and detail.is_labeled:
-                    continue
-                if class_filter and class_filter not in detail.classes:
-                    continue
-                items.append(
-                    DatasetItemSummary(
-                        id=detail.id,
-                        dataset_id=detail.dataset_id,
-                        split=detail.split,
-                        filename=detail.filename,
-                        media_type=detail.media_type,
-                        image_url=detail.image_url,
-                        text_url=detail.text_url,
-                        text_preview=detail.text_preview,
-                        output_preview=detail.output_preview,
-                        token_estimate=detail.token_estimate,
-                        width=detail.width,
-                        height=detail.height,
-                        annotation_count=detail.annotation_count,
-                        classes=detail.classes,
-                        class_id=detail.class_id,
-                        label=detail.label,
-                        is_labeled=detail.is_labeled,
-                        annotations=detail.annotations,
-                    )
-                )
+        for split_name, item_path in listed:
+            summary = self._item_summary_if_present(location, split_name, item_path)
+            if summary is None:
+                continue
+            if unlabeled and summary.is_labeled:
+                continue
+            if class_filter and class_filter not in summary.classes:
+                continue
+            items.append(summary)
         return DatasetItemPage(
             items=items[offset : offset + limit],
             total=len(items),
             limit=limit,
             offset=offset,
+        )
+
+    def table_page(
+        self,
+        dataset_id: str,
+        split: str,
+        class_filter: str | None = None,
+        unlabeled: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> DatasetTablePage:
+        """`list_items_page`, projected into grid columns.
+
+        Reads the manifest for the task type rather than calling `summary()`:
+        that walks every split and opens every annotation sidecar, which is
+        seconds on a large dataset and would be paid again on every page turn.
+        The location is one JSON read.
+        """
+        location = self._location(dataset_id)
+        page = self.list_items_page(
+            dataset_id, split, class_filter, unlabeled, limit, offset
+        )
+        # Through the same aliases `DatasetSummary` applies. A manifest on disk
+        # outlives the schema — `tabular`/`table` is still out there — and reading
+        # the raw field would give this grid a different task type from the badge
+        # on the card that opened it.
+        return table.page_for(
+            page.items,
+            task_type=str(_normalize_task_type_field(location.task_type)),
+            format=str(_normalize_dataset_format_field(location.format)),
+            total=page.total,
+            limit=page.limit,
+            offset=page.offset,
         )
 
     def item_detail(self, dataset_id: str, split: str, item_id: str) -> DatasetItemDetail:
@@ -440,6 +481,56 @@ class ItemsMixin:
             annotations=annotations if include_annotations else [],
         )
 
+    def _item_summary_if_present(
+        self, location: DatasetLocation, split: str, item_path: Path
+    ) -> DatasetItemSummary | None:
+        """The listing projection of one item, or None if it is no longer there."""
+        detail = self._item_from_path_if_present(
+            location, split, item_path, include_annotations=True
+        )
+        if detail is None:
+            return None
+        return DatasetItemSummary(
+            id=detail.id,
+            dataset_id=detail.dataset_id,
+            split=detail.split,
+            filename=detail.filename,
+            media_type=detail.media_type,
+            image_url=detail.image_url,
+            text_url=detail.text_url,
+            text_preview=detail.text_preview,
+            output_preview=detail.output_preview,
+            token_estimate=detail.token_estimate,
+            width=detail.width,
+            height=detail.height,
+            annotation_count=detail.annotation_count,
+            classes=detail.classes,
+            class_id=detail.class_id,
+            label=detail.label,
+            is_labeled=detail.is_labeled,
+            annotations=detail.annotations,
+        )
+
+    def _item_from_path_if_present(
+        self, location: DatasetLocation, split: str, item_path: Path, include_annotations: bool
+    ) -> DatasetItemDetail | None:
+        """`_item_from_path`, or None when the file is no longer there.
+
+        A directory listing is a snapshot, and the dataset stays writable while
+        a bulk read walks it. The prep agent's apply step rebuilds every split
+        from staging — `_reset_items` removes the directories and repopulates
+        them — so between listing a path and opening it, that path can be gone.
+        For a *listing* that is not an error: it means the dataset changed, and
+        the item is skipped. `_item_from_path` itself still raises, because a
+        request for one named item wants "gone" reported, not swallowed.
+        """
+        try:
+            return self._item_from_path(
+                location, split, item_path, include_annotations=include_annotations
+            )
+        except FileNotFoundError:
+            return None
+
     def _text_item_from_path(
         self, location: DatasetLocation, split: str, text_path: Path, include_annotations: bool
     ) -> DatasetItemDetail:
@@ -468,11 +559,14 @@ class ItemsMixin:
             text_content=text if include_annotations else None,
         )
 
-    def _image_paths(self, location: DatasetLocation, split: str) -> list[Path]:
+    def _image_dir(self, location: DatasetLocation, split: str) -> Path:
+        """COCO keeps images beside its sidecar; every other format uses `images/`."""
         if location.format == "coco":
-            image_dir = location.root / split
-        else:
-            image_dir = location.root / split / "images"
+            return location.root / split
+        return location.root / split / "images"
+
+    def _image_paths(self, location: DatasetLocation, split: str) -> list[Path]:
+        image_dir = self._image_dir(location, split)
         if not image_dir.exists():
             return []
         return sorted(path for path in image_dir.iterdir() if path.suffix.lower() in IMAGE_SUFFIXES)
@@ -485,6 +579,15 @@ class ItemsMixin:
 
     def _image_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
         filename = Path(item_id).name
+        # Try the path directly before scanning. `item_id` *is* the filename, and
+        # `Path(...).name` has already stripped any directory part, so this is
+        # both safe and exact. The scan below re-listed and re-sorted the whole
+        # directory on every call, which made `_move_item` — and therefore
+        # splitting a dataset — quadratic in the number of items: importing a
+        # 5,500-row CSV meant 5,500 full directory listings.
+        direct = self._image_dir(location, split) / filename
+        if direct.is_file():
+            return direct
         for image_path in self._image_paths(location, split):
             if image_path.name == filename:
                 return image_path
@@ -492,6 +595,9 @@ class ItemsMixin:
 
     def _text_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
         filename = Path(item_id).name
+        direct = location.root / split / "texts" / filename
+        if direct.is_file():
+            return direct
         for text_path in self._text_paths(location, split):
             if text_path.name == filename:
                 return text_path

@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
-import { IconButton } from "@/features/platform/ui";
+import { Modal } from "@/features/platform/ui";
 
 /**
  * The settings dialog for whatever is selected on the canvas.
@@ -14,8 +12,10 @@ import { IconButton } from "@/features/platform/ui";
  * rail became this — opened on demand, closed on Escape, gone the rest of the
  * time.
  *
- * The body is the existing inspector, unchanged: `.arch-modal .arch-inspector`
- * strips the panel chrome in CSS so the same component serves both.
+ * The shell is the shared `Modal`; what is left here is the studio's two
+ * specifics: the body *is* the existing inspector (`.modal-panel
+ * .arch-inspector` strips the rail chrome in CSS so one component serves both),
+ * and the subtitle is an identifier, so it renders in the mono face.
  */
 export function SettingsModal({
   title,
@@ -28,41 +28,14 @@ export function SettingsModal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  const dialogRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    // Focus moves into the dialog so Escape and Tab land here rather than on
-    // whatever was focused on the canvas behind it.
-    dialogRef.current?.focus();
-  }, []);
-
   return (
-    <div
-      className="arch-modal-overlay"
-      role="presentation"
-      onMouseDown={onClose}
-      onContextMenu={(event) => event.preventDefault()}
+    <Modal
+      title={title}
+      subtitle={subtitle}
+      onClose={onClose}
+      className="modal-panel-mono-subtitle"
     >
-      <section
-        ref={dialogRef}
-        className="arch-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="arch-modal-head">
-          <div className="arch-modal-heading">
-            <h2>{title}</h2>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-          <IconButton aria-label="Close settings" title="Close settings (Esc)" onClick={onClose}>
-            <X size={18} />
-          </IconButton>
-        </header>
-        <div className="arch-modal-body">{children}</div>
-      </section>
-    </div>
+      {children}
+    </Modal>
   );
 }

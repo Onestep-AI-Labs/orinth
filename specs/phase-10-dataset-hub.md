@@ -8,6 +8,18 @@ provenance) and the frontend (sectioned catalog, hub import panel, Records tab
 with role-aware edit drawer, LLM-aware EDA) are in place with backend tests. Two
 scope adjustments from the draft are recorded under Deferred.
 
+**Revised (phase 21 follow-up).** The import panel was a search box over a flat
+list of ids — a lookup tool that works only when you already know the dataset's
+name. It is now a faceted browser shaped like huggingface.co: `hub/facets`
+serves the filter vocabulary with a one-line explanation per term, `hub/search`
+pushes filtering to the Hub instead of over-fetching and dropping locally, and
+selecting a dataset opens a detail view with a read-only dataset viewer above
+the import form. Two real defects surfaced while building it and are fixed:
+`rajpurkar/squad` detected as no known shape (its column is `answers`, not
+`answer`) and, once mapped by hand, imported **zero** rows while reporting
+success, because its answer is a struct of parallel arrays that `_validate_record`
+rejected per row. See "HuggingFace Hub browse" below.
+
 ## Goal
 
 Reorganize the dataset catalog into a dynamic, sectioned hub that distinguishes user-created datasets from datasets imported from the HuggingFace Hub, and introduce the platform's LLM data vocabulary — a new `llm_finetune` task type with `instruction_jsonl` and `chat_jsonl` formats, a records-based viewer/editor, and LLM-aware EDA. This spec is the foundation for data recipes (phase 11) and LLM fine-tuning (phase 14): both produce or consume the formats defined here.
@@ -31,14 +43,15 @@ Out:
 
 ## Interfaces
 
-- `GET /api/datasets/hub/search?query=&task=&limit=`
+- `GET /api/datasets/hub/facets` — the browse vocabulary, with a hint per term
+- `GET /api/datasets/hub/search?query=&task=&limit=&modality=&format=&size=&task_category=&sort=`
 - `GET /api/datasets/hub/preview?hub_id=&config=&split=&limit=`
 - `POST /api/datasets/import/hub`
 - Existing `GET /api/datasets` — summaries gain an `origin` field.
 - Existing dataset item routes (`GET/POST /api/datasets/{id}/items`, item detail, delete, move) work unchanged for `llm_finetune` records.
 - New item text route reuse: `GET /api/datasets/{id}/items/{split}/{item_id}/text` returns the raw record JSON for `llm_finetune` items.
-- Schemas: `DatasetHubSearchResult`, `DatasetHubPreview`, `DatasetHubImportRequest` in `backend/app/schemas.py`; `TaskType` gains `llm_finetune`; `DatasetFormat` gains `instruction_jsonl` and `chat_jsonl`.
-- Frontend surfaces: `frontend/features/datasets/catalog-view.tsx` (sections), new `frontend/features/datasets/hub-import-panel.tsx`, new `frontend/features/datasets/records-tab.tsx`, `detail-tabs.tsx` (tab switch by task type), `frontend/lib/api/datasets.ts` (hub search/preview/import calls).
+- Schemas: `DatasetHubSearchResult`, `DatasetHubPreview`, `DatasetHubImportRequest`, `DatasetHubFacets`, `DatasetHubFacetOption` in `backend/app/schemas.py`; `TaskType` gains `llm_finetune`; `DatasetFormat` gains `instruction_jsonl` and `chat_jsonl`.
+- Frontend surfaces: `frontend/features/datasets/catalog-view.tsx` (sections), `frontend/features/datasets/hub/` (`hub-browser.tsx`, `hub-detail.tsx`, `hub-hooks.ts`, replacing `hub-import-panel.tsx`), new `frontend/features/datasets/records-tab.tsx`, `detail-tabs.tsx` (tab switch by task type), `frontend/lib/api/datasets.ts` (hub search/preview/import calls).
 - Storage/DB changes: dataset manifests gain `origin` (`created | imported_hf | recipe`) and `origin_ref`; `llm_finetune` items stored as `<split>/records/<item_id>.json` plus a regenerated `<split>/data.jsonl`. No DB change.
 
 ## Behavior
@@ -68,7 +81,7 @@ Out:
 
 ### HuggingFace Hub search, preview, import
 
-- `GET /api/datasets/hub/search` proxies `huggingface_hub.HfApi.list_datasets` (already a transitive dependency of transformers) and returns id, downloads, likes, tags, and a gated flag. Results are filtered to text-modality tags; hub errors surface as a panel message and never break the local catalog.
+- `GET /api/datasets/hub/search` proxies `huggingface_hub.HfApi.list_datasets` (already a transitive dependency of transformers). Hub errors surface as a panel message and never break the local catalog.
 - `GET /api/datasets/hub/preview` fetches sample rows through the hosted datasets-server rows API over `httpx`. When the hosted server does not cover a dataset, the backend falls back to `datasets` streaming — only when the `llm` extra (phase 14) is installed; otherwise the preview reports the limitation and import remains possible blind.
 - `POST /api/datasets/import/hub` takes `hub_id`, `config`, split mapping, target `task_type`, target format, column mapping, `max_rows`, `name`, and `project_id`. Import is synchronous and row-capped (max 5000; the UI defaults to 1000 with a 500/1000/2500/5000 selector). The datasets-server rows API caps a page at 100, so pages are fetched through a small worker pool and `data.jsonl` is written straight from the in-memory rows — a 1000-row import lands in ~7s, well under the dev proxy timeout, so no job table is warranted. Oversized requests are rejected with the cap stated.
 - Column mapping covers the supported shapes: instruction/input/output columns, a `messages` or `conversations` column, or QA question/context/answer columns. Unmapped required fields fail validation before any download starts.
@@ -76,6 +89,57 @@ Out:
 - Imported datasets are editable (source `editable`), carry `origin: imported_hf` and `origin_ref: <hub_id>@<revision>`, and land in the `unassigned` inbox for the standard split flow.
 - Gated hub datasets use the configured HF token (`HUGGINGFACE_HUB_TOKEN`/`HF_TOKEN`); a 401/403 returns an actionable error naming the hub id and telling the user to accept the license on huggingface.co.
 - Duplicate import of the same hub id gets a name suffix instead of failing; provenance stays distinguishable via `origin_ref`.
+
+### HuggingFace Hub browse
+
+The search endpoint returns the structured tags already split out — modality,
+format, task categories, size category, languages, licence — plus `pretty_name`,
+a flattened one-line `summary` from the dataset card, `has_viewer`, and
+`importable`. The card renders those, because the question a user is actually
+answering is "which of these two similarly-named datasets do I want", and an id
+with a download count cannot answer it.
+
+**Filtering is server-side.** `list_datasets(filter=["modality:text", ...])`
+matches the same `prefix:value` tags huggingface.co's own facets use.
+The previous implementation asked for `limit * 3` results and dropped the
+non-text ones in Python, which is wrong in both directions: it wastes two thirds
+of every request, and a filter that only ever sees the first page cannot find a
+match on page four. `size_categories` is the one exception, passed as its own
+argument because the Hub silently matches nothing when it arrives via `filter=`.
+
+**Every term carries its explanation.** `services/hub_facets.py` holds the
+vocabulary — nine modalities, eight formats, five size buckets, seven task
+categories, four sorts — each with a `label`, a `hint`, and an `importable` flag.
+The UI renders `hint` as the tooltip on the filter chip *and* on the badge
+showing the same term on a result card, so there is one string per term and one
+place to correct it. `importable` is the part that is ours rather than the Hub's:
+Orinth imports Hub datasets as text records, so a video dataset is browsable and
+not importable, and the chip says so before the click rather than the import
+failing after it.
+
+**Two defects the browse work exposed**, both fixed with regression tests:
+
+- `detect_record_format` required a literal `answer` column, so `rajpurkar/squad`
+  — the Hub's most-downloaded QA dataset, whose column is `answers` — detected as
+  nothing and dropped into manual mapping. It now matches through the same
+  `QUESTION_COLUMNS` / `ANSWER_COLUMNS` alias tuples the rest of `detect.py` uses,
+  and the returned mapping names the dataset's real columns rather than the
+  canonical roles.
+- SQuAD's answer is `{"text": ["Denver Broncos"], "answer_start": [177]}`, a
+  struct of parallel arrays. `_record_from_row` passed that dict straight to
+  `_validate_record`, which raised per row — so the import reported success with
+  5,000 skipped and nothing written. `_as_text` now flattens a one-element list
+  and takes a struct's first string-valued member (`text` first, being the
+  near-universal payload name). `None` passes through untouched, because an
+  absent value is a skipped row where `"None"` would be a corrupt one that
+  trains. Verified live: 500 rows imported, 0 skipped, readiness `ready`.
+
+The preview additionally returns `column_types` (the datasets-server feature spec
+reduced to one word) and `num_rows` for the selected split. The type is what tells
+a user why a cell previews as JSON, and a `struct` answer column is the single
+most common surprise on the Hub. `num_rows` is `None` rather than `0` when the
+Hub will not say — an unsupported dataset reporting nothing must not render as an
+empty one.
 
 ### Records tab and LLM EDA
 

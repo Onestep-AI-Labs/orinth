@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # LLM export jobs (phase 15) run on their own single-worker pool so a long
     # merge/GGUF conversion can't starve evaluations (or vice versa).
     export_executor_workers: int = Field(default=1, alias="EXPORT_EXECUTOR_WORKERS")
+    prep_executor_workers: int = Field(default=1, alias="PREP_EXECUTOR_WORKERS")
     # llama.cpp serving (phase 15). The port range is walked for the first free
     # port; the server binds localhost only. Idle timeout stops the subprocess
     # after no chat activity; the ready timeout bounds startup (model load can
@@ -56,6 +57,27 @@ class Settings(BaseSettings):
     serving_port_range: str = Field(default="8600-8699", alias="SERVING_PORT_RANGE")
     serving_idle_timeout_seconds: int = Field(default=900, alias="SERVING_IDLE_TIMEOUT_SECONDS")
     serving_ready_timeout_seconds: int = Field(default=600, alias="SERVING_READY_TIMEOUT_SECONDS")
+    # Notebooks (phase 22). How a kernel reaches the write API — `orinth.register`
+    # posts to the same endpoints the browser does rather than writing datasets
+    # itself, so the kernel needs an address for this process.
+    api_base_url: str = Field(default="http://127.0.0.1:8000", alias="ORINTH_API_BASE")
+    # A band clear of `serving_port_range` so a llama.cpp server and the notebook
+    # gateway can never be allocated the same port.
+    notebook_port_range: str = Field(default="8700-8799", alias="NOTEBOOK_PORT_RANGE")
+    # Short, because `jupyter-server` imports nothing heavy — unlike llama.cpp,
+    # whose ready timeout is ten minutes for a cold model load.
+    notebook_ready_timeout_seconds: int = Field(
+        default=60, alias="NOTEBOOK_READY_TIMEOUT_SECONDS"
+    )
+    # Passed to `MappingKernelManager.cull_idle_timeout`. A kernel holding a 6 GB
+    # model open overnight is the case this exists for.
+    notebook_kernel_idle_timeout_seconds: int = Field(
+        default=3600, alias="NOTEBOOK_KERNEL_IDLE_TIMEOUT_SECONDS"
+    )
+    # The cap `orinth.datasets.load()` refuses past, rather than truncating:
+    # silently returning half a training set is the worse failure. Precedent is
+    # `MAX_INGEST_ROWS` in `prep/apply.py`.
+    notebook_load_max_rows: int = Field(default=200_000, alias="NOTEBOOK_LOAD_MAX_ROWS")
 
     @property
     def repo_root(self) -> Path:
@@ -121,6 +143,24 @@ class Settings(BaseSettings):
             return (8600, 8699)
         if start < 1 or end > 65535 or end < start:
             return (8600, 8699)
+        return (start, end)
+
+    @property
+    def notebook_ports(self) -> tuple[int, int]:
+        """Parsed inclusive (start, end) of `notebook_port_range`.
+
+        Same fallback shape as `serving_ports`: a malformed range must not stop
+        the app booting, and a band that overlaps serving is worse than the
+        default one.
+        """
+        raw = self.notebook_port_range.strip()
+        try:
+            start_text, _, end_text = raw.partition("-")
+            start, end = int(start_text), int(end_text or start_text)
+        except ValueError:
+            return (8700, 8799)
+        if start < 1 or end > 65535 or end < start:
+            return (8700, 8799)
         return (start, end)
 
 

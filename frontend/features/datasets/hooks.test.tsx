@@ -130,12 +130,11 @@ describe("dataset query hooks: query keys are unchanged", () => {
 });
 
 describe("dataset mutation hooks: onSuccess side effects", () => {
-  it("useCreateDatasetMutation opens the new dataset, closes the create panel, clears the name, and refetches the catalog", async () => {
+  it("useCreateDatasetMutation opens the new dataset, clears the name, and refetches the catalog", async () => {
     const dataset = fakeDataset({ id: "new-ds" });
     vi.spyOn(api, "createDataset").mockResolvedValue(dataset);
     const { Wrapper } = createWrapper();
     const openDataset = vi.fn();
-    const setShowCreate = vi.fn();
     const setNewDatasetName = vi.fn();
     const refetch = vi.fn().mockResolvedValue(undefined);
 
@@ -143,7 +142,6 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
       () =>
         useCreateDatasetMutation({
           openDataset,
-          setShowCreate,
           setNewDatasetName,
           catalogQuery: { refetch } as never
         }),
@@ -155,7 +153,6 @@ describe("dataset mutation hooks: onSuccess side effects", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(openDataset).toHaveBeenCalledWith("new-ds");
-    expect(setShowCreate).toHaveBeenCalledWith(false);
     expect(setNewDatasetName).toHaveBeenCalledWith("");
     expect(refetch).toHaveBeenCalled();
   });

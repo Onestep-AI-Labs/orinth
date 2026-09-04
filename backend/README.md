@@ -63,3 +63,39 @@ uv run alembic current        # show the revision the DB is stamped at
 uv run alembic history        # list all revisions
 uv run alembic downgrade -1    # roll back one revision (local dev only)
 ```
+
+## The `orinth` CLI
+
+Ships with the backend — `[project.scripts]` in `pyproject.toml` — so `uv run orinth` works with no
+extra install. It is an HTTP client of a running server, not a second implementation of the
+platform, so start one first (`make dev`, or `orinth serve`).
+
+```bash
+uv run orinth --help
+uv run orinth doctor                  # where am I pointed, and is anything there
+uv run orinth dataset ls
+uv run orinth dataset ingest ./data --prep
+uv run orinth dataset readiness <id>  # exits 3 when the dataset is not trainable
+```
+
+Code lives in `app/cli/`. Adding a command group is three edits: a row in `main.GROUPS` (a module
+*path string*, never an import), a module with `build_parser()` and `run()`, and a row in
+`commands/completion.VERBS`. `tests/test_cli_dispatch.py` asserts that `orinth --help` imports no
+command module and nothing heavy — that test is what keeps startup fast as commands are added.
+
+## The `orinth` package (notebooks)
+
+`orinth/` is the SDK a notebook kernel imports. It may import `app`; **`app` must never import
+it** — an arrow the other way would pull the notebook stack into the API process.
+`tests/test_orinth_sdk.py` asserts it.
+
+Requires the optional extra:
+
+```bash
+uv sync --extra notebooks
+```
+
+Reads (`datasets.load`, `models.predictor`) go straight to the filesystem through `Settings`.
+Writes (`datasets.register`) go over HTTP to `/api/datasets/ingest` and `/prep/apply`, so the
+project gate, the manifest write, and readiness all run exactly once, in the code that already
+owns them.

@@ -235,6 +235,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/hub/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Hub Facets
+         * @description The browse vocabulary and what each term means.
+         *
+         *     Served rather than hardcoded in the client so the tooltip on a filter chip
+         *     and the tooltip on the badge showing the same term on a result card come
+         *     from one string. See `services/hub_facets.py`.
+         */
+        get: operations["get_hub_facets_api_datasets_hub_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/hub/preview": {
         parameters: {
             query?: never;
@@ -259,7 +283,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search Hub Datasets */
+        /**
+         * Search Hub Datasets
+         * @description Browse the Hub with the same facets huggingface.co exposes.
+         *
+         *     The repeated-key parameters (`?modality=text&modality=tabular`) mirror the
+         *     Hub's own query shape, so a filter set here is transferable to a URL there.
+         */
         get: operations["search_hub_datasets_api_datasets_hub_search_get"];
         put?: never;
         post?: never;
@@ -303,7 +333,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/datasets/{dataset_id}": {
+    "/api/datasets/ingest": {
         parameters: {
             query?: never;
             header?: never;
@@ -311,6 +341,45 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        put?: never;
+        /**
+         * Ingest Dataset
+         * @description Create a dataset from raw files, with nothing declared about them.
+         *
+         *     No task type, no format, no labels — that is the point. `relative_paths`
+         *     carries each file's path inside the folder the user dropped, because the
+         *     directory layout is what detection reads; without it every upload looks like
+         *     a flat pile of files.
+         */
+        post: operations["ingest_dataset_api_datasets_ingest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataset
+         * @description One dataset, without building the whole catalog to find it.
+         *
+         *     The studio gets a single dataset by fetching `GET /datasets` and filtering,
+         *     which is fine for a page that wants the catalog anyway and wrong for anything
+         *     that wants one: `_split_summary` walks items and reads annotation JSON per
+         *     item, *for every dataset*, which phase 21 measured at seconds on a real
+         *     workspace. `orinth dataset show` and every post-job readiness re-read go
+         *     through here instead.
+         *
+         *     **Declaration order is load-bearing.** This must stay below `/ingest`,
+         *     `/hub/*`, and `/import/*`, or the path parameter swallows those literals.
+         */
+        get: operations["get_dataset_api_datasets__dataset_id__get"];
         put?: never;
         post?: never;
         /** Delete Dataset */
@@ -338,6 +407,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Dataset
+         * @description The dataset as a zip.
+         *
+         *     Cannot be built from what already exists: `POST /{id}/versions` writes a
+         *     snapshot to a server-side path and nothing streams it back. This mirrors
+         *     `GET /api/models/{model_id}/download`, which already bundles a multi-asset
+         *     model the same way, and gives the dataset catalog the download action the
+         *     model catalog has had since phase 12.
+         */
+        get: operations["download_dataset_api_datasets__dataset_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}/eda": {
         parameters: {
             query?: never;
@@ -349,6 +444,23 @@ export interface paths {
         get: operations["dataset_eda_api_datasets__dataset_id__eda_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest Into Dataset */
+        post: operations["ingest_into_dataset_api_datasets__dataset_id__ingest_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -578,6 +690,139 @@ export interface paths {
         patch: operations["rename_dataset_label_api_datasets__dataset_id__labels__label_index__patch"];
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/prep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dataset Prep */
+        get: operations["get_dataset_prep_api_datasets__dataset_id__prep_get"];
+        put?: never;
+        /**
+         * Run Dataset Prep
+         * @description Start a prep run: detect, plan, and (by default) apply.
+         *
+         *     Returns as soon as the run is queued, with the dataset already reading
+         *     `prep.state == "planning"`. Applying a plan to a large upload is tens of
+         *     thousands of file operations — 37 seconds on a real 15,000-row table — which
+         *     is longer than a dev proxy will hold a request open, and it competes with
+         *     the studio's own polling of the same dataset. The client polls
+         *     `GET /datasets/{id}` (or `/prep` for the plan) until the state settles.
+         *
+         *     The project's declared task types gate the plan, so the agent never proposes
+         *     a task that apply would reject with a 409.
+         */
+        post: operations["run_dataset_prep_api_datasets__dataset_id__prep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Dataset Prep
+         * @description Apply a plan the user may have edited.
+         *
+         *     The project gate lands here rather than at ingest: this is the moment the
+         *     dataset claims a task, which is what the gate is about.
+         */
+        post: operations["apply_dataset_prep_api_datasets__dataset_id__prep_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/detect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detect Dataset
+         * @description What the deterministic scan sees, with no plan and no model call.
+         */
+        get: operations["detect_dataset_api_datasets__dataset_id__prep_detect_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/discard-staged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discard Staged Files
+         * @description Reclaim the raw upload once the prepared dataset looks right.
+         */
+        post: operations["discard_staged_files_api_datasets__dataset_id__prep_discard_staged_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataset Prep Status
+         * @description The run state alone, cheap enough to poll while a run is in flight.
+         *
+         *     Declared before `/{dataset_id}/prep` so the literal segment wins the match.
+         */
+        get: operations["get_dataset_prep_status_api_datasets__dataset_id__prep_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/prep/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo Dataset Prep */
+        post: operations["undo_dataset_prep_api_datasets__dataset_id__prep_undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}/process": {
         parameters: {
             query?: never;
@@ -589,6 +834,30 @@ export interface paths {
         put?: never;
         /** Process Dataset */
         post: operations["process_dataset_api_datasets__dataset_id__process_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dataset Readiness
+         * @description Readiness alone, for polling after a mutation.
+         *
+         *     The same value rides on every `DatasetSummary`; this route exists so a client
+         *     that only wants to know whether the Train button should light up does not
+         *     have to refetch the whole catalog to find out.
+         */
+        get: operations["dataset_readiness_api_datasets__dataset_id__readiness_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -646,6 +915,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataset Table
+         * @description The dataset as a grid: same rows as `/items`, projected into columns.
+         *
+         *     Deliberately built on `list_items_page` rather than on a materialized index.
+         *     That read already decides the page from the file paths and opens only the
+         *     window, so a page here costs what a page of the image browser costs — and
+         *     there is no second copy of the data that can drift from what the training
+         *     runners actually load. See `services/datasets/table.py`.
+         */
+        get: operations["get_dataset_table_api_datasets__dataset_id__table_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}/versions": {
         parameters: {
             query?: never;
@@ -671,7 +966,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description Liveness, plus enough to tell two builds apart.
+         *
+         *     `orinth version` exists to answer "is the CLI I am running the same build as
+         *     the server it is talking to", which it cannot do without this. Additive:
+         *     phase 18's desktop supervisor polls this for a 200 and ignores the body.
+         */
         get: operations["health_api_health_get"];
         put?: never;
         post?: never;
@@ -898,6 +1200,251 @@ export interface paths {
         };
         /** Download Model Export */
         get: operations["download_model_export_api_models__model_id__exports__export_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notebooks */
+        get: operations["list_notebooks_api_notebooks_get"];
+        put?: never;
+        /** Create Notebook */
+        post: operations["create_notebook_api_notebooks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notebook Runtime */
+        get: operations["get_notebook_runtime_api_notebooks_runtime_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart Notebook Runtime
+         * @description Stop and start in one call — the only way to change the device.
+         *
+         *     A kernel inherits its environment at spawn, so moving from CPU to GPU means
+         *     a new server. Doing it here rather than as two client calls closes the gap
+         *     another tab could start the old one in.
+         */
+        post: operations["restart_notebook_runtime_api_notebooks_runtime_restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Notebook Runtime */
+        post: operations["start_notebook_runtime_api_notebooks_runtime_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop Notebook Runtime */
+        post: operations["stop_notebook_runtime_api_notebooks_runtime_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/runtime/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notebook Compute Targets
+         * @description What the runtime's machine dropdown offers.
+         *
+         *     Declared **above** `/runtime/start` for the reason at the top of this file,
+         *     and built in the service so the roadmap (`available: false` providers) has
+         *     one owner rather than one per client.
+         */
+        get: operations["list_notebook_compute_targets_api_notebooks_runtime_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notebook Templates */
+        get: operations["list_notebook_templates_api_notebooks_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notebook */
+        get: operations["get_notebook_api_notebooks__notebook_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Notebook */
+        delete: operations["delete_notebook_api_notebooks__notebook_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Notebook */
+        patch: operations["update_notebook_api_notebooks__notebook_id__patch"];
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate Notebook */
+        post: operations["duplicate_notebook_api_notebooks__notebook_id__duplicate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notebook Runs */
+        get: operations["list_notebook_runs_api_notebooks__notebook_id__runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notebook Run */
+        get: operations["get_notebook_run_api_notebooks__notebook_id__runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/runs/{run_id}/artifacts/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Notebook Artifact */
+        get: operations["download_notebook_artifact_api_notebooks__notebook_id__runs__run_id__artifacts__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notebooks/{notebook_id}/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Notebook Session
+         * @description What the browser needs to open a kernel channel.
+         *
+         *     Same-origin paths, not the loopback address: the client talks to this
+         *     process, which forwards. Handing out `127.0.0.1:<port>` would leak the
+         *     runtime's location and would not work through the dev proxy.
+         */
+        get: operations["get_notebook_session_api_notebooks__notebook_id__session_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1511,6 +2058,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/training/compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Training Compute Environment
+         * @description What this machine can train on, per framework.
+         *
+         *     Per framework rather than per machine because they disagree: Apple silicon
+         *     without `tensorflow-metal` gives torch a GPU and TensorFlow a CPU, and a
+         *     single `device` field cannot say that. The probe runs in a subprocess and is
+         *     cached — importing torch and TensorFlow here is what `docs/ai/rules.md`
+         *     forbids, and a machine does not grow a GPU between requests.
+         */
+        get: operations["training_compute_environment_api_training_compute_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/training/compute/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Training Compute Plan
+         * @description Resolve `device: auto` into what a run would actually do, before it starts.
+         */
+        get: operations["training_compute_plan_api_training_compute_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/training/compute/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Training Compute Providers
+         * @description Where a run could execute. Only `local` is available today.
+         *
+         *     The unavailable ones are listed rather than hidden so the roadmap is visible
+         *     and `available: false` is a fact the client reads rather than a string it
+         *     hardcodes.
+         */
+        get: operations["training_compute_providers_api_training_compute_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/training/jobs": {
         parameters: {
             query?: never;
@@ -1674,7 +2291,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Root Health */
+        /**
+         * Root Health
+         * @description Liveness, plus enough to tell two builds apart.
+         *
+         *     `orinth version` and `orinth doctor` exist to answer "is the CLI I am running
+         *     the same build as the server it is talking to", which they cannot do without
+         *     the version here. Additive: phase 18's desktop supervisor polls this for a
+         *     200 and ignores the body.
+         */
         get: operations["root_health_health_get"];
         put?: never;
         post?: never;
@@ -2151,6 +2776,36 @@ export interface components {
              */
             project_id: string | null;
         };
+        /** Body_ingest_dataset_api_datasets_ingest_post */
+        Body_ingest_dataset_api_datasets_ingest_post: {
+            /** Files */
+            files: string[];
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Relative Paths
+             * @default null
+             */
+            relative_paths: string[] | null;
+        };
+        /** Body_ingest_into_dataset_api_datasets__dataset_id__ingest_post */
+        Body_ingest_into_dataset_api_datasets__dataset_id__ingest_post: {
+            /** Files */
+            files: string[];
+            /**
+             * Relative Paths
+             * @default null
+             */
+            relative_paths: string[] | null;
+        };
         /** Body_upload_dataset_item_api_datasets__dataset_id__items_post */
         Body_upload_dataset_item_api_datasets__dataset_id__items_post: {
             /**
@@ -2370,6 +3025,177 @@ export interface components {
              */
             text_macro_f1: number | null;
         };
+        /** ComputeDevice */
+        ComputeDevice: {
+            /**
+             * Capability
+             * @default null
+             */
+            capability: string | null;
+            /**
+             * Index
+             * @default 0
+             */
+            index: number;
+            /**
+             * Kind
+             * @default cpu
+             * @enum {string}
+             */
+            kind: "cuda" | "mps" | "metal" | "rocm" | "cpu";
+            /**
+             * Name
+             * @default Unknown device
+             */
+            name: string;
+            /**
+             * Total Memory Mb
+             * @default null
+             */
+            total_memory_mb: number | null;
+        };
+        /** ComputeEnvironment */
+        ComputeEnvironment: {
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Frameworks
+             * @default null
+             */
+            frameworks: components["schemas"]["ComputeFramework"][];
+            /**
+             * Machine
+             * @default
+             */
+            machine: string;
+            /**
+             * Notes
+             * @default null
+             */
+            notes: string[];
+            /**
+             * Platform
+             * @default
+             */
+            platform: string;
+            /**
+             * Python Version
+             * @default
+             */
+            python_version: string;
+        };
+        /** ComputeFramework */
+        ComputeFramework: {
+            /**
+             * Accelerated
+             * @default false
+             */
+            accelerated: boolean;
+            /**
+             * Devices
+             * @default null
+             */
+            devices: components["schemas"]["ComputeDevice"][];
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Installed
+             * @default false
+             */
+            installed: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Version
+             * @default null
+             */
+            version: string | null;
+        };
+        /**
+         * ComputePlan
+         * @description What a run would actually do, resolved before it starts.
+         *
+         *     Every field carries its `reason`, because the value alone is not actionable:
+         *     "batch size 4" is a number, and "batch size 4 - 8 GB of shared memory, and
+         *     this family needs about 1.8 GB per sample" is a thing the user can argue
+         *     with or override.
+         */
+        ComputePlan: {
+            /**
+             * Accelerated
+             * @default false
+             */
+            accelerated: boolean;
+            /**
+             * Batch Size
+             * @default 8
+             */
+            batch_size: number;
+            /** Device */
+            device: string;
+            /**
+             * Device Name
+             * @default
+             */
+            device_name: string;
+            /** Framework */
+            framework: string;
+            /** Model Family */
+            model_family: string;
+            /**
+             * Precision
+             * @default fp32
+             */
+            precision: string;
+            /**
+             * Reasons
+             * @default null
+             */
+            reasons: string[];
+            /** Task Type */
+            task_type: string;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
+        /** ComputeProvider */
+        ComputeProvider: {
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /**
+             * Docs Url
+             * @default null
+             */
+            docs_url: string | null;
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "local" | "vast" | "modal" | "runpod";
+            /** Name */
+            name: string;
+            /**
+             * Requirements
+             * @default null
+             */
+            requirements: string[];
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+        };
         /** DatasetAnnotation */
         DatasetAnnotation: {
             /**
@@ -2456,6 +3282,67 @@ export interface components {
              */
             task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
         };
+        /**
+         * DatasetDetection
+         * @description What the deterministic file scan concluded.
+         */
+        DatasetDetection: {
+            /**
+             * Candidate Labels
+             * @default null
+             */
+            candidate_labels: string[];
+            /**
+             * Columns
+             * @default null
+             */
+            columns: string[];
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * File Counts
+             * @default null
+             */
+            file_counts: {
+                [key: string]: number;
+            };
+            /**
+             * Format
+             * @default null
+             */
+            format: ("yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl") | null;
+            /**
+             * Modality
+             * @default unknown
+             * @enum {string}
+             */
+            modality: "image" | "text" | "record" | "table" | "unknown";
+            /**
+             * Needs Input
+             * @default null
+             */
+            needs_input: string | null;
+            /**
+             * Sample Rows
+             * @default null
+             */
+            sample_rows: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Signals
+             * @default null
+             */
+            signals: string[];
+            /**
+             * Task Type
+             * @default null
+             */
+            task_type: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling") | null;
+        };
         /** DatasetEdaSummary */
         DatasetEdaSummary: {
             /**
@@ -2539,6 +3426,57 @@ export interface components {
              */
             warnings: string[];
         };
+        /**
+         * DatasetFieldMapping
+         * @description Which column or key feeds which part of a training example.
+         */
+        DatasetFieldMapping: {
+            /**
+             * Answer
+             * @default null
+             */
+            answer: string | null;
+            /**
+             * Input
+             * @default null
+             */
+            input: string | null;
+            /**
+             * Instruction
+             * @default null
+             */
+            instruction: string | null;
+            /**
+             * Label
+             * @default null
+             */
+            label: string | null;
+            /**
+             * Messages
+             * @default null
+             */
+            messages: string | null;
+            /**
+             * Output
+             * @default null
+             */
+            output: string | null;
+            /**
+             * Question
+             * @default null
+             */
+            question: string | null;
+            /**
+             * Summary
+             * @default null
+             */
+            summary: string | null;
+            /**
+             * Text
+             * @default null
+             */
+            text: string | null;
+        };
         /** DatasetHubColumnMapping */
         DatasetHubColumnMapping: {
             /**
@@ -2581,6 +3519,58 @@ export interface components {
              * @default null
              */
             question: string | null;
+        };
+        /**
+         * DatasetHubFacetOption
+         * @description One filter term, with the sentence that explains it.
+         *
+         *     `hint` is rendered as the tooltip both on the filter chip and on the badge
+         *     showing the same term on a result card, so the explanation cannot drift
+         *     between the two places a user meets it. See `services/hub_facets.py`.
+         */
+        DatasetHubFacetOption: {
+            /** Hint */
+            hint: string;
+            /**
+             * Importable
+             * @default true
+             */
+            importable: boolean;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * DatasetHubFacets
+         * @description The browse vocabulary, served rather than hardcoded in the client.
+         */
+        DatasetHubFacets: {
+            /**
+             * Formats
+             * @default null
+             */
+            formats: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Modalities
+             * @default null
+             */
+            modalities: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Sizes
+             * @default null
+             */
+            sizes: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Sorts
+             * @default null
+             */
+            sorts: components["schemas"]["DatasetHubFacetOption"][];
+            /**
+             * Tasks
+             * @default null
+             */
+            tasks: components["schemas"]["DatasetHubFacetOption"][];
         };
         /** DatasetHubImportRequest */
         DatasetHubImportRequest: {
@@ -2648,6 +3638,13 @@ export interface components {
         /** DatasetHubPreview */
         DatasetHubPreview: {
             /**
+             * Column Types
+             * @default null
+             */
+            column_types: {
+                [key: string]: string;
+            };
+            /**
              * Columns
              * @default null
              */
@@ -2681,6 +3678,11 @@ export interface components {
             error: string | null;
             /** Hub Id */
             hub_id: string;
+            /**
+             * Num Rows
+             * @default null
+             */
+            num_rows: number | null;
             /**
              * Rows
              * @default null
@@ -2725,22 +3727,77 @@ export interface components {
              */
             downloads: number;
             /**
+             * Formats
+             * @default null
+             */
+            formats: string[];
+            /**
              * Gated
              * @default false
              */
             gated: boolean;
+            /**
+             * Has Viewer
+             * @default true
+             */
+            has_viewer: boolean;
             /** Hub Id */
             hub_id: string;
+            /**
+             * Importable
+             * @default true
+             */
+            importable: boolean;
+            /**
+             * Languages
+             * @default null
+             */
+            languages: string[];
+            /**
+             * License
+             * @default null
+             */
+            license: string | null;
             /**
              * Likes
              * @default 0
              */
             likes: number;
             /**
+             * Modalities
+             * @default null
+             */
+            modalities: string[];
+            /**
+             * Pretty Name
+             * @default null
+             */
+            pretty_name: string | null;
+            /**
+             * Size Category
+             * @default null
+             */
+            size_category: string | null;
+            /**
+             * Summary
+             * @default null
+             */
+            summary: string | null;
+            /**
              * Tags
              * @default null
              */
             tags: string[];
+            /**
+             * Task Categories
+             * @default null
+             */
+            task_categories: string[];
+            /**
+             * Trending Score
+             * @default 0
+             */
+            trending_score: number;
             /**
              * Updated At
              * @default null
@@ -3080,6 +4137,152 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** DatasetPrepApplyRequest */
+        DatasetPrepApplyRequest: {
+            plan: components["schemas"]["DatasetPrepPlan"];
+        };
+        /**
+         * DatasetPrepPlan
+         * @description Everything the agent proposes to do to a dataset.
+         */
+        DatasetPrepPlan: {
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * Decisions
+             * @default null
+             */
+            decisions: components["schemas"]["PrepDecision"][];
+            /** @default null */
+            engine: components["schemas"]["PrepEngine"];
+            /** @default null */
+            field_mapping: components["schemas"]["DatasetFieldMapping"];
+            /**
+             * Format
+             * @default null
+             */
+            format: ("yolo" | "coco" | "image_folder" | "image_manifest" | "text_folder" | "jsonl" | "csv" | "instruction_jsonl" | "chat_jsonl") | null;
+            /**
+             * Labels
+             * @default null
+             */
+            labels: string[];
+            /**
+             * Needs Input
+             * @default null
+             */
+            needs_input: string | null;
+            /**
+             * Notice
+             * @default
+             */
+            notice: string;
+            /** @default null */
+            preprocess: components["schemas"]["DatasetPreprocessConfig"];
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+            /**
+             * Source
+             * @default heuristic
+             * @enum {string}
+             */
+            source: "llm" | "heuristic" | "notebook";
+            /** @default null */
+            split: components["schemas"]["DatasetSplitConfig"];
+            /**
+             * Task Type
+             * @default null
+             */
+            task_type: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling") | null;
+            /** @default null */
+            transform: components["schemas"]["PrepTransform"] | null;
+            /**
+             * Warnings
+             * @default null
+             */
+            warnings: string[];
+        };
+        /**
+         * DatasetPrepResponse
+         * @description The dataset as it now stands, plus the plan that got it there.
+         */
+        DatasetPrepResponse: {
+            dataset: components["schemas"]["DatasetSummary"];
+            plan: components["schemas"]["DatasetPrepPlan"];
+        };
+        /**
+         * DatasetPrepStartRequest
+         * @description Options for one prep run.
+         *
+         *     `auto_apply` is the whole review-gate decision, kept as one flag: false stops
+         *     at `planned` and `/prep/apply` finishes the job later, running exactly the
+         *     same code.
+         */
+        DatasetPrepStartRequest: {
+            /**
+             * Auto Apply
+             * @default true
+             */
+            auto_apply: boolean;
+        };
+        /**
+         * DatasetPrepStatus
+         * @description Prep-agent state carried on the dataset manifest.
+         *
+         *     Kept on the manifest rather than only in `data_prep_jobs` so a dataset stays
+         *     self-describing: reference and shared sample datasets have no job row, and
+         *     readiness still has to compute for them.
+         */
+        DatasetPrepStatus: {
+            /**
+             * Applied At
+             * @default null
+             */
+            applied_at: string | null;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Job Id
+             * @default null
+             */
+            job_id: string | null;
+            /**
+             * Progress
+             * @default null
+             */
+            progress: number | null;
+            /**
+             * Staged Files
+             * @default 0
+             */
+            staged_files: number;
+            /**
+             * State
+             * @default ready
+             * @enum {string}
+             */
+            state: "draft" | "detecting" | "planning" | "planned" | "applying" | "ready" | "failed" | "cancelled";
+            /**
+             * Step
+             * @default idle
+             * @enum {string}
+             */
+            step: "idle" | "staging" | "detecting" | "planning" | "transforming" | "applying" | "splitting" | "done";
+        };
         /** DatasetPreprocessConfig */
         DatasetPreprocessConfig: {
             /**
@@ -3177,6 +4380,68 @@ export interface components {
                 [key: string]: number;
             };
             split_config: components["schemas"]["DatasetSplitConfig"];
+        };
+        /**
+         * DatasetReadiness
+         * @description Structural readiness only.
+         *
+         *     Checks that would need to read item files (empty LLM outputs, duplicate
+         *     records, class imbalance) belong to `DatasetEdaSummary` instead: `summary()`
+         *     runs for every dataset on every catalog list, and a second filesystem walk
+         *     there would double the cost of listing.
+         */
+        DatasetReadiness: {
+            /**
+             * Busy
+             * @default false
+             */
+            busy: boolean;
+            /**
+             * Checks
+             * @default null
+             */
+            checks: components["schemas"]["DatasetReadinessCheck"][];
+            /**
+             * Next Action
+             * @default none
+             * @enum {string}
+             */
+            next_action: "upload" | "run_prep" | "label" | "split" | "wait" | "none";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "needs_prep" | "needs_input" | "blocked";
+            /** Summary */
+            summary: string;
+            /** Trainable */
+            trainable: boolean;
+        };
+        /**
+         * DatasetReadinessCheck
+         * @description One condition, named so the UI can list what passed and what did not.
+         *
+         *     `blocking` checks decide `trainable`; `advisory` ones are warnings that never
+         *     stop a run (an undrained inbox, a skewed class balance).
+         */
+        DatasetReadinessCheck: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Passed */
+            passed: boolean;
+            /**
+             * Severity
+             * @default blocking
+             * @enum {string}
+             */
+            severity: "blocking" | "advisory";
         };
         /** DatasetRecordCreate */
         DatasetRecordCreate: {
@@ -3314,11 +4579,14 @@ export interface components {
             origin_ref: string | null;
             /** Path */
             path: string;
+            /** @default null */
+            prep: components["schemas"]["DatasetPrepStatus"] | null;
             /**
              * Project Id
              * @default default-research-project
              */
             project_id: string;
+            readiness: components["schemas"]["DatasetReadiness"];
             /**
              * Shared
              * @default false
@@ -3339,6 +4607,57 @@ export interface components {
              * @enum {string}
              */
             task_type: "classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling";
+        };
+        /** DatasetTableColumn */
+        DatasetTableColumn: {
+            /**
+             * Editable
+             * @default false
+             */
+            editable: boolean;
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @default text
+             * @enum {string}
+             */
+            kind: "image" | "text" | "label" | "number" | "split" | "json";
+            /** Label */
+            label: string;
+        };
+        /** DatasetTablePage */
+        DatasetTablePage: {
+            /** Columns */
+            columns: components["schemas"]["DatasetTableColumn"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /**
+             * Rows
+             * @default null
+             */
+            rows: components["schemas"]["DatasetTableRow"][];
+            /** Total */
+            total: number;
+        };
+        /** DatasetTableRow */
+        DatasetTableRow: {
+            /**
+             * Cells
+             * @default null
+             */
+            cells: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "unassigned" | "train" | "valid" | "test";
         };
         /** DatasetUpdate */
         DatasetUpdate: {
@@ -4497,6 +5816,298 @@ export interface components {
             /** Type */
             type: string;
         };
+        /**
+         * NotebookComputeTarget
+         * @description One machine a kernel could run on, as the runtime dropdown shows it.
+         *
+         *     Flattens two sources that answer different halves of the question: the
+         *     per-framework device probe (what *this* machine has) and the provider
+         *     registry (where a run could go instead). A remote provider that is not built
+         *     yet is listed with `available: false` and its `detail` — the phase-24 rule
+         *     that a roadmap the UI cannot see is a roadmap nobody can plan against.
+         */
+        NotebookComputeTarget: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @default auto
+             */
+            kind: ("cuda" | "mps" | "metal" | "rocm" | "cpu") | ("auto" | "remote");
+            /** Label */
+            label: string;
+        };
+        /** NotebookCreate */
+        NotebookCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Template Id
+             * @default null
+             */
+            template_id: string | null;
+        };
+        /** NotebookKernelStatus */
+        NotebookKernelStatus: {
+            /**
+             * Connections
+             * @default 0
+             */
+            connections: number;
+            /**
+             * Kernel Id
+             * @default null
+             */
+            kernel_id: string | null;
+            /**
+             * Last Activity
+             * @default null
+             */
+            last_activity: string | null;
+            /**
+             * State
+             * @default unknown
+             * @enum {string}
+             */
+            state: "starting" | "idle" | "busy" | "dead" | "unknown";
+        };
+        /** NotebookRun */
+        NotebookRun: {
+            /**
+             * Artifacts
+             * @default null
+             */
+            artifacts: string[];
+            /**
+             * Dataset Id
+             * @default null
+             */
+            dataset_id: string | null;
+            /**
+             * Finished At
+             * @default null
+             */
+            finished_at: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Metric Names
+             * @default null
+             */
+            metric_names: string[];
+            /** Name */
+            name: string;
+            /** Notebook Id */
+            notebook_id: string;
+            /**
+             * Params
+             * @default null
+             */
+            params: {
+                [key: string]: unknown;
+            };
+            /**
+             * Started At
+             * @default null
+             */
+            started_at: string | null;
+            /**
+             * Status
+             * @default running
+             */
+            status: string;
+            /**
+             * Tags
+             * @default null
+             */
+            tags: string[];
+            /**
+             * Text
+             * @default null
+             */
+            text: {
+                [key: string]: string;
+            };
+        };
+        /** NotebookRunSeries */
+        NotebookRunSeries: {
+            /**
+             * Points
+             * @default null
+             */
+            points: {
+                [key: string]: number;
+            }[];
+            run: components["schemas"]["NotebookRun"];
+        };
+        /**
+         * NotebookRuntimeStart
+         * @description `device` is a `NotebookComputeTarget.id`, not a free-form string.
+         */
+        NotebookRuntimeStart: {
+            /**
+             * Device
+             * @default auto
+             */
+            device: string;
+        };
+        /** NotebookRuntimeStatus */
+        NotebookRuntimeStatus: {
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /**
+             * Device
+             * @default auto
+             */
+            device: string;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
+             * Install Hint
+             * @default null
+             */
+            install_hint: string | null;
+            /**
+             * Kernel Count
+             * @default 0
+             */
+            kernel_count: number;
+            /**
+             * Port
+             * @default null
+             */
+            port: number | null;
+            /**
+             * Python Version
+             * @default null
+             */
+            python_version: string | null;
+            /**
+             * State
+             * @default stopped
+             * @enum {string}
+             */
+            state: "stopped" | "starting" | "running" | "failed";
+        };
+        /**
+         * NotebookSession
+         * @description What the browser needs to open a kernel channel, and nothing more.
+         *
+         *     Deliberately carries no token: the `jupyter-server` credential is injected
+         *     by the proxy on the way out and never reaches the client, the same posture
+         *     the OpenRouter key has had since phase 11.
+         */
+        NotebookSession: {
+            /** Base Url */
+            base_url: string;
+            /** Kernel Name */
+            kernel_name: string;
+            /** Notebook Path */
+            notebook_path: string;
+            /** Ws Url */
+            ws_url: string;
+        };
+        /** NotebookSummary */
+        NotebookSummary: {
+            /**
+             * Cell Count
+             * @default 0
+             */
+            cell_count: number;
+            /**
+             * Created At
+             * @default null
+             */
+            created_at: string | null;
+            /** Id */
+            id: string;
+            /** @default null */
+            kernel: components["schemas"]["NotebookKernelStatus"] | null;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Tags
+             * @default null
+             */
+            tags: string[];
+            /**
+             * Updated At
+             * @default null
+             */
+            updated_at: string | null;
+            /**
+             * Valid
+             * @default true
+             */
+            valid: boolean;
+        };
+        /**
+         * NotebookTemplate
+         * @description One shipped `.ipynb`, described by its own `metadata.orinth` block.
+         *
+         *     `category` groups the picker. With four templates a flat grid was the right
+         *     answer; past that the user is scanning a wall, and "which of these is about
+         *     training" is the question the grouping answers.
+         */
+        NotebookTemplate: {
+            /**
+             * Category
+             * @default General
+             */
+            category: string;
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Task Types
+             * @default null
+             */
+            task_types: ("classification" | "object_detection" | "segmentation" | "text_classification" | "summarization" | "question_answering" | "llm_finetune" | "language_modeling")[];
+        };
+        /** NotebookUpdate */
+        NotebookUpdate: {
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+            /**
+             * Tags
+             * @default null
+             */
+            tags: string[] | null;
+        };
         /** OpenRouterModel */
         OpenRouterModel: {
             /** Id */
@@ -4552,6 +6163,169 @@ export interface components {
              * @default null
              */
             openrouter_model: string | null;
+        };
+        /**
+         * PrepDecision
+         * @description One field of the plan, plus why it holds that value.
+         *
+         *     `evidence` is the load-bearing part. "classification, 85% confident" asks the
+         *     user to trust the agent; "312 files across 3 folders: normal, kista,
+         *     granuloma" can be checked against what they actually uploaded. Auto-apply is
+         *     only defensible because every decision carries one.
+         */
+        PrepDecision: {
+            /**
+             * Confidence
+             * @default null
+             */
+            confidence: number | null;
+            /**
+             * Evidence
+             * @default null
+             */
+            evidence: string | null;
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "task_type" | "format" | "labels" | "split" | "preprocess" | "mapping" | "transform";
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "detected" | "heuristic" | "llm" | "user";
+            /**
+             * Value
+             * @default null
+             */
+            value: unknown;
+        };
+        /**
+         * PrepEngine
+         * @description Which engine produced the plan, and what it cost.
+         *
+         *     `mode` is surfaced as a badge. Presenting heuristic output as model output
+         *     would misrepresent how much the user should trust it, so the distinction is
+         *     carried in the data rather than left to the copy.
+         */
+        PrepEngine: {
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /**
+             * Estimated Cost Usd
+             * @default null
+             */
+            estimated_cost_usd: number | null;
+            /**
+             * Mode
+             * @default heuristic
+             * @enum {string}
+             */
+            mode: "llm" | "heuristic" | "notebook";
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
+            /**
+             * Notice
+             * @default null
+             */
+            notice: string | null;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+        };
+        /**
+         * PrepTransform
+         * @description A Python script that reshaped the raw rows, and what it produced.
+         *
+         *     Detection can only name tasks it has a rule for. A feature table — sixteen
+         *     clinical yes/no columns and a `class` column, a gradebook, a survey export —
+         *     matches no rule, and the deterministic answer is "ask the user", which is
+         *     the friction this phase exists to remove. Code generalizes where a
+         *     vocabulary cannot: the script below is written for *this* table's columns
+         *     and run in `prep/sandbox.py`, and it is kept on the plan because a user who
+         *     is told their spreadsheet became a text classifier is owed the twenty lines
+         *     that did it.
+         */
+        PrepTransform: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /**
+             * Engine
+             * @default builtin
+             * @enum {string}
+             */
+            engine: "builtin" | "llm";
+            /**
+             * Estimated Cost Usd
+             * @default null
+             */
+            estimated_cost_usd: number | null;
+            /**
+             * Feature Columns
+             * @default null
+             */
+            feature_columns: string[];
+            /**
+             * Input Rows
+             * @default 0
+             */
+            input_rows: number;
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
+            /**
+             * Notice
+             * @default null
+             */
+            notice: string | null;
+            /**
+             * Output Rows
+             * @default 0
+             */
+            output_rows: number;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+            /**
+             * Rationale
+             * @default
+             */
+            rationale: string;
+            /**
+             * Source Files
+             * @default null
+             */
+            source_files: string[];
+            /**
+             * Target Column
+             * @default null
+             */
+            target_column: string | null;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -5963,6 +7737,26 @@ export interface operations {
             };
         };
     };
+    get_hub_facets_api_datasets_hub_facets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetHubFacets"];
+                };
+            };
+        };
+    };
     preview_hub_dataset_api_datasets_hub_preview_get: {
         parameters: {
             query: {
@@ -6003,6 +7797,11 @@ export interface operations {
                 query?: string | null;
                 task?: string | null;
                 limit?: number;
+                modality?: string[];
+                format?: string[];
+                size?: string[];
+                task_category?: string[];
+                sort?: string;
             };
             header?: never;
             path?: never;
@@ -6083,6 +7882,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetHubImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_dataset_api_datasets_ingest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_ingest_dataset_api_datasets_ingest_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataset_api_datasets__dataset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
                 };
             };
             /** @description Validation Error */
@@ -6197,6 +8060,40 @@ export interface operations {
             };
         };
     };
+    download_dataset_api_datasets__dataset_id__download_get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated subset */
+                splits?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     dataset_eda_api_datasets__dataset_id__eda_get: {
         parameters: {
             query?: {
@@ -6217,6 +8114,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetEdaSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_into_dataset_api_datasets__dataset_id__ingest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_ingest_into_dataset_api_datasets__dataset_id__ingest_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
                 };
             };
             /** @description Validation Error */
@@ -6758,6 +8690,231 @@ export interface operations {
             };
         };
     };
+    get_dataset_prep_api_datasets__dataset_id__prep_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPrepPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_dataset_prep_api_datasets__dataset_id__prep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DatasetPrepStartRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_dataset_prep_api_datasets__dataset_id__prep_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetPrepApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPrepResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detect_dataset_api_datasets__dataset_id__prep_detect_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetDetection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_staged_files_api_datasets__dataset_id__prep_discard_staged_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataset_prep_status_api_datasets__dataset_id__prep_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPrepStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_dataset_prep_api_datasets__dataset_id__prep_undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     process_dataset_api_datasets__dataset_id__process_post: {
         parameters: {
             query?: never;
@@ -6780,6 +8937,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dataset_readiness_api_datasets__dataset_id__readiness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetReadiness"];
                 };
             };
             /** @description Validation Error */
@@ -6887,6 +9075,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetItemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataset_table_api_datasets__dataset_id__table_get: {
+        parameters: {
+            query?: {
+                split?: string;
+                class_name?: string | null;
+                unlabeled?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetTablePage"];
                 };
             };
             /** @description Validation Error */
@@ -7512,6 +9737,471 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notebooks_api_notebooks_get: {
+        parameters: {
+            query?: {
+                project_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_notebook_api_notebooks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotebookCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notebook_runtime_api_notebooks_runtime_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+        };
+    };
+    restart_notebook_runtime_api_notebooks_runtime_restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NotebookRuntimeStart"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_notebook_runtime_api_notebooks_runtime_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NotebookRuntimeStart"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_notebook_runtime_api_notebooks_runtime_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRuntimeStatus"];
+                };
+            };
+        };
+    };
+    list_notebook_compute_targets_api_notebooks_runtime_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookComputeTarget"][];
+                };
+            };
+        };
+    };
+    list_notebook_templates_api_notebooks_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookTemplate"][];
+                };
+            };
+        };
+    };
+    get_notebook_api_notebooks__notebook_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_notebook_api_notebooks__notebook_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_notebook_api_notebooks__notebook_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotebookUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    duplicate_notebook_api_notebooks__notebook_id__duplicate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notebook_runs_api_notebooks__notebook_id__runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRun"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notebook_run_api_notebooks__notebook_id__runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookRunSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_notebook_artifact_api_notebooks__notebook_id__runs__run_id__artifacts__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+                run_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notebook_session_api_notebooks__notebook_id__session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookSession"];
                 };
             };
             /** @description Validation Error */
@@ -8901,6 +11591,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    training_compute_environment_api_training_compute_get: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputeEnvironment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    training_compute_plan_api_training_compute_plan_get: {
+        parameters: {
+            query: {
+                task_type: string;
+                model_family: string;
+                device?: string | null;
+                batch_size?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputePlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    training_compute_providers_api_training_compute_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputeProvider"][];
                 };
             };
         };

@@ -7,6 +7,36 @@ templates), validate it, save it, read and download the generated Python as **ei
 PyTorch**, and train it: image and text classifiers into the model registry, and from-scratch
 transformers on next-token prediction with sample generation.
 
+### Revision 18: the custom-layer field is an editor, not a textarea
+
+`code`-typed params (a custom layer's body, a custom function's expression) rendered as a
+transparent `<textarea>` over a highlighted `<pre>` — enough for colour, and nothing else. So the one
+place in the product where you write Python *by hand, against an API you half-remember* had no
+completion, no bracket matching, and a Tab key that inserted four spaces wherever the caret happened
+to be. The notebook next door had all of it.
+
+Both now use one component. `frontend/features/platform/code/python-editor.tsx` holds the CodeMirror
+6 setup — highlighting from the `--label-*` ramp, 4-space `indentUnit`, `indentOnInput`, bracket
+matching and auto-close, history, the theme built from platform tokens — and takes what differs as
+props: the completion source, extra key bindings, and diagnostics. `features/notebooks/syntax.ts`
+moved with it, since it was never notebook-specific.
+
+What each surface supplies:
+
+- **The notebook** passes the kernel's `complete_request` and its Shift-Enter / Shift-Tab bindings.
+- **The studio** has no kernel — a layer body is text that will run later, in a training process that
+  does not exist yet — so it passes `python-api.ts`: a static table of the namespaces you actually
+  reach for inside `call()` and `__init__` (`tf.keras.layers`, `tf.nn`, `tf.math`, `self`, `nn`,
+  `torch`, `F`, `np`), plus the identifiers already in the buffer. Deliberately not all of
+  TensorFlow: a list that tried to be complete would be stale within a release and would bury
+  `Conv2D` under fifty things nobody types.
+- **Lint findings** now mark their line in a margin gutter as well as listing underneath. A dot, not
+  a squiggle: at 13px in a modal-width inspector an underline is indistinguishable from a selection.
+
+Verified in a real browser against a saved architecture with a `custom_layer` node: selecting the
+node and pressing Enter opens the inspector with one `.cm-editor`, line numbers, and the diagnostic
+margin; typing `tf.keras.l` opens the completion popup on `layers` and `losses`.
+
 ### Revision 17: an NLP palette, not just a decoder palette
 
 The text side of the catalog was a decoder stack and nothing else. Everything language-shaped in the
@@ -881,7 +911,8 @@ lie; the descriptions name the gap instead.
 
 - **`AdvancedParameterSpec` gained a `code` type**, rendered as a mono textarea. Custom layer bodies
   are the first param that cannot fit a single-line input, and adding a type kept the inspector on
-  the one shared field renderer rather than forking it.
+  the one shared field renderer rather than forking it. (Revision 18 replaced the textarea with the
+  shared CodeMirror editor; the param type is unchanged.)
 - **A new `Generation` advanced group** holds sampling temperature and length. It is registered in
   `app/ml/common/advanced.py`, the frontend `GROUP_ORDER`, and
   `test_advanced_training.py`'s documented set — that test caught the omission, which is what it
@@ -1119,6 +1150,9 @@ cannot drift from what codegen consumes.
   (selection payloads, re-id on paste), `context-menu.tsx`, and `group-inspector.tsx`; revision 5
   adds `group-changes.ts` (the group-frame equivalent of `applyNodeChanges`, kept pure so the
   resize-axis rules are testable) and the shared `features/platform/ui/number-combo.tsx`.
+  `code-editor.tsx` holds the lint rules (`lintCustomLayer`, `lintCustomFunction`) and renders
+  `features/platform/code/python-editor.tsx` — the same editor the notebook cell uses. See
+  `specs/phase-22-notebooks.md`.
 - `frontend/lib/api/architectures.ts`, re-exported from `frontend/lib/api/index.ts` so
   `import { api } from "@/lib/api"` keeps working.
 - The Models page header gains a segmented control, `Catalog | Architectures`. The sidebar keeps one

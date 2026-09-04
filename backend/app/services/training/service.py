@@ -1072,8 +1072,12 @@ class TrainingService:
         started_at: datetime,
     ) -> int:
         logs: list[str] = []
+        # The row is re-read rather than threaded through: `_run_process` is
+        # called from several places with different amounts of the job in hand,
+        # and one query beats four signatures changing.
+        job = db.get(TrainingJob, job_id)
         with log_path.open("w", encoding="utf-8") as log_file:
-            env = self._process_env()
+            env = self._process_env(job)
             process = subprocess.Popen(
                 command,
                 cwd=self.settings.repo_root / "backend",
@@ -1102,8 +1106,15 @@ class TrainingService:
                     self._update_training_progress(db, job_id, run_dir, logs, started_at)
             return process.wait()
 
-    def _process_env(self) -> dict[str, str]:
+    def _process_env(self, job: TrainingJob | None = None) -> dict[str, str]:
         env = os.environ.copy()
+        # Phase 24: resolve `auto` once, here, and hand the answer to the child
+        # through the environment. Two runners already read
+        # `ONESTEP_TRAIN_DEVICE`, so this reaches every family without touching
+        # each command builder — and it means the device a run used is decided
+        # in one place rather than re-derived differently by each runner.
+        if job is not None:
+            env.update(self._device_env(job))
         # Popen's bufsize only line-buffers *our* reading of the pipe; the child
         # still block-buffers its own stdout into 8KB chunks when it is not a
         # tty, so per-epoch prints arrived in one burst at exit and the live log
@@ -1123,6 +1134,31 @@ class TrainingService:
             env["HUGGINGFACE_HUB_TOKEN"] = token
             env["HF_TOKEN"] = token
         return env
+
+    def _device_env(self, job: TrainingJob) -> dict[str, str]:
+        """Resolve the run's device, and record the plan on the job.
+
+        Failures here are swallowed: the probe spawns a subprocess that imports
+        torch and TensorFlow, and a machine where that misbehaves must still be
+        able to train. Falling through leaves every runner's own `cuda > mps >
+        cpu` default in place, which is what happened before this existed.
+        """
+        params = job.parameters or {}
+        requested = str(params.get("device") or "").strip().lower()
+        if requested and requested != "auto":
+            return {"ONESTEP_TRAIN_DEVICE": requested}
+        try:
+            from app.ml.compute_plan import plan_for  # noqa: PLC0415
+
+            plan = plan_for(
+                task_type=str(job.task_type),
+                model_family=str(job.model_family),
+                requested_device=requested or "auto",
+                requested_batch_size=params.get("batch_size"),
+            )
+        except Exception:  # noqa: BLE001 - a probe failure must not block a run
+            return {}
+        return {"ONESTEP_TRAIN_DEVICE": plan.device}
 
     def _set_pid(self, db: Session, job_id: str, pid: int) -> None:
         job = db.get(TrainingJob, job_id)

@@ -7,12 +7,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.container import (
+    dataset_prep_service,
     evaluation_executor,
     evaluation_service,
     export_executor,
     export_service,
     inference_executor,
     inference_service,
+    notebook_runtime,
     recipe_executor,
     recipe_service,
     serving_service,
@@ -32,12 +34,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     evaluation_service.reconcile_stale_jobs()
     inference_service.reconcile_stale_jobs()
     recipe_service.reconcile_stale_recipes()
+    # A prep state is a string on a manifest with nothing running behind it, so
+    # an interrupted run stays `planning` forever — and the studio polls the
+    # catalog every four seconds for as long as it does.
+    dataset_prep_service.reconcile_stale_preps()
     export_service.reconcile_stale_exports()
     # A crashed API process cannot leak a llama.cpp server: reap whatever the
     # serving state file still records before serving requests.
     serving_service.reap_orphans()
     yield
     serving_service.shutdown()
+    # Phase 22: kills the jupyter-server subprocess and every kernel under it,
+    # so a restart does not leave a stranded server holding its port.
+    notebook_runtime.shutdown()
     training_executor.shutdown(wait=True)
     evaluation_executor.shutdown(wait=True)
     inference_executor.shutdown(wait=True)
@@ -63,4 +72,13 @@ app.include_router(router, prefix=settings.api_prefix)
 
 @app.get("/health")
 def root_health() -> dict[str, str]:
-    return {"status": "ok"}
+    """Liveness, plus enough to tell two builds apart.
+
+    `orinth version` and `orinth doctor` exist to answer "is the CLI I am running
+    the same build as the server it is talking to", which they cannot do without
+    the version here. Additive: phase 18's desktop supervisor polls this for a
+    200 and ignores the body.
+    """
+    from app.cli import __version__
+
+    return {"status": "ok", "app": "orinth", "version": __version__}

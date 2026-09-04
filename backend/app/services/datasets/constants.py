@@ -1,6 +1,11 @@
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 TEXT_SUFFIXES = {".txt", ".csv", ".jsonl"}
 RECORD_SUFFIX = ".json"
+# The pre-apply manifest snapshot the prep agent writes (see `prep/apply.py`).
+# Declared here rather than there because the versioning mixin also has to know
+# to keep it out of an export, and `constants` is the one module in this package
+# that imports nothing and so cannot close a cycle.
+UNDO_FILENAME = "prep_undo.json"
 SPLITS = ("unassigned", "train", "valid", "test")
 TRAINING_SPLITS = ("train", "valid", "test")
 IMAGE_TASK_TYPES = {"classification", "object_detection", "segmentation"}

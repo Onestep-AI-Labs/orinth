@@ -15,6 +15,11 @@ dependencies = [
     "alembic>=1.13.2",
     "pillow>=10.4.0",
     "numpy>=1.26.4",
+    # Phase 21: reading Parquet during dataset detection. Most Hugging Face
+    # datasets ship no other format, so the prep agent needs it to see them at
+    # all. Present transitively before this; declared because it is now used
+    # directly.
+    "polars>=1.0.0",
     "opencv-python>=4.10.0.84",
     "scikit-learn>=1.5.1",
     "pycocotools>=2.0.8",
@@ -41,6 +46,11 @@ dependencies = [
     "httpx>=0.27.0",
 ]
 
+# The `orinth` CLI (phase 23). `[tool.hatch.build.targets.wheel]` already
+# packages `app`, so `app/cli/` ships with no build-config change.
+[project.scripts]
+orinth = "app.cli.main:main"
+
 [project.optional-dependencies]
 # LLM fine-tuning (phase 14). Installable on every platform, including macOS —
 # the CUDA-only packages are deliberately split into `llm-cuda` below so a Mac
@@ -58,6 +68,18 @@ llm = [
     "llama-cpp-python[server]>=0.3.0",
     # Web search for the chat "Search" mode (DuckDuckGo, no API key).
     "ddgs>=6.0",
+]
+# Notebooks (phase 22). Optional because the API never imports any of it — the
+# runtime spawns `python -m jupyter_server` as a subprocess and probes for it
+# with `find_spec`. `jupyterlab` is deliberately absent: only jupyter-server's
+# HTTP/WebSocket API is used and the editor is ours, so the whole Lab frontend
+# would be dead weight in the wheel.
+notebooks = [
+    "jupyter-server>=2.14.0",
+    "ipykernel>=6.29.0",
+    # The proxy bridges the browser's kernel channel to jupyter-server's; httpx
+    # covers the HTTP half and this the WebSocket half.
+    "websockets>=12.0",
 ]
 # Only reliably installable on CUDA platforms.
 llm-cuda = [
@@ -95,6 +117,12 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Notebook templates (phase 22) are documentation, not library code: their cells
+# are ordered to teach — `import orinth` before `import polars`, because it is
+# the subject — and a cell that names a variable it does not use is often making
+# a point about the shape of what it iterates. Linting them enforces rules
+# written for a different kind of file.
+extend-exclude = ["app/services/notebooks/templates"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "DTZ"]

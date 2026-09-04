@@ -39,4 +39,8 @@ Use a spec when:
 - `phase-17-model-architecture-studio.md`
 - `phase-18-macos-desktop-app.md`
 - `phase-19-orinth-rebrand.md`
+- `phase-21-prep-agent.md`
+- `phase-22-notebooks.md`
+- `phase-23-cli.md`
+- `phase-24-compute-targets.md`
 - `SPEC_TEMPLATE.md`

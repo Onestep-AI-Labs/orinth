@@ -25,6 +25,35 @@ export type DatasetFormat =
   | "instruction_jsonl"
   | "chat_jsonl";
 export type SplitKey = "unassigned" | "train" | "valid" | "test";
+export type ReadinessState = "ready" | "needs_prep" | "needs_input" | "blocked";
+export type ReadinessAction =
+  | "upload"
+  | "run_prep"
+  | "label"
+  | "split"
+  | "wait"
+  | "none";
+export type PrepState =
+  | "draft"
+  | "detecting"
+  | "planning"
+  | "planned"
+  | "applying"
+  | "ready"
+  | "failed"
+  | "cancelled";
+// The stage a run is *inside*, which is what the progress readout names. Finer
+// than `PrepState`, which answers the different question of whether the dataset
+// can be trained on yet.
+export type PrepStep =
+  | "idle"
+  | "staging"
+  | "detecting"
+  | "planning"
+  | "transforming"
+  | "applying"
+  | "splitting"
+  | "done";
 export type DatasetSplitFilter = "all" | SplitKey;
 
 // Everything below is a thin facade over the generated OpenAPI types so that the
@@ -58,6 +87,32 @@ export type DatasetPreprocessConfig = components["schemas"]["DatasetPreprocessCo
 export type DatasetSplitConfig = components["schemas"]["DatasetSplitConfig"];
 export type DatasetVersionSummary = components["schemas"]["DatasetVersionSummary"];
 export type DatasetEdaSummary = components["schemas"]["DatasetEdaSummary"];
+export type DatasetReadiness = components["schemas"]["DatasetReadiness"];
+export type DatasetReadinessCheck = components["schemas"]["DatasetReadinessCheck"];
+export type DatasetPrepStatus = components["schemas"]["DatasetPrepStatus"];
+export type DatasetTablePage = components["schemas"]["DatasetTablePage"];
+export type DatasetHubFacets = components["schemas"]["DatasetHubFacets"];
+export type ComputeEnvironment = components["schemas"]["ComputeEnvironment"];
+export type ComputeFramework = components["schemas"]["ComputeFramework"];
+export type ComputePlan = components["schemas"]["ComputePlan"];
+export type ComputeProvider = components["schemas"]["ComputeProvider"];
+export type NotebookSummary = components["schemas"]["NotebookSummary"];
+export type NotebookTemplate = components["schemas"]["NotebookTemplate"];
+export type NotebookSession = components["schemas"]["NotebookSession"];
+export type NotebookRuntimeStatus = components["schemas"]["NotebookRuntimeStatus"];
+export type NotebookComputeTarget = components["schemas"]["NotebookComputeTarget"];
+export type NotebookRun = components["schemas"]["NotebookRun"];
+export type NotebookRunSeries = components["schemas"]["NotebookRunSeries"];
+export type NotebookKernelStatus = components["schemas"]["NotebookKernelStatus"];
+export type DatasetHubFacetOption = components["schemas"]["DatasetHubFacetOption"];
+export type DatasetTableColumn = components["schemas"]["DatasetTableColumn"];
+export type DatasetTableRow = components["schemas"]["DatasetTableRow"];
+export type DatasetDetection = components["schemas"]["DatasetDetection"];
+export type DatasetPrepPlan = components["schemas"]["DatasetPrepPlan"];
+export type DatasetPrepResponse = components["schemas"]["DatasetPrepResponse"];
+export type PrepDecision = components["schemas"]["PrepDecision"];
+export type PrepEngine = components["schemas"]["PrepEngine"];
+export type PrepTransform = components["schemas"]["PrepTransform"];
 export type DatasetAnnotation = components["schemas"]["DatasetAnnotation"];
 export type DatasetItemSummary = components["schemas"]["DatasetItemSummary"];
 export type DatasetItemPage = components["schemas"]["DatasetItemPage"];

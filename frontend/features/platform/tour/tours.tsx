@@ -60,23 +60,27 @@ const datasets: TourDefinition = {
         "Every dataset in this project, grouped by origin: your own, HuggingFace imports, and read-only shared samples.",
       placement: "bottom"    },
     {
-      target: '[data-tour="datasets-add"]',
-      title: "Add a dataset",
-      content: "Create an empty dataset for a task, then upload and label into it. Originals are never rewritten.",
-      placement: "left"
+      target: '[data-tour="dataset-ingest"]',
+      title: "Start with your data",
+      content:
+        "Drop a folder or a pile of files — images, CSV, JSONL, Parquet. Orinth works out the " +
+        "task, the labels, and the splits. Nothing to declare first.",
+      placement: "bottom"
     },
     {
       target: '[data-tour="datasets-import"]',
-      title: "Import from HuggingFace",
+      title: "Or somewhere else",
       content:
-        "Browse and pull a Hub dataset, or build one from your own documents. Available for tasks that support imports.",
+        "Same panel, different source: pull a dataset from the HuggingFace Hub, build one from " +
+        "your own PDFs and documents, or start empty and upload into it yourself.",
       placement: "left"
     },
     {
       target: '[data-tour="datasets-card"]',
       title: "Open Dataset Studio",
       content:
-        "Open a dataset to annotate items, review class balance in EDA, and preprocess, split, and version it for training.",
+        "Open a dataset to see what Orinth made of it, browse and label items, and adjust how it " +
+        "is prepared.",
       placement: "top"
     }
   ]
@@ -92,27 +96,25 @@ const datasetStudio: TourDefinition = {
       placement: "bottom"
     },
     {
+      target: '[data-tour="dataset-studio-overview"]',
+      title: "Overview",
+      content:
+        "What Orinth made of your data, and whether it can be trained on yet. Every decision " +
+        "shows what it was based on, and you can undo the lot.",
+      placement: "bottom"
+    },
+    {
       target: '[data-tour="dataset-studio-items"]',
-      title: "Items",
-      content: "Upload, browse, and label the items in this dataset.",
-      placement: "bottom"
-    },
-    {
-      target: '[data-tour="dataset-studio-annotate"]',
-      title: "Annotate",
-      content: "Draw bounding boxes and segmentation masks, or edit text records, item by item.",
-      placement: "bottom"
-    },
-    {
-      target: '[data-tour="dataset-studio-eda"]',
-      title: "EDA",
-      content: "A health check: split counts, class balance, and geometry warnings.",
+      title: "Data",
+      content: "Browse, upload, and label the items — the annotation editor opens beside them.",
       placement: "bottom"
     },
     {
       target: '[data-tour="dataset-studio-config"]',
-      title: "Config & versioning",
-      content: "Set preprocessing and splits, then freeze a materialized version for a reproducible run.",
+      title: "Prepare",
+      content:
+        "Class balance and split counts, next to the preprocessing and splits that produced " +
+        "them. Orinth fills these in; change anything you disagree with.",
       placement: "bottom"
     }
   ]

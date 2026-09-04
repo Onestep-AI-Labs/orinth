@@ -44,6 +44,15 @@ Keep model outputs, history, and dataset health visible for repeated iteration a
 Fine-tune a language model, export it to GGUF, serve it locally, and chat with sampler controls, web search, and a reasoning view.
 ![LLM Chat](frontend/public/brand/12_llm_chat.png)
 
+### Explore in a notebook
+Run a real Jupyter kernel inside Orinth, in the same Python the platform uses. `import orinth`
+reaches every dataset and model in the workspace, and a cleaned dataframe registers straight back
+as a trainable dataset — no export, no second environment.
+
+### Drive it from a terminal
+The `orinth` CLI covers the whole flow — ingest, prep, train, test, infer — with human-readable
+tables by default, `--json` everywhere, and exit codes a CI job can branch on.
+
 ### Learn as you go
 Guided in-app tours (built on [react-joyride](https://react-joyride.com/)) walk through every main surface, with a first-run welcome walkthrough on the Projects page.
 
@@ -76,6 +85,9 @@ The backend is a FastAPI app with domain routers and service packages:
 - ML registry and predictors: `backend/app/ml/`
 - Services: `backend/app/services/`
 - Training runners: `backend/app/training/runners/`
+- CLI: `backend/app/cli/` — the `orinth` command, an HTTP client of the API above
+- Notebook SDK: `backend/orinth/` — the package a kernel imports (`orinth` may import `app`;
+  `app` never imports `orinth`)
 
 The frontend is a Next.js app with route entrypoints, feature modules, and a domain-based API client:
 
@@ -87,6 +99,7 @@ The frontend is a Next.js app with route entrypoints, feature modules, and a dom
 - API types: `frontend/types/api.ts`
 - Global base styles: `frontend/app/globals.css`
 - Platform styles: `frontend/app/styles/platform.css`
+- Design contract: `frontend/DESIGN.md` — authoritative; read before any UI change
 
 The macOS desktop app under `desktop/` wraps both servers rather than
 reimplementing them — see [Desktop App](#desktop-app-macos).
@@ -131,6 +144,179 @@ reimplementing them — see [Desktop App](#desktop-app-macos).
    gate. The individual targets (`make lint-backend`, `make test`,
    `make typecheck`, `make lint`, `make build`) are also available on their
    own.
+
+## New in this release
+
+Three things landed that change how you get data in and what you can do with it. Each is optional —
+nothing below is required to use the app as before.
+
+### 1. One way to create a dataset
+
+The Datasets page used to offer four competing ways in. It now asks one question — *where is the
+data* — with a source switcher: **Files · HuggingFace · Documents · Empty**.
+
+**Try it:** go to `/datasets` and drop a folder onto the card. Class-named subdirectories become
+labels automatically. While it works you get the actual stage, not a spinner:
+
+```
+[detecting] 10%  Reading the files you uploaded
+[planning]  35%  Read 312 files — looks like classification, checking
+[done]     100%  Prepared 312 items as classification
+```
+
+The **HuggingFace** tab is now a faceted browser shaped like huggingface.co — filter by modality,
+format, size, and task; every filter chip explains itself on hover, and a dataset Orinth cannot
+import says so *before* you click it. Selecting one opens a read-only dataset viewer with each
+column's type, then the import form.
+
+The **Data** tab of any dataset now opens on a table — one grid for images, text, and LLM records
+alike — with the label and split editable in place.
+
+### 2. Notebooks (`/notebooks`)
+
+A real Jupyter kernel, supervised by the backend and reached through a proxy. Optional: it needs
+one extra install.
+
+```bash
+cd backend && uv sync --extra notebooks
+make dev
+```
+
+Then open **Notebooks** in the sidebar, press **Start runtime**, and pick a template. Four ship,
+and they double as the SDK's documentation:
+
+| Template | What it shows |
+| --- | --- |
+| Blank | An empty notebook with `orinth` imported |
+| Dataset EDA | Load a dataset, check class balance and text lengths |
+| Compare two models | Run two registered predictors over one split and diff them |
+| Register a cleaned dataset | Clean a dataframe and hand it back as a trainable dataset |
+
+The round trip is the point:
+
+```python
+import orinth, polars as pl
+
+df = orinth.datasets.load("sample-text-classification", "train")
+cleaned = df.filter(pl.col("text").str.len_chars() > 0).unique(subset=["text"])
+
+ref = orinth.datasets.register(
+    cleaned,
+    name="sample (cleaned)",
+    task_type="text_classification",
+    columns={"text": "text", "label": "label"},
+)
+print(ref.readiness.state)   # -> ready
+```
+
+The SDK surface, in full:
+
+```python
+orinth.datasets.list() / get() / readiness() / load() / records() / images() / paths() / register()
+orinth.models.list() / get() / path() / artifacts() / predictor()
+orinth.projects.list() / orinth.project()
+orinth.settings.workspace() / provider_config()
+orinth.runs.start() / log() / log_text() / log_artifact()      # charted on the notebook page
+```
+
+`load()` always returns a polars DataFrame; image rows carry a **path**, never pixels, so a
+40,000-image dataset is a few megabytes. Over 200,000 rows it refuses rather than truncating and
+tells you to use `limit=` or `records()`.
+
+**Notes.** The runtime is a subprocess that costs memory — stop it when you are done. Kernels run
+your code with no sandbox, by design: this is a local single-user research tool, and the kernel is
+as trusted as the terminal you started the server from. Do not expose the backend to a network
+without adding authentication first.
+
+### 3. GPU auto-detection
+
+Training now adapts to the hardware it is on, and says what it decided before the run starts.
+
+```bash
+cd backend && uv run orinth doctor
+```
+
+```
+FRAMEWORK   VERSION  GPU  DEVICES
+torch       2.10.0   yes  mps:Apple arm64 GPU
+tensorflow  2.21.0   no   cpu only
+! PyTorch sees a GPU here but TensorFlow does not, so runs on TensorFlow will use the CPU
+  and take far longer. Install `tensorflow-metal` to give Keras the same GPU.
+```
+
+That warning is the reason this exists. Detection is **per framework**, not per machine, because
+they disagree — Apple silicon without `tensorflow-metal` gives PyTorch a GPU and TensorFlow a CPU,
+and until now nothing said so. You found out from a Keras run that took twenty times longer than
+the torch run before it.
+
+`device: auto` (the default) resolves once and reaches every runner. Batch size adapts to reported
+memory minus headroom, precision follows the hardware — bf16 on Ampere and newer, fp16 on older
+CUDA and on Metal, fp32 on CPU — and every choice comes with its reason:
+
+```
+GET /api/training/compute/plan?task_type=llm_finetune&model_family=llm_sft
+
+device      mps    batch_size 4    precision fp16
+  · torch reports Apple arm64 GPU (mps).
+  · Batch size 4 from about 9093 MB usable (25% held back) and roughly 1800 MB per sample.
+    Estimate, not a measurement.
+  · fp16 — Metal supports it; bf16 has been unreliable across torch releases.
+```
+
+A batch size you set explicitly is **warned about, never lowered** — an override is a decision, and
+silently halving it would make the form lie about what ran.
+
+**Rented GPUs (Vast.ai, Modal, RunPod) are declared, not built.** `GET /api/training/compute/providers`
+lists them with `available: false` and the concrete requirements each needs — credentials, dataset
+transfer, artifact retrieval, log streaming, and a per-job cost ceiling. They are listed rather than
+hidden so the roadmap is visible; nothing pretends to work.
+
+### 4. The `orinth` CLI
+
+```bash
+cd backend && uv run orinth --help
+```
+
+Nothing to install — it ships with the backend. It talks to a running server, so start one first
+(`make dev`, or `orinth serve`).
+
+```bash
+# where am I pointed, and is anything there?
+uv run orinth doctor
+
+# the whole flow, one line
+uv run orinth dataset ingest ./my-images --name "trash" --prep
+
+# is this dataset trainable? exits 3 when it is not — a CI gate
+uv run orinth dataset readiness <dataset-id>
+
+uv run orinth dataset ls --json | jq '.[].name'
+uv run orinth train <dataset-id> --task classification --model <model-id> --epochs 10
+uv run orinth test <model-id> --dataset <key> --fail-under image.overall.accuracy=0.8
+uv run orinth infer <model-id> ./photo.jpg
+```
+
+Exit codes, so a pipeline can branch: `0` success · `1` runtime failure · `2` usage error ·
+`3` **not ready to train** · `4` backend unreachable · `130` interrupted.
+
+`--fail-under` takes a dotted metric path (`image.overall.accuracy`) or a bare leaf name when it is
+unambiguous. A metric the job did not report exits **2**, not 0 — silently passing a gate that never
+ran is the failure mode a threshold flag exists to prevent.
+
+Point it elsewhere with `--backend URL`, `ORINTH_BACKEND`, or an `.orinth.toml` beside your work:
+
+```toml
+backend = "http://127.0.0.1:8000"
+project = "default-research-project"
+```
+
+Shell completion: `orinth completion zsh` (also `bash`, `fish`) prints a script — place it yourself;
+the CLI will not edit your shell config.
+
+`train` refuses to start on a dataset that is not trainable, and says which checks failed. That is
+deliberate: an unlabelled classification dataset trains on zero items and reports success, which is
+the bug the readiness contract exists to catch.
+
 
 ## Backend
 
@@ -213,6 +399,21 @@ Root `.env.example` (backend):
   to the frontend dev origin (`http://localhost:3000`).
 - `HUGGINGFACE_HUB_TOKEN` (alias `HF_TOKEN`) — only needed for private or
   gated Hugging Face models.
+- `NOTEBOOK_PORT_RANGE` — band the notebook kernel gateway binds within,
+  default `8700-8799` (clear of `SERVING_PORT_RANGE`'s `8600-8699`).
+- `NOTEBOOK_KERNEL_IDLE_TIMEOUT_SECONDS` — culls an idle kernel, default
+  `3600`. Exists for the kernel holding a 6 GB model open overnight.
+- `NOTEBOOK_LOAD_MAX_ROWS` — the row count `orinth.datasets.load()` refuses
+  past, default `200000`. It raises rather than truncating.
+- `ORINTH_API_BASE` — how a kernel reaches the write API, default
+  `http://127.0.0.1:8000`.
+
+CLI settings are resolved separately (flag → env → `.orinth.toml` → user config
+→ default) and never merge across tiers:
+
+- `ORINTH_BACKEND` — the backend `orinth` talks to.
+- `ORINTH_PROJECT` — the project it operates in.
+- `ORINTH_WORKSPACE` — where to start looking for `.orinth.toml`.
 
 `frontend/.env.example` (the proxy-vs-direct URL model):
 
@@ -263,6 +464,14 @@ Phase 18 packages the platform as a macOS desktop app (`.dmg`); see [Desktop App
 
 Phase 19 rebrands the product to **Orinth**, makes sign-in the entry route, and removes the marketing landing page and the in-app documentation surface.
 
+Phase 21 adds the prep agent: drop files and Orinth works out the task, the labels, and the splits, with a readiness contract that says whether a dataset can actually be trained on. It also collapses the four ways to create a dataset into one, replaces the spinner with named progress, and gives every modality a single editable grid.
+
+Phase 22 adds notebooks — a managed Jupyter kernel and the `orinth` Python package, so a cleaned dataframe registers back as a trainable dataset without leaving the machine.
+
+Phase 23 adds the `orinth` CLI, making the whole platform drivable from a terminal and from CI.
+
+Phase 24 adds compute targets: per-framework GPU detection, `device: auto` resolving into an adapted batch size and precision with its reasoning shown, and a provider registry with rented GPUs (Vast.ai, Modal, RunPod) declared for a later phase.
+
 ## AI Workflow
 
 Project AI guidance is shared across Codex and Claude Code:
@@ -278,7 +487,21 @@ Project AI guidance is shared across Codex and Claude Code:
 - [x] refine NLP transformer fine-tuning
 - [x] LLM task pipeline (fine-tuning, serving, GGUF export, chat)
 - [x] auto data prep (data recipes)
-- [ ] planning to add jupyter notebook for custom model with sandbox env (isolation)
+- [x] prep agent — drop files, get a trainable dataset (phase 21)
+- [x] jupyter notebook with the workspace one import away (phase 22)
+- [x] CLI for dataset prep, train, test, inference (phase 23)
+- [x] auto-detect and adapt to the available GPU (phase 24)
+- [ ] **rented GPUs** — Vast.ai, Modal, RunPod. Declared with their requirements in
+      `specs/phase-24-compute-targets.md`; the cost ceiling is the requirement most likely to be
+      skipped and least acceptable to skip.
+- [ ] measured per-sample memory footprints, rather than the current estimates
+- [ ] multi-GPU (detected and reported; only device 0 is used)
+- [ ] **kernel isolation.** Notebooks run unsandboxed today, which is correct for a local
+      single-user tool and is the blocker for any networked deployment. See the Security section of
+      `specs/phase-22-notebooks.md`.
+- [ ] `ipywidgets` and interactive output in notebooks
+- [ ] rendering `text/html` cell output (needs a sanitizer and a policy, not just a renderer)
+- [ ] scheduled / headless notebook execution
 
 ## License
 

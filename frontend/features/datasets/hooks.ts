@@ -28,10 +28,45 @@ import type {
 // Queries
 // ---------------------------------------------------------------------------
 
-export function useDatasetCatalogQuery(projectId: string) {
+/** Prep states that mean the agent is still working on a dataset. */
+const PREP_IN_FLIGHT = new Set(["detecting", "planning", "applying"]);
+
+/**
+ * The dataset catalog for one project.
+ *
+ * `staleTime` is a per-observer setting on a shared cache entry, which is what
+ * the parameter is for: the Datasets page wants a fresh answer whenever it
+ * opens, while the notebook rail — where this is a convenience list of ids to
+ * copy — does not, and paying seconds of spinner for it on every visit is how
+ * the rail came to look permanently busy. Mutations invalidate the key either
+ * way, so a longer window never shows a stale list after an edit.
+ */
+export function useDatasetCatalogQuery(
+  projectId: string,
+  options?: { staleTime?: number; poll?: boolean }
+) {
   return useQuery({
     queryKey: ["dataset-catalog", projectId],
-    queryFn: () => api.datasetCatalog(projectId)
+    queryFn: () => api.datasetCatalog(projectId),
+    // The project id settles a beat after mount (it is read from
+    // localStorage), so without this the list blanks and reloads on the first
+    // render of every page that shows it.
+    placeholderData: keepPreviousData,
+    ...(options?.staleTime === undefined ? {} : { staleTime: options.staleTime }),
+    // A prep run outlives the click that started it, so a reload mid-run must
+    // still converge. Only while one is actually in flight: building this
+    // response walks every split of every dataset and costs seconds on a large
+    // one, which is why the run itself is watched through `/prep/status`.
+    //
+    // `poll: false` turns it off entirely, for consumers that show the catalog
+    // as a convenience list rather than to watch a run — the notebook rail.
+    // Watching someone else's prep run from there is a four-second poll of the
+    // most expensive read in the app, for a panel nobody is looking at.
+    refetchInterval: (query) =>
+      options?.poll !== false &&
+      query.state.data?.some((dataset) => PREP_IN_FLIGHT.has(dataset.prep?.state ?? ""))
+        ? 4000
+        : false
   });
 }
 
@@ -110,15 +145,16 @@ function groupBySplit(items: SelectedDatasetItem[]): Map<SplitKey, string[]> {
 
 export function useCreateDatasetMutation(options: {
   openDataset: (datasetId: string) => void;
-  setShowCreate: (value: boolean) => void;
   setNewDatasetName: (value: string) => void;
   catalogQuery: UseQueryResult<DatasetSummary[]>;
 }) {
   return useMutation({
     mutationFn: api.createDataset,
     onSuccess: async (dataset) => {
+      // Creating navigates into the dataset, so the source panel it was
+      // submitted from unmounts on its own — it no longer has to be told to
+      // close, which is why `setShowCreate` is gone.
       options.openDataset(dataset.id);
-      options.setShowCreate(false);
       options.setNewDatasetName("");
       await options.catalogQuery.refetch();
     }

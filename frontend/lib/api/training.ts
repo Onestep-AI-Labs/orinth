@@ -9,8 +9,22 @@ type ModelAssetStatus = components["schemas"]["ModelAssetStatus"];
 type DeleteResponse = components["schemas"]["DeleteResponse"];
 type LlmEnvironment = components["schemas"]["LlmEnvironment"];
 type LlmModelInfo = components["schemas"]["LlmModelInfo"];
+type ComputeEnvironment = components["schemas"]["ComputeEnvironment"];
+type ComputePlan = components["schemas"]["ComputePlan"];
+type ComputeProvider = components["schemas"]["ComputeProvider"];
 
 export const trainingApi = {
+  /** What this machine can train on, per framework. Cached server-side. */
+  computeEnvironment: () => jsonFetch<ComputeEnvironment>("/training/compute"),
+  /** Resolve `device: auto` into what a run would actually do, before it starts. */
+  computePlan: (params: {
+    task_type: string;
+    model_family: string;
+    device?: string;
+    batch_size?: number;
+  }) => jsonFetch<ComputePlan>(`/training/compute/plan${query({ ...params })}`),
+  /** Where a run could execute. Only `local` is available today. */
+  computeProviders: () => jsonFetch<ComputeProvider[]>("/training/compute/providers"),
   trainingOptions: (taskType?: TaskType) =>
     jsonFetch<TrainingModelOption[]>(`/training/model-options${query({ task_type: taskType })}`),
   llmEnvironment: () => jsonFetch<LlmEnvironment>("/training/llm/environment"),

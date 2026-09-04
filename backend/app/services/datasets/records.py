@@ -135,6 +135,11 @@ class RecordsMixin:
 
     def _record_path(self, location: DatasetLocation, split: str, item_id: str) -> Path:
         filename = Path(item_id).name
+        # Direct hit first; the scan below is quadratic when called per item, as
+        # `_move_item` does while splitting. See `_image_path` for the detail.
+        direct = location.root / split / "records" / filename
+        if direct.is_file():
+            return direct
         for path in self._record_paths(location, split):
             if path.name == filename:
                 return path

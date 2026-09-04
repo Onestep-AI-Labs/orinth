@@ -465,6 +465,106 @@ class DatasetSplitSummary(BaseModel):
     annotation_count: int = 0
 
 
+# Phase 21. Whether a dataset can actually be trained on, and if not, the one
+# sentence that says why. Computed on every `DatasetSummary`, so it must stay a
+# pure function of the fields already gathered there — see
+# `app/services/datasets/prep/readiness.py`.
+ReadinessState = Literal["ready", "needs_prep", "needs_input", "blocked"]
+# What the user should do next. `run_prep` is fixable by the agent; `label` and
+# `upload` need a human; `wait` means a job is already working on it.
+ReadinessAction = Literal["upload", "run_prep", "label", "split", "wait", "none"]
+# Lifecycle of the prep agent over one dataset, stored at `metadata.prep.state`.
+PrepState = Literal[
+    "draft",
+    "detecting",
+    "planning",
+    "planned",
+    "applying",
+    "ready",
+    "failed",
+    "cancelled",
+]
+# The stage a run is *inside*, which is finer than its lifecycle state and is the
+# thing worth showing a waiting user. `state` answers "can this be trained on
+# yet"; `step` answers "what is happening right now". They are separate fields
+# because readiness reads the first and must not care about the second.
+PrepStep = Literal[
+    "idle",
+    "staging",
+    "detecting",
+    "planning",
+    "transforming",
+    "applying",
+    "splitting",
+    "done",
+]
+
+
+class DatasetReadinessCheck(BaseModel):
+    """One condition, named so the UI can list what passed and what did not.
+
+    `blocking` checks decide `trainable`; `advisory` ones are warnings that never
+    stop a run (an undrained inbox, a skewed class balance).
+    """
+
+    id: str
+    label: str
+    passed: bool
+    severity: Literal["blocking", "advisory"] = "blocking"
+    detail: str = ""
+
+
+class DatasetReadiness(BaseModel):
+    """Structural readiness only.
+
+    Checks that would need to read item files (empty LLM outputs, duplicate
+    records, class imbalance) belong to `DatasetEdaSummary` instead: `summary()`
+    runs for every dataset on every catalog list, and a second filesystem walk
+    there would double the cost of listing.
+    """
+
+    state: ReadinessState
+    trainable: bool
+    # The single sentence the training page renders under a blocked dataset.
+    summary: str
+    next_action: ReadinessAction = "none"
+    checks: list[DatasetReadinessCheck] = Field(default_factory=list)
+    #: A non-destructive prep run (detect/plan) is in flight. Deliberately not a
+    #: `state`: those stages only read the staging directory, so the dataset the
+    #: user can see is exactly as trainable as it was a second ago. Folding this
+    #: into `state` is what made an already-ready dataset report "Preparing…" —
+    #: and then "Needs prep" — the moment someone asked Orinth to look at it
+    #: again. Only `applying` rewrites the splits, and only that blocks.
+    busy: bool = False
+
+
+class DatasetPrepStatus(BaseModel):
+    """Prep-agent state carried on the dataset manifest.
+
+    Kept on the manifest rather than only in `data_prep_jobs` so a dataset stays
+    self-describing: reference and shared sample datasets have no job row, and
+    readiness still has to compute for them.
+    """
+
+    state: PrepState = "ready"
+    job_id: str | None = None
+    staged_files: int = 0
+    applied_at: datetime | None = None
+    #: Why the last run stopped, when it stopped badly. A background run has no
+    #: response to raise into, so the reason is carried here instead.
+    error: str | None = None
+    #: What the run is doing right now, and how far through it is. Written on
+    #: every stage transition so a client polling `/prep/status` can name the
+    #: work rather than render an unlabelled spinner for forty seconds.
+    step: PrepStep = "idle"
+    #: One sentence, written for the person waiting: "Reading 312 files", not
+    #: "detect". Carries counts where they are known, because a number moving is
+    #: the difference between "working" and "hung".
+    detail: str = ""
+    #: 0..1 where the stage sequence gives a meaningful fraction, else None.
+    progress: float | None = None
+
+
 class DatasetSummary(BaseModel):
     id: str
     project_id: str = DEFAULT_PROJECT_ID
@@ -483,6 +583,12 @@ class DatasetSummary(BaseModel):
     classes: list[str]
     splits: dict[str, DatasetSplitSummary]
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # Phase 21. Always present, computed in `DatasetService.summary`; the catalog
+    # card, the studio header, and the training dataset select all read it.
+    readiness: DatasetReadiness
+    # Absent on every dataset that predates the prep agent, and on reference and
+    # shared samples, which never pass through it.
+    prep: DatasetPrepStatus | None = None
 
     # Manifests on disk outlive the schema. A dataset written by a build whose
     # task type or format has since been removed must still list, or one stale
@@ -493,6 +599,28 @@ class DatasetSummary(BaseModel):
     _normalize_format = field_validator("format", mode="before")(
         _normalize_dataset_format_field
     )
+
+
+class DatasetPrepStartRequest(BaseModel):
+    """Options for one prep run.
+
+    `auto_apply` is the whole review-gate decision, kept as one flag: false stops
+    at `planned` and `/prep/apply` finishes the job later, running exactly the
+    same code.
+    """
+
+    auto_apply: bool = True
+
+
+class DatasetPrepApplyRequest(BaseModel):
+    plan: "DatasetPrepPlan"
+
+
+class DatasetPrepResponse(BaseModel):
+    """The dataset as it now stands, plus the plan that got it there."""
+
+    dataset: DatasetSummary
+    plan: "DatasetPrepPlan"
 
 
 class DatasetCreate(BaseModel):
@@ -551,6 +679,156 @@ class DatasetCloneRequest(BaseModel):
     name: str | None = Field(default=None, max_length=120)
 
 
+# Phase 21 prep-agent plan shapes. Every decision the agent makes is attributed;
+# see `app/services/datasets/prep/plan.py`.
+DatasetModality = Literal["image", "text", "record", "table", "unknown"]
+# `notebook` (phase 22) is a plan the user wrote in Python and handed to apply.
+# It is neither a rule nor a model, and phase 21's transparency contract is
+# explicit that heuristic output is never presented as model output — labelling
+# an author-supplied plan `heuristic` would be the same lie in the other
+# direction.
+PlanSource = Literal["llm", "heuristic", "notebook"]
+#: Where one field of the plan came from. `detected` is the deterministic file
+#: scan, `heuristic` a rule, `llm` a model, `user` an edit in the UI.
+DecisionSource = Literal["detected", "heuristic", "llm", "user"]
+DecisionField = Literal[
+    "task_type",
+    "format",
+    "labels",
+    "split",
+    "preprocess",
+    "mapping",
+    # Phase 21b: the generated Python that reshaped the raw rows, when one ran.
+    "transform",
+]
+#: Which engine wrote the sandboxed transform script. `builtin` is a
+#: deterministic template with the chosen columns baked in and always available;
+#: `llm` is code an OpenRouter model wrote for this specific table.
+TransformEngine = Literal["builtin", "llm"]
+
+
+class PrepDecision(BaseModel):
+    """One field of the plan, plus why it holds that value.
+
+    `evidence` is the load-bearing part. "classification, 85% confident" asks the
+    user to trust the agent; "312 files across 3 folders: normal, kista,
+    granuloma" can be checked against what they actually uploaded. Auto-apply is
+    only defensible because every decision carries one.
+    """
+
+    field: DecisionField
+    value: Any = None
+    source: DecisionSource
+    confidence: float | None = None
+    #: One plain sentence, no jargon.
+    rationale: str = ""
+    #: The raw signal behind it, drawn from `Detection.signals`.
+    evidence: str | None = None
+
+
+class PrepEngine(BaseModel):
+    """Which engine produced the plan, and what it cost.
+
+    `mode` is surfaced as a badge. Presenting heuristic output as model output
+    would misrepresent how much the user should trust it, so the distinction is
+    carried in the data rather than left to the copy.
+    """
+
+    mode: PlanSource = "heuristic"
+    model: str | None = None
+    #: Why it degraded, when it did. Shown verbatim.
+    notice: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    estimated_cost_usd: float | None = None
+
+
+class DatasetDetection(BaseModel):
+    """What the deterministic file scan concluded."""
+
+    modality: DatasetModality = "unknown"
+    task_type: TaskType | None = None
+    format: DatasetFormat | None = None
+    confidence: float = 0.0
+    candidate_labels: list[str] = Field(default_factory=list)
+    columns: list[str] = Field(default_factory=list)
+    sample_rows: list[dict[str, Any]] = Field(default_factory=list)
+    file_counts: dict[str, int] = Field(default_factory=dict)
+    #: Human-readable evidence, e.g. "`data.yaml` names 2 class(es)".
+    signals: list[str] = Field(default_factory=list)
+    #: Set when structure is recognized but something only a human can supply is
+    #: missing — most often class labels for unlabelled images.
+    needs_input: str | None = None
+
+
+class DatasetFieldMapping(BaseModel):
+    """Which column or key feeds which part of a training example."""
+
+    text: str | None = None
+    label: str | None = None
+    summary: str | None = None
+    question: str | None = None
+    answer: str | None = None
+    instruction: str | None = None
+    input: str | None = None
+    output: str | None = None
+    messages: str | None = None
+
+
+class PrepTransform(BaseModel):
+    """A Python script that reshaped the raw rows, and what it produced.
+
+    Detection can only name tasks it has a rule for. A feature table — sixteen
+    clinical yes/no columns and a `class` column, a gradebook, a survey export —
+    matches no rule, and the deterministic answer is "ask the user", which is
+    the friction this phase exists to remove. Code generalizes where a
+    vocabulary cannot: the script below is written for *this* table's columns
+    and run in `prep/sandbox.py`, and it is kept on the plan because a user who
+    is told their spreadsheet became a text classifier is owed the twenty lines
+    that did it.
+    """
+
+    engine: TransformEngine = "builtin"
+    #: The full script, shown verbatim in the Prepare tab.
+    code: str = ""
+    #: Why it degraded from `llm` to `builtin`, when it did.
+    notice: str | None = None
+    source_files: list[str] = Field(default_factory=list)
+    input_rows: int = 0
+    output_rows: int = 0
+    #: The column the labels came from, and the columns folded into the text.
+    target_column: str | None = None
+    feature_columns: list[str] = Field(default_factory=list)
+    rationale: str = ""
+    model: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    estimated_cost_usd: float | None = None
+
+
+class DatasetPrepPlan(BaseModel):
+    """Everything the agent proposes to do to a dataset."""
+
+    source: PlanSource = "heuristic"
+    notice: str = ""
+    confidence: float = 0.0
+    task_type: TaskType | None = None
+    format: DatasetFormat | None = None
+    labels: list[str] = Field(default_factory=list)
+    field_mapping: DatasetFieldMapping = Field(default_factory=DatasetFieldMapping)
+    preprocess: DatasetPreprocessConfig = Field(default_factory=lambda: DatasetPreprocessConfig())
+    split: DatasetSplitConfig = Field(default_factory=lambda: DatasetSplitConfig())
+    rationale: str = ""
+    warnings: list[str] = Field(default_factory=list)
+    decisions: list[PrepDecision] = Field(default_factory=list)
+    engine: PrepEngine = Field(default_factory=lambda: PrepEngine())
+    #: Set when a sandboxed script reshaped the raw rows before import. Apply
+    #: reads the script's output from `_derived/` instead of the raw upload.
+    transform: PrepTransform | None = None
+    #: Blocks apply when set: the plan is incomplete in a way only a human closes.
+    needs_input: str | None = None
+
+
 class DatasetAnnotation(BaseModel):
     class_id: int = Field(default=0, ge=0)
     class_name: str = ""
@@ -585,6 +863,38 @@ class DatasetItemSummary(BaseModel):
     label: str | None = None
     is_labeled: bool = False
     annotations: list[DatasetAnnotation] = Field(default_factory=list)
+
+
+# Phase 21. The grid projection of a dataset — one shape for every modality, so
+# the studio has a single table component instead of one per task type. Built by
+# projecting `DatasetItemSummary`, which the paged item read already produces;
+# see `services/datasets/table.py` for why this is not a second storage format.
+DatasetCellKind = Literal["image", "text", "label", "number", "split", "json"]
+
+
+class DatasetTableColumn(BaseModel):
+    key: str
+    label: str
+    kind: DatasetCellKind = "text"
+    #: Whether this cell can be changed in place. Only the columns backed by a
+    #: real write route say yes — a filename or an annotation count is derived,
+    #: and an editable-looking cell that silently drops the edit is worse than a
+    #: read-only one.
+    editable: bool = False
+
+
+class DatasetTableRow(BaseModel):
+    id: str
+    split: SplitName
+    cells: dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasetTablePage(BaseModel):
+    columns: list[DatasetTableColumn]
+    rows: list[DatasetTableRow] = Field(default_factory=list)
+    total: int
+    limit: int
+    offset: int
 
 
 class DatasetItemDetail(DatasetItemSummary):
@@ -839,6 +1149,33 @@ class LlmModelInfo(BaseModel):
     error: str | None = None
 
 
+class DatasetHubFacetOption(BaseModel):
+    """One filter term, with the sentence that explains it.
+
+    `hint` is rendered as the tooltip both on the filter chip and on the badge
+    showing the same term on a result card, so the explanation cannot drift
+    between the two places a user meets it. See `services/hub_facets.py`.
+    """
+
+    value: str
+    label: str
+    hint: str
+    #: Whether Orinth's record importer can read a dataset of this kind. Shown on
+    #: the chip, because a filter that returns only unusable results is worse
+    #: than one that says so before the click.
+    importable: bool = True
+
+
+class DatasetHubFacets(BaseModel):
+    """The browse vocabulary, served rather than hardcoded in the client."""
+
+    modalities: list[DatasetHubFacetOption] = Field(default_factory=list)
+    formats: list[DatasetHubFacetOption] = Field(default_factory=list)
+    sizes: list[DatasetHubFacetOption] = Field(default_factory=list)
+    tasks: list[DatasetHubFacetOption] = Field(default_factory=list)
+    sorts: list[DatasetHubFacetOption] = Field(default_factory=list)
+
+
 class DatasetHubSearchResult(BaseModel):
     hub_id: str
     author: str | None = None
@@ -847,6 +1184,25 @@ class DatasetHubSearchResult(BaseModel):
     gated: bool = False
     tags: list[str] = Field(default_factory=list)
     updated_at: str | None = None
+    # Structured tags, split out of `tags` so the card can render badges without
+    # re-parsing prefixes in the client.
+    pretty_name: str | None = None
+    modalities: list[str] = Field(default_factory=list)
+    formats: list[str] = Field(default_factory=list)
+    task_categories: list[str] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
+    license: str | None = None
+    size_category: str | None = None
+    #: Whether the Hub's dataset viewer can render it. `false` means no preview
+    #: is coming, which the card says rather than leaving the user to click and
+    #: find out.
+    has_viewer: bool = True
+    #: Whether Orinth's record importer can read this modality at all.
+    importable: bool = True
+    trending_score: int = 0
+    #: First couple of sentences of the dataset card, flattened. Enough to tell
+    #: two similarly-named datasets apart without opening either.
+    summary: str | None = None
 
 
 class DatasetHubSearchResponse(BaseModel):
@@ -868,6 +1224,12 @@ class DatasetHubPreview(BaseModel):
     # heuristics succeed, so the mapping dialog can pre-fill and show a banner.
     detected_format: str | None = None
     detected_mapping: dict[str, str] = Field(default_factory=dict)
+    #: Per-column type from the preview server's feature list ("string", "int64",
+    #: "list"), so the viewer can label a column the way the Hub's own does.
+    column_types: dict[str, str] = Field(default_factory=dict)
+    #: Rows in the selected split, when the preview server reports it. `None`
+    #: means unknown, which is different from zero and must not render as "0".
+    num_rows: int | None = None
     error: str | None = None
 
 
@@ -1399,3 +1761,248 @@ class ArchitectureCode(BaseModel):
     filename: str
     code: str
     framework: Literal["keras", "torch"] = "keras"
+
+
+# --- Phase 22: notebooks ------------------------------------------------------
+#
+# Notebooks are filesystem-native like datasets and recipes: one directory per
+# notebook under `storage/notebooks/`, holding a manifest, the `.ipynb`, and its
+# run artifacts. There is no DB table and no migration — a kernel by definition
+# does not survive a restart, so there is nothing for `reconcile_stale_jobs` to
+# reconcile and nothing a row would answer that the manifest does not.
+
+NotebookKernelState = Literal["starting", "idle", "busy", "dead", "unknown"]
+NotebookRuntimeState = Literal["stopped", "starting", "running", "failed"]
+
+
+class NotebookKernelStatus(BaseModel):
+    state: NotebookKernelState = "unknown"
+    kernel_id: str | None = None
+    connections: int = 0
+    last_activity: str | None = None
+
+
+class NotebookSummary(BaseModel):
+    id: str
+    project_id: str = DEFAULT_PROJECT_ID
+    name: str
+    #: Path relative to the `jupyter-server` root, which is what the client hands
+    #: to `@jupyterlab/services`. Never an absolute path: the browser has no
+    #: business knowing where the workspace lives on disk.
+    path: str
+    tags: list[str] = Field(default_factory=list)
+    cell_count: int = 0
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    kernel: NotebookKernelStatus | None = None
+    #: False when the `.ipynb` on disk is missing or unparseable. The notebook
+    #: still lists — hiding it would make a corrupted file look like a deleted
+    #: one, and the user cannot fix what they cannot see.
+    valid: bool = True
+
+
+class NotebookCreate(BaseModel):
+    project_id: str = DEFAULT_PROJECT_ID
+    name: str = Field(min_length=1, max_length=120)
+    template_id: str | None = None
+
+
+class NotebookUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    tags: list[str] | None = None
+
+
+class NotebookTemplate(BaseModel):
+    """One shipped `.ipynb`, described by its own `metadata.orinth` block.
+
+    `category` groups the picker. With four templates a flat grid was the right
+    answer; past that the user is scanning a wall, and "which of these is about
+    training" is the question the grouping answers.
+    """
+
+    id: str
+    name: str
+    description: str
+    category: str = "General"
+    task_types: list[TaskType] = Field(default_factory=list)
+
+
+class NotebookSession(BaseModel):
+    """What the browser needs to open a kernel channel, and nothing more.
+
+    Deliberately carries no token: the `jupyter-server` credential is injected
+    by the proxy on the way out and never reaches the client, the same posture
+    the OpenRouter key has had since phase 11.
+    """
+
+    base_url: str
+    ws_url: str
+    kernel_name: str
+    notebook_path: str
+
+
+class NotebookRuntimeStatus(BaseModel):
+    #: Whether `jupyter_server` is importable at all. False is a normal state,
+    #: not an error: the notebook extra is optional and the UI explains how to
+    #: install it rather than failing a request.
+    available: bool = False
+    state: NotebookRuntimeState = "stopped"
+    port: int | None = None
+    python_version: str | None = None
+    kernel_count: int = 0
+    error: str | None = None
+    install_hint: str | None = None
+    #: The target the *running* server was started with. A kernel inherits its
+    #: environment at spawn, so changing this takes a restart — which is why the
+    #: requested value is reported separately from what is live.
+    device: str = "auto"
+
+
+class NotebookRuntimeStart(BaseModel):
+    """`device` is a `NotebookComputeTarget.id`, not a free-form string."""
+
+    device: str = "auto"
+
+
+class NotebookRun(BaseModel):
+    id: str
+    notebook_id: str
+    name: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    status: str = "running"
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    dataset_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    metric_names: list[str] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)
+    text: dict[str, str] = Field(default_factory=dict)
+
+
+class NotebookRunSeries(BaseModel):
+    run: NotebookRun
+    #: One dict per logged point, always carrying `step`; the rest are the
+    #: scalars that call passed. Sparse by design — a run may log `loss` every
+    #: step and `val_accuracy` every epoch, and forcing a dense grid would
+    #: invent numbers.
+    points: list[dict[str, float]] = Field(default_factory=list)
+
+
+# --- Phase 24: compute targets ------------------------------------------------
+#
+# The unit of truth is a *(framework, device)* pair, not a device. Phase 14's
+# `LlmEnvironment` reports one `device` for `llm_sft`, which is right for that
+# runner and wrong for the machine: torch and TensorFlow see different hardware
+# on the same box — Apple silicon with `tensorflow-metal` absent is the common
+# case — and a single field cannot express it.
+
+ComputeKind = Literal["cuda", "mps", "metal", "rocm", "cpu"]
+
+
+class ComputeDevice(BaseModel):
+    kind: ComputeKind = "cpu"
+    index: int = 0
+    name: str = "Unknown device"
+    #: None where the framework will not say. Apple silicon reports a *ceiling*
+    #: on a shared pool rather than dedicated VRAM, and TensorFlow reports
+    #: nothing at all — None and 0 are different answers and must not render
+    #: the same.
+    total_memory_mb: int | None = None
+    capability: str | None = None
+
+
+class ComputeFramework(BaseModel):
+    name: str
+    installed: bool = False
+    version: str | None = None
+    devices: list[ComputeDevice] = Field(default_factory=list)
+    #: Whether this framework can reach a GPU. False with `installed=True` is a
+    #: normal, important state: it means CPU-only runs for everything this
+    #: framework backs.
+    accelerated: bool = False
+    error: str | None = None
+
+
+class ComputeEnvironment(BaseModel):
+    python_version: str = ""
+    platform: str = ""
+    machine: str = ""
+    frameworks: list[ComputeFramework] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    #: Set when the probe itself could not run. Distinct from a framework's own
+    #: `error`, which means that framework is unusable while others may be fine.
+    error: str | None = None
+
+    def framework(self, name: str) -> "ComputeFramework | None":
+        return next((entry for entry in self.frameworks if entry.name == name), None)
+
+    def accelerators(self) -> list[ComputeDevice]:
+        return [
+            device
+            for entry in self.frameworks
+            for device in entry.devices
+            if device.kind != "cpu"
+        ]
+
+
+class ComputePlan(BaseModel):
+    """What a run would actually do, resolved before it starts.
+
+    Every field carries its `reason`, because the value alone is not actionable:
+    "batch size 4" is a number, and "batch size 4 - 8 GB of shared memory, and
+    this family needs about 1.8 GB per sample" is a thing the user can argue
+    with or override.
+    """
+
+    task_type: str
+    model_family: str
+    framework: str
+    device: str
+    device_name: str = ""
+    accelerated: bool = False
+    batch_size: int = 8
+    precision: str = "fp32"
+    reasons: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+# Remote GPU providers. Declared but not implemented - see
+# `specs/phase-24-compute-targets.md`. They are listed rather than hidden so the
+# roadmap is visible and, more importantly, so `available: false` is a fact the
+# UI reads rather than a state it invents.
+# Declared here rather than beside the other notebook schemas because it is
+# built from `ComputeKind` and the provider registry below — the notebook
+# runtime borrows phase 24's vocabulary rather than inventing a parallel one.
+class NotebookComputeTarget(BaseModel):
+    """One machine a kernel could run on, as the runtime dropdown shows it.
+
+    Flattens two sources that answer different halves of the question: the
+    per-framework device probe (what *this* machine has) and the provider
+    registry (where a run could go instead). A remote provider that is not built
+    yet is listed with `available: false` and its `detail` — the phase-24 rule
+    that a roadmap the UI cannot see is a roadmap nobody can plan against.
+    """
+
+    id: str
+    label: str
+    kind: ComputeKind | Literal["auto", "remote"] = "auto"
+    available: bool = True
+    #: Why it is unavailable, or what it resolves to. Shown under the option.
+    detail: str = ""
+
+
+ComputeProviderId = Literal["local", "vast", "modal", "runpod"]
+
+
+class ComputeProvider(BaseModel):
+    id: ComputeProviderId
+    name: str
+    #: False means the platform cannot run anything there yet. The UI must
+    #: disable rather than hide: a provider nobody can see is a roadmap nobody
+    #: can plan against.
+    available: bool = False
+    summary: str = ""
+    #: What would have to be true for `available` to become True. Concrete, so
+    #: this doubles as the implementation checklist.
+    requirements: list[str] = Field(default_factory=list)
+    docs_url: str | None = None

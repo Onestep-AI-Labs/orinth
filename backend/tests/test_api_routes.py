@@ -42,7 +42,11 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
 def test_core_api_routes_are_wired(client: TestClient) -> None:
     health = client.get("/api/health")
     assert health.status_code == 200
-    assert health.json() == {"status": "ok"}
+    # `status` is the contract phase-18's desktop supervisor polls; `app` and
+    # `version` were added for `orinth doctor` and are additive, so this asserts
+    # the guarantee rather than the exact payload.
+    assert health.json()["status"] == "ok"
+    assert health.json()["app"] == "orinth"
 
     models_response = client.get("/api/models")
     assert models_response.status_code == 200

@@ -52,7 +52,16 @@ class FormatIoMixin:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return []
-        rows = payload.get("annotations", payload if isinstance(payload, list) else [])
+        # The list branch was unreachable: `.get` was called on `payload` before
+        # the isinstance check could pick it, so a bare-list sidecar raised
+        # `AttributeError` instead of being read. Both shapes exist on disk —
+        # the writers emit the dict form, older exports the list.
+        if isinstance(payload, list):
+            rows = payload
+        elif isinstance(payload, dict):
+            rows = payload.get("annotations", [])
+        else:
+            return []
         annotations = []
         for row in rows:
             try:
@@ -336,29 +345,10 @@ class FormatIoMixin:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def _labels_from_coco(self, split_root: Path) -> list[str]:
-        path = split_root / "_annotations.coco.json"
-        if not path.exists():
-            return []
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return [category["name"] for category in data.get("categories", []) if category.get("name")]
+        return labels_from_coco(split_root)
 
     def _labels_from_yolo_yaml(self, root: Path) -> list[str]:
-        yaml_path = root / "data.yaml"
-        if not yaml_path.exists():
-            return []
-        for line in yaml_path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped.startswith("names:"):
-                value = stripped.split(":", 1)[1].strip()
-                try:
-                    parsed = literal_eval(value)
-                except (SyntaxError, ValueError):
-                    return []
-                if isinstance(parsed, dict):
-                    return [str(parsed[key]) for key in sorted(parsed)]
-                if isinstance(parsed, list):
-                    return [str(item) for item in parsed]
-        return []
+        return labels_from_yolo_yaml(root)
 
     def _write_data_yaml(self, root: Path, labels: list[str]) -> None:
         root.mkdir(parents=True, exist_ok=True)
@@ -379,24 +369,10 @@ class FormatIoMixin:
         )
 
     def _is_yolo_root(self, root: Path) -> bool:
-        return any((root / split / "images").exists() for split in SPLITS)
+        return is_yolo_root(root)
 
     def _text_upload_rows(self, raw: str, suffix: str) -> list[dict]:
-        if suffix == ".jsonl":
-            rows = []
-            for line in raw.splitlines():
-                if not line.strip():
-                    continue
-                try:
-                    parsed = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(parsed, dict):
-                    rows.append(parsed)
-            return rows
-        if suffix == ".csv":
-            return [dict(row) for row in csv.DictReader(raw.splitlines())]
-        return [{"text": raw}]
+        return text_upload_rows(raw, suffix)
 
     def _text_from_upload_row(self, row: dict) -> str:
         return self._string_value(row, "text", "content", "source", "document", "context", "body")
@@ -561,3 +537,80 @@ class FormatIoMixin:
         def _default_labels_for_task(self, task_type: str) -> list[str]:
             raise NotImplementedError
 
+
+# --- Module-level sniffers ----------------------------------------------------
+#
+# Lifted out of the mixin (phase 21) so `prep/detect.py` can read an arbitrary
+# directory without constructing a `DatasetService`. The mixin methods above are
+# now one-line delegates, so every existing call site is unchanged. Detection
+# needs exactly these four questions answered about a folder nobody has claimed
+# yet, and re-implementing them there would give the platform two answers to the
+# same question.
+
+
+def is_yolo_root(root: Path) -> bool:
+    """True when a directory is laid out as split folders holding `images/`."""
+    return any((root / split / "images").exists() for split in SPLITS)
+
+
+def labels_from_coco(split_root: Path) -> list[str]:
+    """Category names from a COCO sidecar, or `[]` when there is none."""
+    path = split_root / "_annotations.coco.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        # Detection runs over files the user just dropped in; a malformed sidecar
+        # means "no labels here", not a crashed import.
+        return []
+    if not isinstance(data, dict):
+        return []
+    return [
+        category["name"]
+        for category in data.get("categories", [])
+        if isinstance(category, dict) and category.get("name")
+    ]
+
+
+def labels_from_yolo_yaml(root: Path) -> list[str]:
+    """Class names from a `data.yaml` `names:` line, in class-id order."""
+    yaml_path = root / "data.yaml"
+    if not yaml_path.exists():
+        return []
+    try:
+        text = yaml_path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("names:"):
+            value = stripped.split(":", 1)[1].strip()
+            try:
+                parsed = literal_eval(value)
+            except (SyntaxError, ValueError):
+                return []
+            if isinstance(parsed, dict):
+                return [str(parsed[key]) for key in sorted(parsed)]
+            if isinstance(parsed, list):
+                return [str(item) for item in parsed]
+    return []
+
+
+def text_upload_rows(raw: str, suffix: str) -> list[dict]:
+    """Rows from a JSONL or CSV payload; anything else is one text blob."""
+    if suffix == ".jsonl":
+        rows = []
+        for line in raw.splitlines():
+            if not line.strip():
+                continue
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                rows.append(parsed)
+        return rows
+    if suffix == ".csv":
+        return [dict(row) for row in csv.DictReader(raw.splitlines())]
+    return [{"text": raw}]

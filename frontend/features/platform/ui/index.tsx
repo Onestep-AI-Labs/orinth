@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, ImageIcon, RefreshCw, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+  RefreshCw,
+  Trash2
+} from "lucide-react";
 import { formatSeconds } from "@/features/platform/utils";
 import type { JobProgress } from "@/types/api";
 import { Badge, Button, IconButton } from "./primitives";
@@ -11,6 +19,8 @@ export type { BadgeProps, ButtonLinkProps, ButtonProps, IconButtonProps } from "
 export { cn } from "./cn";
 export { TaskSelect } from "./task-select";
 export { NumberCombo } from "./number-combo";
+export { Explained, InfoTip } from "./info-tip";
+export { Modal } from "./modal";
 
 export type ConfirmationTone = "danger" | "warning";
 export type ConfirmationDialogOptions = {
@@ -469,6 +479,72 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
       {Array.from({ length: rows }).map((_, index) => (
         <div className="skeleton-table-row" key={index}>
           <span className="skeleton skeleton-line" />
+          <span className="skeleton skeleton-line" />
+          <span className="skeleton skeleton-line short" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Previous / next over a paged list.
+ *
+ * Numbered page links are deliberately absent: they are only useful when a
+ * specific page means something, and on a grid of cards ordered by category it
+ * does not. Renders nothing at all for a single page — a disabled pager on a
+ * six-item list is chrome asserting there is more.
+ */
+export function Pager({
+  page,
+  pageCount,
+  onChange,
+  label,
+  unit = "items"
+}: {
+  page: number;
+  pageCount: number;
+  onChange: (page: number) => void;
+  /** Names the region for a screen reader: "Template pages". */
+  label: string;
+  unit?: string;
+}) {
+  if (pageCount <= 1) return null;
+  return (
+    <nav className="pager" aria-label={label}>
+      <IconButton
+        aria-label={`Previous page of ${unit}`}
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+      >
+        <ChevronLeft size={17} />
+      </IconButton>
+      <span className="pager-status" aria-live="polite">
+        {page + 1} / {pageCount}
+      </span>
+      <IconButton
+        aria-label={`Next page of ${unit}`}
+        onClick={() => onChange(Math.min(pageCount - 1, page + 1))}
+        disabled={page >= pageCount - 1}
+      >
+        <ChevronRight size={17} />
+      </IconButton>
+    </nav>
+  );
+}
+
+/**
+ * A stack of rows, for a narrow panel or rail.
+ *
+ * `TableSkeleton` is three columns wide and reads as broken at rail width; this
+ * is the same contract (initial query renders a skeleton, never an empty state)
+ * in a shape that fits beside content rather than under a header.
+ */
+export function ListSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="skeleton-list">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div className="skeleton-list-row" key={index}>
           <span className="skeleton skeleton-line" />
           <span className="skeleton skeleton-line short" />
         </div>
