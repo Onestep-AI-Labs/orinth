@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useHubPreviewQuery } from "@/features/datasets/hub/hub-hooks";
 import { useImportHubDatasetMutation } from "@/features/datasets/hooks";
+import { useIngestHubDatasetMutation } from "@/features/datasets/prep/prep-hooks";
 import {
   Badge,
   Field,
@@ -40,6 +41,13 @@ import type {
  * The viewer is a plain read-only table for that reason. Mapping moved below it
  * into a row of named fields, where it is a short form rather than a property
  * grid embedded in a data grid.
+ *
+ * There are now two imports on this screen and their order is the point. "Import
+ * as it is" sits above the mapping form because it is the one most datasets
+ * want: it downloads the split unchanged and the prep agent decides what it is,
+ * which is how an image set or a labelled table gets in at all. The mapping form
+ * below it is the specialist tool for building an LLM fine-tuning set out of
+ * columns that are not already in that shape.
  */
 
 type Role = { key: string; label: string; hint: string; required: boolean };
@@ -87,6 +95,10 @@ const FORMAT_HINTS: Record<DatasetFormat | string, string> = {
     "A list of conversation turns per record. Use this when the dataset holds multi-turn dialogue."
 };
 
+//: Rows the as-is import takes. Larger than the mapped importer's list because
+//: nothing is held in memory per row — each one is streamed to disk.
+const AS_IS_ROW_CHOICES = [1_000, 5_000, 25_000, 100_000];
+
 function cellText(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = typeof value === "string" ? value : JSON.stringify(value);
@@ -116,10 +128,15 @@ export function HubDatasetDetail({
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
   const [maxRows, setMaxRows] = useState(1000);
+  const [asIsRows, setAsIsRows] = useState(5000);
 
   const previewQuery = useHubPreviewQuery(result.hub_id, config, split);
   const preview = previewQuery.data;
   const importMutation = useImportHubDatasetMutation({ openDataset, catalogQuery, onImported });
+  const ingestMutation = useIngestHubDatasetMutation((datasetId) => {
+    onImported();
+    openDataset(datasetId);
+  });
 
   // Server-side detection pre-fills format and mapping, so a recognised dataset
   // imports without the user touching the form at all. QA columns normalise into
@@ -164,6 +181,9 @@ export function HubDatasetDetail({
     () => Boolean(preview?.detected_format) && mappingComplete,
     [mappingComplete, preview?.detected_format]
   );
+  //: Whether these rows are already an instruction or chat set. Only then does
+  //: the mapping form open itself; everything else has to ask for it.
+  const llmShaped = autoDetected;
 
   function assignRole(roleKey: string, column: string) {
     setMapping((current) => {
@@ -264,11 +284,64 @@ export function HubDatasetDetail({
 
       {!result.importable && (
         <p className="hub-banner hub-banner-info">
-          <Info size={14} /> Orinth imports Hub datasets as text records. This dataset&apos;s
-          modality is {result.modalities.join(", ") || "not text"}, so you can look at it here but
-          importing will not produce usable records.
+          <Info size={14} /> Orinth has no task for {result.modalities.join(", ") || "this modality"}{" "}
+          yet, so this dataset can be browsed here but not imported.
         </p>
       )}
+
+      {/* The as-is path, above the mapping form rather than beside it. Mapping
+          columns onto instruction/output is the right thing to do when you are
+          building an LLM fine-tuning set and pure overhead otherwise — an image
+          set, a labelled table, a summarization corpus all import without a
+          single decision, because the prep agent reads the data itself. */}
+      <section className="hub-asis">
+        <div>
+          <p className="hub-asis-title">Import as it is</p>
+          <p className="form-caption">
+            Downloads the split unchanged into your workspace, where you can browse it or read it
+            from a notebook. Orinth does not change it: preparing it for training is a separate
+            button on the dataset, for when you want one.
+          </p>
+        </div>
+        <div className="hub-asis-actions">
+          <Field label="Rows">
+            <Select
+              value={asIsRows}
+              onChange={(event) => setAsIsRows(Number(event.target.value))}
+              title="Import reads from the start of the split."
+            >
+              {AS_IS_ROW_CHOICES.map((value) => (
+                <option key={value} value={value}>
+                  {value.toLocaleString()}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={!result.importable || ingestMutation.isPending}
+            onClick={() =>
+              ingestMutation.mutate({
+                project_id: projectId,
+                hub_id: result.hub_id,
+                config: preview?.config ?? null,
+                split: preview?.split ?? null,
+                name: name.trim() || null,
+                max_rows: asIsRows
+              })
+            }
+          >
+            {ingestMutation.isPending ? (
+              <InlineSpinner label="Importing" />
+            ) : (
+              <>
+                <Download size={16} /> Import as it is
+              </>
+            )}
+          </button>
+        </div>
+      </section>
 
       {/* --- viewer ------------------------------------------------------ */}
       <section className="hub-viewer">
@@ -358,10 +431,23 @@ export function HubDatasetDetail({
         )}
       </section>
 
-      {/* --- import ------------------------------------------------------ */}
-      <section className="hub-import">
+      {/* --- import ------------------------------------------------------
+          Collapsed by default, and open only when the rows are already LLM
+          shaped. Mapping columns onto instruction/output is the specialist tool
+          for building a fine-tuning set, and it was the face of every Hub
+          dataset — a form asking which column is the "instruction" is nonsense
+          in front of an image classifier, and it made the screen look like
+          Orinth only wanted LLM data. */}
+      <details className="hub-import" open={llmShaped}>
+        <summary className="hub-import-summary">
+          Map columns for LLM fine-tuning
+          <span className="form-caption">
+            {llmShaped
+              ? `Recognised as ${preview?.detected_format} — the columns are already matched.`
+              : "Only for building an instruction or chat fine-tuning set out of these columns."}
+          </span>
+        </summary>
         <div className="hub-viewer-head">
-          <span className="section-microlabel">Import as</span>
           {autoDetected ? (
             <span className="hub-banner hub-banner-success">
               <CheckCircle2 size={14} /> Recognised as {preview?.detected_format} — columns are
@@ -457,8 +543,9 @@ export function HubDatasetDetail({
             )}
           </button>
         </div>
-        <MutationError mutations={[importMutation]} />
-      </section>
+        <MutationError mutations={[importMutation, ingestMutation]} />
+      </details>
+      <MutationError mutations={[ingestMutation]} />
     </div>
   );
 }

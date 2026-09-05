@@ -220,7 +220,13 @@ export function DatasetDataGrid({ dataset }: { dataset: DatasetSummary }) {
               {(table?.rows ?? []).map((row) => (
                 <tr key={`${row.split}/${row.id}`}>
                   {columns.map((column) => (
-                    <td key={column.key} className={`grid-cell-${column.kind}`}>
+                    // `grid-col-`, not `grid-cell-`: the value spans below use
+                    // `grid-cell-<kind>` too, and `.grid-cell-text` sets
+                    // `display: block`. A text `<td>` was therefore not a table
+                    // cell at all — it dropped out of the column layout, so the
+                    // Output value rendered underneath the Instruction value at
+                    // the wrong column's x, with Output's own column left empty.
+                    <td key={column.key} className={`grid-col-${column.kind}`}>
                       <CellValue
                         column={column}
                         row={row}

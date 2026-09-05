@@ -1,4 +1,5 @@
 import shutil
+import threading
 from pathlib import Path
 from uuid import uuid4
 
@@ -109,3 +110,60 @@ class Storage:
         else:
             owned.unlink()
         return True
+
+    def discard_owned_path(self, path: str | Path | None) -> bool:
+        """Make a directory disappear now and delete it on a background thread.
+
+        `shutil.rmtree` over a prepared 100,000-row dataset is ~300,000 unlinks,
+        which is minutes — long enough that the delete request times out and the
+        user is told the deletion failed while it is in fact still running.
+
+        The rename is the part that has to be synchronous, and it is the part
+        that is instant: one atomic operation within the same filesystem. The
+        `.trash-` prefix is what tells the catalog to skip it — `pathlib.glob`
+        matches dot-directories, unlike the shell, so `DatasetService._locations`
+        skips them by name rather than relying on the pattern. The unlinking is
+        then nobody's deadline, and `purge_trash` sweeps whatever a killed
+        process left behind.
+        """
+        owned = self.owned_path(path)
+        if owned is None or not owned.exists():
+            return False
+        if not owned.is_dir():
+            owned.unlink()
+            return True
+
+        trash = owned.parent / f".trash-{uuid4().hex[:10]}"
+        try:
+            owned.rename(trash)
+        except OSError:
+            # Cross-device, or a permission the rename needs and the delete does
+            # not. Falling back to the slow path is better than not deleting.
+            shutil.rmtree(owned, ignore_errors=True)
+            return True
+
+        threading.Thread(
+            target=shutil.rmtree,
+            args=(trash,),
+            kwargs={"ignore_errors": True},
+            name=f"discard-{trash.name}",
+            daemon=True,
+        ).start()
+        return True
+
+    def purge_trash(self) -> int:
+        """Remove directories a previous process renamed aside but never deleted.
+
+        Daemon threads do not survive a shutdown, so an interrupted discard
+        leaves a `.trash-*` directory holding real disk. Nothing reads them, so
+        this is unconditional at startup — the same posture as the stale-job
+        reconcilers.
+        """
+        purged = 0
+        for parent in (self.datasets, self.dataset_versions):
+            if not parent.exists():
+                continue
+            for entry in parent.glob(".trash-*"):
+                shutil.rmtree(entry, ignore_errors=True)
+                purged += 1
+        return purged

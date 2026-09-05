@@ -32,6 +32,60 @@ export async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T>
   return response.json() as Promise<T>;
 }
 
+/**
+ * A POST whose upload progress is observable.
+ *
+ * `fetch` cannot report how much of a request body has been sent — there is no
+ * upload-progress event and `ReadableStream` request bodies are not supported
+ * where this has to run — so a multi-gigabyte folder upload showed the word
+ * "Uploading" and nothing else for minutes. `XMLHttpRequest` is the one API in
+ * the platform that does report it, which is why this is the exception to
+ * `jsonFetch` rather than a preference.
+ *
+ * `onProgress` receives 0..1, and only while the browser knows the total; a
+ * request whose length is not computable simply never calls it, and the caller
+ * falls back to its indeterminate state.
+ */
+export function uploadFetch<T>(
+  path: string,
+  body: FormData,
+  onProgress?: (fraction: number) => void
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", `${API_BASE}${path}`);
+    request.responseType = "text";
+
+    if (onProgress) {
+      request.upload.onprogress = (event) => {
+        if (!event.lengthComputable || event.total <= 0) return;
+        onProgress(Math.min(1, event.loaded / event.total));
+      };
+    }
+
+    request.onerror = () => reject(new Error("The upload could not reach the backend."));
+    request.onabort = () => reject(new Error("The upload was cancelled."));
+    request.onload = () => {
+      let payload: unknown = null;
+      try {
+        payload = JSON.parse(request.responseText);
+      } catch {
+        payload = null;
+      }
+      if (request.status >= 200 && request.status < 300) {
+        resolve(payload as T);
+        return;
+      }
+      // Same error shape `jsonFetch` produces, so a caller cannot tell which
+      // transport it used from the message it has to show.
+      const detail = (payload as { detail?: unknown } | null)?.detail ?? request.statusText;
+      reject(new Error(typeof detail === "string" ? detail : JSON.stringify(detail)));
+    };
+
+    request.send(body);
+  });
+}
+
 export class ApiValidationError extends Error {
   constructor(path: string, issues: Array<{ path: PropertyKey[]; message: string }>) {
     const summary = issues

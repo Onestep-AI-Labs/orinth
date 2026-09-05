@@ -609,6 +609,15 @@ export function EdaPanel({
         <CardGridSkeleton count={4} />
       ) : eda ? (
         <>
+          {/* Information, not a warning. A dataset large enough to be sampled
+              has nothing wrong with it, and putting this in the warning list
+              made a healthy 100,000-row dataset look like it had a problem. */}
+          {eda.sampled_items > 0 && (
+            <p className="form-caption eda-sampled-note">
+              Counts below are estimated from {eda.sampled_items.toLocaleString()} items sampled
+              evenly across the split. Split totals are exact.
+            </p>
+          )}
           <div className="eda-metric-grid">
             <Metric label={llm ? "Records" : nlp ? "Texts" : "Images"} value={llm ? eda.item_count : nlp ? (eda.text_count || eda.item_count) : eda.image_count} />
             {llm ? (

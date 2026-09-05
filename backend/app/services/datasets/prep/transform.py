@@ -79,10 +79,12 @@ from app.services.datasets.prep.staging import (
 #: Suffixes this stage can read rows out of.
 ROW_SUFFIXES = TABLE_SUFFIXES | RECORD_SUFFIXES
 
-#: Rows read from one source. Matches `apply.MAX_INGEST_ROWS`, which is the real
-#: ceiling — transforming rows that apply would then discard wastes sandbox time
-#: and puts a misleading row count in front of the user.
-MAX_TRANSFORM_ROWS = 20_000
+#: Rows read from one source when a caller supplies no bound of its own. `None`
+#: means every row, and matches the apply stage's default: transforming 20,000
+#: of a 52,000-row table and then applying all 52,000 would put two different
+#: row counts in front of the user for one dataset. `DatasetPrepService` passes
+#: `PREP_MAX_INGEST_ROWS` through, so the two stages always agree.
+MAX_TRANSFORM_ROWS: int | None = None
 #: Rows put in the prompt. The model needs the shape, not the data.
 PROMPT_ROW_LIMIT = 12
 #: More distinct labels than this and the target column is an identifier or a
@@ -184,6 +186,7 @@ def refine_with_transform(
     model: str | None = None,
     allowed_task_types: list[str] | None = None,
     client: Any = None,
+    max_rows: int | None = MAX_TRANSFORM_ROWS,
 ) -> DatasetPrepPlan:
     """Give a stuck plan a generated transform, or return it unchanged.
 
@@ -202,7 +205,7 @@ def refine_with_transform(
     if plan.task_type and blocker is None:
         return plan
 
-    sources = read_sources(root)
+    sources = read_sources(root, max_rows=max_rows)
     if not sources:
         return plan
 
@@ -273,7 +276,7 @@ def _run_engines(
 # --- reading and profiling ----------------------------------------------------
 
 
-def read_sources(root: Path) -> list[TableSource]:
+def read_sources(root: Path, max_rows: int | None = MAX_TRANSFORM_ROWS) -> list[TableSource]:
     """Every staged row-bearing file, read in full and profiled.
 
     Full, not sampled: `detect` reads 500 rows because it only needs to tell a
@@ -290,9 +293,9 @@ def read_sources(root: Path) -> list[TableSource]:
         if not rows:
             continue
         truncated = None
-        if len(rows) > MAX_TRANSFORM_ROWS:
+        if max_rows is not None and len(rows) > max_rows:
             truncated = len(rows)
-            rows = rows[:MAX_TRANSFORM_ROWS]
+            rows = rows[:max_rows]
         columns = _union_columns(rows)
         if not columns:
             continue
@@ -840,7 +843,8 @@ def _patched(
         if source.truncated_from:
             plan.warnings.append(
                 f"`{source.path}` holds {source.truncated_from:,} rows; the first "
-                f"{MAX_TRANSFORM_ROWS:,} were prepared."
+                f"{len(source.rows):,} were prepared, because PREP_MAX_INGEST_ROWS "
+                "is set."
             )
     plan.warnings.append(
         "The original upload is kept unchanged; Undo restores the dataset to how it "

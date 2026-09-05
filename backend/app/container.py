@@ -26,7 +26,6 @@ registry = ModelRegistry(settings, storage)
 project_service = ProjectService()
 settings_service = SettingsService(settings)
 dataset_service = DatasetService(settings, storage)
-dataset_hub_service = DatasetHubService(settings, storage, dataset_service)
 # Phase 21. Reuses the OpenRouter key/model the user already configured for
 # recipes, so there is one place a model is chosen.
 # The prep agent (phase 21) runs off the request path for the same reason
@@ -38,6 +37,14 @@ prep_executor = ThreadPoolExecutor(
 )
 dataset_prep_service = DatasetPrepService(
     settings, dataset_service, settings_service, prep_executor
+)
+# Constructed after the agent because the Hub's as-is ingest *is* a prep run with
+# a different source of files: it stages the download, then hands off to
+# `DatasetPrepService.run`, sharing its executor and its manifest progress
+# fields rather than growing a parallel job kind that would report the same
+# thing differently.
+dataset_hub_service = DatasetHubService(
+    settings, storage, dataset_service, dataset_prep_service
 )
 # Phase 22. The service owns `storage/notebooks/`; the runtime supervises the
 # `jupyter-server` subprocess and is stopped in the app lifespan beside

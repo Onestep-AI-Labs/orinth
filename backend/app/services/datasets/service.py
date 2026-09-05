@@ -234,7 +234,10 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
         location = self._location(dataset_id)
         if not location.editable:
             raise HTTPException(status_code=409, detail="Reference datasets are read-only")
-        self.storage.delete_owned_path(location.root)
+        # Renames now, unlinks in the background. A prepared 100,000-row dataset
+        # is hundreds of thousands of files, and waiting for them inside the
+        # request is how a delete that is working reports itself as a timeout.
+        self.storage.discard_owned_path(location.root)
 
     def dataset_root(self, dataset_id: str) -> Path:
         return self._location(dataset_id).root
@@ -317,6 +320,13 @@ class DatasetService(ItemsMixin, VersioningMixin, PreprocessMixin, RecordsMixin,
         locations.extend(self._sample_locations())
         if self.storage.datasets.exists():
             for manifest_path in sorted(self.storage.datasets.glob("*/manifest.json")):
+                # A dot-directory is bookkeeping, not a dataset: `discard_owned_path`
+                # renames a deleted dataset to `.trash-*` and unlinks it on a
+                # background thread. `pathlib.glob` matches dot-directories (unlike
+                # the shell), so the skip has to be explicit — without it a deleted
+                # dataset stays in the catalog until its last file is gone.
+                if manifest_path.parent.name.startswith("."):
+                    continue
                 try:
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, KeyError):

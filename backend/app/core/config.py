@@ -75,9 +75,20 @@ class Settings(BaseSettings):
         default=3600, alias="NOTEBOOK_KERNEL_IDLE_TIMEOUT_SECONDS"
     )
     # The cap `orinth.datasets.load()` refuses past, rather than truncating:
-    # silently returning half a training set is the worse failure. Precedent is
-    # `MAX_INGEST_ROWS` in `prep/apply.py`.
+    # silently returning half a training set is the worse failure.
     notebook_load_max_rows: int = Field(default=200_000, alias="NOTEBOOK_LOAD_MAX_ROWS")
+    # Rows the prep agent ingests from any one table or record file. `0` means
+    # every row, which is the default: a 20,000-row ceiling used to truncate a
+    # larger upload and explain itself in a warning afterwards, which is a
+    # dataset that quietly does not match the file the user chose. A deployment
+    # that needs a bound sets one here. See `prep/apply.py::_row_limit`.
+    prep_max_ingest_rows: int = Field(default=0, alias="PREP_MAX_INGEST_ROWS")
+    # Items EDA opens to build one summary. EDA is a distribution, and a
+    # distribution does not need every row: a 100,000-item dataset is ~200,000
+    # file reads, which is minutes inside a request and used to hang the
+    # connection outright (`socket hang up` on `/eda?split=all`). Past this the
+    # scan strides across the split instead, and `sampled_items` says so.
+    eda_sample_items: int = Field(default=4000, alias="EDA_SAMPLE_ITEMS")
 
     @property
     def repo_root(self) -> Path:

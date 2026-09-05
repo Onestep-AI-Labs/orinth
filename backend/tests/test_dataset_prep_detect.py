@@ -599,3 +599,72 @@ def test_chosen_rejected_pairs_detect_as_chat_finetuning(tmp_path: Path):
     assert found.task_type == "llm_finetune"
     assert found.format == "chat_jsonl"
     assert any("chosen" in signal for signal in found.signals)
+
+
+# --- a JSONL that is a table, not a record shape -------------------------------
+
+
+def test_a_jsonl_of_text_and_label_reads_as_text_classification(tmp_path: Path):
+    """The commonest classification shape on the Hub.
+
+    `_detect_record_files` used to recognize only the record shapes (alpaca,
+    messages, ShareGPT, QA, chosen/rejected) and report anything else as "no
+    recognizable structure" — so this file failed while the identical data as a
+    `.csv` succeeded, because only `_detect_tables` reached `_classify_rows`.
+    """
+    rows = [
+        {"text": f"the service was {mood} and the food arrived {speed}", "label": mood}
+        for mood, speed in [("good", "fast")] * 30 + [("bad", "late")] * 30
+    ]
+    write(
+        tmp_path / "reviews.jsonl",
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+    )
+
+    found = detect(tmp_path)
+    assert found.task_type == "text_classification"
+    assert sorted(found.candidate_labels) == ["bad", "good"]
+    assert found.column_roles.get("text") == "text"
+    assert found.column_roles.get("label") == "label"
+
+
+def test_a_stray_jsonl_does_not_outvote_an_image_tree(tmp_path: Path):
+    """Record detection runs before the image rule, so it must not claim a
+    sidecar sitting beside pictures — one file would decide that a folder of
+    ten thousand images is a table of rows."""
+    for index in range(4):
+        image(tmp_path / "cat" / f"{index}.jpg")
+        image(tmp_path / "dog" / f"{index}.jpg")
+    write(tmp_path / "notes.jsonl", json.dumps({"text": "a note", "label": "x"}) + "\n")
+
+    found = detect(tmp_path)
+    assert found.modality == "image"
+    assert found.task_type == "classification"
+    assert sorted(found.candidate_labels) == ["cat", "dog"]
+
+
+def test_a_stray_jsonl_does_not_outvote_a_text_class_tree(tmp_path: Path):
+    """Same guard, the other content type: `_detect_text_folders` also runs
+    after the record rule."""
+    for index in range(4):
+        write(tmp_path / "spam" / f"{index}.txt", "buy now, limited offer")
+        write(tmp_path / "ham" / f"{index}.txt", "see you at the meeting tomorrow")
+    write(tmp_path / "notes.jsonl", json.dumps({"text": "a note", "label": "x"}) + "\n")
+
+    found = detect(tmp_path)
+    assert found.task_type == "text_classification"
+    assert sorted(found.candidate_labels) == ["ham", "spam"]
+
+
+def test_a_lone_jsonl_beside_a_readme_still_reads_as_rows(tmp_path: Path):
+    """The guard is a majority, not an absolute: a dataset is not disqualified
+    by shipping one text file next to its data."""
+    rows = [
+        {"review": f"the room was {mood} and the staff were {mood}", "verdict": mood}
+        for mood in ["great"] * 30 + ["awful"] * 30
+    ]
+    write(tmp_path / "hotel.jsonl", "\n".join(json.dumps(row) for row in rows) + "\n")
+    write(tmp_path / "README.txt", "Hotel reviews, scraped 2024.")
+
+    found = detect(tmp_path)
+    assert found.task_type == "text_classification"

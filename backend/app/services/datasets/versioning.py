@@ -14,7 +14,7 @@ import json
 import random
 import shutil
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -116,7 +116,20 @@ class VersioningMixin:
             self._regenerate_records_jsonl(location, payload.target_split)
         return DatasetItemMoveResponse(moved=moved, missing=missing, items=items)
 
-    def process_dataset(self, dataset_id: str, payload: DatasetProcessRequest) -> DatasetProcessResponse:
+    def process_dataset(
+        self,
+        dataset_id: str,
+        payload: DatasetProcessRequest,
+        on_progress: "Callable[[int, int, str], None] | None" = None,
+    ) -> DatasetProcessResponse:
+        """Distribute items into train/valid/test.
+
+        `on_progress` is called as items move. This is the slowest stage of a
+        prep run on a large upload — one rename per item, and there can be a
+        hundred thousand of them — so without it the readout freezes on whatever
+        the previous stage last said and the run looks hung.
+        """
+        note = on_progress or (lambda processed, total, detail: None)
         location = self._editable_location(dataset_id)
         split_config = self._normalize_split_config(payload.split)
         metadata = dict(location.metadata or {})
@@ -130,14 +143,16 @@ class VersioningMixin:
         location = self._location(dataset_id)
 
         source_splits = list(SPLITS if split_config.resplit_all else ("unassigned",))
-        is_llm = self._is_llm_task(location.task_type)
+        # The item's *label* is the only thing splitting reads from its content,
+        # and only a stratified split needs it. Reading every file otherwise —
+        # the text plus its annotation sidecar, two opens per item — cost 200,000
+        # reads on a 100,000-row dataset before a single item had moved. LLM
+        # records never carry a label at all, so they are always light.
+        needs_label = split_config.stratify and not self._is_llm_task(location.task_type)
         candidates: list[tuple[str, Any]] = []
         for source_split in source_splits:
             for item_path in self._item_paths(location, source_split):
-                # LLM records carry no label, so splitting never needs to parse the
-                # record body — reading every file just to compute an excerpt made
-                # splitting a large imported dataset time out. Use a light stub.
-                if is_llm:
+                if not needs_label:
                     candidates.append((source_split, SimpleNamespace(id=item_path.name, label=None)))
                 else:
                     detail = self._item_from_path(location, source_split, item_path, include_annotations=True)
@@ -153,10 +168,14 @@ class VersioningMixin:
 
         rng = random.Random(split_config.seed)
         moved = {split: 0 for split in TRAINING_SPLITS}
+        total = len(candidates)
+        seen = 0
         for rows in grouped.values():
             rng.shuffle(rows)
             targets = self._targets_for_count(len(rows), split_config)
             for (source_split, item), target_split in zip(rows, targets, strict=True):
+                seen += 1
+                note(seen, total, f"Placing item {seen:,} of {total:,} into train, valid and test")
                 if source_split == target_split:
                     continue
                 new_name = self._move_item(location, source_split, target_split, item.id)
@@ -165,6 +184,7 @@ class VersioningMixin:
                     item.id = new_name
 
         if self._is_llm_task(location.task_type):
+            note(total, total, f"Indexing {total:,} records")
             self._regenerate_all_records_jsonl(location)
 
         return DatasetProcessResponse(

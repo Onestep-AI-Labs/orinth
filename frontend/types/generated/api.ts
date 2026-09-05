@@ -333,6 +333,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/import/hub/as-is": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ingest Hub Dataset
+         * @description Download a Hub split as it is and let the prep agent decide what it is.
+         *
+         *     Returns 202 with the draft already reading `planning`: the download and the
+         *     prep run both happen on the prep executor, and the client polls
+         *     `/datasets/{id}/prep/status` — the same readout an uploaded folder gets.
+         *
+         *     No `_require_project_task` gate here, because nothing has been declared yet.
+         *     The project's task types are passed *into* the agent instead, so it plans a
+         *     task the project allows rather than proposing one and being refused at apply.
+         */
+        post: operations["ingest_hub_dataset_api_datasets_import_hub_as_is_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/ingest": {
         parameters: {
             query?: never;
@@ -3397,6 +3425,11 @@ export interface components {
             role_counts: {
                 [key: string]: number;
             };
+            /**
+             * Sampled Items
+             * @default 0
+             */
+            sampled_items: number;
             /** Split */
             split: string;
             /** Split Counts */
@@ -3634,6 +3667,50 @@ export interface components {
              * @default null
              */
             warnings: string[];
+        };
+        /**
+         * DatasetHubIngestRequest
+         * @description Download a Hub dataset *as it is* and let the prep agent read it.
+         *
+         *     The mapped import above turns Hub columns into LLM fine-tuning records and
+         *     is the right tool when that is what you want. It is also the only tool there
+         *     was, which made every image, classification, and summarization dataset on
+         *     the Hub "browse only" — a filter that returns things you cannot use.
+         *
+         *     This path declares nothing. Rows land in the draft's `_staging/` in the shape
+         *     the Hub served them (a JSONL file, or a folder of images named by class) and
+         *     the phase-21 agent decides what they are, exactly as it does for an upload.
+         *     So there is one place that knows how to read a dataset, and the Hub is just
+         *     another way files arrive.
+         */
+        DatasetHubIngestRequest: {
+            /**
+             * Config
+             * @default null
+             */
+            config: string | null;
+            /** Hub Id */
+            hub_id: string;
+            /**
+             * Max Rows
+             * @default 5000
+             */
+            max_rows: number;
+            /**
+             * Name
+             * @default null
+             */
+            name: string | null;
+            /**
+             * Project Id
+             * @default default-research-project
+             */
+            project_id: string;
+            /**
+             * Split
+             * @default null
+             */
+            split: string | null;
         };
         /** DatasetHubPreview */
         DatasetHubPreview: {
@@ -3945,6 +4022,11 @@ export interface components {
              */
             output_preview: string | null;
             /**
+             * Preview Fields
+             * @default null
+             */
+            preview_fields: string[];
+            /**
              * Record
              * @default null
              */
@@ -4101,6 +4183,11 @@ export interface components {
              * @default null
              */
             output_preview: string | null;
+            /**
+             * Preview Fields
+             * @default null
+             */
+            preview_fields: string[];
             /**
              * Split
              * @enum {string}
@@ -4261,6 +4348,11 @@ export interface components {
              */
             job_id: string | null;
             /**
+             * Processed
+             * @default 0
+             */
+            processed: number;
+            /**
              * Progress
              * @default null
              */
@@ -4282,6 +4374,11 @@ export interface components {
              * @enum {string}
              */
             step: "idle" | "staging" | "detecting" | "planning" | "transforming" | "applying" | "splitting" | "done";
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** DatasetPreprocessConfig */
         DatasetPreprocessConfig: {
@@ -7882,6 +7979,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetHubImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_hub_dataset_api_datasets_import_hub_as_is_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetHubIngestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetSummary"];
                 };
             };
             /** @description Validation Error */

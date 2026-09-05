@@ -65,12 +65,16 @@ def test_every_sort_option_maps_to_a_hub_sort_key():
     assert offered == set(hub_facets.SORT_KEYS)
 
 
-def test_non_importable_terms_are_listed_rather_than_hidden():
-    """A user looking for an image dataset should find out here that Orinth
-    imports text records, not after picking one."""
+def test_terms_with_no_orinth_task_are_listed_rather_than_hidden():
+    """A user looking for an audio dataset should find out here that Orinth has
+    no audio task, not after picking one."""
     formats = {option.value: option for option in hub_facets.facets().formats}
-    assert formats["imagefolder"].importable is False
+    assert formats["soundfolder"].importable is False
+    assert formats["webdataset"].importable is False
     assert formats["parquet"].importable is True
+    # The as-is ingest downloads an image split into a folder tree the prep
+    # agent reads as image classification, so this is no longer browse-only.
+    assert formats["imagefolder"].importable is True
 
 
 @pytest.mark.parametrize(
@@ -78,7 +82,8 @@ def test_non_importable_terms_are_listed_rather_than_hidden():
     [
         (["text"], True),
         (["tabular", "text"], True),
-        (["image"], False),
+        # Images import as-is now: the split becomes a folder per class.
+        (["image"], True),
         (["audio", "video"], False),
         # Plenty of text datasets declare no modality at all; refusing those
         # would hide most of the Hub.

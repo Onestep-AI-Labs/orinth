@@ -15,6 +15,7 @@ from app.schemas import (
     DatasetHubFacets,
     DatasetHubImportRequest,
     DatasetHubImportResponse,
+    DatasetHubIngestRequest,
     DatasetHubPreview,
     DatasetHubSearchResponse,
     DatasetImportRequest,
@@ -309,6 +310,25 @@ def import_hub_dataset(
 ) -> DatasetHubImportResponse:
     _require_project_task(db, payload.project_id, payload.task_type)
     return dataset_hub_service.import_hub(payload)
+
+
+@router.post("/import/hub/as-is", response_model=DatasetSummary, status_code=202)
+def ingest_hub_dataset(
+    payload: DatasetHubIngestRequest, db: Session = Depends(get_db)
+) -> DatasetSummary:
+    """Download a Hub split as it is and let the prep agent decide what it is.
+
+    Returns 202 with the draft already reading `planning`: the download and the
+    prep run both happen on the prep executor, and the client polls
+    `/datasets/{id}/prep/status` — the same readout an uploaded folder gets.
+
+    No `_require_project_task` gate here, because nothing has been declared yet.
+    The project's task types are passed *into* the agent instead, so it plans a
+    task the project allows rather than proposing one and being refused at apply.
+    """
+    return dataset_hub_service.ingest_hub(
+        payload, allowed_task_types=_project_task_types(db, payload.project_id)
+    )
 
 
 @router.get("/{dataset_id}", response_model=DatasetSummary)

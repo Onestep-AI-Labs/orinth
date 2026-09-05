@@ -8,6 +8,7 @@ provided by the other mixins composed onto the facade class.
 """
 
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -35,8 +36,18 @@ from app.schemas import (
     _normalize_task_type_field,
 )
 from app.services.datasets import table
-from app.services.datasets.constants import IMAGE_SUFFIXES, SPLITS, TEXT_SUFFIXES
+from app.services.datasets.constants import (
+    IMAGE_SUFFIXES,
+    RECORD_SUFFIX,
+    SPLITS,
+    TEXT_SUFFIXES,
+)
 from app.services.datasets.types import DatasetLocation
+
+#: Items whose annotation sidecar `_split_summary` opens. See its docstring: the
+#: count it produces gates a boolean, and reading every file put the whole
+#: catalog behind an O(items) scan.
+_ANNOTATION_SCAN_LIMIT = 2000
 
 
 class ItemsMixin:
@@ -347,14 +358,39 @@ class ItemsMixin:
         # outlives the schema — `tabular`/`table` is still out there — and reading
         # the raw field would give this grid a different task type from the badge
         # on the card that opened it.
+        task_type = str(_normalize_task_type_field(location.task_type))
         return table.page_for(
             page.items,
-            task_type=str(_normalize_task_type_field(location.task_type)),
+            task_type=task_type,
             format=str(_normalize_dataset_format_field(location.format)),
             total=page.total,
             limit=page.limit,
             offset=page.offset,
+            records=self._page_records(location, task_type, page.items),
         )
+
+    def _page_records(
+        self, location: DatasetLocation, task_type: str, items: list[DatasetItemSummary]
+    ) -> dict[str, dict] | None:
+        """The records behind one page, so the grid can show their real columns.
+
+        One small JSON per row, for the fifty rows already on screen — the same
+        files `list_items_page` just opened to build the previews, which is why
+        this is cheap enough to do unconditionally rather than behind a flag.
+        Without it the grid has only `text_preview`/`output_preview` and has to
+        assume every record is instruction-shaped.
+        """
+        if not self._is_llm_task(task_type):
+            return None
+        records: dict[str, dict] = {}
+        for item in items:
+            try:
+                record = self._read_record(self._record_path(location, item.split, item.id))
+            except (HTTPException, OSError):
+                continue
+            if isinstance(record, dict):
+                records[item.id] = record
+        return records
 
     def item_detail(self, dataset_id: str, split: str, item_id: str) -> DatasetItemDetail:
         self._validate_split(split)
@@ -431,25 +467,43 @@ class ItemsMixin:
         return True
 
     def _split_summary(self, location: DatasetLocation, split: str) -> DatasetSplitSummary:
-        items = self._item_paths(location, split)
+        """Item counts for one split, plus enough of an annotation count to gate on.
+
+        `item_count` is exact — it is a directory listing, and it is the number
+        the catalog card shows. `annotation_count` is *bounded*, and that is a
+        deliberate trade rather than an oversight.
+
+        Opening one annotation sidecar per item made this O(items), and this runs
+        four times per dataset for every dataset on every `GET /datasets`. On a
+        100,000-row dataset the catalog took 23 seconds and the connection was
+        reset before it answered. The only consumer of the field is
+        `readiness_for`, which asks `annotation_count > 0` and never the value —
+        and no surface displays it (the EDA panel counts annotations itself). So
+        past `_ANNOTATION_SCAN_LIMIT` items this reports what it found in the
+        prefix it read, which preserves the one question actually asked of it.
+        """
+        item_count = self._item_count(location, split)
         if self._is_llm_task(location.task_type):
             return DatasetSplitSummary(
                 split=split,  # type: ignore[arg-type]
                 image_count=0,
-                text_count=len(items),
-                item_count=len(items),
-                annotation_count=len(items),
+                text_count=item_count,
+                item_count=item_count,
+                annotation_count=item_count,
             )
         annotation_count = 0
-        for item_path in items:
-            annotation_count += len(self._annotations(location, split, item_path, 1, 1))
-        text_count = len(items) if self._is_nlp_task(location.task_type) else 0
-        image_count = len(items) if not self._is_nlp_task(location.task_type) else 0
+        if item_count:
+            # Only the prefix is materialized as paths; the count above came off
+            # the directory entries.
+            for item_path in self._item_paths(location, split)[:_ANNOTATION_SCAN_LIMIT]:
+                annotation_count += len(self._annotations(location, split, item_path, 1, 1))
+        text_count = item_count if self._is_nlp_task(location.task_type) else 0
+        image_count = item_count if not self._is_nlp_task(location.task_type) else 0
         return DatasetSplitSummary(
             split=split,  # type: ignore[arg-type]
             image_count=image_count,
             text_count=text_count,
-            item_count=len(items),
+            item_count=item_count,
             annotation_count=annotation_count,
         )
 
@@ -501,6 +555,7 @@ class ItemsMixin:
             text_preview=detail.text_preview,
             output_preview=detail.output_preview,
             token_estimate=detail.token_estimate,
+            preview_fields=detail.preview_fields,
             width=detail.width,
             height=detail.height,
             annotation_count=detail.annotation_count,
@@ -602,6 +657,39 @@ class ItemsMixin:
             if text_path.name == filename:
                 return text_path
         raise HTTPException(status_code=404, detail="Dataset text item not found")
+
+    def _item_dir(self, location: DatasetLocation, split: str) -> tuple[Path, set[str] | None]:
+        """Where a split's items live, and the suffixes that count as one.
+
+        `None` for the suffix set means "every file in this directory", which is
+        what the record layout guarantees.
+        """
+        if self._is_llm_task(location.task_type):
+            return location.root / split / "records", {RECORD_SUFFIX}
+        if self._is_nlp_task(location.task_type):
+            return location.root / split / "texts", {".txt"}
+        return self._image_dir(location, split), IMAGE_SUFFIXES
+
+    def _item_count(self, location: DatasetLocation, split: str) -> int:
+        """How many items a split holds, without building a path for each.
+
+        `_item_paths` allocates a `Path` per entry and sorts the result, which
+        the catalog does not need and which costs about a second per split at a
+        hundred thousand items — four times per dataset, for every dataset, on
+        every `GET /datasets`. `os.scandir` answers the same question off the
+        directory entries alone.
+        """
+        directory, suffixes = self._item_dir(location, split)
+        try:
+            with os.scandir(directory) as entries:
+                return sum(
+                    1
+                    for entry in entries
+                    if entry.is_file()
+                    and (suffixes is None or os.path.splitext(entry.name)[1].lower() in suffixes)
+                )
+        except (FileNotFoundError, NotADirectoryError):
+            return 0
 
     def _item_paths(self, location: DatasetLocation, split: str) -> list[Path]:
         if self._is_llm_task(location.task_type):

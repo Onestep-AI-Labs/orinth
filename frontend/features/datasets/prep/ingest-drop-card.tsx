@@ -1,13 +1,17 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FolderOpen, Sparkles, Upload } from "lucide-react";
+import { FileText, FolderOpen, Sparkles, Upload } from "lucide-react";
 import {
   useDatasetPrepStatusQuery,
   useIngestDatasetMutation,
   useRunPrepMutation
 } from "@/features/datasets/prep/prep-hooks";
-import { PrepProgress } from "@/features/datasets/prep/prep-progress";
+import { prepJob } from "@/features/datasets/prep/prep-progress";
+import {
+  usePublishForegroundJob,
+  type ForegroundJob
+} from "@/features/platform/foreground-job";
 import { Button, Field, MutationError } from "@/features/platform/ui";
 
 /**
@@ -67,6 +71,102 @@ async function walk(directory: DirectoryHandleLike, prefix = ""): Promise<Picked
   return found;
 }
 
+//: How many picked files are named before the list collapses to a count. Enough
+//: to recognise a folder by its contents, short enough that the panel does not
+//: become the file list.
+const NAMED_FILES = 6;
+
+function formatBytes(total: number): string {
+  if (total >= 1_000_000_000) return `${(total / 1_000_000_000).toFixed(1)} GB`;
+  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(1)} MB`;
+  if (total >= 1_000) return `${Math.round(total / 1_000)} KB`;
+  return `${total} B`;
+}
+
+/** The top-level folder a pick came from, when it came from one. */
+function rootFolder(picked: Picked[]): string {
+  const first = picked[0]?.path ?? "";
+  return first.includes("/") ? first.split("/")[0] : "";
+}
+
+/**
+ * The selection, named.
+ *
+ * A count alone ("312 files ready") answers "did the click work" and nothing
+ * else. Picking the wrong folder produces exactly the same sentence as picking
+ * the right one, and the mistake is only discovered after an upload and a prep
+ * run. So the folder is named, the first few files are listed with their
+ * subfolders intact — the subfolders are the labels, for a classification
+ * upload — and the rest collapse to a count.
+ */
+function PickedFiles({ picked }: { picked: Picked[] }) {
+  const folder = rootFolder(picked);
+  const bytes = picked.reduce((total, entry) => total + entry.file.size, 0);
+  const remaining = picked.length - NAMED_FILES;
+
+  return (
+    <div className="ingest-picked">
+      <p className="ingest-picked-head">
+        {folder ? (
+          <>
+            <FolderOpen size={14} aria-hidden="true" />
+            <strong title={folder}>{folder}</strong>
+          </>
+        ) : (
+          <>
+            <FileText size={14} aria-hidden="true" />
+            <strong>{picked.length === 1 ? picked[0].path : "Selected files"}</strong>
+          </>
+        )}
+        <span className="form-caption">
+          {picked.length.toLocaleString()} file{picked.length === 1 ? "" : "s"} ·{" "}
+          {formatBytes(bytes)}
+          {folder ? " · folder structure preserved" : ""}
+        </span>
+      </p>
+      <ul className="ingest-picked-list">
+        {/* Keyed by position as well as path: a flat pick can hold two files
+            with the same name from different folders. */}
+        {picked.slice(0, NAMED_FILES).map((entry, index) => (
+          <li key={`${entry.path}-${index}`} title={entry.path}>
+            {entry.path}
+          </li>
+        ))}
+        {remaining > 0 && (
+          <li className="ingest-picked-more">and {remaining.toLocaleString()} more</li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Bytes sent, as the job the shell's overlay draws.
+ *
+ * The readout was the sentence "Uploading 312 files…" for however long the
+ * request took, which on a folder of images is minutes of a screen that cannot
+ * be told apart from a hung one — and it was drawn *under* the blocking overlay,
+ * so in practice nobody saw even that. It is published now, and the overlay
+ * renders it. `fraction` is null only where the browser refuses to report a
+ * total, and that case goes indeterminate rather than drawing a bar that does
+ * not track anything.
+ */
+function uploadJob(fraction: number | null, files: number, bytes: number): ForegroundJob {
+  const noun = `${files.toLocaleString()} file${files === 1 ? "" : "s"}`;
+  return {
+    label: `Uploading ${noun}`,
+    percent: fraction === null ? null : Math.round(fraction * 100),
+    count:
+      fraction === null
+        ? null
+        : `${formatBytes(Math.round(bytes * fraction))} of ${formatBytes(bytes)}`,
+    stages: [
+      { key: "upload", label: "Send the files", state: "active" },
+      { key: "prepare", label: "Prepare the dataset", state: "pending" }
+    ]
+  };
+}
+
 export function IngestDropCard({ projectId, onCreated }: { projectId: string; onCreated: (datasetId: string) => void }) {
   const [picked, setPicked] = useState<Picked[]>([]);
   const [name, setName] = useState("");
@@ -75,11 +175,32 @@ export function IngestDropCard({ projectId, onCreated }: { projectId: string; on
   //: The dataset the current run belongs to. Held here rather than read off the
   //: mutation so the progress readout survives `onSettled` clearing it.
   const [runningId, setRunningId] = useState("");
+  //: 0..1 of the request body sent, from `XMLHttpRequest`. `null` while the
+  //: browser has not reported a computable length — an indeterminate upload is
+  //: honest; a bar sitting at zero is not.
+  const [uploaded, setUploaded] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const ingestMutation = useIngestDatasetMutation();
   const runMutation = useRunPrepMutation();
   const statusQuery = useDatasetPrepStatusQuery(runningId || undefined, Boolean(runningId));
+
+  const pickedBytes = picked.reduce((total, entry) => total + entry.file.size, 0);
+
+  // Upload first, then the agent — one continuous readout on the shell's
+  // overlay, because to the user this is one action. Publishing rather than
+  // rendering is the whole point: the overlay is modal, so a panel drawn here
+  // would sit behind it.
+  usePublishForegroundJob(
+    ingestMutation.isPending
+      ? uploadJob(uploaded, picked.length, pickedBytes)
+      : runMutation.isPending
+        ? (prepJob(statusQuery.data) ?? {
+            label: "Orinth is reading your files",
+            percent: null
+          })
+        : null
+  );
 
   function takeFileList(list: FileList | null) {
     setPickError("");
@@ -135,10 +256,15 @@ export function IngestDropCard({ projectId, onCreated }: { projectId: string; on
       // Parallel to `files`, and read positionally by the backend.
       form.append("relative_paths", entry.path);
     }
-    ingestMutation.mutate(form, {
+    // Null, not zero: the bar is indeterminate until the browser reports a
+    // computable length, and a browser that never reports one must keep saying
+    // "running" rather than "0%".
+    setUploaded(null);
+    ingestMutation.mutate({ form, onProgress: setUploaded }, {
       onSuccess: (dataset) => {
         setPicked([]);
         setName("");
+        setUploaded(null);
         setRunningId(dataset.id);
         // Uploading *is* the request to prepare. Landing the user on a dataset
         // with a "now press Prepare" button would just be the old declare-first
@@ -206,15 +332,13 @@ export function IngestDropCard({ projectId, onCreated }: { projectId: string; on
           this is the same readout the Overview tab shows — the transition just
           moves it, rather than restarting the explanation. Upload gets its own
           line because no run exists yet to report on. */}
-      {ingestMutation.isPending && (
-        <p className="form-caption prep-progress-detail">
-          Uploading {picked.length} file{picked.length === 1 ? "" : "s"}…
-        </p>
-      )}
-      {runMutation.isPending && <PrepProgress status={statusQuery.data} />}
-
       {picked.length > 0 && (
         <div className="ingest-review">
+          {/* What was actually chosen, by name. The panel used to report only a
+              count, which cannot distinguish "the folder I meant" from "the
+              folder next to it" — and a folder pick is exactly the gesture where
+              that mistake is easy and invisible. */}
+          <PickedFiles picked={picked} />
           <Field label="Dataset name" hint="optional">
             <input
               className="text-input"
@@ -223,10 +347,6 @@ export function IngestDropCard({ projectId, onCreated }: { projectId: string; on
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
-          <p className="form-caption">
-            {picked.length} file{picked.length === 1 ? "" : "s"} ready
-            {picked[0].path.includes("/") && <> · folder structure preserved</>}
-          </p>
           <div className="action-row">
             {/* One label, because the readout above now says what is happening.
                 A button that narrates and a progress panel that narrates are

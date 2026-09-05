@@ -38,6 +38,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # an interrupted run stays `planning` forever — and the studio polls the
     # catalog every four seconds for as long as it does.
     dataset_prep_service.reconcile_stale_preps()
+    # Directories a previous process renamed aside for deletion but was killed
+    # before it finished unlinking. Nothing reads them; they are only disk.
+    storage.purge_trash()
     export_service.reconcile_stale_exports()
     # A crashed API process cannot leak a llama.cpp server: reap whatever the
     # serving state file still records before serving requests.

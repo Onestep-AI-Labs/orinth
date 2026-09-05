@@ -36,11 +36,46 @@ from app.services.datasets.constants import (
 from app.services.datasets.types import DatasetLocation
 
 
+def eda_sample(paths: list, limit: int) -> tuple[list, int]:
+    """`limit` items spread evenly across `paths`, plus how many were skipped.
+
+    Striding rather than slicing is the whole point. `stanfordnlp/imdb` stores
+    its train split sorted by label — the first half is `neg`, the second `pos` —
+    so a head sample of any size reports one class and a perfectly balanced
+    dataset looks degenerate. Every real ordering (by class, by source file, by
+    date) has the same property, so the sample has to walk the whole split.
+
+    Returns `(sample, sampled_count)` where `sampled_count` is `0` when nothing
+    was skipped, which is how callers say "these numbers are exact".
+    """
+    total = len(paths)
+    if limit <= 0 or total <= limit:
+        return paths, 0
+    stride = total / limit
+    sample = [paths[int(index * stride)] for index in range(limit)]
+    return sample, len(sample)
+
+
 class PreprocessMixin:
     """Preprocess config normalization, image/text transforms, EDA, and prepared roots."""
 
     storage: Storage
 
+    def _eda_limit(self) -> int:
+        return int(getattr(self.settings, "eda_sample_items", 0) or 0)
+
+    @staticmethod
+    def _sampling_warning(sampled: int, total: int) -> list[str]:
+        """Deliberately empty: sampling is not a warning.
+
+        A dataset large enough to be sampled has nothing wrong with it, and
+        putting the notice in `warnings` made a healthy 100,000-row dataset
+        render as a problem. `sampled_items` carries the fact instead, and the
+        studio states it as a caption. Kept as a seam so a future scan that
+        samples for a *bad* reason has somewhere to say so.
+        """
+        del sampled, total
+        return []
 
     def eda_summary(self, dataset_id: str, split: str) -> DatasetEdaSummary:
         splits = list(SPLITS) if split == "all" else [split]
@@ -59,27 +94,33 @@ class PreprocessMixin:
         annotation_count = 0
         unlabeled_count = 0
         missing_annotation_count = 0
-        for split_name in splits:
-            for image_path in self._image_paths(location, split_name):
-                try:
-                    with Image.open(image_path) as image:
-                        width, height = image.size
-                except FileNotFoundError:
-                    # See `_text_eda_summary`: the listing is a snapshot of a
-                    # directory a prep run may be rebuilding underneath it.
-                    continue
-                widths.append(width)
-                heights.append(height)
-                aspect_ratios.append(width / height if height else 0)
-                image_count += 1
-                annotations = self._annotations(location, split_name, image_path, width, height)
-                if not annotations:
-                    unlabeled_count += 1
-                    missing_annotation_count += 1
-                annotation_count += len(annotations)
-                seen_labels = {annotation.class_name for annotation in annotations}
-                for label in seen_labels:
-                    class_counts[label] = class_counts.get(label, 0) + 1
+        split_totals = {name: len(self._image_paths(location, name)) for name in SPLITS}
+        scanned = [
+            (split_name, path)
+            for split_name in splits
+            for path in self._image_paths(location, split_name)
+        ]
+        sample, sampled = eda_sample(scanned, self._eda_limit())
+        for split_name, image_path in sample:
+            try:
+                with Image.open(image_path) as image:
+                    width, height = image.size
+            except FileNotFoundError:
+                # See `_text_eda_summary`: the listing is a snapshot of a
+                # directory a prep run may be rebuilding underneath it.
+                continue
+            widths.append(width)
+            heights.append(height)
+            aspect_ratios.append(width / height if height else 0)
+            image_count += 1
+            annotations = self._annotations(location, split_name, image_path, width, height)
+            if not annotations:
+                unlabeled_count += 1
+                missing_annotation_count += 1
+            annotation_count += len(annotations)
+            seen_labels = {annotation.class_name for annotation in annotations}
+            for label in seen_labels:
+                class_counts[label] = class_counts.get(label, 0) + 1
 
         nonzero_counts = [count for count in class_counts.values() if count > 0]
         warnings = []
@@ -89,16 +130,18 @@ class PreprocessMixin:
             warnings.append("Class distribution is imbalanced")
         if image_count == 0:
             warnings.append("No images found in this split")
+        warnings.extend(self._sampling_warning(sampled, len(scanned)))
 
         return DatasetEdaSummary(
             dataset_id=dataset_id,
             split=split,
-            split_counts={name: len(self._image_paths(location, name)) for name in SPLITS},
+            split_counts=split_totals,
             class_counts=class_counts,
             unlabeled_count=unlabeled_count,
             missing_annotation_count=missing_annotation_count,
             image_count=image_count,
             annotation_count=annotation_count,
+            sampled_items=sampled,
             image_size={
                 "min_width": min(widths) if widths else None,
                 "max_width": max(widths) if widths else None,
@@ -473,26 +516,32 @@ class PreprocessMixin:
         unlabeled_count = 0
         missing_annotation_count = 0
         item_count = 0
-        for split_name in splits:
-            for text_path in self._text_paths(location, split_name):
-                try:
-                    text = text_path.read_text(encoding="utf-8", errors="replace")
-                except FileNotFoundError:
-                    # Listed a moment ago, gone now: a prep run rebuilding the
-                    # splits from staging deleted it between the two. Summarize
-                    # what is still there rather than failing the whole request.
-                    continue
-                lengths.append(len(text))
-                token_counts.append(len(text.split()))
-                item_count += 1
-                annotations = self._annotations(location, split_name, text_path, 0, 0)
-                annotation_count += len(annotations)
-                if not self._is_text_labeled(location.task_type, annotations):
-                    unlabeled_count += 1
-                    missing_annotation_count += 1
-                for annotation in annotations:
-                    if annotation.class_name:
-                        class_counts[annotation.class_name] = class_counts.get(annotation.class_name, 0) + 1
+        split_totals = {name: len(self._text_paths(location, name)) for name in SPLITS}
+        scanned = [
+            (split_name, path)
+            for split_name in splits
+            for path in self._text_paths(location, split_name)
+        ]
+        sample, sampled = eda_sample(scanned, self._eda_limit())
+        for split_name, text_path in sample:
+            try:
+                text = text_path.read_text(encoding="utf-8", errors="replace")
+            except FileNotFoundError:
+                # Listed a moment ago, gone now: a prep run rebuilding the
+                # splits from staging deleted it between the two. Summarize
+                # what is still there rather than failing the whole request.
+                continue
+            lengths.append(len(text))
+            token_counts.append(len(text.split()))
+            item_count += 1
+            annotations = self._annotations(location, split_name, text_path, 0, 0)
+            annotation_count += len(annotations)
+            if not self._is_text_labeled(location.task_type, annotations):
+                unlabeled_count += 1
+                missing_annotation_count += 1
+            for annotation in annotations:
+                if annotation.class_name:
+                    class_counts[annotation.class_name] = class_counts.get(annotation.class_name, 0) + 1
         warnings = []
         if unlabeled_count:
             warnings.append(f"{unlabeled_count} text items are missing task annotations")
@@ -501,10 +550,11 @@ class PreprocessMixin:
             warnings.append("Class distribution is imbalanced")
         if item_count == 0:
             warnings.append("No text items found in this split")
+        warnings.extend(self._sampling_warning(sampled, len(scanned)))
         return DatasetEdaSummary(
             dataset_id=dataset_id,
             split=split,
-            split_counts={name: len(self._text_paths(location, name)) for name in SPLITS},
+            split_counts=split_totals,
             class_counts=class_counts,
             unlabeled_count=unlabeled_count,
             missing_annotation_count=missing_annotation_count,
@@ -512,6 +562,7 @@ class PreprocessMixin:
             text_count=item_count,
             item_count=item_count,
             annotation_count=annotation_count,
+            sampled_items=sampled,
             image_size={},
             aspect_ratio={},
             text_length={

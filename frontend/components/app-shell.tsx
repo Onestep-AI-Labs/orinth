@@ -21,6 +21,7 @@ import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { BRAND_NAME, BRAND_PARENT, BRAND_TAGLINE, LogoMark } from "@/components/brand";
 import { IconButton, Select } from "@/features/platform/ui";
+import { JobProgress, useForegroundJob } from "@/features/platform/foreground-job";
 import { Toaster } from "@/features/platform/toast";
 import { PlatformTour } from "@/features/platform/tour";
 import type { ProjectSummary } from "@/types/api";
@@ -143,11 +144,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * The blocking overlay, and what it is allowed to say.
+ *
+ * "Working" is the fallback, not the design. A mutation that knows how far
+ * through it is publishes a `ForegroundJob` and the overlay renders that
+ * instead — the same bar, counts, and stage ladder the dataset panel shows.
+ * Before this, the overlay covered those readouts: a forty-thousand-row prep
+ * run drew a determinate progress bar *behind* a modal that said one word.
+ */
 function GlobalLoadingOverlay({ loadingModel }: { loadingModel: boolean }) {
+  const job = useForegroundJob();
   return (
-    <div className="global-loading-overlay" role="status" aria-live="polite">
-      <div className="global-loading-panel">
-        {loadingModel ? (
+    // The job readout is its own live region, so the overlay stops being one
+    // when it is showing it — two nested `role="status"` elements announce the
+    // same change twice.
+    <div
+      className="global-loading-overlay"
+      role={job ? undefined : "status"}
+      aria-live={job ? undefined : "polite"}
+    >
+      <div className={`global-loading-panel ${job ? "global-loading-panel-job" : ""}`}>
+        {job ? (
+          <JobProgress job={job} />
+        ) : loadingModel ? (
           <>
             <div className="global-loading-bar">
               <span />

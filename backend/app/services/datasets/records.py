@@ -15,6 +15,7 @@ other mixins composed onto the facade class.
 
 import json
 import re
+from hashlib import sha1
 from pathlib import Path
 from statistics import mean
 from typing import TYPE_CHECKING
@@ -32,6 +33,7 @@ from app.schemas import (
     DatasetRecordUploadResponse,
 )
 from app.services.datasets.constants import CHAT_ROLES, RECORD_SUFFIX, SPLITS
+from app.services.datasets.preprocess import eda_sample
 from app.services.datasets.types import DatasetLocation
 
 # ShareGPT ``from`` speaker → our chat role. A native re-implementation of the
@@ -260,6 +262,7 @@ class RecordsMixin:
             text_preview=input_excerpt,
             output_preview=output_excerpt,
             token_estimate=token_estimate,
+            preview_fields=self._excerpt_fields(location, record),
             width=0,
             height=0,
             annotation_count=0,
@@ -302,12 +305,48 @@ class RecordsMixin:
         instruction = str(record.get("instruction", ""))
         context = str(record.get("input", ""))
         output = str(record.get("output", ""))
+        if not instruction and not output:
+            # An imported or hand-written record need not use those three names.
+            # Reading "—" in every cell of the Records table for a file that
+            # plainly has content is the studio lying about the data; the first
+            # two text-bearing fields are what the row actually holds.
+            instruction, output = self._fallback_excerpts(record)
         return (
             self._excerpt(instruction),
             self._excerpt(output),
             self._estimate_tokens(instruction, context, output),
             [],
         )
+
+    def _excerpt_fields(self, location: DatasetLocation, record: dict) -> list[str]:
+        """The record keys `_record_excerpts` read, so a header can name them.
+
+        Kept beside the excerpt logic and mirroring its branches: a heading that
+        disagrees with the cell under it is worse than no heading.
+        """
+        if location.format == "chat_jsonl":
+            return ["messages", "messages"]
+        if record.get("instruction") or record.get("output"):
+            return ["instruction", "output"]
+        texts = [key for key, value in record.items() if isinstance(value, str) and value.strip()]
+        return texts[:2]
+
+    @staticmethod
+    def _fallback_excerpts(record: dict) -> tuple[str, str]:
+        """The first two fields with text in them, in the record's own order."""
+        texts = [
+            (key, value)
+            for key, value in record.items()
+            if isinstance(value, str) and value.strip()
+        ]
+        if not texts:
+            # Nothing readable as prose — show the whole row rather than nothing,
+            # which is what tells the user their columns are numbers.
+            rendered = json.dumps(record, ensure_ascii=False)
+            return (rendered, "")
+        first = texts[0][1]
+        second = texts[1][1] if len(texts) > 1 else ""
+        return (first, second)
 
     def _excerpt(self, text: str, limit: int = _PREVIEW_LIMIT) -> str:
         compact = " ".join(str(text).split())
@@ -332,26 +371,35 @@ class RecordsMixin:
         item_count = 0
         length_threshold = 2048
 
-        for split_name in splits:
-            for path in self._record_paths(location, split_name):
-                record = self._read_record(path)
-                if record is None:
-                    continue
-                item_count += 1
-                input_excerpt, output_excerpt, tokens, roles = self._record_excerpts(location, record)
-                token_counts.append(tokens)
-                char_counts.append(self._record_char_length(location, record))
-                for role in roles:
-                    role_counts[role] = role_counts.get(role, 0) + 1
-                if not output_excerpt.strip():
-                    empty_output_count += 1
-                if tokens > length_threshold:
-                    over_length_count += 1
-                fingerprint = json.dumps(record, sort_keys=True, ensure_ascii=False)
-                if fingerprint in seen:
-                    duplicate_count += 1
-                else:
-                    seen.add(fingerprint)
+        split_totals = {name: len(self._record_paths(location, name)) for name in SPLITS}
+        scanned = [
+            path for split_name in splits for path in self._record_paths(location, split_name)
+        ]
+        sample, sampled = eda_sample(scanned, self._eda_limit())
+        for path in sample:
+            record = self._read_record(path)
+            if record is None:
+                continue
+            item_count += 1
+            _input_excerpt, output_excerpt, tokens, roles = self._record_excerpts(location, record)
+            token_counts.append(tokens)
+            char_counts.append(self._record_char_length(location, record))
+            for role in roles:
+                role_counts[role] = role_counts.get(role, 0) + 1
+            if not output_excerpt.strip():
+                empty_output_count += 1
+            if tokens > length_threshold:
+                over_length_count += 1
+            # Hashed rather than stored whole: `seen` held a full copy of every
+            # record, so a 100,000-row dataset put the entire dataset in memory
+            # to answer one question about it.
+            fingerprint = sha1(
+                json.dumps(record, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()
+            if fingerprint in seen:
+                duplicate_count += 1
+            else:
+                seen.add(fingerprint)
 
         warnings = []
         if empty_output_count:
@@ -363,10 +411,12 @@ class RecordsMixin:
         if item_count == 0:
             warnings.append("No records found in this split")
 
+        warnings.extend(self._sampling_warning(sampled, len(scanned)))
+
         return DatasetEdaSummary(
             dataset_id=dataset_id,
             split=split,
-            split_counts={name: len(self._record_paths(location, name)) for name in SPLITS},
+            split_counts=split_totals,
             class_counts={},
             unlabeled_count=empty_output_count,
             missing_annotation_count=0,
@@ -384,6 +434,7 @@ class RecordsMixin:
             },
             role_counts=role_counts,
             duplicate_count=duplicate_count,
+            sampled_items=sampled,
             warnings=warnings,
         )
 

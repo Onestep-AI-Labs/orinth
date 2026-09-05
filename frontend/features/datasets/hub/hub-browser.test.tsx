@@ -86,6 +86,39 @@ describe("HubBrowser", () => {
     expect(chip.getAttribute("title")).toContain("Orinth cannot import this");
   });
 
+  it("imports from the row, without a trip through the detail screen", async () => {
+    // The mapped import needed a column mapping and therefore a detail screen.
+    // The as-is import needs neither, so the button belongs on the card.
+    const ingest = vi
+      .spyOn(api, "ingestDatasetHub")
+      .mockResolvedValue({ id: "ds-1" } as never);
+    vi.spyOn(api, "datasetPrepStatus").mockResolvedValue({ state: "ready" } as never);
+
+    renderBrowser();
+    await screen.findByText("rajpurkar/squad");
+
+    fireEvent.change(screen.getByLabelText("Rows to import from rajpurkar/squad"), {
+      target: { value: "25000" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() =>
+      expect(ingest).toHaveBeenCalledWith(
+        expect.objectContaining({ hub_id: "rajpurkar/squad", max_rows: 25000, project_id: "p-1" })
+      )
+    );
+  });
+
+  it("refuses to import a dataset Orinth has no task for", async () => {
+    vi.spyOn(api, "searchDatasetHub").mockResolvedValue({
+      results: [result({ importable: false, modalities: ["audio"] })],
+      error: null
+    } as never);
+    renderBrowser();
+    await screen.findByText("rajpurkar/squad");
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
+  });
+
   it("sends a toggled facet to the Hub rather than filtering the page locally", async () => {
     renderBrowser();
     fireEvent.click(await screen.findByRole("button", { name: "Text" }));

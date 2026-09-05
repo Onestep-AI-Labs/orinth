@@ -12,7 +12,11 @@ import {
   useRunPrepMutation,
   useUndoPrepMutation
 } from "@/features/datasets/prep/prep-hooks";
-import { PrepProgress } from "@/features/datasets/prep/prep-progress";
+import { PrepProgress, prepJob } from "@/features/datasets/prep/prep-progress";
+import {
+  useForegroundJob,
+  usePublishForegroundJob
+} from "@/features/platform/foreground-job";
 import {
   Badge,
   Button,
@@ -104,6 +108,17 @@ export function DatasetOverviewTab({
   // expected next step rather than a redo.
   const ready = readiness.trainable;
 
+  // A run this tab started is blocked behind the shell's overlay, so it is
+  // published there instead of drawn under it. A run this browser did not start
+  // — a Hub import still downloading, or a reload mid-run — raises no mutation
+  // and therefore no overlay, and that is the case the panel below is for.
+  const published = useForegroundJob();
+  usePublishForegroundJob(
+    runMutation.isPending
+      ? (prepJob(statusQuery.data) ?? { label: "Orinth is reading this dataset", percent: null })
+      : null
+  );
+
   const blocking = readiness.checks.filter((check) => check.severity === "blocking");
   const advisories = readiness.checks.filter(
     (check) => check.severity === "advisory" && !check.passed
@@ -124,7 +139,7 @@ export function DatasetOverviewTab({
 
         <p className="form-caption prep-summary">{readiness.summary}</p>
 
-        {running && <PrepProgress status={statusQuery.data} />}
+        {running && !published && <PrepProgress status={statusQuery.data} />}
 
         <div className="prep-actions action-row">
           {ready ? (

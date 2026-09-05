@@ -1,6 +1,6 @@
 import type { DatasetFormat, TaskType } from "@/types/api";
 import type { components } from "@/types/generated/api";
-import { jsonFetch, jsonFetchChecked, query } from "@/lib/api/client";
+import { jsonFetch, jsonFetchChecked, query, uploadFetch } from "@/lib/api/client";
 import { datasetItemPageSchema } from "@/lib/api/schemas";
 
 type DatasetSummary = components["schemas"]["DatasetSummary"];
@@ -26,6 +26,7 @@ type DatasetHubFacets = components["schemas"]["DatasetHubFacets"];
 type DatasetHubPreview = components["schemas"]["DatasetHubPreview"];
 type DatasetHubImportRequest = components["schemas"]["DatasetHubImportRequest"];
 type DatasetHubImportResponse = components["schemas"]["DatasetHubImportResponse"];
+type DatasetHubIngestRequest = components["schemas"]["DatasetHubIngestRequest"];
 
 export const datasetsApi = {
   datasetCatalog: (projectId?: string) =>
@@ -296,13 +297,25 @@ export const datasetsApi = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
+  /**
+   * Import a Hub split as it is: no column mapping, no declared task.
+   *
+   * Returns a draft dataset immediately (202) with the download already
+   * queued — progress comes from `datasetPrepStatus`, the same readout an
+   * uploaded folder gets, because on the server it is the same run.
+   */
+  ingestDatasetHub: (payload: DatasetHubIngestRequest) =>
+    jsonFetch<DatasetSummary>("/datasets/import/hub/as-is", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
 
   // ---- prep agent (phase 21) ----
   // `form` must carry a `relative_paths` entry per file, in the same order as
   // `files`: the directory layout is what detection reads, and a flat list of
   // names looks the same for a YOLO export and a folder of holiday photos.
-  ingestDataset: (form: FormData) =>
-    jsonFetch<DatasetSummary>("/datasets/ingest", { method: "POST", body: form }),
+  ingestDataset: (form: FormData, onProgress?: (fraction: number) => void) =>
+    uploadFetch<DatasetSummary>("/datasets/ingest", form, onProgress),
   ingestIntoDataset: (datasetId: string, form: FormData) =>
     jsonFetch<DatasetSummary>(`/datasets/${datasetId}/ingest`, { method: "POST", body: form }),
   detectDataset: (datasetId: string) =>
