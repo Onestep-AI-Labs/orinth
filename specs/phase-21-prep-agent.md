@@ -789,11 +789,34 @@ the agent as the headline action on finished data is what made a redo look like 
 step.
 
 The studio's four peer tabs become `Overview | Data | Prepare` with a completion dot per tab driven
-by `readiness.checks`. Data itself carries a **Table / Gallery** switch, defaulting to Table: a grid
-is the only view that works for every modality and the only one that answers "what is in here"
-without scrolling, while the gallery and records views remain where the annotation editor and the
-record drawer live. Full replacement is safe because Overview and Prepare *compose* the existing
+by `readiness.checks`. Data itself carries a **Table / Gallery / Annotate** switch
+(`DatasetDataViewTabs`), defaulting to Table: a grid is the only view that works for every modality
+and the only one that answers "what is in here" without scrolling. Gallery is the item wall (the
+record drawer, for `llm_finetune`, where it is labelled **Records**); Annotate is the labelling
+workspace — the item grid with `LabelManager` and `AnnotationEditor` beside it. Annotate was
+originally stacked *under* the gallery in the same view, which is the one part of the phase-21
+restructure that did not hold: it put a second copy of the item grid on the same scroll and pushed
+the editor below the fold of a wall of thumbnails. The three are alternatives a user picks between,
+so they are peers. Full replacement is safe because Overview and Prepare *compose* the existing
 `PreprocessPanel`, `SplitConfigPanel`, and `VersionPanel` rather than reimplementing them.
+
+Annotate is offered for **every** modality, `llm_finetune` included. What changes is the right
+column: `LabelManager` over `AnnotationEditor` for vision and NLP, `DatasetRecordEditor` for records.
+It was briefly hidden for records on the grounds that they carry no regions and no class list — true
+of the *annotation* editor, but it left the one modality made entirely of text without the screen for
+editing text, and sent every record edit through a drawer over a table. Records additionally drop the
+label-filter chips and the bulk-label bar, which would act on a class they do not have. Clicking a
+gallery thumbnail carries the selection into Annotate (`selectDatasetItem(item, true)`), which is the
+navigation the stacked layout had removed.
+
+`DatasetRecordEditor` (`record-editor.tsx`) is the record form extracted from `DatasetRecordsTab` so
+one component serves both homes — the Records drawer and the Annotate panel. Two copies would be two
+sets of rules about which fields survive a save, and the rule that matters is the non-obvious one:
+fields the structured form does not surface (extra columns from an import) are carried through
+untouched, so editing never silently drops data. `record-editor.test.tsx` pins that, the raw-JSON
+round trip, the chat/instruction split, and the create-only split picker. `recordPreviewHeadings`
+moves there too, since naming a record's fields is the record module's job; the Annotate list uses it
+for the same column heads the Records table carries.
 
 The primary action, "Make ready to train", wraps `process_dataset` **only**. `create_version` is
 not chained into it: `prepared_training_root` resolves the live dataset root and never reads

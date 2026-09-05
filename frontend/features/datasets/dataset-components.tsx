@@ -872,6 +872,28 @@ export function DatasetThumb({
 }) {
   const imageUrl = apiAssetUrl(item.image_url);
   const labelText = item.label ?? (item.classes.join(", ") || "Unlabeled");
+  // An llm_finetune record has no image and no class: the two excerpt fields and
+  // its token cost are what there is to see, which is what the Records table
+  // shows too. Without this it fell through to the image branch and drew an
+  // empty thumbnail frame.
+  if (item.media_type === "record") {
+    return (
+      <div className={`record-row ${active ? "record-row-active" : ""}`}>
+        <button className="record-row-main" onClick={onClick} type="button">
+          <span className="record-row-excerpt" title={item.text_preview || item.filename}>
+            {item.text_preview || item.filename}
+          </span>
+          <span className="record-row-excerpt record-row-output" title={item.output_preview || ""}>
+            {item.output_preview || "—"}
+          </span>
+          <span className="record-row-meta">
+            <span className="record-row-split">{item.split}</span>
+            <span className="record-row-tokens">{item.token_estimate} tok</span>
+          </span>
+        </button>
+      </div>
+    );
+  }
   if (item.media_type === "text") {
     return (
       <div className={`text-table-row ${active ? "text-table-row-active" : ""}`}>

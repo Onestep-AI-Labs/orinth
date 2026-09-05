@@ -6978,6 +6978,7 @@ td {
   border-top: 1px solid var(--color-line);
 }
 
+/* Still the body of the recipes review drawer, which builds its own footer. */
 .record-drawer-body {
   flex: 1;
   overflow-y: auto;
@@ -6985,6 +6986,197 @@ td {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* ── The record form, in two homes ──────────────────────────────────────
+   The same component fills the Records drawer and sits inline in the right
+   column of Annotate. Only the horizontal padding differs: the drawer is bare
+   and supplies its own gutter, the Annotate `.panel` already has one. Both
+   scroll the body rather than the page (§8). */
+
+.record-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.record-drawer .record-editor {
+  flex: 1;
+}
+
+/* The editor's head: its title (inline in Annotate) at the left, the raw-JSON
+   toggle at the right. With no title the toggle stays right-aligned, which is
+   where the drawer has always had it. */
+.record-editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 12px;
+}
+
+.record-editor-title {
+  min-width: 0;
+}
+
+/* PanelTitle carries its own bottom margin for the top of a panel; here it is
+   one half of a row. */
+.record-editor-title > div {
+  margin-bottom: 0;
+}
+
+.record-editor-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid var(--color-line);
+}
+
+.record-editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.record-drawer .record-editor-toolbar,
+.record-drawer .record-editor-body,
+.record-drawer .record-editor-footer {
+  padding-inline: 18px;
+}
+
+/* A plain panel that grows with its fields, the same as the vision and NLP
+   annotate panels beside it — the editor is the panel's only child, so it
+   supplies the column rather than a scroll region of its own. */
+.annotate-record-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── The record list in Annotate ────────────────────────────────────────
+   A record has no thumbnail and no class, so the row is what it does have:
+   the two excerpts, its split, and what it costs. The excerpts get two lines
+   each — one ellipsised line made every row of a reasoning dataset open with
+   the same clause and read identical. */
+
+.record-list-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 108px;
+  align-items: end;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 0 14px 8px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink-subtle);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.record-list-head-meta {
+  text-align: right;
+}
+
+.record-item-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  overflow: visible;
+}
+
+.record-row {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.record-row:hover {
+  border-color: var(--color-line-strong);
+}
+
+.record-row-active {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-accent);
+}
+
+.record-row-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 108px;
+  align-items: start;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.record-row-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--color-ink);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* The prompt names the record; the response is the answer to it. */
+.record-row-output {
+  color: var(--color-ink-muted);
+}
+
+.record-row-meta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.record-row-split {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  padding: 1px 8px;
+  color: var(--color-ink-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.record-row-tokens {
+  color: var(--color-ink-subtle);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .record-list-head {
+    display: none;
+  }
+
+  .record-row-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .record-row-meta {
+    justify-items: start;
+    grid-auto-flow: column;
+    justify-content: start;
+    gap: 8px;
+  }
 }
 
 .record-messages {
@@ -7015,12 +7207,6 @@ td {
 }
 
 /* ── LLM record drawer: dynamic fields + raw JSON (phase 10) ── */
-
-.record-drawer-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 .record-fields {
   display: flex;

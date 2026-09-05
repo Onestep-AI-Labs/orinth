@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { Braces, ChevronLeft, ChevronRight, FileJson, LayoutList, Plus, Save, Trash2, Upload, X } from "lucide-react";
-import { toast } from "@/features/platform/toast";
+import { ChevronLeft, ChevronRight, FileJson, Plus, Trash2, Upload, X } from "lucide-react";
 import { SPLIT_FILTERS } from "@/features/platform/constants";
+import { DatasetRecordEditor, recordPreviewHeadings } from "@/features/datasets/record-editor";
 import type {
   useCreateDatasetRecordMutation,
   useDeleteDatasetItemsMutation,
   useSaveDatasetRecordMutation,
   useUploadDatasetRecordsMutation
 } from "@/features/datasets/hooks";
-import { Badge, EmptyState, Field, InlineSpinner, Select } from "@/features/platform/ui";
+import { Badge, EmptyState, InlineSpinner } from "@/features/platform/ui";
 import type {
   DatasetItemDetail,
   DatasetItemPage,
@@ -20,45 +20,6 @@ import type {
   DatasetSummary,
   SplitKey
 } from "@/types/api";
-
-type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
-type InstructionDraft = { instruction: string; input: string; output: string };
-
-const CHAT_ROLE_OPTIONS: ChatMessage["role"][] = ["system", "user", "assistant"];
-
-//: How a record field is titled in the table head. Anything not listed keeps
-//: its own name, because that is what it is called in the file being trained on.
-const FIELD_LABELS: Record<string, string> = {
-  instruction: "Instruction",
-  input: "Input",
-  output: "Output",
-  question: "Question",
-  context: "Context",
-  answer: "Answer",
-  text: "Text",
-  label: "Label",
-  messages: "Messages"
-};
-
-/**
- * The two column headings, taken from the fields the excerpts were actually
- * read from.
- *
- * They used to be the constants "Instruction" and "Output" for every
- * non-chat dataset, whatever the records held. An import carrying
- * `question`/`answer`, or a prepared table carrying `text`/`label`, was
- * therefore shown under headings naming fields it did not have — and where the
- * excerpts were empty, a table of em-dashes under confident headings. The
- * server reports the fields per item (`preview_fields`), so the head names what
- * the body shows.
- */
-function previewHeadings(items: DatasetItemSummary[], isChat: boolean): [string, string] {
-  if (isChat) return ["First user message", "Last assistant message"];
-  const fields = items.find((item) => (item.preview_fields ?? []).length > 0)?.preview_fields ?? [];
-  const label = (field: string | undefined, fallback: string) =>
-    field ? (FIELD_LABELS[field] ?? field) : fallback;
-  return [label(fields[0], "Instruction"), label(fields[1], "Output")];
-}
 
 /**
  * Records tab for `llm_finetune` datasets (phase 10): a paginated table with an
@@ -107,100 +68,22 @@ export function DatasetRecordsTab({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<"create" | "edit">("edit");
-  const [draftSplit, setDraftSplit] = useState<SplitKey>("unassigned");
-  const [instruction, setInstruction] = useState<InstructionDraft>({ instruction: "", input: "", output: "" });
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "user", content: "" },
-    { role: "assistant", content: "" }
-  ]);
-  // Raw-JSON mode lets a record be edited as whatever structure the source
-  // actually has, not just the known instruction/chat fields — imported rows can
-  // carry extra columns, and this keeps the editor honest to the data.
-  const [rawMode, setRawMode] = useState(false);
-  const [rawText, setRawText] = useState("");
-
-  const originalRecord: Record<string, unknown> =
-    mode === "edit" && detailQuery.data?.record ? detailQuery.data.record : {};
-  const knownKeys = isChat ? ["messages"] : ["instruction", "input", "output"];
-  const extraKeys = Object.keys(originalRecord).filter((key) => !knownKeys.includes(key));
-
-  // When an existing record's detail loads, hydrate the drawer from it.
-  useEffect(() => {
-    if (mode !== "edit" || !drawerOpen) return;
-    const record = detailQuery.data?.record;
-    if (!record) return;
-    if (isChat) {
-      const parsed = Array.isArray(record.messages) ? (record.messages as ChatMessage[]) : [];
-      setMessages(parsed.length ? parsed : [{ role: "user", content: "" }]);
-    } else {
-      setInstruction({
-        instruction: String(record.instruction ?? ""),
-        input: String(record.input ?? ""),
-        output: String(record.output ?? "")
-      });
-    }
-  }, [detailQuery.data, drawerOpen, isChat, mode]);
 
   const lastPage = Math.max(0, Math.ceil(itemPage.total / imagesPerPage) - 1);
-  const [firstHeading, secondHeading] = previewHeadings(items, isChat);
+  const [firstHeading, secondHeading] = recordPreviewHeadings(items, isChat);
 
   function openEdit(item: DatasetItemSummary) {
     setMode("edit");
-    setRawMode(false);
     setDrawerOpen(true);
     onSelectItem(item);
   }
 
   function openCreate() {
     setMode("create");
-    setRawMode(false);
     setDrawerOpen(true);
-    setDraftSplit(split === "all" ? "unassigned" : (split as SplitKey));
-    setInstruction({ instruction: "", input: "", output: "" });
-    setMessages([
-      { role: "user", content: "" },
-      { role: "assistant", content: "" }
-    ]);
   }
 
-  function structuredRecord(): Record<string, unknown> {
-    // Carry forward any fields the structured editor doesn't surface (e.g. extra
-    // columns from an imported dataset) so editing never silently drops data.
-    const record: Record<string, unknown> = {};
-    for (const key of extraKeys) record[key] = originalRecord[key];
-    if (isChat) {
-      record.messages = messages.map((message) => ({ role: message.role, content: message.content }));
-    } else {
-      record.instruction = instruction.instruction;
-      record.output = instruction.output;
-      if (instruction.input.trim()) record.input = instruction.input;
-    }
-    return record;
-  }
-
-  function toggleRaw() {
-    if (!rawMode) setRawText(JSON.stringify(structuredRecord(), null, 2));
-    setRawMode((value) => !value);
-  }
-
-  function buildRecord(): Record<string, unknown> | null {
-    if (!rawMode) return structuredRecord();
-    try {
-      const parsed = JSON.parse(rawText);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        toast.error("Record JSON must be an object");
-        return null;
-      }
-      return parsed as Record<string, unknown>;
-    } catch {
-      toast.error("Invalid JSON — check the record body");
-      return null;
-    }
-  }
-
-  function saveDraft() {
-    const record = buildRecord();
-    if (!record) return;
+  function saveDraft(record: Record<string, unknown>, draftSplit: SplitKey) {
     if (mode === "create") {
       createRecordMutation.mutate(
         { datasetId: dataset.id, split: draftSplit, record },
@@ -341,144 +224,20 @@ export function DatasetRecordsTab({
         <div className="record-drawer" role="dialog" aria-label="Edit record">
           <div className="record-drawer-header">
             <strong>{mode === "create" ? "New record" : "Edit record"}</strong>
-            <div className="record-drawer-header-actions">
-              <button
-                className="secondary-button button-sm"
-                onClick={toggleRaw}
-                title={rawMode ? "Structured editor" : "Edit raw JSON"}
-              >
-                {rawMode ? <><LayoutList size={14} /> Structured</> : <><Braces size={14} /> Raw JSON</>}
-              </button>
-              <button className="icon-button" onClick={() => setDrawerOpen(false)} title="Close">
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-          <div className="record-drawer-body">
-            {mode === "edit" && (extraKeys.length > 0 || Object.keys(originalRecord).length > 0) && (
-              <div className="record-fields">
-                <span className="record-fields-label">Fields</span>
-                <div className="record-fields-chips">
-                  {Object.keys(originalRecord).map((key) => (
-                    <span key={key} className={`record-field-chip ${knownKeys.includes(key) ? "" : "record-field-chip-extra"}`}>
-                      {key}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {rawMode ? (
-              <Field label="Record JSON">
-                <textarea
-                  className="record-raw-editor"
-                  value={rawText}
-                  rows={16}
-                  spellCheck={false}
-                  onChange={(event) => setRawText(event.target.value)}
-                  placeholder='{ "instruction": "...", "output": "..." }'
-                />
-              </Field>
-            ) : (
-              <>
-            {mode === "create" && (
-              <Field label="Split">
-                <Select value={draftSplit} onChange={(event) => setDraftSplit(event.target.value as SplitKey)}>
-                  {(["unassigned", "train", "valid", "test"] as SplitKey[]).map((value) => (
-                    <option key={value} value={value}>{value}</option>
-                  ))}
-                </Select>
-              </Field>
-            )}
-            {mode === "edit" && detailQuery.isLoading ? (
-              <InlineSpinner label="Loading record" />
-            ) : isChat ? (
-              <div className="record-messages">
-                {messages.map((message, index) => (
-                  <div className="record-message" key={index}>
-                    <div className="record-message-head">
-                      <Select
-                        value={message.role}
-                        onChange={(event) =>
-                          setMessages((current) =>
-                            current.map((entry, entryIndex) =>
-                              entryIndex === index ? { ...entry, role: event.target.value as ChatMessage["role"] } : entry
-                            )
-                          )
-                        }
-                      >
-                        {CHAT_ROLE_OPTIONS.map((role) => (
-                          <option key={role} value={role}>{role}</option>
-                        ))}
-                      </Select>
-                      <button
-                        className="icon-button"
-                        title="Remove message"
-                        onClick={() => setMessages((current) => current.filter((_entry, entryIndex) => entryIndex !== index))}
-                        disabled={messages.length <= 1}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    <textarea
-                      value={message.content}
-                      rows={3}
-                      onChange={(event) =>
-                        setMessages((current) =>
-                          current.map((entry, entryIndex) =>
-                            entryIndex === index ? { ...entry, content: event.target.value } : entry
-                          )
-                        )
-                      }
-                      placeholder="Message content"
-                    />
-                  </div>
-                ))}
-                <button
-                  className="secondary-button"
-                  onClick={() => setMessages((current) => [...current, { role: "user", content: "" }])}
-                >
-                  <Plus size={15} /> Add message
-                </button>
-              </div>
-            ) : (
-              <>
-                <Field label="Instruction">
-                  <textarea
-                    value={instruction.instruction}
-                    rows={3}
-                    onChange={(event) => setInstruction((current) => ({ ...current, instruction: event.target.value }))}
-                    placeholder="What the model should do"
-                  />
-                </Field>
-                <Field label="Input (optional)">
-                  <textarea
-                    value={instruction.input}
-                    rows={2}
-                    onChange={(event) => setInstruction((current) => ({ ...current, input: event.target.value }))}
-                    placeholder="Optional context"
-                  />
-                </Field>
-                <Field label="Output">
-                  <textarea
-                    value={instruction.output}
-                    rows={4}
-                    onChange={(event) => setInstruction((current) => ({ ...current, output: event.target.value }))}
-                    placeholder="Target response"
-                  />
-                </Field>
-              </>
-            )}
-              </>
-            )}
-          </div>
-          <div className="record-drawer-footer">
-            <button className="primary-button" onClick={saveDraft} disabled={pending}>
-              <Save size={16} /> {mode === "create" ? "Add record" : "Save record"}
-            </button>
-            <button className="secondary-button" onClick={() => setDrawerOpen(false)}>
-              Cancel
+            <button className="icon-button" onClick={() => setDrawerOpen(false)} title="Close">
+              <X size={16} />
             </button>
           </div>
+          <DatasetRecordEditor
+            dataset={dataset}
+            mode={mode}
+            record={detailQuery.data?.record ?? null}
+            loading={detailQuery.isLoading}
+            defaultSplit={split === "all" ? "unassigned" : (split as SplitKey)}
+            pending={pending}
+            onSave={saveDraft}
+            onCancel={() => setDrawerOpen(false)}
+          />
         </div>
       )}
     </section>
