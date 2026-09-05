@@ -134,7 +134,7 @@ export function DatasetAnnotateTab({
   const [promptHeading, outputHeading] = recordPreviewHeadings(items, dataset.format === "chat_jsonl");
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
+    <div className="annotate-split grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
       <section className="panel dataset-work-panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <PanelTitle
