@@ -4,7 +4,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileJson, FileText, ImageIcon, Table2 } from "lucide-react";
+import { FileJson, FileText, ImageIcon } from "lucide-react";
 import { useProject } from "@/components/app-shell";
 import { DatasetAnnotateTab } from "@/features/datasets/annotate-tab";
 import { DatasetCatalogView } from "@/features/datasets/catalog-view";
@@ -12,6 +12,11 @@ import { DatasetConfigTab } from "@/features/datasets/config-tab";
 import { EdaPanel } from "@/features/datasets/dataset-components";
 import { DatasetDetailHeader } from "@/features/datasets/detail-header";
 import { DatasetDataGrid } from "@/features/datasets/data-grid";
+import {
+  DatasetDataViewTabs,
+  resolveDataView,
+  type DatasetDataView
+} from "@/features/datasets/data-view-tabs";
 import { DatasetDetailTabs, type DatasetDetailTab } from "@/features/datasets/detail-tabs";
 import { DatasetOverviewTab } from "@/features/datasets/prep/overview-tab";
 import { DatasetPrepareTab } from "@/features/datasets/prepare-tab";
@@ -64,12 +69,10 @@ export function DatasetPage() {
   const [catalogRenameDatasetId, setCatalogRenameDatasetId] = useState("");
   const [showRename, setShowRename] = useState(false);
   const [detailTab, setDetailTab] = useState<DatasetDetailTab>("overview");
-  // The Data tab shows one dataset two ways. The table is the default because it
-  // is the only view that works for every modality and the only one that answers
-  // "what is in here" without scrolling; the gallery/records view is where the
-  // annotation editor and the record drawer live, and those are still the right
-  // tools for editing one item properly.
-  const [dataView, setDataView] = useState<"table" | "detail">("table");
+  // Table · Gallery · Annotate — see data-view-tabs.tsx for why the three are
+  // peers. The choice outlives a dataset switch on purpose: it is how this user
+  // prefers to work, not a fact about the dataset.
+  const [dataView, setDataView] = useState<DatasetDataView>("table");
   const [split, setSplit] = useState<DatasetSplitFilter>("all");
   const [imagePage, setImagePage] = useState(0);
   const [imagesPerPage, setImagesPerPage] = useState(50);
@@ -304,9 +307,12 @@ export function DatasetPage() {
   function selectDatasetItem(item: DatasetItemSummary, openAnnotate = false) {
     setSelectedItemId(item.id);
     setSelectedItemSplit(item.split);
-    // Annotating is no longer a separate tab; the editor sits beside the grid in
-    // Data, so selecting an item is already all the navigation there is.
-    if (openAnnotate) setDetailTab("data");
+    // A gallery thumbnail is the way into the editor: clicking one carries the
+    // selection over to Annotate rather than only highlighting it in place.
+    if (openAnnotate) {
+      setDetailTab("data");
+      setDataView("annotate");
+    }
   }
 
   function confirmDeleteDataset(dataset: DatasetSummary) {
@@ -363,6 +369,8 @@ export function DatasetPage() {
       />
     );
   }
+
+  const activeDataView = resolveDataView(dataView, selectedDatasetIsLlm);
 
   const sharedTabProps = {
     dataset: selectedDataset,
@@ -423,50 +431,45 @@ export function DatasetPage() {
         <DatasetOverviewTab dataset={selectedDataset} onGoToData={() => setDetailTab("data")} />
       ) : detailTab === "data" ? (
         <div className="space-y-5">
-          <div className="segmented-control" role="tablist" aria-label="Data view">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={dataView === "table"}
-              className={dataView === "table" ? "segmented-active" : ""}
-              onClick={() => setDataView("table")}
-            >
-              <Table2 size={15} /> Table
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={dataView === "detail"}
-              className={dataView === "detail" ? "segmented-active" : ""}
-              onClick={() => setDataView("detail")}
-            >
-              <ItemIcon size={15} /> {selectedDatasetIsLlm ? "Records" : "Gallery"}
-            </button>
-          </div>
-          {dataView === "table" ? (
-            <DatasetDataGrid dataset={selectedDataset} />
-          ) : selectedDatasetIsLlm ? (
-          <DatasetRecordsTab
-            dataset={selectedDataset}
-            items={items}
-            itemsQuery={itemsQuery}
-            itemPage={itemPage}
-            split={split}
-            setSplit={setSplit}
-            imagesPerPage={imagesPerPage}
-            imagePage={imagePage}
-            setImagePage={setImagePage}
-            detailQuery={detailQuery}
-            onSelectItem={selectDatasetItem}
-            selectedItemId={selectedItemId}
-            createRecordMutation={createRecordMutation}
-            saveRecordMutation={saveRecordMutation}
-            uploadRecordsMutation={uploadRecordsMutation}
-            deleteItemsMutation={deleteItemsMutation}
-            confirm={confirm}
+          <DatasetDataViewTabs
+            itemIcon={ItemIcon}
+            isLlm={selectedDatasetIsLlm}
+            activeView={activeDataView}
+            setView={setDataView}
           />
-        ) : (
-          <div className="space-y-5">
+          {activeDataView === "table" ? (
+            <DatasetDataGrid dataset={selectedDataset} />
+          ) : activeDataView === "annotate" ? (
+            <DatasetAnnotateTab
+              {...sharedTabProps}
+              bulkClassId={bulkClassId}
+              setBulkClassId={setBulkClassId}
+              bulkLabelMutation={bulkLabelMutation}
+              catalogQuery={catalogQuery}
+              detailQuery={detailQuery}
+              edaQuery={edaQuery}
+            />
+          ) : selectedDatasetIsLlm ? (
+            <DatasetRecordsTab
+              dataset={selectedDataset}
+              items={items}
+              itemsQuery={itemsQuery}
+              itemPage={itemPage}
+              split={split}
+              setSplit={setSplit}
+              imagesPerPage={imagesPerPage}
+              imagePage={imagePage}
+              setImagePage={setImagePage}
+              detailQuery={detailQuery}
+              onSelectItem={selectDatasetItem}
+              selectedItemId={selectedItemId}
+              createRecordMutation={createRecordMutation}
+              saveRecordMutation={saveRecordMutation}
+              uploadRecordsMutation={uploadRecordsMutation}
+              deleteItemsMutation={deleteItemsMutation}
+              confirm={confirm}
+            />
+          ) : (
             <DatasetImagesTab
               {...sharedTabProps}
               uploadFiles={uploadFiles}
@@ -483,19 +486,6 @@ export function DatasetPage() {
               setBulkClassId={setBulkClassId}
               bulkLabelMutation={bulkLabelMutation}
             />
-            {/* Labelling used to be its own tab showing a second copy of the same
-                grid. It is the same work on the same items, so it belongs under
-                the items: the editor appears once something is selected. */}
-            <DatasetAnnotateTab
-              {...sharedTabProps}
-              bulkClassId={bulkClassId}
-              setBulkClassId={setBulkClassId}
-              bulkLabelMutation={bulkLabelMutation}
-              catalogQuery={catalogQuery}
-              detailQuery={detailQuery}
-              edaQuery={edaQuery}
-            />
-          </div>
           )}
         </div>
       ) : (

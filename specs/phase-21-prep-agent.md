@@ -789,11 +789,23 @@ the agent as the headline action on finished data is what made a redo look like 
 step.
 
 The studio's four peer tabs become `Overview | Data | Prepare` with a completion dot per tab driven
-by `readiness.checks`. Data itself carries a **Table / Gallery** switch, defaulting to Table: a grid
-is the only view that works for every modality and the only one that answers "what is in here"
-without scrolling, while the gallery and records views remain where the annotation editor and the
-record drawer live. Full replacement is safe because Overview and Prepare *compose* the existing
+by `readiness.checks`. Data itself carries a **Table / Gallery / Annotate** switch
+(`DatasetDataViewTabs`), defaulting to Table: a grid is the only view that works for every modality
+and the only one that answers "what is in here" without scrolling. Gallery is the item wall (the
+record drawer, for `llm_finetune`, where it is labelled **Records**); Annotate is the labelling
+workspace — the item grid with `LabelManager` and `AnnotationEditor` beside it. Annotate was
+originally stacked *under* the gallery in the same view, which is the one part of the phase-21
+restructure that did not hold: it put a second copy of the item grid on the same scroll and pushed
+the editor below the fold of a wall of thumbnails. The three are alternatives a user picks between,
+so they are peers. Full replacement is safe because Overview and Prepare *compose* the existing
 `PreprocessPanel`, `SplitConfigPanel`, and `VersionPanel` rather than reimplementing them.
+
+Annotate is **hidden**, not disabled, on an `llm_finetune` dataset — its records carry no regions and
+no class list, so there is nothing for the editor to edit. `resolveDataView` derives the rendered
+view rather than an effect resetting it, because a dataset switch renders once with the previous
+selection still in state and that render must not reach for a segment the new dataset lacks.
+Clicking a gallery thumbnail carries the selection into Annotate (`selectDatasetItem(item, true)`),
+which is the navigation the stacked layout had removed.
 
 The primary action, "Make ready to train", wraps `process_dataset` **only**. `create_version` is
 not chained into it: `prepared_training_root` resolves the live dataset root and never reads
