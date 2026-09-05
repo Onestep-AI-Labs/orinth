@@ -24,21 +24,10 @@ function viewsFor(isLlm: boolean, itemIcon: LucideIcon): View[] {
   return [
     { key: "table", label: "Table", icon: Table2 },
     { key: "gallery", label: isLlm ? "Records" : "Gallery", icon: itemIcon },
-    // Hidden, not disabled, on an llm_finetune dataset: its records carry no
-    // regions and no class list, so there is nothing for the editor to edit and
-    // a dead segment would only misdescribe what exists.
-    ...(isLlm ? [] : [{ key: "annotate" as const, label: "Annotate", icon: Tags }])
+    // Every modality gets Annotate, `llm_finetune` included: what changes is
+    // what the editor on the right is. See annotate-tab.tsx.
+    { key: "annotate", label: "Annotate", icon: Tags }
   ];
-}
-
-/**
- * Falls back to Table when the selected view does not exist for this dataset.
- * Derived rather than reset in an effect: a dataset switch renders once with
- * the previous view still selected, and that render must not reach for a
- * segment this dataset does not have.
- */
-export function resolveDataView(view: DatasetDataView, isLlm: boolean): DatasetDataView {
-  return isLlm && view === "annotate" ? "table" : view;
 }
 
 export function DatasetDataViewTabs({

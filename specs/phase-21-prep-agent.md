@@ -800,12 +800,23 @@ the editor below the fold of a wall of thumbnails. The three are alternatives a 
 so they are peers. Full replacement is safe because Overview and Prepare *compose* the existing
 `PreprocessPanel`, `SplitConfigPanel`, and `VersionPanel` rather than reimplementing them.
 
-Annotate is **hidden**, not disabled, on an `llm_finetune` dataset — its records carry no regions and
-no class list, so there is nothing for the editor to edit. `resolveDataView` derives the rendered
-view rather than an effect resetting it, because a dataset switch renders once with the previous
-selection still in state and that render must not reach for a segment the new dataset lacks.
-Clicking a gallery thumbnail carries the selection into Annotate (`selectDatasetItem(item, true)`),
-which is the navigation the stacked layout had removed.
+Annotate is offered for **every** modality, `llm_finetune` included. What changes is the right
+column: `LabelManager` over `AnnotationEditor` for vision and NLP, `DatasetRecordEditor` for records.
+It was briefly hidden for records on the grounds that they carry no regions and no class list — true
+of the *annotation* editor, but it left the one modality made entirely of text without the screen for
+editing text, and sent every record edit through a drawer over a table. Records additionally drop the
+label-filter chips and the bulk-label bar, which would act on a class they do not have. Clicking a
+gallery thumbnail carries the selection into Annotate (`selectDatasetItem(item, true)`), which is the
+navigation the stacked layout had removed.
+
+`DatasetRecordEditor` (`record-editor.tsx`) is the record form extracted from `DatasetRecordsTab` so
+one component serves both homes — the Records drawer and the Annotate panel. Two copies would be two
+sets of rules about which fields survive a save, and the rule that matters is the non-obvious one:
+fields the structured form does not surface (extra columns from an import) are carried through
+untouched, so editing never silently drops data. `record-editor.test.tsx` pins that, the raw-JSON
+round trip, the chat/instruction split, and the create-only split picker. `recordPreviewHeadings`
+moves there too, since naming a record's fields is the record module's job; the Annotate list uses it
+for the same column heads the Records table carries.
 
 The primary action, "Make ready to train", wraps `process_dataset` **only**. `create_version` is
 not chained into it: `prepared_training_root` resolves the live dataset root and never reads

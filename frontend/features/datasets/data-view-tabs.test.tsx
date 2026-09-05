@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ImageIcon } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
-import { DatasetDataViewTabs, resolveDataView } from "@/features/datasets/data-view-tabs";
+import { DatasetDataViewTabs } from "@/features/datasets/data-view-tabs";
 
 function renderTabs(overrides: Partial<Parameters<typeof DatasetDataViewTabs>[0]> = {}) {
   const setView = vi.fn();
@@ -24,10 +24,12 @@ describe("DatasetDataViewTabs", () => {
     expect(labels).toEqual(["Table", "Gallery", "Annotate"]);
   });
 
-  it("calls the gallery Records for llm_finetune datasets and drops Annotate", () => {
+  it("calls the gallery Records for llm_finetune datasets, keeping all three", () => {
+    // Records are the one modality made entirely of text, so Annotate is the
+    // view they need most; what changes is the editor, not the segment row.
     renderTabs({ isLlm: true });
     const labels = screen.getAllByRole("tab").map((tab) => tab.textContent?.trim());
-    expect(labels).toEqual(["Table", "Records"]);
+    expect(labels).toEqual(["Table", "Records", "Annotate"]);
   });
 
   it("marks the active view", () => {
@@ -40,18 +42,5 @@ describe("DatasetDataViewTabs", () => {
     const { setView } = renderTabs();
     fireEvent.click(screen.getByText("Annotate"));
     expect(setView).toHaveBeenCalledWith("annotate");
-  });
-});
-
-describe("resolveDataView", () => {
-  it("keeps a view the dataset has", () => {
-    expect(resolveDataView("annotate", false)).toBe("annotate");
-    expect(resolveDataView("gallery", true)).toBe("gallery");
-  });
-
-  it("falls back to Table when the dataset has no Annotate segment", () => {
-    // Carrying Annotate into an llm_finetune dataset would render an editor for
-    // records that have nothing to annotate.
-    expect(resolveDataView("annotate", true)).toBe("table");
   });
 });

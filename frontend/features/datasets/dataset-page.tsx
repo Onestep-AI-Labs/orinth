@@ -12,11 +12,7 @@ import { DatasetConfigTab } from "@/features/datasets/config-tab";
 import { EdaPanel } from "@/features/datasets/dataset-components";
 import { DatasetDetailHeader } from "@/features/datasets/detail-header";
 import { DatasetDataGrid } from "@/features/datasets/data-grid";
-import {
-  DatasetDataViewTabs,
-  resolveDataView,
-  type DatasetDataView
-} from "@/features/datasets/data-view-tabs";
+import { DatasetDataViewTabs, type DatasetDataView } from "@/features/datasets/data-view-tabs";
 import { DatasetDetailTabs, type DatasetDetailTab } from "@/features/datasets/detail-tabs";
 import { DatasetOverviewTab } from "@/features/datasets/prep/overview-tab";
 import { DatasetPrepareTab } from "@/features/datasets/prepare-tab";
@@ -370,8 +366,6 @@ export function DatasetPage() {
     );
   }
 
-  const activeDataView = resolveDataView(dataView, selectedDatasetIsLlm);
-
   const sharedTabProps = {
     dataset: selectedDataset,
     itemIcon: ItemIcon,
@@ -434,12 +428,12 @@ export function DatasetPage() {
           <DatasetDataViewTabs
             itemIcon={ItemIcon}
             isLlm={selectedDatasetIsLlm}
-            activeView={activeDataView}
+            activeView={dataView}
             setView={setDataView}
           />
-          {activeDataView === "table" ? (
+          {dataView === "table" ? (
             <DatasetDataGrid dataset={selectedDataset} />
-          ) : activeDataView === "annotate" ? (
+          ) : dataView === "annotate" ? (
             <DatasetAnnotateTab
               {...sharedTabProps}
               bulkClassId={bulkClassId}
@@ -448,6 +442,8 @@ export function DatasetPage() {
               catalogQuery={catalogQuery}
               detailQuery={detailQuery}
               edaQuery={edaQuery}
+              isLlm={selectedDatasetIsLlm}
+              saveRecordMutation={saveRecordMutation}
             />
           ) : selectedDatasetIsLlm ? (
             <DatasetRecordsTab
