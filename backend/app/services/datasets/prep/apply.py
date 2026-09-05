@@ -19,6 +19,7 @@ pre-apply manifest is snapshotted to `prep_undo.json` before anything moves, and
 import json
 import re
 import shutil
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -49,14 +50,49 @@ from app.services.datasets.prep.staging import (
 if TYPE_CHECKING:  # pragma: no cover
     from app.services.datasets.service import DatasetService
 
-#: Rows ingested from any one tabular or record source.
-#:
-#: The platform stores one file per item — plus an annotation sidecar and a label
-#: file for text — so a 41,000-row CSV is 123,000 file creations and takes long
-#: enough that an upload looks hung. The hub importer caps at 5,000 for the same
-#: reason; this is more generous because the file is already local, but it is
-#: still a bound. Hitting it is reported, never silent.
-MAX_INGEST_ROWS = 20_000
+#: Reported through `DatasetPrepStatus.processed` / `.total` so the studio can
+#: draw a determinate bar. `(processed, total, detail)`; the detail is the
+#: sentence shown above the bar, so it names the unit being counted. The
+#: optional `band` narrows which slice of the caller's bar this pass owns.
+Progress = Callable[..., None]
+
+
+def _noop_progress(processed: int, total: int, detail: str, band: Any = None) -> None:
+    del processed, total, detail, band
+
+
+#: Apply is two counted passes over the same items — write them, then place them
+#: into splits — and each counts to its own 100%. Writing is the heavier of the
+#: two (a file plus a sidecar per item, against one rename), so it owns the
+#: larger share of the bar. Without the split the bar would reach 100%, reset,
+#: and climb again.
+_WRITE_BAND = (0.0, 0.6)
+_SPLIT_BAND = (0.6, 1.0)
+
+
+def _band(note: Progress, band: tuple[float, float]) -> Progress:
+    """`note`, reporting into one slice of the bar and keeping its counts."""
+
+    def scaled(processed: int, total: int, detail: str) -> None:
+        note(processed, total, detail, band=band)
+
+    return scaled
+
+
+def _row_limit(service: "DatasetService") -> int | None:
+    """The ingest bound, or `None` for "write every row".
+
+    There used to be a hard 20,000-row ceiling here, on the reasoning that one
+    file per item makes a 41,000-row CSV 123,000 file creations. That is true and
+    it is still slow — but truncating is the wrong answer to slow. A user who
+    uploads 41,000 rows and is silently given 20,000 has a dataset that does not
+    match their data, and the warning explaining it arrives after the import.
+    So the default is now no cap, the work reports its progress row by row
+    (`Progress` above), and `PREP_MAX_INGEST_ROWS` is there for a deployment that
+    genuinely needs a ceiling.
+    """
+    cap = int(getattr(service.settings, "prep_max_ingest_rows", 0) or 0)
+    return cap if cap > 0 else None
 
 
 class PrepApplyError(RuntimeError):
@@ -64,13 +100,21 @@ class PrepApplyError(RuntimeError):
 
 
 def apply_plan(
-    service: "DatasetService", dataset_id: str, plan: DatasetPrepPlan
+    service: "DatasetService",
+    dataset_id: str,
+    plan: DatasetPrepPlan,
+    on_progress: Progress | None = None,
 ) -> DatasetSummary:
     """Rewrite the dataset to match `plan`, then split it.
 
     Raises `PrepApplyError` when the plan is incomplete — an unlabelled image
     folder, say, where only a human can supply the classes.
+
+    `on_progress` is called as items land. This is the stage worth reporting:
+    detection and planning are seconds, while writing 40,000 items is minutes,
+    and it is the one a user is most likely to conclude has hung.
     """
+    note = on_progress or _noop_progress
     if plan.needs_input:
         raise PrepApplyError(plan.needs_input)
     if not plan.task_type or not plan.format:
@@ -102,13 +146,16 @@ def apply_plan(
     service._update_manifest(location, task_type=task, format=fmt, labels=labels)
     location = service._location(dataset_id)
 
-    moved = _move_staged(service, location, plan)
+    moved = _move_staged(service, location, plan, _band(note, _WRITE_BAND))
 
     # Preprocessing rides the manifest; `process_dataset` persists it alongside
-    # the split config in one write.
+    # the split config in one write. It is the slowest pass on a large upload —
+    # one rename per item — so it reports its own count rather than leaving the
+    # readout frozen on the last one.
     service.process_dataset(
         dataset_id,
         DatasetProcessRequest(preprocess=plan.preprocess, split=plan.split),
+        _band(note, _SPLIT_BAND),
     )
 
     location = service._location(dataset_id)
@@ -177,7 +224,7 @@ def _snapshot(root: Path) -> None:
 
 
 def _move_staged(
-    service: "DatasetService", location: Any, plan: DatasetPrepPlan
+    service: "DatasetService", location: Any, plan: DatasetPrepPlan, note: Progress
 ) -> dict[str, int]:
     """Place raw files where the runners expect them.
 
@@ -193,11 +240,11 @@ def _move_staged(
 
     task = str(plan.task_type)
     if task in IMAGE_TASK_TYPES:
-        return _move_images(service, location, staging, plan)
+        return _move_images(service, location, staging, plan, note)
     if task in LLM_TASK_TYPES:
-        return _move_records(service, location, staging, plan)
+        return _move_records(service, location, staging, plan, note)
     if task in NLP_TASK_TYPES:
-        return _move_text(service, location, staging, plan)
+        return _move_text(service, location, staging, plan, note)
     return {}
 
 
@@ -235,7 +282,8 @@ def _existing_splits(staging: Path) -> list[str]:
 
 
 def _move_images(
-    service: "DatasetService", location: Any, staging: Path, plan: DatasetPrepPlan
+    service: "DatasetService", location: Any, staging: Path, plan: DatasetPrepPlan,
+    note: Progress,
 ) -> dict[str, int]:
     labels = list(plan.labels)
     label_index = {label: index for index, label in enumerate(labels)}
@@ -245,9 +293,12 @@ def _move_images(
     # the whole upload rather than per directory.
     coco = _coco_index(staging, label_index)
 
-    for path in staged_files(location.root):
-        if path.suffix.lower() not in IMAGE_SUFFIXES:
-            continue
+    images = [
+        path for path in staged_files(location.root) if path.suffix.lower() in IMAGE_SUFFIXES
+    ]
+    total = len(images)
+    for done, path in enumerate(images):
+        note(done, total, f"Copying image {done + 1:,} of {total:,}")
         relative = path.relative_to(staging)
         split = _split_for_path(relative, declared)
         label = _label_for_path(relative, label_index)
@@ -271,6 +322,7 @@ def _move_images(
         _copy_yolo_label(staging, relative, location.root / split / "labels" / f"{target.stem}.txt")
         moved[split] = moved.get(split, 0) + 1
 
+    note(total, total, f"Copied {total:,} image{'' if total == 1 else 's'}")
     return moved
 
 
@@ -325,19 +377,18 @@ def _label_for_path(relative: Path, label_index: dict[str, int]) -> str | None:
 
 
 def _move_records(
-    service: "DatasetService", location: Any, staging: Path, plan: DatasetPrepPlan
+    service: "DatasetService", location: Any, staging: Path, plan: DatasetPrepPlan,
+    note: Progress,
 ) -> dict[str, int]:
     """Flatten every staged JSONL/JSON/CSV into the record inbox."""
     written = 0
-    truncated: dict[str, int] = {}
-    for path, _ in _sources(location.root, staging):
-        if path.suffix.lower() not in _ROW_SUFFIXES:
-            continue
-        rows = _read_rows(path, limit=None)
-        if len(rows) > MAX_INGEST_ROWS:
-            truncated[path.name] = len(rows)
-            rows = rows[:MAX_INGEST_ROWS]
+    sources = _row_sources(service, location.root, staging, plan)
+    total = sum(len(rows) for _path, _relative, rows in sources)
+    seen = 0
+    for _path, _relative, rows in sources:
         for raw_row in rows:
+            seen += 1
+            note(seen, total, f"Writing record {seen:,} of {total:,}")
             row = _as_trainable_record(raw_row, plan)
             if row is None:
                 continue
@@ -351,52 +402,84 @@ def _move_records(
                 continue
             written += 1
     if written:
+        note(total, total, f"Indexing {written:,} records")
         service._regenerate_all_records_jsonl(location)
-    _record_truncation(plan, truncated)
     return {"unassigned": written}
 
 
 def _move_text(
-    service: "DatasetService", location: Any, staging: Path, plan: DatasetPrepPlan
+    service: "DatasetService", location: Any, staging: Path, plan: DatasetPrepPlan,
+    note: Progress,
 ) -> dict[str, int]:
     """Write text items plus the annotation that carries their supervision."""
     mapping = plan.field_mapping
     declared = _existing_splits(staging)
     moved: dict[str, int] = {}
-    truncated: dict[str, int] = {}
 
-    for path, relative in _sources(location.root, staging):
-        suffix = path.suffix.lower()
-        split = _split_for_path(relative, declared)
+    documents = [
+        (path, relative)
+        for path, relative in _sources(location.root, staging)
+        if path.suffix.lower() == ".txt"
+    ]
+    tables = _row_sources(service, location.root, staging, plan)
+    total = len(documents) + sum(len(rows) for _path, _relative, rows in tables)
+    seen = 0
 
-        if suffix == ".txt":
-            text = _read_text(path)
-            if text is None:
-                continue
-            annotation = _text_annotation_from_sidecar(
-                staging, relative, plan
-            ) or _annotation_from_folder(relative, plan)
-            service._write_text_item(location, split, path.name, text, annotation)
-            moved[split] = moved.get(split, 0) + 1
+    for path, relative in documents:
+        seen += 1
+        note(seen, total, f"Writing text item {seen:,} of {total:,}")
+        text = _read_text(path)
+        if text is None:
             continue
+        split = _split_for_path(relative, declared)
+        annotation = _text_annotation_from_sidecar(
+            staging, relative, plan
+        ) or _annotation_from_folder(relative, plan)
+        service._write_text_item(location, split, path.name, text, annotation)
+        moved[split] = moved.get(split, 0) + 1
 
-        if suffix in {".csv", ".tsv", ".jsonl", ".json", ".parquet"}:
-            rows = _read_rows(path, limit=None)
-            if len(rows) > MAX_INGEST_ROWS:
-                truncated[path.name] = len(rows)
-                rows = rows[:MAX_INGEST_ROWS]
-            for index, row in enumerate(rows):
-                text = _row_text(row, mapping)
-                if not text:
-                    continue
-                annotation = _row_annotation(row, plan)
-                service._write_text_item(
-                    location, split, f"{path.stem}-{index}.txt", text, annotation
-                )
-                moved[split] = moved.get(split, 0) + 1
+    for path, relative, rows in tables:
+        split = _split_for_path(relative, declared)
+        for index, row in enumerate(rows):
+            seen += 1
+            note(seen, total, f"Writing text item {seen:,} of {total:,}")
+            text = _row_text(row, mapping)
+            if not text:
+                continue
+            annotation = _row_annotation(row, plan)
+            service._write_text_item(
+                location, split, f"{path.stem}-{index}.txt", text, annotation
+            )
+            moved[split] = moved.get(split, 0) + 1
 
-    _record_truncation(plan, truncated)
     return moved
+
+
+def _row_sources(
+    service: "DatasetService", root: Path, staging: Path, plan: DatasetPrepPlan
+) -> list[tuple[Path, Path, list[dict]]]:
+    """Every staged row file, read in full, with the ingest bound applied.
+
+    Read up front rather than file-by-file inside the write loop so the progress
+    denominator is the real row count from the first tick — a bar whose total
+    grows as it fills is not a bar. `_read_rows` already materializes a whole
+    file, so the extra cost is holding the *other* files at the same time, and
+    the shape that dominates in practice is one large table.
+    """
+    limit = _row_limit(service)
+    sources: list[tuple[Path, Path, list[dict]]] = []
+    for path, relative in _sources(root, staging):
+        if path.suffix.lower() not in _ROW_SUFFIXES:
+            continue
+        rows = _read_rows(path, limit=None)
+        if limit is not None and len(rows) > limit:
+            plan.warnings.append(
+                f"`{path.name}` holds {len(rows):,} rows; the first {limit:,} were "
+                "imported, because PREP_MAX_INGEST_ROWS is set."
+            )
+            rows = rows[:limit]
+        sources.append((path, relative, rows))
+    return sources
 
 
 def _read_text(path: Path) -> str | None:
@@ -632,12 +715,3 @@ def parse_transcript(text: str) -> list[dict]:
     while messages and messages[-1]["role"] != "assistant":
         messages.pop()
     return messages if len(messages) >= 2 else []
-
-
-def _record_truncation(plan: DatasetPrepPlan, truncated: dict[str, int]) -> None:
-    """Say so when a source was larger than the ingest bound."""
-    for name, total in truncated.items():
-        plan.warnings.append(
-            f"`{name}` holds {total:,} rows; the first {MAX_INGEST_ROWS:,} were imported. "
-            "Split the file and upload the rest to add more."
-        )

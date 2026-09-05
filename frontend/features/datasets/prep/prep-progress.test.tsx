@@ -56,4 +56,28 @@ describe("PrepProgress", () => {
     render(<PrepProgress status={status()} />);
     expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
   });
+
+  it("draws a determinate bar with the run's percentage", () => {
+    render(<PrepProgress status={status({ progress: 0.42 })} />);
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "42");
+    expect(screen.getByText("42%")).toBeInTheDocument();
+  });
+
+  it("shows the stage's own counts beside the bar", () => {
+    // A percentage cannot be checked against anything; "8,412 of 41,003" can,
+    // and it is what tells the user the run is moving rather than hung.
+    render(
+      <PrepProgress
+        status={status({ state: "applying", step: "applying", processed: 8412, total: 41003 })}
+      />
+    );
+    expect(screen.getByText("8,412 of 41,003")).toBeInTheDocument();
+  });
+
+  it("still draws a bar when the server reports no fraction", () => {
+    render(<PrepProgress status={status({ progress: null })} />);
+    const bar = screen.getByRole("progressbar");
+    expect(bar).toBeInTheDocument();
+    expect(bar).not.toHaveAttribute("aria-valuenow");
+  });
 });

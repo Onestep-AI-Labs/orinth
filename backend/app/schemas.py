@@ -563,6 +563,14 @@ class DatasetPrepStatus(BaseModel):
     detail: str = ""
     #: 0..1 where the stage sequence gives a meaningful fraction, else None.
     progress: float | None = None
+    #: Units finished and expected *within the current step* — files copied,
+    #: rows written, images downloaded. A percentage on its own cannot be
+    #: checked against anything; "8,412 of 41,003 rows" can, and it is the
+    #: difference between a bar that is believed and one that is watched.
+    #: Both zero means this step cannot count itself, and the bar falls back to
+    #: `progress` alone.
+    processed: int = 0
+    total: int = 0
 
 
 class DatasetSummary(BaseModel):
@@ -855,6 +863,12 @@ class DatasetItemSummary(BaseModel):
     # Records table never loads a tokenizer.
     output_preview: str | None = None
     token_estimate: int = 0
+    #: Which record fields the two excerpts above were taken from, in order.
+    #: The Records table used to head them "Instruction" and "Output" whatever
+    #: the record held, so an imported dataset of `question`/`answer` — or of
+    #: any other column names — was shown under headings that named fields it
+    #: did not have. Empty for non-record items.
+    preview_fields: list[str] = Field(default_factory=list)
     width: int = 0
     height: int = 0
     annotation_count: int
@@ -1034,6 +1048,14 @@ class DatasetEdaSummary(BaseModel):
     # counts surfaced as warnings. Empty for image/text datasets.
     role_counts: dict[str, int] = Field(default_factory=dict)
     duplicate_count: int = 0
+    #: Items actually opened to build this summary. `0` means every item in the
+    #: split was read and the numbers are exact. Anything else means the scan was
+    #: sampled — a 100,000-row dataset is 200,000 file reads, which is minutes
+    #: inside one request and is what used to hang the connection. The sample is
+    #: taken with a stride across the split rather than off the head, because a
+    #: dataset sorted by its label (`stanfordnlp/imdb` is) would otherwise report
+    #: one class and nothing else.
+    sampled_items: int = 0
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -1265,6 +1287,31 @@ class DatasetHubImportResponse(BaseModel):
     imported_rows: int = 0
     skipped_rows: int = 0
     warnings: list[str] = Field(default_factory=list)
+
+
+class DatasetHubIngestRequest(BaseModel):
+    """Download a Hub dataset *as it is* and let the prep agent read it.
+
+    The mapped import above turns Hub columns into LLM fine-tuning records and
+    is the right tool when that is what you want. It is also the only tool there
+    was, which made every image, classification, and summarization dataset on
+    the Hub "browse only" — a filter that returns things you cannot use.
+
+    This path declares nothing. Rows land in the draft's `_staging/` in the shape
+    the Hub served them (a JSONL file, or a folder of images named by class) and
+    the phase-21 agent decides what they are, exactly as it does for an upload.
+    So there is one place that knows how to read a dataset, and the Hub is just
+    another way files arrive.
+    """
+
+    project_id: str = DEFAULT_PROJECT_ID
+    hub_id: str = Field(min_length=1, max_length=200)
+    config: str | None = None
+    split: str | None = None
+    name: str | None = Field(default=None, max_length=120)
+    #: Rows pulled from the split. Higher than the mapped importer's cap because
+    #: nothing is held in memory per row here — each row is streamed to disk.
+    max_rows: int = Field(default=5000, ge=1, le=100_000)
 
 
 # --- Phase 11: Data Recipes ------------------------------------------------

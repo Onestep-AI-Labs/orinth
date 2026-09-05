@@ -25,6 +25,7 @@ import shutil
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
+from time import monotonic
 from typing import TYPE_CHECKING, BinaryIO
 
 from app.core.config import Settings
@@ -68,6 +69,15 @@ DRAFT_FORMAT = "image_folder"
 #: request can fill the disk.
 MAX_STAGED_BYTES = 512 * 1024 * 1024
 _COPY_CHUNK = 1024 * 1024
+
+#: Seconds between progress writes inside a counting stage. Fast enough that the
+#: bar moves visibly, slow enough that reporting is not the bottleneck: the
+#: frontend polls every 1.5s, so anything under that is written and never read.
+_TICK_SECONDS = 0.4
+
+#: Where `applying` starts on the 0..1 bar. Detect, plan, and transform own
+#: everything below it.
+_APPLY_FLOOR = 0.70
 
 
 # --- progress wording ---------------------------------------------------------
@@ -282,6 +292,7 @@ class DatasetPrepService:
             "These columns are not training examples yet — reshaping them",
             0.55,
         )
+        cap = int(getattr(self.settings, "prep_max_ingest_rows", 0) or 0)
         return refine_with_transform(
             plan,
             detection,
@@ -289,6 +300,7 @@ class DatasetPrepService:
             api_key=api_key,
             model=model,
             allowed_task_types=allowed_task_types,
+            max_rows=cap or None,
         )
 
     def _llm_config(self) -> tuple[str | None, str | None]:
@@ -311,34 +323,51 @@ class DatasetPrepService:
 
     # ---- apply ---------------------------------------------------------
 
-    def apply(self, dataset_id: str, plan: DatasetPrepPlan) -> DatasetSummary:
-        return apply_module.apply_plan(self.datasets, dataset_id, plan)
+    def apply(
+        self,
+        dataset_id: str,
+        plan: DatasetPrepPlan,
+        on_progress: "Callable[[int, int, str], None] | None" = None,
+    ) -> DatasetSummary:
+        return apply_module.apply_plan(self.datasets, dataset_id, plan, on_progress)
 
     def run(
-        self, dataset_id: str, *, allowed_task_types: list[str] | None = None, auto_apply: bool = True
+        self,
+        dataset_id: str,
+        *,
+        allowed_task_types: list[str] | None = None,
+        auto_apply: bool = True,
+        progress_floor: float = 0.0,
     ) -> tuple[DatasetSummary, DatasetPrepPlan]:
         """The whole agent in one call.
 
         `auto_apply=False` stops after planning, leaving the dataset a draft.
         That is the review-gate variant, kept one flag away rather than one
         rewrite away.
+
+        `progress_floor` is for a caller that already moved the bar before the
+        agent started — the Hub ingest spends its first band downloading — so the
+        readout never jumps backwards at the hand-off.
         """
         location = self.datasets._location(dataset_id)
         allowed = allowed_task_types
+
+        def scale(value: float) -> float:
+            return progress_floor + (1.0 - progress_floor) * value
 
         # `detecting` and `planning` are both read-only over `_staging/`, so the
         # dataset stays exactly as trainable as it was — readiness reports them
         # through `busy` rather than as a state. Only the `applying` write below
         # blocks a verdict.
         def note(step: str, detail: str, progress: float) -> None:
-            self._step(dataset_id, "planning", step, detail, progress)
+            self._step(dataset_id, "planning", step, detail, scale(progress))
 
         self._set_state(
             dataset_id,
             "planning",
             step="detecting",
             detail="Reading the files you uploaded",
-            progress=0.05,
+            progress=scale(0.05),
         )
         try:
             plan = self.plan_for(dataset_id, allowed_task_types=allowed, on_step=note)
@@ -369,10 +398,16 @@ class DatasetPrepService:
             plan=plan,
             step="applying",
             detail=_applying_detail(plan),
-            progress=0.70,
+            progress=scale(_APPLY_FLOOR),
         )
         try:
-            summary = self.apply(dataset_id, plan)
+            summary = self.apply(
+                dataset_id,
+                plan,
+                self.ticker(
+                    dataset_id, "applying", "applying", floor=scale(_APPLY_FLOOR)
+                ),
+            )
         except Exception:
             self._set_state(
                 dataset_id,
@@ -512,12 +547,19 @@ class DatasetPrepService:
         step: str | None = None,
         detail: str | None = None,
         progress: float | None = None,
+        processed: int | None = None,
+        total: int | None = None,
+        count_staged: bool = True,
     ) -> None:
         location = self.datasets._location(dataset_id)
         metadata = dict(location.metadata or {})
         prep = dict(metadata.get("prep") or {})
         prep["state"] = state
-        prep["staged_files"] = staged_count(location.root)
+        # Counting staged files walks the whole staging tree. That is fine once
+        # per stage and ruinous once per row, so a tick inside a stage keeps the
+        # count it already had.
+        if count_staged:
+            prep["staged_files"] = staged_count(location.root)
         prep["updated_at"] = datetime.now(UTC).replace(tzinfo=None).isoformat()
         # Whatever went wrong last time is not what is happening now.
         prep.pop("error", None)
@@ -527,13 +569,26 @@ class DatasetPrepService:
             prep["detail"] = detail
         if progress is not None:
             prep["progress"] = progress
+        # A stage that cannot count itself clears the pair rather than leaving
+        # the previous stage's numbers under a new sentence.
+        prep["processed"] = int(processed or 0)
+        prep["total"] = int(total or 0)
         if plan is not None:
             prep["plan"] = plan.model_dump(mode="json")
         metadata["prep"] = prep
         self.datasets._update_manifest(location, metadata=metadata)
 
     def _step(
-        self, dataset_id: str, state: str, step: str, detail: str, progress: float
+        self,
+        dataset_id: str,
+        state: str,
+        step: str,
+        detail: str,
+        progress: float,
+        *,
+        processed: int | None = None,
+        total: int | None = None,
+        count_staged: bool = True,
     ) -> None:
         """Record one stage transition, and never let recording it kill the run.
 
@@ -543,10 +598,72 @@ class DatasetPrepService:
         """
         try:
             self._set_state(
-                dataset_id, state, step=step, detail=detail, progress=progress
+                dataset_id,
+                state,
+                step=step,
+                detail=detail,
+                progress=progress,
+                processed=processed,
+                total=total,
+                count_staged=count_staged,
             )
         except Exception:  # noqa: BLE001 - progress is advisory, never fatal
             pass
+
+    def ticker(
+        self,
+        dataset_id: str,
+        state: str,
+        step: str,
+        *,
+        floor: float = _APPLY_FLOOR,
+        ceiling: float = 1.0,
+    ) -> "Callable[[int, int, str], None]":
+        """A throttled `(processed, total, detail)` sink for a counting stage.
+
+        Every tick is a manifest read, a JSON dump, and a write. At one per row
+        that is three disk operations per record and it dominates the work being
+        reported on, so ticks are rate-limited to one every `_TICK_SECONDS` —
+        with the final one always written, because a bar that stops at 97% is
+        the bug this exists to fix.
+
+        `floor`/`ceiling` are the slice of the overall bar this stage owns, so a
+        stage that counts to a hundred percent of *itself* still only moves the
+        run's bar through its own band and never sends it backwards.
+        """
+        last = [0.0]
+
+        def tick(
+            processed: int,
+            total: int,
+            detail: str,
+            band: "tuple[float, float]" = (0.0, 1.0),
+        ) -> None:
+            now = monotonic()
+            done = total > 0 and processed >= total
+            if not done and now - last[0] < _TICK_SECONDS:
+                return
+            last[0] = now
+            fraction = (processed / total) if total else 0.0
+            # `band` is a sub-range of this ticker's own range, for a stage made
+            # of several counted passes. Each pass counts to its own 100% — the
+            # counts have to stay honest, they are checked against the source —
+            # so the *bar* is what gets divided up, and it only ever moves
+            # forward across the passes.
+            lower, upper = band
+            position = lower + (upper - lower) * min(1.0, max(0.0, fraction))
+            self._step(
+                dataset_id,
+                state,
+                step,
+                detail,
+                floor + (ceiling - floor) * position,
+                processed=processed,
+                total=total,
+                count_staged=False,
+            )
+
+        return tick
 
     def stored_plan(self, dataset_id: str) -> DatasetPrepPlan | None:
         """The plan last applied or proposed, read back off the manifest."""

@@ -10,6 +10,7 @@ import {
   type HubFilters
 } from "@/features/datasets/hub/hub-hooks";
 import { HubDatasetDetail } from "@/features/datasets/hub/hub-detail";
+import { useIngestHubDatasetMutation } from "@/features/datasets/prep/prep-hooks";
 import { Badge, EmptyState, InlineSpinner, Select } from "@/features/platform/ui";
 import type {
   DatasetHubFacetOption,
@@ -105,72 +106,126 @@ function FacetGroup({
   );
 }
 
+//: Rows an inline import takes, smallest first. Import reads from the start of
+//: the split, so these are "how much of it do you want" rather than a sample
+//: size — and the list stops where `DatasetHubIngestRequest.max_rows` does.
+const ROW_CHOICES = [1_000, 5_000, 25_000, 100_000];
+
 function ResultCard({
   result,
   hints,
-  onOpen
+  onOpen,
+  onImport,
+  importing
 }: {
   result: DatasetHubSearchResult;
   hints: Map<string, string>;
   onOpen: () => void;
+  onImport: (maxRows: number) => void;
+  importing: boolean;
 }) {
+  const [maxRows, setMaxRows] = useState(ROW_CHOICES[1]);
   const meta: string[] = [];
   const updated = relativeDate(result.updated_at);
   if (updated) meta.push(`Updated ${updated}`);
   if (result.size_category) meta.push(result.size_category);
 
   return (
-    <button type="button" className="hub-card" onClick={onOpen}>
-      <div className="hub-card-head">
-        <Database size={14} aria-hidden="true" />
-        <strong title={result.hub_id}>{result.hub_id}</strong>
-      </div>
+    // An `<article>` holding a button, not a button wrapping everything. The
+    // card carries its own import control now, and a button inside a button is
+    // invalid markup that browsers resolve by dropping one of them.
+    <article className="hub-card">
+      <button type="button" className="hub-card-open" onClick={onOpen}>
+        <div className="hub-card-head">
+          <Database size={14} aria-hidden="true" />
+          <strong title={result.hub_id}>{result.hub_id}</strong>
+        </div>
 
-      <div className="hub-card-badges">
-        {/* `has_viewer` is the difference between a dataset you can inspect
-            before importing and one you must take on trust. Saying so on the
-            card beats letting the user click through to find out. */}
-        {result.has_viewer && (
-          <Badge tone="neutral" title="The Hub can render sample rows, so a preview is available.">
-            <Table2 size={11} /> Viewer
-          </Badge>
-        )}
-        {result.gated && (
-          <Badge tone="warn" title="Accept this dataset's licence on huggingface.co and add a token in Settings before importing.">
-            Gated
-          </Badge>
-        )}
-        {!result.importable && (
-          <Badge tone="info" title="Orinth imports Hub datasets as text records. This one's modality is not text, so it can be browsed but not imported.">
-            Browse only
-          </Badge>
-        )}
-        {result.modalities.slice(0, 2).map((value) => (
-          <Badge key={value} tone="neutral" title={hints.get(`modality:${value}`) ?? value}>
-            {value}
-          </Badge>
-        ))}
-        {result.formats.slice(0, 2).map((value) => (
-          <Badge key={value} tone="neutral" title={hints.get(`format:${value}`) ?? value}>
-            {value}
-          </Badge>
-        ))}
-      </div>
+        <div className="hub-card-badges">
+          {/* `has_viewer` is the difference between a dataset you can inspect
+              before importing and one you must take on trust. Saying so on the
+              card beats letting the user click through to find out. */}
+          {result.has_viewer && (
+            <Badge tone="neutral" title="The Hub can render sample rows, so a preview is available.">
+              <Table2 size={11} /> Viewer
+            </Badge>
+          )}
+          {result.gated && (
+            <Badge tone="warn" title="Accept this dataset's licence on huggingface.co and add a token in Settings before importing.">
+              Gated
+            </Badge>
+          )}
+          {!result.importable && (
+            <Badge tone="info" title="Orinth has no task for this dataset's modality yet — audio, video and 3D can be browsed here but not imported.">
+              Browse only
+            </Badge>
+          )}
+          {result.modalities.slice(0, 2).map((value) => (
+            <Badge key={value} tone="neutral" title={hints.get(`modality:${value}`) ?? value}>
+              {value}
+            </Badge>
+          ))}
+          {result.formats.slice(0, 2).map((value) => (
+            <Badge key={value} tone="neutral" title={hints.get(`format:${value}`) ?? value}>
+              {value}
+            </Badge>
+          ))}
+        </div>
 
-      {result.summary && <p className="hub-card-summary">{result.summary}</p>}
+        {result.summary && <p className="hub-card-summary">{result.summary}</p>}
 
-      <div className="hub-card-meta">
-        {meta.map((entry) => (
-          <span key={entry}>{entry}</span>
-        ))}
-        <span title={`${result.downloads.toLocaleString()} downloads`}>
-          <Download size={12} /> {formatCount(result.downloads)}
-        </span>
-        <span title={`${result.likes.toLocaleString()} likes`}>
-          <Heart size={12} /> {formatCount(result.likes)}
-        </span>
+        <div className="hub-card-meta">
+          {meta.map((entry) => (
+            <span key={entry}>{entry}</span>
+          ))}
+          <span title={`${result.downloads.toLocaleString()} downloads`}>
+            <Download size={12} /> {formatCount(result.downloads)}
+          </span>
+          <span title={`${result.likes.toLocaleString()} likes`}>
+            <Heart size={12} /> {formatCount(result.likes)}
+          </span>
+        </div>
+      </button>
+
+      {/* Import from the row, not from a detail screen two clicks away. Most
+          imports need no column mapping at all — the agent works the shape out
+          from the data — so the only decision left is how many rows, and it
+          belongs beside the button that acts on it. */}
+      <div className="hub-card-import">
+        <Select
+          value={maxRows}
+          onChange={(event) => setMaxRows(Number(event.target.value))}
+          aria-label={`Rows to import from ${result.hub_id}`}
+          title="Import reads from the start of the split."
+          disabled={!result.importable || importing}
+        >
+          {ROW_CHOICES.map((value) => (
+            <option key={value} value={value}>
+              {value.toLocaleString()} rows
+            </option>
+          ))}
+        </Select>
+        <button
+          type="button"
+          className="secondary-button button-sm"
+          onClick={() => onImport(maxRows)}
+          disabled={!result.importable || importing}
+          title={
+            result.importable
+              ? "Download this dataset as it is. Orinth works out what it is and prepares it."
+              : "Orinth has no task for this dataset's modality yet."
+          }
+        >
+          {importing ? (
+            <InlineSpinner label="Importing" />
+          ) : (
+            <>
+              <Download size={14} /> Import
+            </>
+          )}
+        </button>
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -195,6 +250,30 @@ export function HubBrowser({
   const facetsQuery = useHubFacetsQuery();
   const searchQuery = useHubSearchQuery(filters);
   const facets = facetsQuery.data;
+  //: Which card's Import was pressed. One at a time: the run is queued on the
+  //: prep executor and a second click before the first lands would create a
+  //: duplicate draft rather than a second dataset the user wanted.
+  const [importingId, setImportingId] = useState("");
+  const ingestMutation = useIngestHubDatasetMutation((datasetId) => {
+    setImportingId("");
+    onImported();
+    openDataset(datasetId);
+  });
+
+  function importAsIs(result: DatasetHubSearchResult, maxRows: number) {
+    setImportingId(result.hub_id);
+    ingestMutation.mutate(
+      {
+        project_id: projectId,
+        hub_id: result.hub_id,
+        config: null,
+        split: null,
+        name: null,
+        max_rows: maxRows
+      },
+      { onError: () => setImportingId("") }
+    );
+  }
 
   // One lookup for every `prefix:value` hint, so a badge on a card and the chip
   // in the rail show the same sentence.
@@ -404,6 +483,8 @@ export function HubBrowser({
                     result={result}
                     hints={hints}
                     onOpen={() => setSelected(result)}
+                    onImport={(maxRows) => importAsIs(result, maxRows)}
+                    importing={importingId === result.hub_id}
                   />
                 ))}
               </div>

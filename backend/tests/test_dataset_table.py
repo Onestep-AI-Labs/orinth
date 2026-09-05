@@ -173,3 +173,68 @@ def test_the_grid_reads_the_same_task_type_the_catalog_shows(
 
     assert summary.task_type == "text_classification"
     assert [column.key for column in page.columns] == ["split", "text", "label"]
+
+
+# --- record columns come from the records --------------------------------------
+
+
+def test_a_field_the_derived_columns_do_not_show_gets_its_own_column():
+    """`input` was invisible on every instruction dataset that used it: the grid
+    had exactly two record columns whatever the records held."""
+    columns = table.columns_for(
+        task_type="llm_finetune",
+        format="instruction_jsonl",
+        record_fields=["instruction", "input", "output"],
+    )
+    assert [column.key for column in columns] == [
+        "split",
+        "prompt",
+        "response",
+        "field:input",
+        "tokens",
+    ]
+    assert [column.label for column in columns][3] == "Input"
+
+
+def test_an_unknown_field_keeps_the_name_the_record_gives_it():
+    columns = table.columns_for(
+        task_type="llm_finetune", format="instruction_jsonl", record_fields=["sentence1"]
+    )
+    assert [column.label for column in columns if column.key == "field:sentence1"] == ["sentence1"]
+
+
+def test_a_chat_record_keeps_its_readable_turns_rather_than_a_json_blob():
+    """`messages` is already shown as first-user / last-assistant turns. Adding a
+    column for the raw list would replace two readable cells with one blob."""
+    columns = table.columns_for(
+        task_type="llm_finetune", format="chat_jsonl", record_fields=["messages"]
+    )
+    assert [column.key for column in columns] == ["split", "prompt", "response", "tokens"]
+
+
+def test_the_page_takes_the_union_of_the_fields_its_records_carry():
+    """A record dataset is not required to be uniform, so reading only the first
+    row's keys would hide a column that appears on row two."""
+    page = table.page_for(
+        [item(id="r1.json", media_type="record"), item(id="r2.json", media_type="record")],
+        task_type="llm_finetune",
+        format="instruction_jsonl",
+        total=2,
+        limit=50,
+        offset=0,
+        records={
+            "r1.json": {"instruction": "a", "output": "b"},
+            "r2.json": {"instruction": "a", "output": "b", "source": "hub"},
+        },
+    )
+    assert [column.key for column in page.columns] == [
+        "split",
+        "prompt",
+        "response",
+        "field:source",
+        "tokens",
+    ]
+    # Only the fields that got a column are sent; emitting the rest would double
+    # a fifty-row page over the wire to render nothing.
+    assert "field:instruction" not in page.rows[0].cells
+    assert page.rows[1].cells["field:source"] == "hub"

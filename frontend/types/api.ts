@@ -123,6 +123,7 @@ export type DatasetHubPreview = components["schemas"]["DatasetHubPreview"];
 export type DatasetHubColumnMapping = components["schemas"]["DatasetHubColumnMapping"];
 export type DatasetHubImportRequest = components["schemas"]["DatasetHubImportRequest"];
 export type DatasetHubImportResponse = components["schemas"]["DatasetHubImportResponse"];
+export type DatasetHubIngestRequest = components["schemas"]["DatasetHubIngestRequest"];
 export type DatasetOrigin = "created" | "imported_hf" | "recipe";
 
 // Phase 11: data recipes.

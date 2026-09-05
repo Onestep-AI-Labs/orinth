@@ -142,8 +142,16 @@ Fixes found by testing against Kaggle and Hugging Face:
     it is parsed into chat turns and the rejected side dropped — the standard way these become SFT
     data.
 11. **Large sources had no bound.** The platform stores one file per item plus sidecars, so a
-    41,000-row CSV is ~123,000 file creations and an upload that looks hung. Ingest is capped at
-    `MAX_INGEST_ROWS` (20,000) per source and says so in the plan warnings.
+    41,000-row CSV is ~123,000 file creations and an upload that looks hung. Ingest was capped at
+    20,000 rows per source, with a warning after the fact.
+    **Revised.** Truncating is the wrong answer to slow: a user who uploads 41,000 rows and is
+    silently given 20,000 has a dataset that does not match their file, and the explanation arrives
+    after the import. The default is now every row; the ceiling is opt-in through
+    `PREP_MAX_INGEST_ROWS` (`0` = no cap) and, when set, is still reported in the plan warnings.
+    `prep/transform.py` reads the same setting, so the transform and apply stages can never disagree
+    about how many rows the dataset has. What replaced the cap is measurement: the apply stage
+    reports `processed`/`total` per row (see Progress), so a long run reads as a moving bar instead
+    of a hang.
 12. **Splitting was quadratic.** `_move_item` resolves each item through `_item_path`, which
     re-listed and re-sorted the entire split directory on every call — so splitting *n* items cost
     *n* full directory scans. Uploading a few files at a time never exposed it; the agent ingests
@@ -425,6 +433,104 @@ like classification, checking"). The client polls `/prep/status`, which is a sin
 polling `GET /datasets/{id}` instead would walk every split on every tick, which is seconds on a
 large dataset and lands on the same thread pool the run is using.
 
+**The bar is determinate, and it counts.** `DatasetPrepStatus` also carries `processed` and `total`
+— units finished and expected *inside the current stage*: files copied, rows written, images
+downloaded. A percentage on its own cannot be checked against anything; "8,412 of 41,003 rows" can,
+and it is what lets a user tell a slow run from a hung one and confirm the denominator matches the
+folder they chose. Both zero means the stage cannot count itself, and the readout falls back to
+`progress` alone.
+
+`DatasetPrepService.ticker(state, step, floor=, ceiling=)` is the sink a counting stage writes to.
+It throttles to one manifest write every 0.4s — at one per row the reporting would dominate the
+work being reported on — while always writing the final tick, because a bar that stops at 97% is
+the bug the bar exists to fix. `floor`/`ceiling` are the slice of the overall 0..1 that the stage
+owns, so a stage counting to 100% *of itself* still only moves the run's bar through its own band.
+`apply` owns 0.70..1.0, and is itself two counted passes — write the items, then
+place them into splits — so it takes a per-call `band`: each pass counts to its
+own 100% (the counts are checked against the source and must stay honest) while
+the bar is divided between them. Without that the bar reached 100%, reset, and
+climbed again. `test_the_bar_never_travels_backwards_across_a_run` pins it.
+
+`run(progress_floor=)` scales every fraction the agent reports into `[floor, 1.0]`, for a caller
+that already moved the bar before the agent started. The Hub's as-is import is that caller: its
+download owns 0.00..0.35 and the agent picks up from there, so the readout never jumps backwards at
+the hand-off.
+
+Upload progress is the client's own, not the server's. `fetch` cannot report how much of a request
+body has been sent, so `uploadFetch` in `lib/api/client.ts` is the one `XMLHttpRequest` in the app —
+a folder upload is minutes of a single request, and bytes sent is the only honest readout during it.
+Where the browser will not report a computable length the bar renders indeterminate rather than
+sitting at zero.
+
+**The bar goes on the overlay, not under it.** `AppShell` raises a full-screen blocking overlay for
+any in-flight mutation and put the single word "Working" on it. That made the whole readout above
+invisible in the case it was built for: a prep run drew a determinate bar, a stage ladder, and a row
+count *behind* a modal that said one word. So `features/platform/foreground-job.tsx` adds a
+`ForegroundJob` channel — a label, a percentage, a count, a stage list, and no notion of datasets —
+that a long mutation publishes into and the overlay renders. The shell must not have to know what
+kind of work it is narrating, so the mapping from `DatasetPrepStatus` to a job lives beside the prep
+surfaces (`prepJob` in `prep-progress.tsx`) and the rendering is one shared `JobProgress`.
+
+A module-level store rather than a context, because the publisher is a leaf inside a route and the
+consumer is the shell that renders it. Publishing clears on unmount: a surface that navigates away
+mid-run would otherwise leave the overlay frozen on its last frame.
+
+The in-page `PrepProgress` panel is still there and is *not* a duplicate — it renders only when no
+job is published, which is exactly the case the overlay cannot cover: a run this browser did not
+start. A Hub import still downloading, or a reload mid-run, raises no mutation and therefore no
+overlay, and the Overview tab is then the only place the run is visible.
+
+### Cost at a hundred thousand items
+
+Removing the ingest cap made every read that was O(items) a real problem, and
+they were reported as one bug: a 100,000-row CSV imported, and then the studio
+returned `socket hang up` and an internal server error. Measured on that dataset
+(300,004 files on disk):
+
+| read | before | after |
+| --- | ---: | ---: |
+| `GET /datasets` | 23.5s | 5.3s |
+| `GET /datasets/{id}` | 18.9s | 0.9s |
+| `GET /datasets/{id}/readiness` | 17.8s | 1.6s |
+| `GET /datasets/{id}/eda?split=all` | *connection reset* | 3.3s |
+| `DELETE /datasets/{id}` | minutes | 0.011s |
+
+Four changes, each removing a different O(items) read:
+
+**EDA samples.** `eda_summary` opened every item and its annotation sidecar —
+200,000 reads for one panel. EDA is a *distribution*, and a distribution does not
+need every row, so past `EDA_SAMPLE_ITEMS` (4,000) the scan strides across the
+split and `DatasetEdaSummary.sampled_items` says how many it read. Striding, not
+slicing: a split sorted by label would otherwise report one class. Split totals
+stay exact — they are directory listings — and the studio states the sampling as
+a caption rather than a warning, because a dataset large enough to be sampled has
+nothing wrong with it.
+
+**`_split_summary` bounds its annotation scan.** It opened one sidecar per item,
+four times per dataset, for every dataset on every catalog list. The only
+consumer of `annotation_count` is `readiness_for`, which asks `> 0` and never the
+value, and no surface displays it — so past `_ANNOTATION_SCAN_LIMIT` (2,000) it
+reports what it found in the prefix it read. Small datasets are unaffected and
+their exact counts still hold, which is what the sample-dataset tests assert.
+
+**`_item_count` counts without building paths.** `_item_paths` allocates a `Path`
+per entry and sorts the result; the catalog needs neither, and at a hundred
+thousand items it cost about a second per split. `os.scandir` answers the same
+question off the directory entries.
+
+**Delete renames and unlinks in the background.** `shutil.rmtree` over 300,000
+files is minutes — long enough that the request times out and the user is told a
+deletion failed while it is still running. `Storage.discard_owned_path` renames
+the directory to `.trash-<hex>` (one atomic operation) and unlinks it on a daemon
+thread; `_locations` skips dot-directories by name, because `pathlib.glob`
+matches them even though the shell does not. `purge_trash` sweeps at startup what
+a killed process left behind.
+
+**Splitting also stopped reading files it did not need.** `process_dataset` built
+a full `DatasetItemDetail` per candidate — the text plus its annotation sidecar —
+purely to read `item.label`, which only a *stratified* split uses. It now takes
+the light stub unless `stratify` is set.
+
 ### Browsing prepared data
 
 `GET /datasets/{id}/table` returns the dataset as columns and rows — one shape for every modality,
@@ -440,6 +546,21 @@ grid shows a row the trainer skipped. Paging does not need it: `list_items_page`
 from the file paths and opens only that window. Whole-dataset sort and filter is what is deferred,
 and when a dataset is large enough for it to matter the index belongs beside the splits as a
 derived artifact with an explicit rebuild, not smuggled in under a browse endpoint.
+
+**Record columns come from the records.** A record dataset's grid showed exactly two columns,
+`Instruction` and `Output`, whatever the records held — so `input` was invisible on every
+instruction dataset that used it, and any other field a record carried had nowhere to appear.
+`table_page` now reads the page's records (one small JSON per row, for the fifty rows already on
+screen — the same files `list_items_page` just opened) and passes them to `page_for`, which adds a
+column for every field the derived `prompt`/`response` pair does not already show. The derived
+columns stay: "first user turn" is a better cell than a JSON blob of the whole conversation.
+`table.py` is still pure — the records are passed in, not read there.
+
+The Records tab heads its two excerpt columns from `DatasetItemSummary.preview_fields`, which names
+the record keys the excerpts were actually taken from. `_record_excerpts` also gained a fallback:
+a record with neither `instruction` nor `output` shows its first two text-bearing fields instead of
+two em-dashes, and `preview_fields` reports which ones, so the head never names a field the body
+does not have.
 
 Only cells with a real write route behind them are `editable`: the label
 (`PATCH …/items/{split}/{id}/label`) and the split (`POST …/items/move`). `editable` is decided on

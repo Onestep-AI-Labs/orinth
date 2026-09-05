@@ -8,6 +8,24 @@ provenance) and the frontend (sectioned catalog, hub import panel, Records tab
 with role-aware edit drawer, LLM-aware EDA) are in place with backend tests. Two
 scope adjustments from the draft are recorded under Deferred.
 
+**Revised (as-is import).** Hub import produced exactly one thing —
+`llm_finetune` records from a hand-mapped pair of columns — which made every
+image, classification and summarization dataset on the Hub "browse only". A
+second path, `POST /api/datasets/import/hub/as-is`, now downloads a split in the
+shape the Hub served it. Import moved onto the result card with a row-count
+selector beside it, because with no mapping to fill in there is nothing left to
+open a detail screen for. See "As-is import" below.
+
+**Revised again (downloading is not preparing).** The as-is path originally
+handed straight off to the phase-21 agent, and that was wrong in a way only
+using it showed: a Hub dataset is under no obligation to be shaped like
+something Orinth trains, so a download that worked perfectly reported itself as
+a failure whenever the agent could not name a task. Import now ends at
+*downloaded* — the dataset is in the workspace, browsable, readable from a
+notebook — and preparing is the button the Overview tab already had. Files
+dropped into the workspace still auto-prepare; there the user has already said
+what they have by handing over its structure.
+
 **Revised (phase 21 follow-up).** The import panel was a search box over a flat
 list of ids — a lookup tool that works only when you already know the dataset's
 name. It is now a faceted browser shaped like huggingface.co: `hub/facets`
@@ -29,14 +47,15 @@ Reorganize the dataset catalog into a dynamic, sectioned hub that distinguishes 
 In:
 
 - Sectioned dataset catalog: Project datasets / Imported from HuggingFace / Shared samples.
-- HuggingFace Hub search, preview, and import for text-task datasets.
+- HuggingFace Hub search, preview, and import. Two import paths: the mapped one
+  (columns → `llm_finetune` records) and the as-is one (download unchanged, let
+  the prep agent decide the task).
 - New task type `llm_finetune` and dataset formats `instruction_jsonl` and `chat_jsonl`.
 - Records tab (viewer + editor) and LLM EDA for `llm_finetune` datasets.
 - Manifest `origin` / `origin_ref` provenance fields.
 
 Out:
 
-- Image dataset import from the HuggingFace Hub (deferred; text datasets only in this phase).
 - Document-to-dataset generation (phase 11).
 - Any training behavior for `llm_finetune` datasets (phase 14).
 - DB schema changes — datasets remain filesystem-only; no Alembic migration in this phase.
@@ -46,11 +65,13 @@ Out:
 - `GET /api/datasets/hub/facets` — the browse vocabulary, with a hint per term
 - `GET /api/datasets/hub/search?query=&task=&limit=&modality=&format=&size=&task_category=&sort=`
 - `GET /api/datasets/hub/preview?hub_id=&config=&split=&limit=`
-- `POST /api/datasets/import/hub`
+- `POST /api/datasets/import/hub` — mapped import, synchronous, returns the dataset
+- `POST /api/datasets/import/hub/as-is` — as-is import, 202, returns the draft while
+  the download and prep run continue on the prep executor
 - Existing `GET /api/datasets` — summaries gain an `origin` field.
 - Existing dataset item routes (`GET/POST /api/datasets/{id}/items`, item detail, delete, move) work unchanged for `llm_finetune` records.
 - New item text route reuse: `GET /api/datasets/{id}/items/{split}/{item_id}/text` returns the raw record JSON for `llm_finetune` items.
-- Schemas: `DatasetHubSearchResult`, `DatasetHubPreview`, `DatasetHubImportRequest`, `DatasetHubFacets`, `DatasetHubFacetOption` in `backend/app/schemas.py`; `TaskType` gains `llm_finetune`; `DatasetFormat` gains `instruction_jsonl` and `chat_jsonl`.
+- Schemas: `DatasetHubSearchResult`, `DatasetHubPreview`, `DatasetHubImportRequest`, `DatasetHubIngestRequest`, `DatasetHubFacets`, `DatasetHubFacetOption` in `backend/app/schemas.py`; `TaskType` gains `llm_finetune`; `DatasetFormat` gains `instruction_jsonl` and `chat_jsonl`.
 - Frontend surfaces: `frontend/features/datasets/catalog-view.tsx` (sections), `frontend/features/datasets/hub/` (`hub-browser.tsx`, `hub-detail.tsx`, `hub-hooks.ts`, replacing `hub-import-panel.tsx`), new `frontend/features/datasets/records-tab.tsx`, `detail-tabs.tsx` (tab switch by task type), `frontend/lib/api/datasets.ts` (hub search/preview/import calls).
 - Storage/DB changes: dataset manifests gain `origin` (`created | imported_hf | recipe`) and `origin_ref`; `llm_finetune` items stored as `<split>/records/<item_id>.json` plus a regenerated `<split>/data.jsonl`. No DB change.
 
@@ -113,9 +134,10 @@ categories, four sorts — each with a `label`, a `hint`, and an `importable` fl
 The UI renders `hint` as the tooltip on the filter chip *and* on the badge
 showing the same term on a result card, so there is one string per term and one
 place to correct it. `importable` is the part that is ours rather than the Hub's:
-Orinth imports Hub datasets as text records, so a video dataset is browsable and
-not importable, and the chip says so before the click rather than the import
-failing after it.
+it now means "Orinth has a task that could hold this", which covers text,
+tabular, image and time-series and excludes audio, video, 3D, geospatial,
+documents, and the shard formats the preview server cannot read row-wise. The
+chip says so before the click rather than the import failing after it.
 
 **Two defects the browse work exposed**, both fixed with regression tests:
 
@@ -140,6 +162,76 @@ a user why a cell previews as JSON, and a `struct` answer column is the single
 most common surprise on the Hub. `num_rows` is `None` rather than `0` when the
 Hub will not say — an unsupported dataset reporting nothing must not render as an
 empty one.
+
+### As-is import
+
+`POST /api/datasets/import/hub/as-is` takes `hub_id`, optional `config`/`split`,
+`name`, `project_id`, and `max_rows` (1..100,000, default 5,000). It creates a
+draft dataset, marks it `origin: imported_hf` immediately so it groups correctly
+while it downloads, and queues the download on the **prep executor**. It answers
+202 with the draft; the client polls `GET /datasets/{id}/prep/status`, which is
+the same readout an uploaded folder gets.
+
+When the download finishes the dataset is a **draft** and nothing else has
+happened to it. `POST /datasets/{id}/prep` is a separate request, made by the
+"Prepare with Orinth" button the Overview tab already renders for a draft.
+
+The download writes into the draft's `_staging/`, in one of two shapes decided by
+the split's *features* rather than by its Hub tags:
+
+- **A media column** (`_type` of `Image`, `Audio`, or `Video`) makes it a folder
+  tree: one directory per class, named from the `ClassLabel` column's vocabulary,
+  one file per row inside it. That is exactly what `_detect_image_folders` reads,
+  so a CIFAR-10 import lands as `classification` with ten labels and no further
+  input. Nothing else is written beside the images — an earlier version also
+  dropped the other columns into a `metadata.jsonl` sidecar, and that one file
+  made `_detect_record_files` (which runs first) classify a folder of pictures as
+  a table of rows.
+- **Anything else** becomes one JSONL file of the rows as served, with
+  `ClassLabel` integers resolved to their names first. A folder called `3` is not
+  a class, and neither is a label column full of `3`.
+
+**The sample spans the split, in blocks.** `stanfordnlp/imdb` stores its train
+split sorted by label — rows 0–12,499 are `neg` and 12,500–24,999 are `pos` — so
+taking rows off the head of a perfectly balanced dataset yields exactly one
+class, detection refuses to call a single-valued column a taxonomy, and the
+import looks like it failed on a dataset Orinth trains happily. Sorting by class,
+by source file, or by date all behave this way.
+
+Striding row by row fixes the distribution and breaks everything else: the rows
+API caps a page at 100, so individual rows across a 25,000-row split is one
+request per two or three of them — 250 requests for 600 rows, which
+datasets-server answers with a 502 (observed). The sample is therefore taken as
+`_SAMPLE_BLOCKS` (8) contiguous blocks spread evenly across the split, or more
+blocks when the request needs more pages anyway. That costs the same number of
+requests as reading off the head and still spans the data. A block that fails is
+skipped, not fatal.
+
+Measured on the real dataset: 600 rows of `stanfordnlp/imdb` arrive 300 `neg` /
+300 `pos` (previously 600 `neg`), and pressing Prepare yields
+`text_classification` with labels `[neg, pos]`, split, trainable.
+
+**A detection gap this exposed.** `_detect_record_files` recognized only the
+record shapes — alpaca, messages, ShareGPT, QA, `chosen`/`rejected` — and
+returned "no recognizable structure" for anything else, so a `.jsonl` of `text`
+and `label` (the commonest classification shape on the Hub) failed while the
+identical data as a `.csv` succeeded, because only `_detect_tables` reached
+`_classify_rows`. Unrecognized record files now fall through to the same
+classifier, guarded on the upload containing no images so one stray sidecar
+cannot outvote ten thousand pictures.
+
+**Import lives on the card.** The mapped import needs a column mapping and
+therefore a form; the as-is import needs a row count. So the result card carries
+a rows selector and an Import button, and the detail screen leads with the same
+pair. The card is an `<article>` with the body as its own button — a button
+inside a button is invalid markup that browsers resolve by dropping one.
+
+**The mapping form is a disclosure.** It was the face of every Hub dataset,
+which is nonsense in front of an image classifier — a form asking which column
+is the "instruction" told the user Orinth only wanted LLM data. It is a
+`<details>` now, closed unless the preview server already recognised the rows as
+alpaca/chat/QA, in which case it opens itself and says so. Native disclosure
+rather than a state flag: keyboard and screen-reader behaviour come free.
 
 ### Records tab and LLM EDA
 
@@ -170,6 +262,8 @@ empty one.
 
 - Catalog shows sections only when non-empty; existing datasets appear under Project datasets without manifest edits.
 - Users can search the HF Hub, preview rows, map columns, and import a text dataset capped at the row limit; the imported dataset appears in the Imported from HuggingFace section and its items are browsable and editable.
+- Users can import any dataset Orinth has a task for straight from the result card, choosing only a row count, and watch the download on a progress bar. The dataset then reads *downloaded*, is browsable, and offers "Prepare with Orinth" — which turns an image split into `classification` with its classes, and a `text`/`label` split into `text_classification`.
+- A split sorted by its label imports balanced: `stanfordnlp/imdb` at 600 rows arrives 300/300, not 600/0.
 - Users can create an `llm_finetune` dataset choosing instruction or chat schema, add records via the Records tab, edit them role-aware, and see `data.jsonl` regenerate per split.
 - ShareGPT-style `conversations` import normalizes to `messages`.
 - Gated dataset import without an accepted license shows the actionable license message.
@@ -178,7 +272,11 @@ empty one.
 
 ## Deferred
 
-- Image/multimodal dataset import from the HF Hub.
+- Multimodal and audio/video import. The as-is path handles image and row data;
+  audio and video stay browse-only until the platform has a task for them.
+- Bounding boxes and masks on an imported image dataset. The images and their
+  class folders come across; an `object-detection` split's boxes do not, so it
+  imports as classification and the regions have to be drawn in Orinth.
 - Tokenizer-accurate token counts in EDA (requires the phase-14 extras).
 - Hub dataset revision pinning/update flows beyond recording `origin_ref`.
 - AI-assisted column mapping (Studio's "AI assist" button on the mapping dialog): needs the OpenRouter settings that phase 11 introduces; add it to the import dialog once those exist.

@@ -12,29 +12,34 @@ the filter chip *and* on the badge that shows the same term on a result card, so
 the explanation is identical wherever the word appears and there is exactly one
 place to correct it.
 
-`importable` is the part that is genuinely ours rather than the Hub's. Orinth
-imports Hub datasets as LLM fine-tuning records, which means a video dataset or
-a `webdataset` shard is browsable here and not importable. Saying so on the chip
-is the difference between a filter that returns things the user cannot use and
-one that tells them why up front — the alternative, discovered the hard way, is
-an import button that fails after the click.
+`importable` is the part that is genuinely ours rather than the Hub's, and it is
+now a much shorter list of exclusions than it was. The as-is ingest
+(`dataset_hub.ingest_hub`) downloads a split in the shape the Hub served it and
+hands it to the prep agent, so image, tabular, and text datasets all import —
+an image split becomes a folder tree named by class, everything else becomes
+JSONL. What stays browse-only is what the platform has no task for at all: audio,
+video, 3D, and the shard formats the preview server cannot read row-wise.
+
+Saying so on the chip is still the point: a filter that returns things the user
+cannot use is worse than one that tells them why up front, and the alternative —
+discovered the hard way — is an import button that fails after the click.
 """
 
 from app.schemas import DatasetHubFacetOption, DatasetHubFacets
 
-#: Hub `modality:` values. Text is the only one the record importer can read, but
-#: the others are listed rather than hidden: a user looking for an image dataset
-#: should find out here, not after picking one.
+#: Hub `modality:` values. The ones Orinth has a task for import as-is; the
+#: others are listed rather than hidden, so a user looking for an audio dataset
+#: finds out here rather than after picking one.
 MODALITIES = [
-    ("text", "Text", "Sentences, documents, or chat turns. The only modality Orinth imports as records.", True),
-    ("tabular", "Tabular", "Rows and columns — a spreadsheet. Importable when a column holds text.", True),
-    ("image", "Image", "Pictures. Browse only here; upload image folders through Files instead.", False),
-    ("audio", "Audio", "Sound files. Not importable.", False),
-    ("video", "Video", "Video files. Not importable.", False),
+    ("text", "Text", "Sentences, documents, or chat turns. Imports as records or text items.", True),
+    ("tabular", "Tabular", "Rows and columns — a spreadsheet. Imports as rows; Orinth works out the columns.", True),
+    ("image", "Image", "Pictures. Imports as an image dataset, one folder per class.", True),
+    ("audio", "Audio", "Sound files. Orinth has no audio task yet, so this is browse only.", False),
+    ("video", "Video", "Video files. Orinth has no video task yet, so this is browse only.", False),
     ("document", "Document", "PDFs and scans. Build a dataset from these under Documents instead.", False),
-    ("geospatial", "Geospatial", "Coordinates and map layers. Not importable.", False),
-    ("3d", "3D", "Meshes and point clouds. Not importable.", False),
-    ("timeseries", "Time-series", "Measurements over time. Not importable.", False),
+    ("geospatial", "Geospatial", "Coordinates and map layers. Browse only.", False),
+    ("3d", "3D", "Meshes and point clouds. Browse only.", False),
+    ("timeseries", "Time-series", "Measurements over time. Imports as rows when a column holds text.", True),
 ]
 
 #: Hub `format:` values. The distinction that matters to a user is "can the
@@ -45,9 +50,9 @@ FORMATS = [
     ("csv", "CSV", "Comma-separated rows. Reads directly.", True),
     ("text", "Text", "Plain text files, one document each.", True),
     ("arrow", "Arrow", "In-memory columnar format. Reads through the preview server.", True),
-    ("imagefolder", "Image folder", "Images in class-named directories. Browse only — upload these through Files.", False),
-    ("soundfolder", "Sound folder", "Audio in class-named directories. Not importable.", False),
-    ("webdataset", "WebDataset", "Sharded tar archives for streaming. Not importable.", False),
+    ("imagefolder", "Image folder", "Images in class-named directories. Imports as an image dataset.", True),
+    ("soundfolder", "Sound folder", "Audio in class-named directories. Browse only.", False),
+    ("webdataset", "WebDataset", "Sharded tar archives for streaming. The preview server cannot read these row-wise, so browse only.", False),
 ]
 
 #: Hub `size_categories:` values, verbatim — the Hub matches on the literal
@@ -55,22 +60,25 @@ FORMATS = [
 SIZES = [
     ("n<1K", "Under 1K rows", "Tiny. Fine for a smoke test, too small to fine-tune on.", True),
     ("1K<n<10K", "1K – 10K rows", "A comfortable fine-tuning set, and it imports in seconds.", True),
-    ("10K<n<100K", "10K – 100K rows", "Large. Import caps at 5,000 rows, so you get a sample.", True),
-    ("100K<n<1M", "100K – 1M rows", "Very large. Import takes the first 5,000 rows.", True),
+    ("10K<n<100K", "10K – 100K rows", "Large. Choose how many rows to take when you import.", True),
+    ("100K<n<1M", "100K – 1M rows", "Very large. Import reads from the start of the split.", True),
     ("1M<n<10M", "Over 1M rows", "Huge. Preview works; import samples the head.", True),
 ]
 
-#: Hub `task_categories:` values, narrowed to the ones whose record shape the
-#: importer recognizes. The full Hub list runs to dozens, most of which describe
-#: image or audio work.
+#: Hub `task_categories:` values, narrowed to the ones Orinth has a task for.
+#: The full Hub list runs to dozens; the rest are still shown as badges on a
+#: card (`task_label` gives them a readable name) but are not offered as filters.
 TASKS = [
     ("text-generation", "Text generation", "Prompt-and-continuation records. The usual shape for instruction tuning.", True),
-    ("question-answering", "Question answering", "Question, context, and answer columns. Maps to instruction records.", True),
-    ("summarization", "Summarization", "A document and its summary. Maps to instruction records.", True),
-    ("text-classification", "Text classification", "Text with a label. Importable, though better suited to a classifier.", True),
+    ("question-answering", "Question answering", "Question, context, and answer columns.", True),
+    ("summarization", "Summarization", "A document and its summary.", True),
+    ("text-classification", "Text classification", "Text with a label. Imports as a text classifier dataset.", True),
     ("text2text-generation", "Text-to-text", "Paired input and target text.", True),
     ("conversational", "Conversational", "Multi-turn dialogue. Maps to chat records.", True),
     ("translation", "Translation", "Source and target language pairs.", True),
+    ("image-classification", "Image classification", "Pictures with one class each. Imports as an image dataset.", True),
+    ("object-detection", "Object detection", "Pictures with boxes. Imports as images; boxes need annotating in Orinth.", True),
+    ("image-segmentation", "Image segmentation", "Pictures with masks. Imports as images; masks need annotating in Orinth.", True),
 ]
 
 #: Hub sort keys. `trendingScore` is what huggingface.co itself defaults to, so
@@ -118,9 +126,9 @@ _FORMAT_LABELS = _label_index(FORMATS)
 _SIZE_LABELS = _label_index(SIZES)
 _TASK_LABELS = _label_index(TASKS)
 
-#: Modalities the record importer can actually read. Anything else makes a
-#: result browsable but not importable, which the card says on its face.
-_IMPORTABLE_MODALITIES = {"text", "tabular"}
+#: Modalities Orinth has a task for. Anything else makes a result browsable but
+#: not importable, which the card says on its face.
+_IMPORTABLE_MODALITIES = {"text", "tabular", "image", "timeseries"}
 
 
 def split_tags(tags: list[str]) -> dict[str, list[str]]:
@@ -161,7 +169,7 @@ def task_label(value: str) -> str:
 
 
 def is_importable(modalities: list[str]) -> bool:
-    """Whether the record importer can read this dataset at all.
+    """Whether Orinth has any task that could hold this dataset.
 
     A dataset with no declared modality is treated as importable: plenty of text
     datasets simply omit the tag, and refusing those would hide most of the Hub.

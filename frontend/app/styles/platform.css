@@ -35,6 +35,26 @@
   box-shadow: var(--shadow-overlay);
 }
 
+/* Carrying a real readout rather than the word "Working": wide enough for a
+   sentence with counts in it, and left-aligned, because a stage ladder centred
+   on itself is a shape rather than a list. */
+.global-loading-panel-job {
+  width: 460px;
+  max-width: calc(100vw - 48px);
+  justify-items: stretch;
+  padding: 18px 20px;
+}
+
+/* The readout is the panel here, not a panel inside one — a border round a
+   border is two lines saying one thing (DESIGN.md §5). */
+.global-loading-panel-job .prep-progress {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .global-loading-spinner {
   width: 34px;
   height: 34px;
@@ -3938,12 +3958,42 @@ button.task-choice {
   max-height: 220px;
 }
 
+/* As many cards as fit, up to four, filling the row.
+
+   `auto-fill` decides the column count from the track *minimum* and then clamps
+   each track to the *maximum*. With a fixed 360px maximum, a panel between two
+   multiples of 360 laid out full-width cards and left the remainder empty on
+   the right — wide enough to read as a card that failed to render. Dropping the
+   maximum to `1fr` fixes that, but on its own a small minimum then packs five or
+   six cards into a wide panel and the content inside each one starts wrapping.
+
+   So the minimum is "a quarter of the row, but never below 280px". A quarter
+   makes a fifth column arithmetically impossible however wide the panel gets;
+   the 280px floor is what lets the count fall to three, two, and one as the
+   panel narrows. `min(100%, …)` keeps a single card from overflowing a panel
+   narrower than the floor. */
 .dataset-catalog-grid {
+  --catalog-gap: 14px;
+  --catalog-columns: 4;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 360px));
-  gap: 14px;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      min(
+        100%,
+        max(
+          280px,
+          calc(
+            (100% - (var(--catalog-columns) - 1) * var(--catalog-gap)) /
+              var(--catalog-columns)
+          )
+        )
+      ),
+      1fr
+    )
+  );
+  gap: var(--catalog-gap);
   align-items: stretch;
-  justify-content: start;
   margin-top: 18px;
   padding: 10px 0 2px;
 }
@@ -3953,8 +4003,9 @@ button.task-choice {
   display: grid;
   align-content: start;
   gap: 12px;
-  width: 360px;
-  max-width: 100%;
+  /* The grid track sizes the card. A fixed width here re-created the gap the
+     track change above removed. */
+  width: 100%;
   min-height: 188px;
   min-width: 0;
   border: 1px solid var(--color-line);
@@ -4067,9 +4118,14 @@ button.task-choice {
   font-size: 15px;
 }
 
+/* Three equal tracks rather than a wrapping flex row. train/valid/test are one
+   fact in three parts, and at a narrow card width the flex row broke after the
+   second chip — which pushed the status badge past the card's own bottom edge
+   and into the next section. Equal tracks keep it one line at any width and let
+   a long count ellipsize inside its own chip instead. */
 .dataset-card-stats {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   align-self: end;
   min-width: 0;
@@ -4334,6 +4390,12 @@ button.task-choice {
 
 .eda-panel-full {
   gap: 18px;
+}
+
+/* States that the numbers below are a sample. Quiet: it explains the figures,
+   it does not compete with them. */
+.eda-sampled-note {
+  margin: 4px 0 10px;
 }
 
 .eda-metric-grid {
@@ -6227,8 +6289,15 @@ td {
   background: var(--color-surface-2);
 }
 
+/* Search first, sort second — and sized that way. `Select` renders a
+   `.select-shell` with `width: 100%`, which as a flex item means a flex-basis of
+   the whole row: the sort dropdown took nearly all the width and the search
+   field collapsed to the intrinsic minimum of its `<input>`. The row now pins
+   the dropdown to its own content width and gives everything else to search,
+   which is the control being used on every visit. */
 .hub-search-row {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -6237,7 +6306,8 @@ td {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 0 12px;
   border: 1px solid var(--color-line-input);
   border-radius: var(--radius-sm);
@@ -6246,11 +6316,27 @@ td {
 }
 
 .hub-search-input input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   border: 0;
   background: transparent;
   padding: 9px 0;
   color: var(--color-ink);
+}
+
+.hub-search-row .select-shell {
+  flex: 0 0 auto;
+  width: 190px;
+}
+
+@media (max-width: 560px) {
+  .hub-search-row {
+    flex-wrap: wrap;
+  }
+
+  .hub-search-row .select-shell {
+    width: 100%;
+  }
 }
 
 .hub-detail {
@@ -6406,19 +6492,106 @@ td {
 .hub-card {
   display: grid;
   align-content: start;
-  gap: 8px;
+  grid-template-rows: 1fr auto;
   min-width: 0;
   padding: 12px 14px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
   background: var(--color-surface);
   text-align: left;
-  cursor: pointer;
   transition: border-color 120ms ease-out;
+}
+
+/* The card body is the click target for "open this dataset"; the footer below
+   holds its own controls. Splitting them is what lets Import live on the row
+   without nesting a button inside a button. */
+.hub-card-open {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hub-card-open:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+  border-radius: var(--radius-sm);
 }
 
 .hub-card:hover {
   border-color: var(--color-line-strong);
+}
+
+/* Separated by a hairline, not by elevation — the footer is part of the card,
+   not a thing sitting on it (DESIGN.md §5). The select is capped so a long row
+   label cannot squeeze the button off the end. */
+.hub-card-import {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-line);
+}
+
+.hub-card-import .select-shell {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 150px;
+}
+
+.hub-card-import .select-control {
+  min-height: 32px;
+  padding-block: 4px;
+  font-size: 12px;
+}
+
+.hub-card-import > button {
+  flex: 0 0 auto;
+}
+
+/* The as-is import on the detail screen. Bordered panel-in-panel is normally
+   two borders saying one thing, so this uses the accent tint instead: it is the
+   recommended path and reads as one. */
+.hub-asis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.hub-asis > div:first-child {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.hub-asis-title {
+  margin-bottom: 4px;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hub-asis-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.hub-asis-actions .select-shell {
+  width: 120px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -6530,11 +6703,60 @@ td {
 }
 
 .hub-viewer,
+/* A `<details>`, so the mapping form is available and not in the way. Native
+   disclosure rather than a state flag: it keeps keyboard and screen-reader
+   behaviour for free, and the browser remembers nothing this screen has to. */
 .hub-import {
   display: grid;
   gap: 12px;
   padding-top: 16px;
   border-top: 1px solid var(--color-line);
+}
+
+.hub-import-summary {
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.hub-import-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The caret is drawn rather than inherited: the native marker sits on the first
+   line of a two-line summary and cannot be aligned with the label. */
+.hub-import-summary::before {
+  content: "›";
+  position: absolute;
+  margin-left: -14px;
+  color: var(--color-ink-subtle);
+  font-size: 15px;
+  line-height: 1.2;
+  transition: transform 120ms ease-out;
+}
+
+.hub-import[open] > .hub-import-summary::before {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-import-summary::before {
+    transition: none;
+  }
+}
+
+.hub-import-summary {
+  padding-left: 14px;
+}
+
+.hub-import-summary:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+  border-radius: var(--radius-sm);
 }
 
 .hub-viewer-head {
@@ -6633,6 +6855,15 @@ td {
   align-items: flex-end;
   gap: 12px;
   margin-top: 14px;
+}
+
+/* `.field` carries a 15px bottom margin for stacked forms, and `align-items:
+   flex-end` aligns *margin* boxes — which is what dropped the Import button 15px
+   below the control sitting next to it. In an action row the field's margin is
+   the row's gap's job. */
+.hub-import-footer .field,
+.hub-asis-actions .field {
+  margin-bottom: 0;
 }
 
 .hub-import-footer .field {
@@ -9355,9 +9586,27 @@ td {
 }
 
 .prep-progress-detail {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 500;
   color: var(--color-ink);
+}
+
+/* Tabular figures so the percentage does not shuffle its own layout every time
+   it ticks — a number that jitters reads as noise, not as progress. */
+.prep-progress-percent {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.prep-progress-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
 }
 
 .prep-progress-stages {
@@ -9423,10 +9672,94 @@ td {
   transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Work is happening but its size is unknown — a browser that will not report an
+   upload's total length, or a stage the server cannot count. A sliding segment
+   says "running, length unknown"; a bar frozen at zero says "broken". */
+.prep-progress-fill-indeterminate {
+  width: 34%;
+  animation: prep-progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes prep-progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(330%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .prep-progress-fill {
     transition: none;
   }
+
+  /* No slide, but still not an empty track: a static partial fill reads as
+     "in progress, extent unknown", which is the truth. */
+  .prep-progress-fill-indeterminate {
+    width: 100%;
+    animation: none;
+    opacity: 0.4;
+  }
+}
+
+/* --- the picked selection, before it is uploaded --------------------------
+   A count alone cannot tell the right folder from the one beside it, so the
+   pick is named. Bordered rather than raised, like every other resting surface
+   (DESIGN.md §5). */
+
+.ingest-picked {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.ingest-picked-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+  color: var(--color-ink-subtle);
+}
+
+.ingest-picked-head strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Capped and scrollable: the list is a sample, not the file manager. */
+.ingest-picked-list {
+  display: grid;
+  gap: 2px;
+  max-height: 132px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+.ingest-picked-list li {
+  overflow: hidden;
+  /* The path is the useful end of a nested file name, but the *start* is what
+     names the class folder, so this clips at the end and hovers the rest. */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ingest-picked-more {
+  color: var(--color-ink-subtle);
+  font-style: italic;
 }
 
 /* --- Dataset data grid -----------------------------------------------------
@@ -9456,12 +9789,16 @@ td {
   background: var(--color-canvas);
 }
 
-.data-grid td.grid-cell-image {
+/* Column classes are `grid-col-<kind>` and value classes are
+   `grid-cell-<kind>`. They must not share a namespace: `.grid-cell-text` below
+   is `display: block`, and when the same string named a `<td>` it stopped that
+   cell being a table cell. */
+.data-grid td.grid-col-image {
   width: 60px;
   padding: 6px 12px;
 }
 
-.data-grid td.grid-cell-number {
+.data-grid td.grid-col-number {
   text-align: right;
 }
 

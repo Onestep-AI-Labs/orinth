@@ -530,7 +530,14 @@ def detect_record_format(columns: list[str]) -> tuple[str | None, dict[str, str]
     return None, {}
 
 
-def _detect_record_files(root: Path, *, records: list[Path], **_: object) -> Detection | None:
+def _detect_record_files(
+    root: Path,
+    *,
+    records: list[Path],
+    images: list[Path] | None = None,
+    texts: list[Path] | None = None,
+    **_: object,
+) -> Detection | None:
     """JSONL/JSON rows whose keys name an instruction, chat, or QA shape."""
     if not records:
         return None
@@ -546,7 +553,29 @@ def _detect_record_files(root: Path, *, records: list[Path], **_: object) -> Det
     columns = _columns_of(rows)
     shape, _mapping = detect_record_format(columns)
     if shape is None:
-        return _detect_preference_rows(sorted(records)[0], rows, columns)
+        first = sorted(records)[0]
+        preference = _detect_preference_rows(first, rows, columns)
+        if preference is not None:
+            return preference
+        # A JSONL whose keys are none of the record shapes is still a table of
+        # rows, and `_classify_rows` is exactly the classifier for that: it reads
+        # `text`/`label`, question/answer and document/summary out of column
+        # names *and* column statistics. Without this fall-through, the single
+        # most common shape on the Hub — a `.jsonl` of `text` and `label` —
+        # reported "no recognizable structure", while the identical data as a
+        # `.csv` was classified correctly, because only `_detect_tables` reached
+        # the classifier.
+        #
+        # Only when the upload is *made of* rows, though. This rule runs before
+        # `_detect_image_folders` and `_detect_text_folders`, so claiming any
+        # unrecognized JSONL would let one sidecar beside ten thousand images
+        # decide that the whole dataset is a table. The record files have to be
+        # at least as numerous as the other content for that reading to be the
+        # honest one — which still lets a lone JSONL beside a `README.txt`
+        # through, and still keeps a metadata file from outvoting a folder tree.
+        if len(records) < len(images or []) + len(texts or []):
+            return None
+        return _classify_rows(first, rows)
 
     if shape == "alpaca":
         return Detection(

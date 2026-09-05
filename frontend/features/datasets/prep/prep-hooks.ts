@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "@/features/platform/toast";
-import type { DatasetPrepPlan, DatasetPrepStatus } from "@/types/api";
+import type { DatasetHubIngestRequest, DatasetPrepPlan, DatasetPrepStatus } from "@/types/api";
 
 /**
  * Prep-agent data access.
@@ -167,13 +167,55 @@ export function useDiscardStagedMutation() {
   });
 }
 
+/**
+ * Upload staged files, reporting how much of the body has been sent.
+ *
+ * `onProgress` is threaded down to `XMLHttpRequest` (see `uploadFetch`): a
+ * folder upload is minutes of a single request, and the only honest readout
+ * during it is bytes sent. React Query has no notion of request progress, so
+ * the caller owns the number and this only passes it through.
+ */
 export function useIngestDatasetMutation() {
   const client = useQueryClient();
   return useMutation({
     mutationKey: ["dataset-ingest"],
-    mutationFn: (form: FormData) => api.ingestDataset(form),
+    mutationFn: ({
+      form,
+      onProgress
+    }: {
+      form: FormData;
+      onProgress?: (fraction: number) => void;
+    }) => api.ingestDataset(form, onProgress),
     onSuccess: async (dataset) => {
       await invalidateDataset(client, dataset.id);
     }
+  });
+}
+
+/**
+ * Import a HuggingFace split as it is: download it, and stop.
+ *
+ * Deliberately does *not* wait, and deliberately does not prepare. `POST
+ * /import/hub/as-is` answers 202 with the draft and the download reports
+ * through `/prep/status`, which the dataset's own Overview tab already polls
+ * and renders — so the right move is to open the dataset, where the download is
+ * a labelled progress bar and "Prepare with Orinth" is waiting underneath it.
+ *
+ * Preparing is a separate press because a Hub dataset is under no obligation to
+ * be shaped like something Orinth trains. Chaining the two made a download that
+ * worked perfectly report itself as a failure whenever the agent could not name
+ * a task.
+ */
+export function useIngestHubDatasetMutation(onDone?: (datasetId: string) => void) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: ["dataset-hub-ingest"],
+    mutationFn: (payload: DatasetHubIngestRequest) => api.ingestDatasetHub(payload),
+    onSuccess: async (dataset) => {
+      await invalidateDataset(client, dataset.id);
+      toast.success("Downloading from HuggingFace into your workspace.");
+      onDone?.(dataset.id);
+    },
+    onError: (error: Error) => toast.error(error.message)
   });
 }

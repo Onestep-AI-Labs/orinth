@@ -426,10 +426,15 @@ def test_splitting_thousands_of_rows_does_not_go_quadratic(prep):
     assert elapsed < 60, f"splitting 3000 rows took {elapsed:.0f}s"
 
 
-def test_a_row_cap_is_reported_rather_than_silently_truncating(prep):
-    from app.services.datasets.prep.apply import MAX_INGEST_ROWS
+def test_every_row_is_imported_by_default(prep):
+    """No cap unless one is configured.
 
-    over = MAX_INGEST_ROWS + 25
+    There used to be a hard 20,000-row ceiling, with a warning explaining the
+    truncation *after* the import. A dataset that quietly does not match the file
+    the user chose is the worse failure, so the default is now every row and the
+    ceiling is opt-in (`PREP_MAX_INGEST_ROWS`).
+    """
+    over = 2_500
     rows = ["text,label"] + [
         f"body number {i} with enough words to read as prose,{'pos' if i % 2 else 'neg'}"
         for i in range(over)
@@ -439,8 +444,74 @@ def test_a_row_cap_is_reported_rather_than_silently_truncating(prep):
 
     summary, plan = prep.run(dataset_id)
     total = sum(split.item_count for split in summary.splits.values())
-    assert total == MAX_INGEST_ROWS
-    assert any(str(MAX_INGEST_ROWS) in warning.replace(",", "") for warning in plan.warnings)
+    assert total == over
+    assert not any("were imported" in warning for warning in plan.warnings)
+
+
+def test_a_configured_row_cap_is_reported_rather_than_silently_truncating(prep):
+    prep.settings.prep_max_ingest_rows = 100
+    try:
+        rows = ["text,label"] + [
+            f"body number {i} with enough words to read as prose,{'pos' if i % 2 else 'neg'}"
+            for i in range(250)
+        ]
+        dataset_id = prep.create_draft(name="capped")
+        stage(prep, dataset_id, "big.csv", "\n".join(rows).encode())
+
+        summary, plan = prep.run(dataset_id)
+        total = sum(split.item_count for split in summary.splits.values())
+        assert total == 100
+        assert any("PREP_MAX_INGEST_ROWS" in warning for warning in plan.warnings)
+    finally:
+        prep.settings.prep_max_ingest_rows = 0
+
+
+def test_the_apply_stage_counts_the_items_it_writes(prep):
+    """A bar needs a denominator, and `processed`/`total` is where it comes from."""
+    ticks: list[tuple[int, int]] = []
+    original = prep.ticker
+
+    def spy(dataset_id, state, step, **kwargs):
+        inner = original(dataset_id, state, step, **kwargs)
+
+        def tick(processed, total, detail, **kwargs):
+            ticks.append((processed, total))
+            return inner(processed, total, detail, **kwargs)
+
+        return tick
+
+    prep.ticker = spy  # type: ignore[method-assign]
+
+    dataset_id = prep.create_draft(name="student exam")
+    stage(prep, dataset_id, "student_exam_performance.csv", student_exam_csv())
+    prep.run(dataset_id)
+
+    assert ticks, "the apply stage reported no progress at all"
+    assert all(total > 0 for _processed, total in ticks)
+    assert ticks[-1][0] == ticks[-1][1], "the last tick must land on 100%"
+
+
+def test_the_bar_never_travels_backwards_across_a_run(prep):
+    """Apply is two counted passes — write the items, then place them into
+    splits — and each counts to its own 100%. The counts have to stay honest, so
+    it is the *bar* that is banded; if it were not, it would reach 100%, reset,
+    and climb again."""
+    fractions: list[float] = []
+    original = prep._set_state
+
+    def record(dataset_id, state, plan=None, **kwargs):
+        if kwargs.get("progress") is not None:
+            fractions.append(kwargs["progress"])
+        return original(dataset_id, state, plan, **kwargs)
+
+    prep._set_state = record  # type: ignore[method-assign]
+
+    dataset_id = prep.create_draft(name="student exam")
+    stage(prep, dataset_id, "student_exam_performance.csv", student_exam_csv())
+    prep.run(dataset_id)
+
+    assert fractions == sorted(fractions), f"progress went backwards: {fractions}"
+    assert fractions[-1] == 1.0
 
 
 # --- a feature table becomes trainable ----------------------------------------
@@ -627,10 +698,11 @@ def test_a_run_names_each_stage_as_it_reaches_it(prep):
     seen: list[tuple[str, str, float | None]] = []
     original = prep._set_state
 
-    def record(dataset_id, state, plan=None, *, step=None, detail=None, progress=None):
+    def record(dataset_id, state, plan=None, **kwargs):
+        step = kwargs.get("step")
         if step is not None:
-            seen.append((step, detail or "", progress))
-        return original(dataset_id, state, plan, step=step, detail=detail, progress=progress)
+            seen.append((step, kwargs.get("detail") or "", kwargs.get("progress")))
+        return original(dataset_id, state, plan, **kwargs)
 
     prep._set_state = record  # type: ignore[method-assign]
 

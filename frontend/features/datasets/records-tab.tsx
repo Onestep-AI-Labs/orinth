@@ -26,6 +26,40 @@ type InstructionDraft = { instruction: string; input: string; output: string };
 
 const CHAT_ROLE_OPTIONS: ChatMessage["role"][] = ["system", "user", "assistant"];
 
+//: How a record field is titled in the table head. Anything not listed keeps
+//: its own name, because that is what it is called in the file being trained on.
+const FIELD_LABELS: Record<string, string> = {
+  instruction: "Instruction",
+  input: "Input",
+  output: "Output",
+  question: "Question",
+  context: "Context",
+  answer: "Answer",
+  text: "Text",
+  label: "Label",
+  messages: "Messages"
+};
+
+/**
+ * The two column headings, taken from the fields the excerpts were actually
+ * read from.
+ *
+ * They used to be the constants "Instruction" and "Output" for every
+ * non-chat dataset, whatever the records held. An import carrying
+ * `question`/`answer`, or a prepared table carrying `text`/`label`, was
+ * therefore shown under headings naming fields it did not have — and where the
+ * excerpts were empty, a table of em-dashes under confident headings. The
+ * server reports the fields per item (`preview_fields`), so the head names what
+ * the body shows.
+ */
+function previewHeadings(items: DatasetItemSummary[], isChat: boolean): [string, string] {
+  if (isChat) return ["First user message", "Last assistant message"];
+  const fields = items.find((item) => (item.preview_fields ?? []).length > 0)?.preview_fields ?? [];
+  const label = (field: string | undefined, fallback: string) =>
+    field ? (FIELD_LABELS[field] ?? field) : fallback;
+  return [label(fields[0], "Instruction"), label(fields[1], "Output")];
+}
+
 /**
  * Records tab for `llm_finetune` datasets (phase 10): a paginated table with an
  * edit drawer that is role-aware for chat records and three labeled fields for
@@ -108,6 +142,7 @@ export function DatasetRecordsTab({
   }, [detailQuery.data, drawerOpen, isChat, mode]);
 
   const lastPage = Math.max(0, Math.ceil(itemPage.total / imagesPerPage) - 1);
+  const [firstHeading, secondHeading] = previewHeadings(items, isChat);
 
   function openEdit(item: DatasetItemSummary) {
     setMode("edit");
@@ -253,8 +288,8 @@ export function DatasetRecordsTab({
           <table className="records-table">
             <thead>
               <tr>
-                <th>{isChat ? "First user message" : "Instruction"}</th>
-                <th>{isChat ? "Last assistant message" : "Output"}</th>
+                <th>{firstHeading}</th>
+                <th>{secondHeading}</th>
                 <th className="records-col-num">Tokens</th>
                 <th className="records-col-split">Split</th>
                 <th className="records-col-actions" aria-label="Actions" />
