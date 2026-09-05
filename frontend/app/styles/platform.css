@@ -7050,12 +7050,44 @@ td {
   padding-inline: 18px;
 }
 
-/* A plain panel that grows with its fields, the same as the vision and NLP
-   annotate panels beside it — the editor is the panel's only child, so it
-   supplies the column rather than a scroll region of its own. */
 .annotate-record-panel {
   display: flex;
   flex-direction: column;
+}
+
+/* ── Annotate: two columns, two scrolls ─────────────────────────────────
+   Browsing and editing are separate jobs done at the same time, so they get
+   separate scroll positions. Scrolling a wall of items must not carry the
+   editor off the screen, and reading to the bottom of one item must not move
+   the list you are working through. Below xl the columns stack and the page
+   scrolls as one, which is the only thing that makes sense in a single
+   column. */
+
+@media (min-width: 1280px) {
+  .annotate-split {
+    /* Panels size to their own content up to the cap, rather than both
+       stretching to the tallest. */
+    align-items: start;
+  }
+
+  .annotate-split > .panel:not(.annotate-record-panel) {
+    max-height: calc(100vh - 13rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* The record editor is the exception: it keeps its own head and footer in
+     place and scrolls only the fields, so Save never leaves the screen. */
+  .annotate-split > .annotate-record-panel {
+    height: calc(100vh - 13rem);
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  .annotate-split > .annotate-record-panel > .record-editor {
+    flex: 1;
+    min-height: 0;
+  }
 }
 
 /* ── The record list in Annotate ────────────────────────────────────────
