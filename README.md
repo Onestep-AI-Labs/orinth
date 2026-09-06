@@ -16,38 +16,73 @@ Orinth is a local studio where teams can turn image and text datasets into usabl
 
 ### Organize
 Create projects and datasets that keep image and text work scoped and understandable.
-![Project List](frontend/public/brand/1_project_list.png)
-![Dataset List](frontend/public/brand/2_dataset_list.png)
+
+![Projects](frontend/public/brand/01-projects.png)
+![Dataset catalog](frontend/public/brand/02-datasets-catalog.png)
 
 ### Prepare
-Upload, label, annotate, split, preprocess, and version datasets without rewriting originals. Dataset Studio supports both computer vision and NLP formats, imports from the Hugging Face Hub, and data recipes that build datasets from your own documents.
-![Dataset Studio Image Segmentation](frontend/public/brand/3_dataset_studio_image_segmentation_task.png)
-![Dataset Studio Image Classification](frontend/public/brand/4_dataset_studio_image_clasification_task.png)
-![Dataset Studio NLP Classification](frontend/public/brand/5_dataset_studio_nlp_clasification_task.png)
-![Data Recipes](frontend/public/brand/9_data_recipes.png)
+Upload, label, annotate, split, preprocess, and version datasets without rewriting originals. One
+card creates a dataset from any source — **Files · HuggingFace · Documents · Empty** — and the
+**Data** tab opens on a single editable grid that works for images, text, and LLM records alike.
+
+The HuggingFace tab is a faceted browser: filter by modality, format, size, and task, and a dataset
+Orinth cannot import says so before you click it.
+
+![Dataset hub](frontend/public/brand/03-dataset-hub.png)
+
+The table is the default view because it is the only one that works for every modality — label and
+split are editable in place.
+
+![Dataset table](frontend/public/brand/04-dataset-table.png)
+
+Annotate gives every modality a labelling surface; for segmentation that is a polygon and box editor
+over the image itself.
+
+![Dataset annotation](frontend/public/brand/05-dataset-annotate.png)
+
+The same grid holds instruction/output pairs for LLM fine-tuning datasets.
+
+![LLM records](frontend/public/brand/06-dataset-records.png)
+
+Data recipes build datasets from your own documents, with optional LLM assistance.
+
+![Data recipes](frontend/public/brand/07-data-recipes.png)
 
 ### Train
-Run task-compatible training jobs from prepared datasets, utilizing the local Models Zoo — including LoRA/QLoRA/full LLM fine-tuning.
-![Available Trained Models](frontend/public/brand/5_available_trained_model_list.png)
-![Training Details](frontend/public/brand/6_training_details.png)
+Run task-compatible training jobs from prepared datasets, using the local model catalog — reference
+baselines, your trained models, and uploaded ones — including LoRA/QLoRA/full LLM fine-tuning.
+
+![Model catalog](frontend/public/brand/08-models.png)
+
+A run reports live progress, per-epoch loss and accuracy curves, and ROC/AUC when the task has them.
+
+![Training detail](frontend/public/brand/09-training-detail.png)
 
 ### Test
-Compare model behavior with task-aware metrics and per-item inspection.
-![Testing Comparison](frontend/public/brand/15_testing_comparison.png)
+Compare model behavior with task-aware metrics and per-item inspection: accuracy, macro and weighted
+F1, MCC, and a confusion matrix over the split.
+
+![Testing detail](frontend/public/brand/10-testing-detail.png)
 
 ### Inspect
-Keep model outputs, history, and dataset health visible for repeated iteration across all inference tasks.
-![Inference Image Segmentation](frontend/public/brand/7_inference_image_segmentation_task.png)
-![Inference Image Classification](frontend/public/brand/8_inference_image_clasification_task.png)
+Keep model outputs, history, and dataset health visible for repeated iteration across all inference
+tasks — masks and per-detection confidence for segmentation, per-class scores for classification.
+
+![Segmentation inference](frontend/public/brand/11-inference-segmentation.png)
+![Classification inference](frontend/public/brand/12-inference-classification.png)
 
 ### Serve & Chat
-Fine-tune a language model, export it to GGUF, serve it locally, and chat with sampler controls, web search, and a reasoning view.
-![LLM Chat](frontend/public/brand/12_llm_chat.png)
+Fine-tune a language model, export it to GGUF, serve it locally, and chat with sampler controls, web
+search, and a reasoning view. Throughput is reported per response.
+
+![LLM chat](frontend/public/brand/13-llm-chat.png)
 
 ### Explore in a notebook
 Run a real Jupyter kernel inside Orinth, in the same Python the platform uses. `import orinth`
 reaches every dataset and model in the workspace, and a cleaned dataframe registers straight back
 as a trainable dataset — no export, no second environment.
+
+![Notebook](frontend/public/brand/14-notebook.png)
 
 ### Drive it from a terminal
 The `orinth` CLI covers the whole flow — ingest, prep, train, test, infer — with human-readable
